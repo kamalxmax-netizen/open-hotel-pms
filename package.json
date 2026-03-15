@@ -1,0 +1,38 @@
+{
+  "name": "open-hotel-pms",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:with-smartcard": "node scripts/dev-with-smartcard.cjs",
+    "dev:clean": "rm -rf .next && next dev -H 127.0.0.1 -p 3000",
+    "build": "next build",
+    "build:clean": "rm -rf .next && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit --incremental false",
+    "smartcard:service": "node scripts/thai-card-service.cjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.97.0",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.3.1",
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.575.0",
+    "next": "^14.2.14",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-qr-code": "^2.0.18",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  }
+}

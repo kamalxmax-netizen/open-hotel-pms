@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Image Upload Helper</title></head>
+<body>
+<input type="file" id="imgInput" accept="image/*" style="display:none">
+<div id="output" style="word-break:break-all;font-size:10px;max-height:200px;overflow:auto;"></div>
+<script>
+window.receiveImage = function(name) {
+  document.getElementById('output').textContent = 'READY:' + name;
+};
+document.getElementById('imgInput').onchange = function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    window.__b64 = window.__b64 || {};
+    window.__b64[file.name] = ev.target.result;
+    document.getElementById('output').textContent = 'DONE:' + file.name + ':' + ev.target.result.length;
+  };
+  reader.readAsDataURL(file);
+};
+</script>
+</body>
+</html>

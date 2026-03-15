@@ -1,0 +1,351 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+/* ─── Types ─────────────────────────────────────────── */
+type RevenueDailyRoom = {
+    room_number: string;
+    floor_number: number;
+    is_occupied: boolean;
+    nightly_price: number;
+    guest_name: string | null;
+    booking_code: string | null;
+    source: string | null;
+    night_label: string | null;
+};
+
+type RevenueDailyDayUse = {
+    room_number: string;
+    sessions: number;
+    revenue: number;
+};
+
+type RevenueDailySummary = {
+    total_revenue: number;
+    room_revenue: number;
+    dayuse_revenue: number;
+    pos_revenue: number;
+    occupied_rooms: number;
+    occupancy_pct: number;
+    adr: number;
+};
+
+type RevenueDailyData = {
+    success: boolean;
+    business_date: string;
+    sellable_rooms: number;
+    rooms: RevenueDailyRoom[];
+    dayuse: RevenueDailyDayUse[];
+    pos_total: number;
+    summary: RevenueDailySummary;
+    error?: string;
+};
+
+/* ─── Helpers ───────────────────────────────────────── */
+function toLocalDate(d: Date) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function today() { return toLocalDate(new Date()); }
+
+function fmt(n: number) {
+    return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function fmtMoney(n: number) {
+    return `฿${fmt(n)}`;
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+    walkin: "Walk-in",
+    ota: "OTA",
+    direct: "Direct",
+    agent: "Agent"
+};
+
+const SOURCE_COLOR: Record<string, string> = {
+    walkin: "bg-sky-500",
+    ota: "bg-violet-500",
+    direct: "bg-emerald-500",
+    agent: "bg-amber-500"
+};
+
+/* ─── Components ────────────────────────────────────── */
+function KpiTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+    return (
+        <div className="card p-4 flex flex-col items-center justify-center text-center">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">{label}</div>
+            <div className="text-2xl font-bold text-slate-900">{value}</div>
+            {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+        </div>
+    );
+}
+
+/* ─── Page ──────────────────────────────────────────── */
+export default function RevenueDailyPage() {
+    const [date, setDate] = useState(today());
+    const [data, setData] = useState<RevenueDailyData | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const [floorFilter, setFloorFilter] = useState<string>("all");
+    const [showMode, setShowMode] = useState<"occupied" | "all">("occupied");
+    const [showDayUse, setShowDayUse] = useState(true);
+    const [showPos, setShowPos] = useState(true);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError("");
+        try {
+            const res = await fetch(`/api/reports/revenue-daily?date=${date}`);
+            const d = await res.json();
+            if (d.success) setData(d);
+            else setError(d.error ?? "Failed to load report");
+        } catch {
+            setError("Network error");
+        } finally {
+            setLoading(false);
+        }
+    }, [date]);
+
+    useEffect(() => { load(); }, [load]);
+
+    // Data Filtering & Grouping
+    const rooms = data?.rooms ?? [];
+
+    // Apply filters
+    const filteredRooms = rooms.filter(r => {
+        if (floorFilter !== "all" && String(r.floor_number) !== floorFilter) return false;
+        if (showMode === "occupied" && !r.is_occupied) return false;
+        return true;
+    });
+
+    const floors = Array.from(new Set(filteredRooms.map(r => r.floor_number))).sort((a, b) => b - a);
+
+    const dUserRooms = data?.dayuse ?? [];
+
+    const roomsTotal = floors.reduce((sum, floor) => sum + filteredRooms.filter(r => r.floor_number === floor).reduce((acc, r) => acc + (r.nightly_price || 0), 0), 0);
+    const duTotal = showDayUse ? (data?.summary.dayuse_revenue || 0) : 0;
+    const posTotal = showPos ? (data?.pos_total || 0) : 0;
+    const totalDisplayed = roomsTotal + duTotal + posTotal;
+
+    return (
+        <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full pb-20">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900">Revenue Daily Summary</h1>
+                    <p className="text-sm text-slate-500">Per-room breakdown of nightly revenue.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <input
+                        type="date"
+                        className="input max-w-[160px] cursor-pointer"
+                        value={date}
+                        onChange={e => setDate(e.target.value)}
+                    />
+                    <button className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
+                        {loading ? "..." : "🔄 Refresh"}
+                    </button>
+                </div>
+            </div>
+
+            {error && <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200">{error}</div>}
+
+            {/* Controls */}
+            <div className="card p-3 flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-600">Floor:</span>
+                    <select
+                        className="input py-1.5 px-3 text-sm"
+                        value={floorFilter}
+                        onChange={(e) => setFloorFilter(e.target.value)}
+                    >
+                        <option value="all">All</option>
+                        <option value="3">3</option>
+                        <option value="2">2</option>
+                        <option value="1">1</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-600">Show:</span>
+                    <select
+                        className="input py-1.5 px-3 text-sm"
+                        value={showMode}
+                        onChange={(e) => setShowMode(e.target.value as "occupied" | "all")}
+                    >
+                        <option value="occupied">Occupied Only</option>
+                        <option value="all">All non-blocked</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-4 border-l border-slate-200 pl-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showDayUse} onChange={(e) => setShowDayUse(e.target.checked)} />
+                        <span className="font-medium text-slate-700">Day Use</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} />
+                        <span className="font-medium text-slate-700">POS</span>
+                    </label>
+                </div>
+            </div>
+
+            {/* KPIs */}
+            {data && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KpiTile
+                        label="Total Revenue"
+                        value={fmtMoney(data.summary.total_revenue + (showPos ? data.summary.pos_revenue : 0))}
+                    />
+                    <KpiTile
+                        label="Occupied Rooms"
+                        value={`${data.summary.occupied_rooms} / ${data.sellable_rooms}`}
+                        sub="Overnight stays only"
+                    />
+                    <KpiTile
+                        label="Occupancy %"
+                        value={`${data.summary.occupancy_pct}%`}
+                    />
+                    <KpiTile
+                        label="ADR"
+                        value={fmtMoney(data.summary.adr)}
+                    />
+                </div>
+            )}
+
+            {/* Table */}
+            {data && (
+                <div className="card overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b border-slate-200">
+                                <tr>
+                                    <th className="px-4 py-3">Room</th>
+                                    <th className="px-4 py-3 text-right">Rate</th>
+                                    <th className="px-4 py-3">Source</th>
+                                    <th className="px-4 py-3">Night</th>
+                                    <th className="px-4 py-3 w-full">Guest</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {floors.map(floor => {
+                                    const floorRooms = filteredRooms.filter(r => r.floor_number === floor);
+                                    const floorRevenue = floorRooms.reduce((acc, r) => acc + (r.nightly_price || 0), 0);
+                                    const floorOccupied = floorRooms.filter(r => r.is_occupied).length;
+
+                                    return (
+                                        <div key={floor} className="contents">
+                                            {/* Floor Header */}
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-2 bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                                                    FLOOR {floor}
+                                                </td>
+                                            </tr>
+                                            {/* Rooms */}
+                                            {floorRooms.map(r => (
+                                                <tr key={r.room_number} className={`hover:bg-slate-50 transition-colors ${!r.is_occupied ? "text-slate-400 bg-slate-50/50" : ""}`}>
+                                                    <td className="px-4 py-3 font-medium">
+                                                        {r.room_number}
+                                                        {r.is_occupied && <span className="ml-2 inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" title="Occupied" />}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold">
+                                                        {!r.is_occupied ? "—" : (r.nightly_price === 0 ? <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full uppercase tracking-wider">Comp</span> : fmtMoney(r.nightly_price))}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {r.is_occupied && r.source ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`w-2 h-2 rounded-full ${SOURCE_COLOR[r.source.toLowerCase()] || "bg-slate-400"}`} />
+                                                                {SOURCE_LABEL[r.source.toLowerCase()] || r.source}
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-500">
+                                                        {r.is_occupied ? r.night_label : null}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {r.is_occupied ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-slate-800">{r.guest_name || "Unknown"}</span>
+                                                                {r.booking_code && <span className="text-xs text-slate-400">({r.booking_code})</span>}
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {/* Floor Subtotal */}
+                                            <tr className="bg-slate-50/50 text-xs text-slate-500">
+                                                <td colSpan={5} className="px-4 py-2 pl-6">
+                                                    (subtotal: <span className="font-semibold">{fmtMoney(floorRevenue)}</span> · {floorOccupied} occupied)
+                                                </td>
+                                            </tr>
+                                        </div>
+                                    );
+                                })}
+
+                                {showDayUse && dUserRooms.length > 0 && (() => {
+                                    return (
+                                        <>
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-2 bg-rose-50/50 font-bold text-rose-800 border-b border-rose-100">
+                                                    DAY USE
+                                                </td>
+                                            </tr>
+                                            {dUserRooms.map(du => (
+                                                <tr key={`du-${du.room_number}`} className="hover:bg-slate-50">
+                                                    <td className="px-4 py-3 font-medium">{du.room_number}</td>
+                                                    <td className="px-4 py-3 text-right font-semibold">{fmtMoney(du.revenue)}</td>
+                                                    <td className="px-4 py-3 text-slate-500">—</td>
+                                                    <td className="px-4 py-3 text-slate-500">{du.sessions} sess</td>
+                                                    <td className="px-4 py-3 font-semibold text-slate-800 text-sm">Day Use Daily Revenue</td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-rose-50/30 text-xs text-rose-600/70">
+                                                <td colSpan={5} className="px-4 py-2 pl-6">
+                                                    (subtotal: <span className="font-semibold">{fmtMoney(data.summary.dayuse_revenue)}</span>)
+                                                </td>
+                                            </tr>
+                                        </>
+                                    );
+                                })()}
+
+                                {showPos && data.pos_total > 0 && (() => {
+                                    return (
+                                        <>
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-2 bg-amber-50/50 font-bold text-amber-800 border-b border-amber-100">
+                                                    POS / F&B
+                                                </td>
+                                            </tr>
+                                            <tr className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 font-medium text-slate-700">POS</td>
+                                                <td className="px-4 py-3 text-right font-semibold">{fmtMoney(data.pos_total)}</td>
+                                                <td className="px-4 py-3" colSpan={3}></td>
+                                            </tr>
+                                        </>
+                                    )
+                                })()}
+
+                            </tbody>
+                            <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                                <tr>
+                                    <td className="px-4 py-4 font-black text-slate-800 text-lg uppercase tracking-wider">
+                                        Total
+                                    </td>
+                                    <td className="px-4 py-4 text-right font-black text-brand-700 text-xl">
+                                        {fmtMoney(totalDisplayed)}
+                                    </td>
+                                    <td colSpan={3}></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

@@ -1,0 +1,40 @@
+import Link from "next/link";
+
+const CARDS = [
+  {
+    href: "/pms/rates/plans",
+    title: "Rate Plans",
+    description: "Manage public, tier-based, and special profile pricing plans.",
+    accent: "bg-sky-50 border-sky-200 text-sky-800",
+  },
+  {
+    href: "/pms/rates",
+    title: "Rate Grid",
+    description: "Review daily room-type pricing and availability rules.",
+    accent: "bg-emerald-50 border-emerald-200 text-emerald-800",
+  },
+];
+
+export default function RateSetupPage() {
+  return (
+    <div className="max-w-5xl space-y-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Setup</p>
+        <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Rate Setup</h1>
+        <p className="text-sm text-slate-500 mt-1">Pricing configuration, rate plans, and room-type rate controls.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {CARDS.map((card) => (
+          <Link key={card.href} href={card.href} className={`rounded-2xl border p-5 transition hover:shadow-md ${card.accent}`}>
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold">{card.title}</h2>
+              <p className="text-sm opacity-80">{card.description}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Open Module</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}

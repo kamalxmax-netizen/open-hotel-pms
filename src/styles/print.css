@@ -1,0 +1,47 @@
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-container {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 16mm;
+    margin: 0 auto;
+    font-family: "Sarabun", "Noto Sans Thai", "Segoe UI", sans-serif;
+    color: #0f172a;
+    background: #ffffff;
+  }
+
+  .reg-card-container {
+    width: 210mm;
+    min-height: 148mm;
+    padding: 10mm 12mm;
+    margin: 0 auto;
+    font-family: "Sarabun", "Noto Sans Thai", "Segoe UI", sans-serif;
+    color: #0f172a;
+    background: #ffffff;
+    page: reg-card;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+@page reg-card {
+  size: A5 landscape;
+  margin: 8mm;
+}

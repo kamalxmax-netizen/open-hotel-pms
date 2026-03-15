@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คู่มือพนักงาน Hotel PMS — หมวด 2: การจอง → เช็คอิน → เช็คเอาท์</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #2563eb; --brand-light: #eff6ff; --brand-dark: #1e40af;
+    --green: #16a34a; --green-light: #f0fdf4;
+    --amber: #d97706; --amber-light: #fffbeb;
+    --red: #dc2626; --red-light: #fef2f2;
+    --purple: #7c3aed; --purple-light: #f5f3ff;
+    --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0;
+    --slate-400: #94a3b8; --slate-500: #64748b; --slate-600: #475569;
+    --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a;
+    --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Sarabun','Noto Sans Thai',system-ui,sans-serif; background: var(--slate-50); color: var(--slate-800); line-height: 1.7; font-size: 16px; }
+
+  /* LAYOUT */
+  .page-wrap { display: flex; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 256px; flex-shrink: 0; background: white;
+    border-right: 1px solid var(--slate-200);
+    position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 20px 0;
+  }
+  .sidebar-logo { padding: 0 16px 16px; border-bottom: 1px solid var(--slate-100); margin-bottom: 12px; }
+  .logo-badge { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:var(--brand); color:white; font-weight:800; border-radius:8px; font-size:14px; margin-bottom:6px; }
+  .sidebar-logo h2 { font-size:13px; font-weight:700; }
+  .sidebar-logo p { font-size:11px; color:var(--slate-400); }
+  .nav-group { padding: 0 10px; margin-bottom: 4px; }
+  .nav-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--slate-400); padding:8px 8px 4px; display:block; }
+  .nav-a { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; text-decoration:none; color:var(--slate-600); font-size:13.5px; font-weight:500; transition:all .15s; cursor:pointer; }
+  .nav-a:hover { background:var(--brand-light); color:var(--brand); }
+  .nav-a.active { background:var(--brand-light); color:var(--brand); font-weight:600; }
+
+  /* MAIN */
+  .main { flex:1; padding: 36px 44px; max-width: 980px; }
+
+  /* CHAPTER HEADER */
+  .chap-header {
+    background: linear-gradient(135deg, #0d9488, #0f766e);
+    border-radius: var(--radius); padding: 32px 36px; color:white; margin-bottom: 36px;
+  }
+  .chap-badge { display:inline-block; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:3px 12px; font-size:11px; font-weight:700; letter-spacing:.06em; margin-bottom:10px; }
+  .chap-header h1 { font-size:26px; font-weight:800; margin-bottom:6px; }
+  .chap-header p { font-size:14px; opacity:.85; }
+  .chap-meta { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .meta-pill { background:rgba(255,255,255,.15); border-radius:20px; padding:4px 12px; font-size:12px; }
+
+  /* PROGRESS */
+  .chap-progress { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:12px 16px; margin-bottom:28px; display:flex; align-items:center; gap:12px; }
+  .prog-label { font-size:12px; color:var(--slate-500); white-space:nowrap; }
+  .prog-bar { flex:1; height:5px; background:var(--slate-200); border-radius:3px; overflow:hidden; }
+  .prog-fill { height:100%; background:#0d9488; border-radius:3px; }
+  .prog-dots { display:flex; gap:5px; }
+  .prog-dot { width:26px; height:26px; border-radius:50%; border:2px solid var(--slate-200); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--slate-400); text-decoration:none; }
+  .prog-dot:hover { border-color:var(--brand); color:var(--brand); }
+  .prog-dot.done { border-color:#0d9488; background:#0d9488; color:white; }
+  .prog-dot.cur { border-color:#0d9488; background:#0d9488; color:white; box-shadow:0 0 0 3px rgba(13,148,136,.25); }
+
+  /* SECTION */
+  .section { margin-bottom: 48px; }
+  .sec-title { font-size:19px; font-weight:700; margin-bottom:5px; display:flex; align-items:center; gap:10px; }
+  .sec-num { width:30px; height:30px; background:#0d9488; color:white; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; }
+  .sec-desc { color:var(--slate-500); font-size:14px; margin-bottom:18px; padding-left:40px; }
+
+  /* CARD */
+  .card { background:white; border-radius:var(--radius); border:1px solid var(--slate-200); box-shadow:var(--shadow); overflow:hidden; margin-bottom:16px; }
+  .card-hd { padding:14px 18px; border-bottom:1px solid var(--slate-100); display:flex; align-items:center; gap:8px; }
+  .card-hd h3 { font-size:14px; font-weight:700; }
+  .card-bd { padding:18px; }
+
+  /* LIVE FRAME */
+  .live-frame-wrap { position:relative; border-radius:10px; overflow:hidden; border:1px solid var(--slate-200); box-shadow:var(--shadow-lg); background:#f8fafc; }
+  .live-frame-bar { background:var(--slate-800); padding:8px 14px; display:flex; align-items:center; gap:8px; }
+  .frame-dots { display:flex; gap:5px; }
+  .frame-dot { width:11px; height:11px; border-radius:50%; }
+  .fd-r { background:#ff5f57; } .fd-y { background:#ffbd2e; } .fd-g { background:#28c840; }
+  .frame-url { flex:1; background:rgba(255,255,255,.1); border-radius:5px; padding:3px 10px; font-size:11px; color:rgba(255,255,255,.7); font-family:monospace; }
+  .live-frame-badge { position:absolute; top:10px; right:10px; background:#22c55e; color:white; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:4px; z-index:2; }
+  .live-dot { width:6px; height:6px; border-radius:50%; background:white; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  iframe { display:block; width:100%; border:none; background:white; }
+
+  /* STEP FLOW */
+  .flow-pipeline { display:flex; align-items:stretch; gap:0; margin-bottom:20px; flex-wrap:wrap; }
+  .flow-step {
+    flex:1; min-width:110px; background:white; border:2px solid var(--slate-200);
+    border-radius:10px; padding:14px 10px; text-align:center; cursor:pointer;
+    transition:all .2s; position:relative; margin:4px;
+  }
+  .flow-step:hover { border-color:#0d9488; box-shadow:0 4px 12px rgba(13,148,136,.15); transform:translateY(-2px); }
+  .flow-step.active { border-color:#0d9488; background:#f0fdfa; box-shadow:0 4px 16px rgba(13,148,136,.2); }
+  .flow-icon { font-size:26px; margin-bottom:6px; }
+  .flow-label { font-size:12px; font-weight:700; color:var(--slate-700); line-height:1.3; }
+  .flow-sub { font-size:10px; color:var(--slate-400); margin-top:2px; }
+  .flow-step.active .flow-label { color:#0d9488; }
+  .flow-num { position:absolute; top:-8px; left:50%; transform:translateX(-50%); width:18px; height:18px; background:#0d9488; color:white; border-radius:50%; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+
+  .flow-detail { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:0; overflow:hidden; display:none; }
+  .flow-detail.show { display:block; }
+  .flow-detail-hd { padding:14px 18px; background:#f0fdfa; border-bottom:1px solid #ccfbf1; display:flex; align-items:center; gap:10px; }
+  .flow-detail-hd h4 { font-size:15px; font-weight:700; color:#0f766e; }
+  .flow-detail-bd { padding:18px; }
+
+  /* STEP LIST */
+  .step-list { list-style:none; }
+  .step-list li { display:flex; gap:12px; margin-bottom:14px; align-items:flex-start; }
+  .step-num-badge { width:24px; height:24px; border-radius:50%; background:#0d9488; color:white; font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
+  .step-content { flex:1; }
+  .step-content strong { display:block; font-size:14px; color:var(--slate-800); margin-bottom:2px; }
+  .step-content p { font-size:13.5px; color:var(--slate-600); }
+
+  /* FIELD TABLE */
+  .field-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .field-table th { background:var(--slate-50); padding:9px 12px; text-align:left; font-weight:700; font-size:12px; color:var(--slate-500); border-bottom:2px solid var(--slate-200); }
+  .field-table td { padding:9px 12px; border-bottom:1px solid var(--slate-100); vertical-align:top; }
+  .field-table tr:last-child td { border-bottom:none; }
+  .field-req { display:inline-block; background:#fef2f2; color:#dc2626; border-radius:4px; padding:1px 6px; font-size:11px; font-weight:700; }
+  .field-opt { display:inline-block; background:#f0fdf4; color:#16a34a; border-radius:4px; padding:1px 6px; font-size:11px; font-weight:700; }
+
+  /* TIP / WARN / NOTE */
+  .tip { background:#f0fdfa; border:1px solid #99f6e4; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#0f766e; display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+  .tip-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .warn { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#92400e; display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+  .note { background:var(--brand-light); border:1px solid #bfdbfe; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#1e40af; display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+
+  /* STATUS BADGES */
+  .badge { display:inline-flex; align-items:center; gap:4px; border-radius:20px; padding:3px 10px; font-size:12px; font-weight:700; }
+  .badge-active { background:#dcfce7; color:#16a34a; }
+  .badge-checkedout { background:#f1f5f9; color:#64748b; }
+  .badge-cancelled { background:#fee2e2; color:#dc2626; }
+  .badge-noshow { background:#fef3c7; color:#92400e; }
+
+  /* SOURCE BADGES */
+  .src-walkin { background:#e0f2fe; color:#0369a1; }
+  .src-ota { background:#f3e8ff; color:#7c3aed; }
+  .src-direct { background:#dcfce7; color:#15803d; }
+  .src-agent { background:#fef3c7; color:#92400e; }
+
+  /* GLOSSARY */
+  .gloss-search { width:100%; padding:10px 14px; border:1px solid var(--slate-200); border-radius:8px; font-size:14px; font-family:inherit; outline:none; transition:.15s; margin-bottom:16px; }
+  .gloss-search:focus { border-color:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,.15); }
+  .gloss-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .gloss-card { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:14px 16px; transition:.15s; }
+  .gloss-card:hover { border-color:#0d9488; box-shadow:0 2px 8px rgba(13,148,136,.1); }
+  .gloss-en { font-size:12px; font-weight:700; color:#0d9488; letter-spacing:.04em; margin-bottom:3px; }
+  .gloss-th { font-size:15px; font-weight:700; color:var(--slate-800); margin-bottom:4px; }
+  .gloss-def { font-size:13px; color:var(--slate-500); line-height:1.5; }
+  .gloss-card.hidden { display:none; }
+
+  /* SCREEN TABS */
+  .tab-bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:0; padding:12px 14px 0; background:white; border:1px solid var(--slate-200); border-bottom:none; border-radius:10px 10px 0 0; }
+  .tab-btn { padding:6px 14px; border-radius:6px 6px 0 0; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; border-bottom:none; color:var(--slate-500); background:var(--slate-50); transition:.15s; }
+  .tab-btn.active { background:#0d9488; color:white; border-color:#0d9488; }
+  .tab-btn:hover:not(.active) { background:var(--slate-100); color:var(--slate-700); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .tab-frame-wrap { border:1px solid var(--slate-200); border-radius:0 0 10px 10px; overflow:hidden; }
+
+  /* CALLOUT */
+  .callout { display:flex; gap:14px; background:white; border:1px solid var(--slate-200); border-radius:10px; padding:16px; margin-bottom:12px; }
+  .callout-icon { font-size:28px; flex-shrink:0; }
+  .callout-body strong { display:block; font-size:14px; font-weight:700; margin-bottom:4px; }
+  .callout-body p { font-size:13.5px; color:var(--slate-600); }
+
+  /* RESPONSIVE */
+  @media(max-width:768px) {
+    .sidebar { display:none; }
+    .main { padding:20px; }
+    .flow-pipeline { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">PMS</div>
+    <h2>คู่มือพนักงาน</h2>
+    <p>Hotel PMS · ฉบับภาษาไทย</p>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">หมวดวิชา</span>
+    <a class="nav-a" href="manual-chapter1.html">
+      <span>📋</span> หมวด 1 · ทำความรู้จักโปรแกรม
+    </a>
+    <a class="nav-a active" href="#">
+      <span>📝</span> หมวด 2 · การจอง → เช็คเอาท์
+    </a>
+    <a class="nav-a" href="#" style="opacity:.4;pointer-events:none;">
+      <span>🛏️</span> หมวด 3 · แม่บ้าน
+    </a>
+    <a class="nav-a" href="#" style="opacity:.4;pointer-events:none;">
+      <span>💳</span> หมวด 4 · การชำระเงิน
+    </a>
+    <a class="nav-a" href="#" style="opacity:.4;pointer-events:none;">
+      <span>🌙</span> หมวด 5 · Night Audit
+    </a>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">เนื้อหาหมวด 2</span>
+    <a class="nav-a" onclick="scrollTo('sec1')"><span>📝</span> §1 สร้างการจอง</a>
+    <a class="nav-a" onclick="scrollTo('sec2')"><span>🏨</span> §2 หน้าจอ Arrivals</a>
+    <a class="nav-a" onclick="scrollTo('sec3')"><span>✅</span> §3 เช็คอินแขก</a>
+    <a class="nav-a" onclick="scrollTo('sec4')"><span>🏠</span> §4 In-House</a>
+    <a class="nav-a" onclick="scrollTo('sec5')"><span>🚪</span> §5 เช็คเอาท์</a>
+    <a class="nav-a" onclick="scrollTo('sec6')"><span>📺</span> §6 หน้าจอสด</a>
+    <a class="nav-a" onclick="scrollTo('sec7')"><span>📚</span> §7 คำศัพท์</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- CHAPTER HEADER -->
+  <div class="chap-header">
+    <div class="chap-badge">CHAPTER 2 OF 5</div>
+    <h1>การจอง → เช็คอิน → เช็คเอาท์</h1>
+    <p>ขั้นตอนหลักของ Front Desk ตั้งแต่รับจองจนแขกเช็คเอาท์ — ครบทุกขั้นตอนพร้อมหน้าจอจริง</p>
+    <div class="chap-meta">
+      <span class="meta-pill">⏱ เวลาเรียน ~25 นาที</span>
+      <span class="meta-pill">👤 Front Desk</span>
+      <span class="meta-pill">⭐ สำคัญมาก</span>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="chap-progress">
+    <span class="prog-label">ความคืบหน้า</span>
+    <div class="prog-bar"><div class="prog-fill" style="width:40%"></div></div>
+    <div class="prog-dots">
+      <a class="prog-dot done" href="manual-chapter1.html" title="หมวด 1">1</a>
+      <span class="prog-dot cur" title="หมวด 2 (กำลังเรียน)">2</span>
+      <span class="prog-dot" title="หมวด 3">3</span>
+      <span class="prog-dot" title="หมวด 4">4</span>
+      <span class="prog-dot" title="หมวด 5">5</span>
+    </div>
+  </div>
+
+  <!-- BIG FLOW OVERVIEW -->
+  <div class="section">
+    <p style="font-size:13px;color:var(--slate-500);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">ภาพรวมขั้นตอนทั้งหมดในหมวดนี้</p>
+    <div class="flow-pipeline">
+      <div class="flow-step active" onclick="showFlow('f1')">
+        <div class="flow-num">1</div>
+        <div class="flow-icon">📝</div>
+        <div class="flow-label">สร้างการจอง</div>
+        <div class="flow-sub">Reservations</div>
+      </div>
+      <div class="flow-step" onclick="showFlow('f2')">
+        <div class="flow-num">2</div>
+        <div class="flow-icon">🏨</div>
+        <div class="flow-label">กำหนดห้อง</div>
+        <div class="flow-sub">Assign Room</div>
+      </div>
+      <div class="flow-step" onclick="showFlow('f3')">
+        <div class="flow-num">3</div>
+        <div class="flow-icon">✅</div>
+        <div class="flow-label">เช็คอิน</div>
+        <div class="flow-sub">Check-in</div>
+      </div>
+      <div class="flow-step" onclick="showFlow('f4')">
+        <div class="flow-num">4</div>
+        <div class="flow-icon">🏠</div>
+        <div class="flow-label">อยู่ในโรงแรม</div>
+        <div class="flow-sub">In-House</div>
+      </div>
+      <div class="flow-step" onclick="showFlow('f5')">
+        <div class="flow-num">5</div>
+        <div class="flow-icon">🚪</div>
+        <div class="flow-label">เช็คเอาท์</div>
+        <div class="flow-sub">Check-out</div>
+      </div>
+    </div>
+
+    <!-- Flow Detail Panels -->
+    <div class="flow-detail show" id="f1">
+      <div class="flow-detail-hd"><span style="font-size:20px">📝</span><h4>ขั้นตอน 1 — สร้างการจอง (New Booking)</h4></div>
+      <div class="flow-detail-bd">
+        <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:12px;">พนักงาน Front Desk รับข้อมูลแขก แล้วบันทึกเป็น Reservation ในระบบ ก่อนแขกจะเดินทางมาถึง</p>
+        <div class="tip"><span class="tip-icon">💡</span> กด <strong>+ New Booking</strong> ที่มุมขวาบนของหน้า Reservations เพื่อเปิดฟอร์มสร้างการจองใหม่</div>
+        <div class="warn"><span class="tip-icon">⚠️</span> ต้องระบุ ชื่อแขก, ประเภทห้อง, วันเช็คอิน และวันเช็คเอาท์เสมอ — ฟิลด์เหล่านี้บังคับกรอก</div>
+      </div>
+    </div>
+    <div class="flow-detail" id="f2">
+      <div class="flow-detail-hd"><span style="font-size:20px">🏨</span><h4>ขั้นตอน 2 — กำหนดห้อง (Assign Room)</h4></div>
+      <div class="flow-detail-bd">
+        <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:12px;">หลังสร้างการจองแล้ว ต้องเลือกห้องให้แขก ทำได้จากหน้า Arrivals หรือจากในฟอร์มการจอง</p>
+        <div class="tip"><span class="tip-icon">💡</span> ใช้ปุ่ม <strong>Auto-Assign All</strong> ถ้าต้องการให้ระบบจัดห้องอัตโนมัติตามประเภทห้องที่จอง</div>
+        <div class="note"><span class="tip-icon">📌</span> ถ้าแขกขอห้องชั้นสูง หรือวิวพิเศษ ต้องกำหนดห้องด้วยตนเองโดยกด <strong>Assign</strong> แล้วเลือกห้องจากรายการ</div>
+      </div>
+    </div>
+    <div class="flow-detail" id="f3">
+      <div class="flow-detail-hd"><span style="font-size:20px">✅</span><h4>ขั้นตอน 3 — เช็คอิน (Check-in)</h4></div>
+      <div class="flow-detail-bd">
+        <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:12px;">เมื่อแขกมาถึงเคาน์เตอร์ หา Booking ในหน้า Arrivals แล้วกด Check-in — ระบบจะบันทึกเวลาเช็คอินอัตโนมัติ</p>
+        <div class="tip"><span class="tip-icon">💡</span> ก่อนเช็คอิน ตรวจสอบว่าห้องพร้อม (สถานะ Clean) แล้ว มิเช่นนั้นต้องรอแม่บ้านทำความสะอาดก่อน</div>
+        <div class="warn"><span class="tip-icon">⚠️</span> Early Check-in ก่อนเวลา 14:00 อาจมีค่าธรรมเนียม — ระบบจะแจ้งเตือนให้ยืนยันก่อนดำเนินการ</div>
+      </div>
+    </div>
+    <div class="flow-detail" id="f4">
+      <div class="flow-detail-hd"><span style="font-size:20px">🏠</span><h4>ขั้นตอน 4 — อยู่ในโรงแรม (In-House)</h4></div>
+      <div class="flow-detail-bd">
+        <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:12px;">หน้า In-House แสดงรายชื่อแขกที่เช็คอินแล้วทั้งหมด สามารถดูรายละเอียด ย้ายห้อง เพิ่มค่าใช้จ่าย หรือดู Folio ได้จากที่นี่</p>
+        <div class="tip"><span class="tip-icon">💡</span> กด <strong>… Options</strong> เพื่อเข้าถึงเมนูพิเศษ เช่น เพิ่ม Extra Charge, ย้ายห้อง, เพิ่ม Note, ดู Folio</div>
+      </div>
+    </div>
+    <div class="flow-detail" id="f5">
+      <div class="flow-detail-hd"><span style="font-size:20px">🚪</span><h4>ขั้นตอน 5 — เช็คเอาท์ (Check-out)</h4></div>
+      <div class="flow-detail-bd">
+        <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:12px;">เมื่อแขกพร้อมเช็คเอาท์ ไปที่หน้า Departures แล้วกด Check-out — ระบบจะแสดงยอดค้างชำระก่อนปิดการเข้าพัก</p>
+        <div class="tip"><span class="tip-icon">💡</span> ตรวจยอดทุกรายการใน Folio ให้ถูกต้องก่อนกดยืนยัน Check-out เพราะแก้ไขได้ยากหลังจากนั้น</div>
+        <div class="warn"><span class="tip-icon">⚠️</span> Late Check-out หลังเวลา 12:00 อาจมีค่าธรรมเนียม — ตรวจสอบ Policy ของโรงแรมก่อนแจ้งแขก</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §1 สร้างการจอง -->
+  <div class="section" id="sec1">
+    <div class="sec-title">
+      <span class="sec-num">1</span>
+      สร้างการจองใหม่ (New Booking)
+    </div>
+    <div class="sec-desc">หน้า Reservations คือศูนย์กลางบริหารการจองทั้งหมด — ค้นหา แก้ไข ยกเลิก และสร้างใหม่ได้จากที่เดียว</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📺</span><h3>หน้าจอ Reservations จริง</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots"><div class="frame-dot fd-r"></div><div class="frame-dot fd-y"></div><div class="frame-dot fd-g"></div></div>
+            <div class="frame-url">localhost:3000/pms/reservations</div>
+            <div style="background:#22c55e;color:white;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:4px;"><div class="live-dot"></div>LIVE</div>
+          </div>
+          <iframe src="http://localhost:3000/pms/reservations" height="420" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>🔍</span><h3>คำอธิบายส่วนต่างๆ บนหน้า Reservations</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th>ส่วนที่</th><th>ชื่อภาษาอังกฤษ</th><th>ความหมายและการใช้งาน</th></tr></thead>
+          <tbody>
+            <tr><td>ปุ่มสีน้ำเงิน บนขวา</td><td><strong>+ New Booking</strong></td><td>กดเพื่อเปิดฟอร์มสร้างการจองใหม่</td></tr>
+            <tr><td>ช่องค้นหา</td><td><strong>Guest Name</strong></td><td>พิมพ์ชื่อแขกเพื่อกรองรายการ</td></tr>
+            <tr><td>ดรอปดาวน์</td><td><strong>Status</strong></td><td>กรองตามสถานะ: Active / Checked Out / Cancelled / No Show</td></tr>
+            <tr><td>ดรอปดาวน์</td><td><strong>Source</strong></td><td>กรองตามแหล่งจอง: Walk-in / OTA / Direct / Agent</td></tr>
+            <tr><td>ช่องวันที่</td><td><strong>Date From / Date To</strong></td><td>กรองตามช่วงวันเช็คอิน</td></tr>
+            <tr><td>ตาราง</td><td><strong>Room / Guest / Total / Status</strong></td><td>รายชื่อการจองทั้งหมดตามฟิลเตอร์ที่เลือก</td></tr>
+            <tr><td>ปุ่ม Edit</td><td><strong>Edit</strong></td><td>เปิดฟอร์มแก้ไขข้อมูลการจอง</td></tr>
+            <tr><td>ปุ่มแดง</td><td><strong>Cancel</strong></td><td>ยกเลิกการจอง — ระบบจะถามค่า Cancellation Fee</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>📋</span><h3>ขั้นตอนสร้างการจองใหม่ทีละขั้น</h3></div>
+      <div class="card-bd">
+        <ul class="step-list">
+          <li>
+            <span class="step-num-badge">1</span>
+            <div class="step-content">
+              <strong>เปิดหน้า Reservations</strong>
+              <p>คลิก "Reservations" ในแถบเมนูซ้ายมือ ใต้กลุ่ม Front Desk</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">2</span>
+            <div class="step-content">
+              <strong>กดปุ่ม + New Booking</strong>
+              <p>ปุ่มสีน้ำเงินมุมขวาบน — ฟอร์มสร้างการจองจะเปิดขึ้นมาเป็น Modal</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">3</span>
+            <div class="step-content">
+              <strong>กรอกข้อมูลแขก</strong>
+              <p>ชื่อ-นามสกุล, เบอร์โทรศัพท์ (ถ้ามี), สัญชาติ — ระบบจะค้นหา Guest Profile ที่มีอยู่ให้อัตโนมัติ</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">4</span>
+            <div class="step-content">
+              <strong>เลือกประเภทห้องและวันที่</strong>
+              <p>เลือก Room Type, วันเช็คอิน, วันเช็คเอาท์ — ระบบจะคำนวณจำนวนคืนและราคาให้อัตโนมัติ</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">5</span>
+            <div class="step-content">
+              <strong>ตรวจสอบ Rate Plan และราคา</strong>
+              <p>ดูส่วน Rate Summary ด้านขวา — ตรวจจำนวนคืนและยอดรวมให้ถูกต้อง</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">6</span>
+            <div class="step-content">
+              <strong>เลือก Source (แหล่งที่มา)</strong>
+              <p>Walk-in = แขกเดินเข้า, Direct = จองตรง, OTA = จองผ่านแอป (Agoda, Booking.com), Agent = ผ่านตัวแทน</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">7</span>
+            <div class="step-content">
+              <strong>กด Save / Create Booking</strong>
+              <p>กดบันทึก — ระบบสร้าง Booking Code ให้อัตโนมัติ (เช่น BK-2026-0001) และการจองจะปรากฏในรายการ</p>
+            </div>
+          </li>
+        </ul>
+
+        <div class="tip"><span class="tip-icon">💡</span> <strong>Guest Match:</strong> เมื่อพิมพ์ชื่อแขก ระบบจะค้นหา Profile ที่มีอยู่แล้วให้อัตโนมัติ — ถ้าแขกเคยมาพักก่อนแนะนำให้เลือก Profile เดิมเพื่อให้ประวัติการเข้าพักครบถ้วน</div>
+
+        <div style="margin-top:14px;">
+          <p style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--slate-700);">สัญลักษณ์ Status ในตารางการจอง:</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="badge badge-active">● Active</span>
+            <span class="badge badge-checkedout">✓ Checked Out</span>
+            <span class="badge badge-cancelled">✕ Cancelled</span>
+            <span class="badge badge-noshow">! No Show</span>
+          </div>
+          <p style="font-size:12px;color:var(--slate-400);margin-top:6px;">แหล่งที่มา: <span class="badge src-walkin">Walk-in</span> <span class="badge src-ota">OTA</span> <span class="badge src-direct">Direct</span> <span class="badge src-agent">Agent</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §2 Arrivals -->
+  <div class="section" id="sec2">
+    <div class="sec-title">
+      <span class="sec-num">2</span>
+      หน้าจอ Arrivals — รายการแขกที่จะเข้าพักวันนี้
+    </div>
+    <div class="sec-desc">Arrivals แสดงเฉพาะการจองที่มีวันเช็คอินตรงกับวันธุรกิจปัจจุบัน — เป็นจุดเริ่มต้นของกระบวนการเช็คอิน</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📺</span><h3>หน้าจอ Arrivals จริง</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots"><div class="frame-dot fd-r"></div><div class="frame-dot fd-y"></div><div class="frame-dot fd-g"></div></div>
+            <div class="frame-url">localhost:3000/pms/arrivals</div>
+            <div style="background:#22c55e;color:white;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:4px;"><div class="live-dot"></div>LIVE</div>
+          </div>
+          <iframe src="http://localhost:3000/pms/arrivals" height="380" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>🔍</span><h3>ปุ่มและฟีเจอร์ในหน้า Arrivals</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th>ปุ่ม / ส่วน</th><th>ทำอะไร</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Auto-Assign All</strong></td><td>ระบบจัดห้องให้ทุก Booking อัตโนมัติตามประเภทห้อง — ใช้ตอนตอนเช้าก่อนแขกมา</td></tr>
+            <tr><td><strong>Refresh</strong></td><td>โหลดรายการใหม่ — ใช้เมื่อต้องการดูข้อมูลล่าสุด</td></tr>
+            <tr><td><strong>ช่องค้นหา</strong></td><td>ค้นหาตามชื่อ, เบอร์โทร, Booking Code หรือ OTA reference</td></tr>
+            <tr><td><strong>Assign (ปุ่มน้ำเงิน)</strong></td><td>เลือกห้องด้วยตนเองสำหรับแขกรายนั้น</td></tr>
+            <tr><td><strong>Check-in (ปุ่มเขียว)</strong></td><td>เช็คอินแขก — ระบบบันทึกเวลาและเปลี่ยนสถานะเป็น In-House</td></tr>
+            <tr><td><strong>… Options</strong></td><td>เมนูเพิ่มเติม: ดู Folio, เพิ่ม Note, Mark No Show</td></tr>
+            <tr><td><strong>ไอคอน 🟠 หรือ 🔴</strong></td><td>แจ้งเตือน: Open Traces (งานค้าง) หรือ Alert สำคัญของแขก</td></tr>
+          </tbody>
+        </table>
+        <div class="warn" style="margin-top:12px;"><span class="tip-icon">⚠️</span> ถ้าไม่มีการจองในหน้า Arrivals แต่แขกมาถึงแล้ว — ให้ไปสร้าง Walk-in Booking ใหม่ที่หน้า Reservations แล้วกลับมาเช็คอิน</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §3 เช็คอิน -->
+  <div class="section" id="sec3">
+    <div class="sec-title">
+      <span class="sec-num">3</span>
+      กระบวนการเช็คอิน (Check-in Process)
+    </div>
+    <div class="sec-desc">เมื่อแขกมาถึงเคาน์เตอร์ — ทำตามขั้นตอนนี้ทุกครั้ง เพื่อให้การเช็คอินสมบูรณ์และข้อมูลถูกต้อง</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📋</span><h3>ขั้นตอนเช็คอินทีละขั้น</h3></div>
+      <div class="card-bd">
+        <ul class="step-list">
+          <li>
+            <span class="step-num-badge">1</span>
+            <div class="step-content">
+              <strong>ค้นหา Booking ของแขก</strong>
+              <p>เปิดหน้า <strong>Arrivals</strong> แล้วพิมพ์ชื่อแขกในช่องค้นหา หรือค้นด้วย Booking Code / เบอร์โทร</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">2</span>
+            <div class="step-content">
+              <strong>ตรวจสอบห้องที่กำหนดไว้</strong>
+              <p>ดูเลขห้องในแถว — ถ้ายังไม่มีห้อง กด <strong>Assign</strong> เพื่อเลือกห้องก่อน</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">3</span>
+            <div class="step-content">
+              <strong>กด View Details เพื่อตรวจสอบข้อมูล</strong>
+              <p>ตรวจชื่อ, ประเภทห้อง, วันที่, ยอดเงิน ให้ถูกต้องก่อนเช็คอิน</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">4</span>
+            <div class="step-content">
+              <strong>กด Check-in (ปุ่มสีเขียว)</strong>
+              <p>ระบบจะแสดง Modal ยืนยันพร้อมเวลาเช็คอิน — ถ้า Early Check-in จะมีแจ้งเตือนค่าธรรมเนียม</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">5</span>
+            <div class="step-content">
+              <strong>ยืนยันและเสร็จสิ้น</strong>
+              <p>กด Confirm Check-in — ระบบบันทึกเวลา, เปลี่ยนสถานะห้องเป็น Occupied, แขกย้ายไปหน้า In-House</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="callout">
+        <div class="callout-icon">🕐</div>
+        <div class="callout-body">
+          <strong>Early Check-in</strong>
+          <p>เช็คอินก่อน 14:00 — ระบบถามค่าธรรมเนียม Early Check-in ตาม Policy ที่ตั้งไว้</p>
+        </div>
+      </div>
+      <div class="callout">
+        <div class="callout-icon">❌</div>
+        <div class="callout-body">
+          <strong>No Show</strong>
+          <p>แขกไม่มาตามกำหนด — กด <strong>… Options → Mark No Show</strong> เพื่อบันทึกและเก็บค่าธรรมเนียม (ถ้ามี)</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip"><span class="tip-icon">💡</span> <strong>Registration Card:</strong> สามารถพิมพ์ใบ Registration Card ให้แขกเซ็นได้จากในฟอร์มการจอง (กด Print → Registration Card) — ใช้บันทึกข้อมูลเพื่อตรวจสอบตัวตน</div>
+  </div>
+
+  <!-- §4 In-House -->
+  <div class="section" id="sec4">
+    <div class="sec-title">
+      <span class="sec-num">4</span>
+      ดูแลแขกที่เข้าพัก (In-House)
+    </div>
+    <div class="sec-desc">หน้า In-House แสดงแขกทุกคนที่กำลังเข้าพักอยู่ในโรงแรม — ใช้บริหารระหว่างพัก เช่น ย้ายห้อง เพิ่มค่าใช้จ่าย และดู Folio</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📺</span><h3>หน้าจอ In-House จริง</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots"><div class="frame-dot fd-r"></div><div class="frame-dot fd-y"></div><div class="frame-dot fd-g"></div></div>
+            <div class="frame-url">localhost:3000/pms/inhouse</div>
+            <div style="background:#22c55e;color:white;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:4px;"><div class="live-dot"></div>LIVE</div>
+          </div>
+          <iframe src="http://localhost:3000/pms/inhouse" height="420" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>🔍</span><h3>ปุ่มและฟีเจอร์ในหน้า In-House</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th>ปุ่ม / ส่วน</th><th>ทำอะไร</th></tr></thead>
+          <tbody>
+            <tr><td><strong>View Details</strong></td><td>เปิดฟอร์มรายละเอียดการจอง — แก้ไขข้อมูล, ดู Folio, เพิ่ม Note</td></tr>
+            <tr><td><strong>Move Room</strong></td><td>ย้ายแขกไปห้องอื่น — ระบบจะแสดงรายการห้องว่างให้เลือก</td></tr>
+            <tr><td><strong>… Options</strong></td><td>เมนูเพิ่มเติม: Post Charge, Folio, Traces, Notes, ต่อการเข้าพัก</td></tr>
+            <tr><td><strong>G-xxx (badge สีม่วง)</strong></td><td>การจองกลุ่ม — คลิกเพื่อไปหน้า Group Bookings ของกลุ่มนั้น</td></tr>
+            <tr><td><strong>ไอคอน 🟠🔴</strong></td><td>จำนวน Open Traces / Alert ที่ยังไม่ได้จัดการ</td></tr>
+            <tr><td><strong>Nights Remaining</strong></td><td>จำนวนคืนที่เหลือ — แสดงสีส้มถ้าเหลือ 1 คืน (กำลังจะ Check-out)</td></tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top:16px;">
+          <p style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--slate-700);">การเพิ่มค่าใช้จ่ายระหว่างพัก (Post Charge)</p>
+          <ul class="step-list">
+            <li>
+              <span class="step-num-badge">1</span>
+              <div class="step-content">
+                <strong>กด … Options → Post Charge</strong>
+                <p>เปิดหน้าต่างเพิ่มค่าใช้จ่าย</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-num-badge">2</span>
+              <div class="step-content">
+                <strong>เลือกประเภทค่าใช้จ่ายและกรอกจำนวนเงิน</strong>
+                <p>เช่น Mini Bar, Restaurant, Laundry, Extra Bed ฯลฯ</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-num-badge">3</span>
+              <div class="step-content">
+                <strong>กด Post — รายการจะเพิ่มใน Folio</strong>
+                <p>แขกจะต้องชำระยอดนี้ตอน Check-out</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="note"><span class="tip-icon">📌</span> <strong>Folio</strong> คือใบบัญชีรายละเอียดค่าใช้จ่ายของแขกแต่ละราย — เปิดดูได้จาก View Details → แท็บ Folio หรือจาก … Options → Folio</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §5 Check-out -->
+  <div class="section" id="sec5">
+    <div class="sec-title">
+      <span class="sec-num">5</span>
+      กระบวนการเช็คเอาท์ (Check-out Process)
+    </div>
+    <div class="sec-desc">หน้า Departures แสดงรายชื่อแขกที่มีวันเช็คเอาท์วันนี้ — เป็นจุดสิ้นสุดของการเข้าพัก</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📺</span><h3>หน้าจอ Departures จริง</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots"><div class="frame-dot fd-r"></div><div class="frame-dot fd-y"></div><div class="frame-dot fd-g"></div></div>
+            <div class="frame-url">localhost:3000/pms/departures</div>
+            <div style="background:#22c55e;color:white;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;display:flex;align-items:center;gap:4px;"><div class="live-dot"></div>LIVE</div>
+          </div>
+          <iframe src="http://localhost:3000/pms/departures" height="380" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>📋</span><h3>ขั้นตอนเช็คเอาท์ทีละขั้น</h3></div>
+      <div class="card-bd">
+        <ul class="step-list">
+          <li>
+            <span class="step-num-badge">1</span>
+            <div class="step-content">
+              <strong>เปิดหน้า Departures</strong>
+              <p>คลิก "Departures" ในเมนูซ้าย — รายชื่อแขกวันนี้จะปรากฏ</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">2</span>
+            <div class="step-content">
+              <strong>ค้นหาแขกและตรวจสอบยอด</strong>
+              <p>ดูคอลัมน์ Total เปรียบเทียบกับยอดที่ได้ชำระไว้แล้ว</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">3</span>
+            <div class="step-content">
+              <strong>กด Check-out บนแถวของแขก</strong>
+              <p>ระบบจะเปิด Modal แสดงรายละเอียด Folio ก่อนยืนยัน</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">4</span>
+            <div class="step-content">
+              <strong>ตรวจสอบ Folio ให้ครบ</strong>
+              <p>ตรวจทุกรายการค่าใช้จ่าย — ถ้ามียอดค้าง ต้องชำระก่อนดำเนินการต่อ</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num-badge">5</span>
+            <div class="step-content">
+              <strong>ยืนยัน Check-out</strong>
+              <p>กด Confirm — ระบบเปลี่ยนสถานะห้องเป็น Dirty (รอทำความสะอาด) และการจองเป็น Checked Out</p>
+            </div>
+          </li>
+        </ul>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div class="callout">
+            <div class="callout-icon">🕛</div>
+            <div class="callout-body">
+              <strong>Late Check-out</strong>
+              <p>เช็คเอาท์หลัง 12:00 อาจมีค่าธรรมเนียม — แจ้งแขกก่อนยืนยัน</p>
+            </div>
+          </div>
+          <div class="callout">
+            <div class="callout-icon">🧹</div>
+            <div class="callout-body">
+              <strong>หลัง Check-out</strong>
+              <p>ห้องจะเปลี่ยนเป็น Dirty อัตโนมัติ — แม่บ้านจะเห็นในหน้า Housekeeping</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn"><span class="tip-icon">⚠️</span> ถ้าแขกต้องการใบเสร็จ/Invoice — พิมพ์จาก Folio ก่อนกด Check-out เพราะหลังจากนั้นต้องเข้าไปค้นหาในหน้า Reservations แล้วใช้ปุ่ม View</div>
+  </div>
+
+  <!-- §6 หน้าจอสด -->
+  <div class="section" id="sec6">
+    <div class="sec-title">
+      <span class="sec-num">6</span>
+      ดูหน้าจอสดทุกหน้าในที่เดียว
+    </div>
+    <div class="sec-desc">คลิกแท็บด้านล่างเพื่อสลับดูหน้าจอสดของแต่ละขั้นตอน</div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(this,'t-res')">📝 Reservations</button>
+      <button class="tab-btn" onclick="switchTab(this,'t-arr')">🏨 Arrivals</button>
+      <button class="tab-btn" onclick="switchTab(this,'t-inh')">🏠 In-House</button>
+      <button class="tab-btn" onclick="switchTab(this,'t-dep')">🚪 Departures</button>
+    </div>
+    <div class="tab-frame-wrap">
+      <div class="tab-panel active" id="t-res">
+        <iframe src="http://localhost:3000/pms/reservations" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="t-arr">
+        <iframe src="http://localhost:3000/pms/arrivals" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="t-inh">
+        <iframe src="http://localhost:3000/pms/inhouse" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="t-dep">
+        <iframe src="http://localhost:3000/pms/departures" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- §7 คำศัพท์ -->
+  <div class="section" id="sec7">
+    <div class="sec-title">
+      <span class="sec-num">7</span>
+      คำศัพท์สำคัญในหมวดนี้
+    </div>
+    <div class="sec-desc">คำภาษาอังกฤษที่ใช้ในโปรแกรม — พิมพ์ค้นหาได้เลย</div>
+
+    <input class="gloss-search" type="text" placeholder="🔍 พิมพ์คำค้นหา..." oninput="filterGloss(this.value)">
+    <div class="gloss-grid" id="glossGrid">
+
+      <div class="gloss-card" data-kw="reservation booking จอง">
+        <div class="gloss-en">RESERVATION / BOOKING</div>
+        <div class="gloss-th">การจองห้องพัก</div>
+        <div class="gloss-def">บันทึกล่วงหน้าว่าแขกจะมาพัก — ระบุชื่อ ห้อง วันเข้า-ออก และราคา</div>
+      </div>
+
+      <div class="gloss-card" data-kw="booking code รหัสการจอง">
+        <div class="gloss-en">BOOKING CODE</div>
+        <div class="gloss-th">รหัสการจอง</div>
+        <div class="gloss-def">รหัสเฉพาะของการจองแต่ละรายการ เช่น BK-2026-0001 — ใช้อ้างอิงและค้นหา</div>
+      </div>
+
+      <div class="gloss-card" data-kw="check-in เช็คอิน">
+        <div class="gloss-en">CHECK-IN</div>
+        <div class="gloss-th">เช็คอิน</div>
+        <div class="gloss-def">กระบวนการรับแขกเข้าพัก — บันทึกเวลามาถึงและมอบกุญแจห้อง</div>
+      </div>
+
+      <div class="gloss-card" data-kw="check-out เช็คเอาท์">
+        <div class="gloss-en">CHECK-OUT</div>
+        <div class="gloss-th">เช็คเอาท์</div>
+        <div class="gloss-def">กระบวนการส่งมอบห้องคืน — ชำระยอดค้างชำระและปิดการเข้าพัก</div>
+      </div>
+
+      <div class="gloss-card" data-kw="in-house อยู่ในโรงแรม">
+        <div class="gloss-en">IN-HOUSE</div>
+        <div class="gloss-th">แขกที่กำลังเข้าพัก</div>
+        <div class="gloss-def">สถานะของแขกที่เช็คอินแล้วและยังไม่ได้เช็คเอาท์ — อยู่ในโรงแรม</div>
+      </div>
+
+      <div class="gloss-card" data-kw="folio ใบบัญชี">
+        <div class="gloss-en">FOLIO</div>
+        <div class="gloss-th">ใบบัญชีค่าใช้จ่ายแขก</div>
+        <div class="gloss-def">รายการค่าใช้จ่ายทั้งหมดของแขกในการเข้าพักครั้งนี้ — ใช้ชำระตอน Check-out</div>
+      </div>
+
+      <div class="gloss-card" data-kw="arrivals วันนี้แขกมา">
+        <div class="gloss-en">ARRIVALS</div>
+        <div class="gloss-th">รายการแขกที่จะมาวันนี้</div>
+        <div class="gloss-def">หน้าจอแสดงเฉพาะ Booking ที่มีวันเช็คอินตรงกับวันธุรกิจปัจจุบัน</div>
+      </div>
+
+      <div class="gloss-card" data-kw="departures วันนี้แขกออก">
+        <div class="gloss-en">DEPARTURES</div>
+        <div class="gloss-th">รายการแขกที่จะออกวันนี้</div>
+        <div class="gloss-def">หน้าจอแสดงเฉพาะแขกที่มีวันเช็คเอาท์ตรงกับวันธุรกิจปัจจุบัน</div>
+      </div>
+
+      <div class="gloss-card" data-kw="assign room กำหนดห้อง">
+        <div class="gloss-en">ASSIGN ROOM</div>
+        <div class="gloss-th">กำหนดห้องให้แขก</div>
+        <div class="gloss-def">เลือกเลขห้องเฉพาะให้กับการจอง — ทำก่อนเช็คอินเสมอ</div>
+      </div>
+
+      <div class="gloss-card" data-kw="walk-in แขกเดินเข้า">
+        <div class="gloss-en">WALK-IN</div>
+        <div class="gloss-th">แขกเดินเข้าโดยไม่ได้จองล่วงหน้า</div>
+        <div class="gloss-def">แขกที่มาที่เคาน์เตอร์โดยตรงโดยไม่มี Booking ล่วงหน้า — ต้องสร้าง Booking ใหม่ทันที</div>
+      </div>
+
+      <div class="gloss-card" data-kw="ota online travel agent">
+        <div class="gloss-en">OTA</div>
+        <div class="gloss-th">ตัวแทนจองออนไลน์</div>
+        <div class="gloss-def">Online Travel Agent — แพลตฟอร์มจองห้องพักออนไลน์ เช่น Agoda, Booking.com, Expedia</div>
+      </div>
+
+      <div class="gloss-card" data-kw="no show ไม่มา">
+        <div class="gloss-en">NO SHOW</div>
+        <div class="gloss-th">แขกไม่มาตามกำหนด</div>
+        <div class="gloss-def">แขกมี Booking แต่ไม่มาเช็คอินในวันที่กำหนด — ระบบให้บันทึกและเก็บค่าธรรมเนียม</div>
+      </div>
+
+      <div class="gloss-card" data-kw="rate plan แผนราคา">
+        <div class="gloss-en">RATE PLAN</div>
+        <div class="gloss-th">แผนราคาห้องพัก</div>
+        <div class="gloss-def">โครงสร้างราคาที่ใช้กับการจอง เช่น Rack Rate, Breakfast Included, Corporate Rate</div>
+      </div>
+
+      <div class="gloss-card" data-kw="source แหล่งที่มา">
+        <div class="gloss-en">SOURCE</div>
+        <div class="gloss-th">แหล่งที่มาของการจอง</div>
+        <div class="gloss-def">ช่องทางที่แขกจอง — Walk-in, Direct, OTA, Agent — ใช้วิเคราะห์ยอดขายแต่ละช่องทาง</div>
+      </div>
+
+      <div class="gloss-card" data-kw="early check-in เช็คอินก่อนกำหนด">
+        <div class="gloss-en">EARLY CHECK-IN</div>
+        <div class="gloss-th">เช็คอินก่อนเวลาปกติ</div>
+        <div class="gloss-def">เช็คอินก่อน 14:00 — อาจมีค่าธรรมเนียมเพิ่มเติม ระบบจะแจ้งให้ยืนยัน</div>
+      </div>
+
+      <div class="gloss-card" data-kw="late check-out เช็คเอาท์หลังเวลา">
+        <div class="gloss-en">LATE CHECK-OUT</div>
+        <div class="gloss-th">เช็คเอาท์หลังเวลาปกติ</div>
+        <div class="gloss-def">เช็คเอาท์หลัง 12:00 — อาจมีค่าธรรมเนียม ขึ้นอยู่กับ Policy และความพร้อมของห้องถัดไป</div>
+      </div>
+
+      <div class="gloss-card" data-kw="post charge เพิ่มค่าใช้จ่าย">
+        <div class="gloss-en">POST CHARGE</div>
+        <div class="gloss-th">เพิ่มค่าใช้จ่ายระหว่างพัก</div>
+        <div class="gloss-def">บันทึกค่าใช้จ่ายพิเศษลงใน Folio ของแขก เช่น มินิบาร์ ซักรีด อาหาร Extra Bed</div>
+      </div>
+
+      <div class="gloss-card" data-kw="trace งานค้าง reminder">
+        <div class="gloss-en">TRACE</div>
+        <div class="gloss-th">บันทึกงานค้างดำเนินการ</div>
+        <div class="gloss-def">หมายเหตุหรืองานที่ต้องทำสำหรับการจองนั้น เช่น "ต้องเตรียมดอกไม้วันเกิด" — แสดงเป็นไอคอนส้ม</div>
+      </div>
+
+      <div class="gloss-card" data-kw="dirty clean room สถานะห้อง">
+        <div class="gloss-en">DIRTY / CLEAN</div>
+        <div class="gloss-th">สถานะห้อง — สกปรก / สะอาด</div>
+        <div class="gloss-def">Dirty = หลัง Check-out รอแม่บ้านทำความสะอาด, Clean = พร้อมรับแขกใหม่</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- NEXT CHAPTER TEASER -->
+  <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:12px;padding:24px 28px;display:flex;align-items:center;gap:20px;margin-bottom:40px;">
+    <div style="font-size:40px;">🛏️</div>
+    <div>
+      <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">บทถัดไป</div>
+      <div style="font-size:18px;font-weight:800;color:#14532d;margin-bottom:4px;">หมวด 3 — การจัดการห้องพัก (Housekeeping)</div>
+      <div style="font-size:13.5px;color:#166534;">สถานะห้อง, งานแม่บ้าน, การอัปเดตสถานะ Clean/Dirty/OOO และการรายงาน</div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// Scroll to section
+function scrollTo(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Flow steps
+function showFlow(id) {
+  document.querySelectorAll('.flow-detail').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.flow-step').forEach(s => s.classList.remove('active'));
+  const detail = document.getElementById(id);
+  if (detail) detail.classList.add('show');
+  // highlight corresponding step
+  const idx = parseInt(id.replace('f','')) - 1;
+  const steps = document.querySelectorAll('.flow-step');
+  if (steps[idx]) steps[idx].classList.add('active');
+}
+
+// Tab switcher
+function switchTab(btn, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.add('active');
+    // Load iframe if not yet loaded
+    const iframe = panel.querySelector('iframe');
+    if (iframe && !iframe.getAttribute('src') && iframe.getAttribute('data-src')) {
+      iframe.src = iframe.getAttribute('data-src');
+    }
+  }
+}
+
+// Glossary filter
+function filterGloss(q) {
+  const term = q.toLowerCase().trim();
+  document.querySelectorAll('.gloss-card').forEach(card => {
+    const kw = (card.getAttribute('data-kw') || '').toLowerCase();
+    const text = card.textContent.toLowerCase();
+    card.classList.toggle('hidden', term !== '' && !kw.includes(term) && !text.includes(term));
+  });
+}
+
+// Sidebar nav highlight on scroll
+const sections = ['sec1','sec2','sec3','sec4','sec5','sec6','sec7'];
+const navLinks = document.querySelectorAll('.nav-a[onclick]');
+window.addEventListener('scroll', () => {
+  let active = '';
+  for (const id of sections) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 140) active = id;
+  }
+  navLinks.forEach(a => {
+    const onclick = a.getAttribute('onclick') || '';
+    a.classList.toggle('active', onclick.includes(active) && active !== '');
+  });
+}, { passive: true });
+</script>
+</body>
+</html>

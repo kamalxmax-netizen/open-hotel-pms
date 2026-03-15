@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คู่มือพนักงาน Hotel PMS — หมวด 1: ทำความรู้จักโปรแกรม</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #2563eb; --brand-light: #eff6ff; --brand-dark: #1e40af;
+    --green: #16a34a; --green-light: #f0fdf4;
+    --amber: #d97706; --amber-light: #fffbeb;
+    --red: #dc2626; --red-light: #fef2f2;
+    --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0;
+    --slate-400: #94a3b8; --slate-500: #64748b; --slate-600: #475569;
+    --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a;
+    --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Sarabun','Noto Sans Thai',system-ui,sans-serif; background: var(--slate-50); color: var(--slate-800); line-height: 1.7; font-size: 16px; }
+
+  /* LAYOUT */
+  .page-wrap { display: flex; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 256px; flex-shrink: 0; background: white;
+    border-right: 1px solid var(--slate-200);
+    position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 20px 0;
+  }
+  .sidebar-logo { padding: 0 16px 16px; border-bottom: 1px solid var(--slate-100); margin-bottom: 12px; }
+  .logo-badge { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:var(--brand); color:white; font-weight:800; border-radius:8px; font-size:14px; margin-bottom:6px; }
+  .sidebar-logo h2 { font-size:13px; font-weight:700; }
+  .sidebar-logo p { font-size:11px; color:var(--slate-400); }
+  .nav-group { padding: 0 10px; margin-bottom: 4px; }
+  .nav-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--slate-400); padding:8px 8px 4px; display:block; }
+  .nav-a { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; text-decoration:none; color:var(--slate-600); font-size:13.5px; font-weight:500; transition:all .15s; cursor:pointer; }
+  .nav-a:hover { background:var(--brand-light); color:var(--brand); }
+  .nav-a.active { background:var(--brand-light); color:var(--brand); font-weight:600; }
+
+  /* MAIN */
+  .main { flex:1; padding: 36px 44px; max-width: 980px; }
+
+  /* CHAPTER HEADER */
+  .chap-header {
+    background: linear-gradient(135deg, #1d4ed8, #1e40af);
+    border-radius: var(--radius); padding: 32px 36px; color:white; margin-bottom: 36px;
+  }
+  .chap-badge { display:inline-block; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:3px 12px; font-size:11px; font-weight:700; letter-spacing:.06em; margin-bottom:10px; }
+  .chap-header h1 { font-size:26px; font-weight:800; margin-bottom:6px; }
+  .chap-header p { font-size:14px; opacity:.85; }
+  .chap-meta { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .meta-pill { background:rgba(255,255,255,.15); border-radius:20px; padding:4px 12px; font-size:12px; }
+
+  /* PROGRESS */
+  .chap-progress { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:12px 16px; margin-bottom:28px; display:flex; align-items:center; gap:12px; }
+  .prog-label { font-size:12px; color:var(--slate-500); white-space:nowrap; }
+  .prog-bar { flex:1; height:5px; background:var(--slate-200); border-radius:3px; overflow:hidden; }
+  .prog-fill { height:100%; background:var(--brand); border-radius:3px; }
+  .prog-dots { display:flex; gap:5px; }
+  .prog-dot { width:26px; height:26px; border-radius:50%; border:2px solid var(--slate-200); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--slate-400); }
+  .prog-dot.cur { border-color:var(--brand); background:var(--brand); color:white; }
+
+  /* SECTION */
+  .section { margin-bottom: 44px; }
+  .sec-title { font-size:19px; font-weight:700; margin-bottom:5px; display:flex; align-items:center; gap:10px; }
+  .sec-num { width:30px; height:30px; background:var(--brand); color:white; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; }
+  .sec-desc { color:var(--slate-500); font-size:14px; margin-bottom:18px; padding-left:40px; }
+
+  /* CARD */
+  .card { background:white; border-radius:var(--radius); border:1px solid var(--slate-200); box-shadow:var(--shadow); overflow:hidden; margin-bottom:16px; }
+  .card-hd { padding:14px 18px; border-bottom:1px solid var(--slate-100); display:flex; align-items:center; gap:8px; }
+  .card-hd h3 { font-size:14px; font-weight:700; }
+  .card-bd { padding:18px; }
+
+  /* LIVE PREVIEW FRAME */
+  .live-frame-wrap { position:relative; border-radius:10px; overflow:hidden; border:1px solid var(--slate-200); box-shadow:var(--shadow-lg); background:#f8fafc; }
+  .live-frame-bar { background:var(--slate-800); padding:8px 14px; display:flex; align-items:center; gap:8px; }
+  .frame-dots { display:flex; gap:5px; }
+  .frame-dot { width:10px; height:10px; border-radius:50%; }
+  .frame-url { flex:1; background:rgba(255,255,255,.1); border-radius:5px; padding:3px 10px; font-size:11px; color:rgba(255,255,255,.7); font-family:monospace; }
+  .live-frame-wrap iframe { width:100%; height:480px; border:none; display:block; background:white; }
+  .frame-caption { font-size:12px; color:var(--slate-400); text-align:center; padding:8px; background:var(--slate-50); border-top:1px solid var(--slate-100); }
+
+  /* MODULE GRID */
+  .mod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); gap:10px; }
+  .mod-card { background:white; border:1.5px solid var(--slate-200); border-radius:10px; padding:14px; cursor:pointer; transition:all .2s; position:relative; }
+  .mod-card:hover { border-color:var(--brand); box-shadow:0 0 0 3px rgba(37,99,235,.1); transform:translateY(-1px); }
+  .mod-icon { font-size:22px; margin-bottom:6px; }
+  .mod-name { font-size:13.5px; font-weight:700; color:var(--slate-800); margin-bottom:2px; }
+  .mod-name-th { font-size:12px; color:var(--slate-500); margin-bottom:6px; }
+  .mod-tag { font-size:10px; padding:2px 7px; border-radius:10px; display:inline-block; font-weight:600; }
+  .tag-fd { background:#dbeafe; color:#1e40af; }
+  .tag-hk { background:#dcfce7; color:#15803d; }
+  .tag-mgr { background:#fef3c7; color:#92400e; }
+  .tag-all { background:#f3e8ff; color:#6b21a8; }
+
+  /* TOOLTIP */
+  .tooltip { display:none; position:fixed; z-index:9999; background:var(--slate-900); color:white; border-radius:10px; padding:12px 16px; max-width:270px; font-size:12.5px; line-height:1.6; box-shadow:var(--shadow-lg); pointer-events:none; }
+  .tooltip.show { display:block; }
+  .tt-title { font-weight:700; font-size:13.5px; margin-bottom:4px; }
+  .tt-desc { color:#cbd5e1; margin-bottom:6px; }
+  .tt-url { font-size:10px; color:#64748b; font-family:monospace; }
+
+  /* SPLIT LAYOUT */
+  .split-row { display: flex; gap: 24px; align-items: flex-start; }
+  .split-left { flex: 1.2; }
+  .split-right { flex: 1; position: sticky; top: 24px; }
+  
+  .collapsible-group { margin-bottom: 12px; border: 1px solid var(--slate-200); border-radius: 10px; background: white; overflow: hidden; }
+  .group-header { 
+    background: var(--slate-50); padding: 12px 16px; font-size: 11px; font-weight: 700; 
+    text-transform: uppercase; letter-spacing: .08em; color: var(--slate-600); 
+    display: flex; justify-content: space-between; cursor: pointer; transition: background .2s; 
+  }
+  .group-header:hover { background: var(--slate-100); }
+  .group-content { padding: 16px; border-top: 1px solid var(--slate-100); }
+  .group-arrow { transition: transform .3s; font-size: 10px; }
+  .collapsible-group.collapsed .group-content { display: none; }
+  .collapsible-group.collapsed .group-arrow { transform: rotate(-90deg); }
+
+  .mod-card.selected { border-color: var(--brand); background: var(--brand-light); box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+  .mod-card.selected::after { content: "📍 Viewing"; position: absolute; top: 6px; right: 8px; font-size: 9px; font-weight: 700; color: var(--brand); }
+
+  /* FLOW */
+  .flow-wrap { overflow-x:auto; padding:4px; }
+  .flow-row { display:flex; align-items:flex-start; gap:2px; min-width:640px; justify-content:center; }
+  .flow-step { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; min-width:95px; }
+  .flow-box { background:white; border:2px solid var(--slate-200); border-radius:10px; padding:11px 8px; text-align:center; width:100%; cursor:pointer; transition:all .2s; }
+  .flow-box:hover, .flow-box.active { border-color:var(--brand); background:var(--brand-light); }
+  .fb-icon { font-size:18px; margin-bottom:3px; }
+  .fb-en { font-size:12px; font-weight:700; color:var(--slate-800); }
+  .fb-th { font-size:11px; color:var(--slate-500); }
+  .flow-arrow { font-size:18px; color:var(--slate-300); flex-shrink:0; padding-top:28px; }
+  .flow-detail { display:none; background:var(--brand-light); border:1px solid #bfdbfe; border-radius:10px; padding:14px 18px; margin-top:12px; }
+  .flow-detail.show { display:block; }
+  .flow-detail h4 { font-size:13px; font-weight:700; color:var(--brand-dark); margin-bottom:8px; }
+  .flow-steps-list { list-style:none; }
+  .flow-steps-list li { padding:4px 0; font-size:13px; color:var(--slate-700); display:flex; gap:8px; border-bottom:1px solid rgba(37,99,235,.1); }
+  .flow-steps-list li:last-child { border:none; }
+  .flow-steps-list li::before { content:"→"; color:var(--brand); font-weight:700; flex-shrink:0; }
+
+  /* GLOSSARY */
+  .gloss-search-wrap { position:relative; margin-bottom:14px; }
+  .gloss-search { width:100%; padding:9px 14px 9px 38px; border:1.5px solid var(--slate-200); border-radius:8px; font-size:14px; outline:none; transition:border-color .2s; font-family:inherit; }
+  .gloss-search:focus { border-color:var(--brand); }
+  .gloss-search-wrap::before { content:"🔍"; position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:13px; }
+  .gloss-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(265px,1fr)); gap:9px; }
+  .gloss-item { background:white; border:1px solid var(--slate-200); border-radius:9px; padding:12px 14px; cursor:default; transition:all .15s; }
+  .gloss-item:hover { border-color:var(--brand); background:var(--brand-light); }
+  .g-en { font-size:14px; font-weight:700; color:var(--brand); }
+  .g-th { font-size:12.5px; font-weight:600; color:var(--slate-700); margin-bottom:4px; }
+  .g-desc { font-size:12.5px; color:var(--slate-500); line-height:1.55; }
+  .g-tag { font-size:10px; padding:2px 7px; border-radius:10px; display:inline-block; font-weight:600; margin-top:6px; }
+
+  /* TIP BOXES */
+  .tip { border-radius:9px; padding:12px 16px; display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
+  .tip.info { background:#eff6ff; border:1px solid #bfdbfe; }
+  .tip.warn { background:#fffbeb; border:1px solid #fde68a; }
+  .tip.danger { background:#fef2f2; border:1px solid #fecaca; }
+  .tip.ok { background:#f0fdf4; border:1px solid #bbf7d0; }
+  .tip-icon { font-size:18px; flex-shrink:0; margin-top:1px; }
+  .tip p { font-size:13.5px; line-height:1.6; }
+  .tip strong { color:var(--slate-800); }
+
+  /* STATUS LEGEND */
+  .legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:8px; }
+  .legend-item { display:flex; align-items:center; gap:8px; background:white; border:1px solid var(--slate-200); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; }
+
+  /* ROLE TABLE */
+  .role-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .role-tbl th { background:var(--slate-800); color:white; padding:9px 12px; text-align:left; font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+  .role-tbl td { padding:9px 12px; border-bottom:1px solid var(--slate-100); }
+  .role-tbl tr:last-child td { border-bottom:none; }
+  .role-tbl tr:hover td { background:var(--slate-50); }
+  .chk { color:var(--green); font-weight:700; }
+  .dash { color:var(--slate-300); }
+
+  /* SCROLL TOP */
+  #scrollTop { position:fixed; bottom:22px; right:22px; width:38px; height:38px; border-radius:50%; background:var(--brand); color:white; border:none; cursor:pointer; font-size:16px; box-shadow:var(--shadow-lg); opacity:0; transition:opacity .2s; }
+  #scrollTop.vis { opacity:1; }
+
+  /* DIVIDER */
+  .divider { border:none; border-top:1px solid var(--slate-200); margin: 36px 0; }
+
+  @media(max-width:768px){
+    .sidebar { display:none; }
+    .main { padding:16px; }
+    .mod-grid { grid-template-columns:1fr 1fr; }
+    .flow-row { min-width:500px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tooltip" id="tt">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-desc" id="tt-desc"></div>
+  <div class="tt-url" id="tt-url"></div>
+</div>
+
+<div class="page-wrap">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">P</div>
+    <h2>Hotel PMS</h2>
+    <p>คู่มือพนักงาน v1.0</p>
+  </div>
+  <div class="nav-group">
+    <span class="nav-label">หมวด 1 — ทำความรู้จักโปรแกรม</span>
+    <a class="nav-a active" href="#modules">🗂️ เมนูทั้งหมด</a>
+    <a class="nav-a" href="#flow">🔄 Flow การทำงาน</a>
+    <a class="nav-a" href="#screens">📸 ภาพหน้าจอหลัก</a>
+    <a class="nav-a" href="#glossary">📖 คำศัพท์สำคัญ</a>
+    <a class="nav-a" href="#roles">👥 ใครใช้เมนูไหน</a>
+  </div>
+  <div class="nav-group" style="margin-top:10px;">
+    <span class="nav-label">หมวดอื่นๆ</span>
+    <a class="nav-a" style="opacity:.4;pointer-events:none">📋 หมวด 2: Reservation</a>
+    <a class="nav-a" style="opacity:.4;pointer-events:none">🛎️ หมวด 3: Housekeeping</a>
+    <a class="nav-a" style="opacity:.4;pointer-events:none">💳 หมวด 4: Payment</a>
+    <a class="nav-a" style="opacity:.4;pointer-events:none">🌙 หมวด 5: Night Audit</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- breadcrumb -->
+  <div style="font-size:12px;color:var(--slate-400);margin-bottom:20px;display:flex;gap:6px;align-items:center;">
+    🏠 <span>คู่มือพนักงาน</span> <span style="color:var(--slate-300)">›</span>
+    <strong style="color:var(--slate-700)">หมวด 1: ทำความรู้จักโปรแกรม</strong>
+  </div>
+
+  <!-- progress -->
+  <div class="chap-progress">
+    <span class="prog-label">หมวด:</span>
+    <div class="prog-bar"><div class="prog-fill" style="width:20%"></div></div>
+    <div class="prog-dots">
+      <div class="prog-dot cur">1</div>
+      <div class="prog-dot">2</div>
+      <div class="prog-dot">3</div>
+      <div class="prog-dot">4</div>
+      <div class="prog-dot">5</div>
+    </div>
+  </div>
+
+  <!-- CHAPTER HEADER -->
+  <div class="chap-header" id="overview">
+    <div class="chap-badge">หมวด 1 จาก 5</div>
+    <h1>ทำความรู้จักหัวใจของ Hotel PMS</h1>
+    <p>เรียนรู้เมนูทั้งหมดในระบบ flow การทำงานหลัก และคำศัพท์สำคัญที่พนักงานทุกคนต้องแม่นยำ</p>
+    <div class="chap-meta">
+      <div class="meta-pill">🎯 พนักงานใหม่ทุกคน</div>
+      <div class="meta-pill">⏱️ อ่านประมาณ 15 นาที</div>
+      <div class="meta-pill">💻 ภาษาโปรแกรม: English</div>
+    </div>
+  </div>
+
+
+
+  <!-- ─── SECTION 1: Module Map ─── -->
+  <div class="section" id="modules">
+    <div class="sec-title"><span class="sec-num">1</span> เมนูทั้งหมดในโปรแกรม</div>
+    <p class="sec-desc">โปรแกรมแบ่งเป็น 3 กลุ่มหลัก — <strong>เอาเมาส์ชี้</strong>ที่การ์ดแต่ละอันเพื่อดูรายละเอียด</p>
+
+    <div class="split-row">
+      <!-- LEFT: Module Cards -->
+      <div class="split-left">
+        <!-- Front Desk -->
+        <div class="collapsible-group">
+          <div class="group-header" onclick="toggleGroup(this)">🖥️ FRONT DESK — พนักงานต้อนรับ <span class="group-arrow">▼</span></div>
+          <div class="group-content">
+            <div class="mod-grid">
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Dashboard" data-th="หน้าหลัก / สรุปวันนี้"
+                data-desc="KPI: Occupancy, ADR, RevPAR, Revenue Today, Live Ops, Arrivals/Departures, 7-Day Trend"
+                data-url="/pms">
+                <div class="mod-icon">🏠</div><div class="mod-name">Dashboard</div>
+                <div class="mod-name-th">หน้าหลัก</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Room Diary" data-th="แผนที่ห้องพักวันนี้"
+                data-desc="แสดงสถานะห้องทุกห้อง: Available, In-House, Due In, Due Out, Dirty, Blocked แยกตามชั้น"
+                data-url="/pms/board">
+                <div class="mod-icon">🗓️</div><div class="mod-name">Room Diary</div>
+                <div class="mod-name-th">แผนที่ห้องพัก</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Calendar" data-th="ปฏิทินการจอง"
+                data-desc="มุมมองปฏิทิน Gantt Chart แสดงการจองล่วงหน้า ใช้วาง Planned Room Move ได้"
+                data-url="/pms/calendar">
+                <div class="mod-icon">📅</div><div class="mod-name">Calendar</div>
+                <div class="mod-name-th">ปฏิทินการจอง</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Arrivals" data-th="แขกมาวันนี้"
+                data-desc="รายชื่อแขก Check-in วันนี้ ปุ่ม: Check-in, Assign Room, Swap, No-Show — จุดหลักในการ Check-in"
+                data-url="/pms/arrivals">
+                <div class="mod-icon">🚶</div><div class="mod-name">Arrivals</div>
+                <div class="mod-name-th">แขกมาวันนี้</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="In-House" data-th="แขกที่พักอยู่"
+                data-desc="รายชื่อแขก Check-in แล้ว ดูห้อง/วันออก/ยอดค้าง มีปุ่ม Move Room และ Options"
+                data-url="/pms/inhouse">
+                <div class="mod-icon">🏨</div><div class="mod-name">In-House</div>
+                <div class="mod-name-th">แขกที่พักอยู่</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Departures" data-th="แขกออกวันนี้"
+                data-desc="รายชื่อแขก Check-out วันนี้ แสดงสถานะ Pending หรือ Checked Out"
+                data-url="/pms/departures">
+                <div class="mod-icon">🚪</div><div class="mod-name">Departures</div>
+                <div class="mod-name-th">แขกออกวันนี้</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Reservations" data-th="รายการจองทั้งหมด"
+                data-desc="ดู/ค้นหาการจองทุกรายการ กรองตาม Status, Source, วันที่ มีปุ่ม + New Booking"
+                data-url="/pms/reservations">
+                <div class="mod-icon">📋</div><div class="mod-name">Reservations</div>
+                <div class="mod-name-th">รายการจอง</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Group Bookings" data-th="การจองกลุ่ม"
+                data-desc="จัดการกลุ่มแขกหลายห้อง มี Group Check-in Wizard Check-in ทีเดียวหลายห้อง"
+                data-url="/pms/groups">
+                <div class="mod-icon">👥</div><div class="mod-name">Group Bookings</div>
+                <div class="mod-name-th">การจองกลุ่ม</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Availability" data-th="ห้องว่าง"
+                data-desc="ดูว่าช่วงวันไหนมีห้องว่างกี่ห้อง ใช้เช็คก่อนรับจอง"
+                data-url="/pms/availability">
+                <div class="mod-icon">✅</div><div class="mod-name">Availability</div>
+                <div class="mod-name-th">ห้องว่าง</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Client Relations -->
+        <div class="collapsible-group">
+          <div class="group-header" onclick="toggleGroup(this)">👤 CLIENT RELATIONS — ข้อมูลลูกค้า <span class="group-arrow">▼</span></div>
+          <div class="group-content">
+            <div class="mod-grid">
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Guest Profiles" data-th="ประวัติแขก"
+                data-desc="ข้อมูลแขกถาวร: ชื่อ, โทร, Passport/ID, ประวัติเข้าพัก, VIP รองรับสแกน Thai ID / Passport OCR"
+                data-url="/pms/guests">
+                <div class="mod-icon">🪪</div><div class="mod-name">Guest Profiles</div>
+                <div class="mod-name-th">ประวัติแขก</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Merge Profiles" data-th="รวมประวัติซ้ำ"
+                data-desc="ระบบแจ้งเตือนเมื่อมีชื่อแขกซ้ำกัน รวม Profile เพื่อให้ประวัติครบถ้วน"
+                data-url="/pms/guests/duplicates">
+                <div class="mod-icon">🔀</div><div class="mod-name">Merge Profiles</div>
+                <div class="mod-name-th">รวมประวัติซ้ำ</div><span class="mod-tag tag-mgr">Supervisor</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Operations -->
+        <div class="collapsible-group">
+          <div class="group-header" onclick="toggleGroup(this)">🛎️ OPERATIONS — ปฏิบัติการโรงแรม <span class="group-arrow">▼</span></div>
+          <div class="group-content">
+            <div class="mod-grid">
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Housekeeping" data-th="แม่บ้าน/ทำความสะอาด"
+                data-desc="จัดการสถานะห้อง Dirty→Cleaning→Pending Approval→Clean ดู Timeline แม่บ้านแต่ละคน"
+                data-url="/pms/housekeeping">
+                <div class="mod-icon">🧹</div><div class="mod-name">Housekeeping</div>
+                <div class="mod-name-th">แม่บ้าน</div><span class="mod-tag tag-hk">Housekeeping</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Transportation" data-th="บริการรับส่ง"
+                data-desc="จัดการรถรับส่ง เรือ คนขับ เส้นทาง เชื่อมกับการจองของแขก"
+                data-url="/pms/transportation">
+                <div class="mod-icon">🚗</div><div class="mod-name">Transportation</div>
+                <div class="mod-name-th">รับส่ง</div><span class="mod-tag tag-fd">Front Desk</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Logbook" data-th="สมุดบันทึกทีม"
+                data-desc="บันทึกข้อความภายในทีม ส่งข้อมูลระหว่างกะ เชื่อมกับห้อง/การจอง/แขก มีระบบแจ้งเตือน"
+                data-url="/pms/logbook">
+                <div class="mod-icon">📓</div><div class="mod-name">Logbook</div>
+                <div class="mod-name-th">สมุดบันทึก</div><span class="mod-tag tag-all">ทุกแผนก</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Inventory" data-th="คลังวัสดุ"
+                data-desc="จัดการของใช้ในห้อง สต็อกชั้น/หลัก เบิก-คืน ดูประวัติ เชื่อม HK checklist"
+                data-url="/pms/inventory">
+                <div class="mod-icon">📦</div><div class="mod-name">Inventory</div>
+                <div class="mod-name-th">คลังวัสดุ</div><span class="mod-tag tag-hk">Housekeeping</span>
+              </div>
+              <div class="mod-card" onmouseenter="showTT(this,event)" onmouseleave="hideTT()" onclick="selectModule(this)"
+                data-en="Night Audit" data-th="ปิดยอดประจำวัน"
+                data-desc="5 ขั้นตอน: No-Show → Pre-Check → Preview → Confirm → Summary ทำทุกคืน"
+                data-url="/pms/night-audit">
+                <div class="mod-icon">🌙</div><div class="mod-name">Night Audit</div>
+                <div class="mod-name-th">ปิดยอดคืน</div><span class="mod-tag tag-mgr">Manager Only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split-right">
+        <div style="font-size:11px;font-weight:700;color:var(--slate-400);margin-bottom:10px;text-transform:uppercase;">📸 Live Comparison</div>
+        <div class="live-frame-wrap" style="box-shadow: var(--shadow);">
+          <div class="live-frame-bar">
+            <div class="frame-dots">
+              <div class="frame-dot" style="background:#ff5f57"></div>
+              <div class="frame-dot" style="background:#ffbd2e"></div>
+              <div class="frame-dot" style="background:#28c840"></div>
+            </div>
+            <div class="frame-url" id="split-frame-url">localhost:3000/pms/board</div>
+          </div>
+          <iframe id="split-iframe" src="http://localhost:3000/pms/board" style="height: 750px; width: 100%; border: none;"></iframe>
+          <div class="frame-caption">กดที่การ์ดทางซ้ายเพื่อเปลี่ยนหน้าจอและ Hi-light ตำแหน่ง</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ─── SECTION 2: Flow ─── -->
+  <div class="section" id="flow">
+    <div class="sec-title"><span class="sec-num">2</span> Flow การทำงานหลักของโรงแรม</div>
+    <p class="sec-desc">คลิกที่แต่ละขั้นตอนเพื่อดูรายละเอียดและเมนูที่ต้องใช้</p>
+
+    <div class="card">
+      <div class="card-hd"><span>🔄</span><h3>วงจรการเข้าพักแขก (Guest Stay Lifecycle)</h3></div>
+      <div class="card-bd">
+        <div class="flow-wrap">
+          <div class="flow-row">
+            <div class="flow-step"><div class="flow-box" id="fb1" onclick="toggleFlow(1)"><div class="fb-icon">📋</div><div class="fb-en">Reservation</div><div class="fb-th">รับจอง</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb2" onclick="toggleFlow(2)"><div class="fb-icon">🛏️</div><div class="fb-en">Assign Room</div><div class="fb-th">จัดห้อง</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb3" onclick="toggleFlow(3)"><div class="fb-icon">🚶</div><div class="fb-en">Check-in</div><div class="fb-th">เช็คอิน</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb4" onclick="toggleFlow(4)"><div class="fb-icon">🏨</div><div class="fb-en">In-House</div><div class="fb-th">พักอยู่</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb5" onclick="toggleFlow(5)"><div class="fb-icon">💳</div><div class="fb-en">Payment</div><div class="fb-th">ชำระเงิน</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb6" onclick="toggleFlow(6)"><div class="fb-icon">🚪</div><div class="fb-en">Check-out</div><div class="fb-th">เช็คเอาท์</div></div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-box" id="fb7" onclick="toggleFlow(7)"><div class="fb-icon">🧹</div><div class="fb-en">Housekeeping</div><div class="fb-th">ทำความสะอาด</div></div></div>
+          </div>
+        </div>
+
+        <div id="fd1" class="flow-detail">
+          <h4>📋 Reservation — รับจอง</h4>
+          <ul class="flow-steps-list">
+            <li>ไปที่เมนู <strong>Reservations</strong></li>
+            <li>กด <strong>+ New Booking</strong> มุมขวาบน</li>
+            <li>กรอก: ชื่อแขก, วันเข้า-ออก, ประเภทห้อง, Source (Walk-in / OTA / Direct)</li>
+            <li>บันทึก → ระบบสร้าง Booking ID ให้อัตโนมัติ เช่น BK-2026…</li>
+          </ul>
+        </div>
+        <div id="fd2" class="flow-detail">
+          <h4>🛏️ Assign Room — จัดห้อง</h4>
+          <ul class="flow-steps-list">
+            <li>ไปที่เมนู <strong>Arrivals</strong></li>
+            <li>ถ้าเห็นปุ่มสีเทา "Assign Room" = ยังไม่ได้จัดห้อง</li>
+            <li>กด Assign Room → เลือกห้องที่ว่างและเหมาะสม</li>
+            <li>หรือใช้ <strong>Room Diary</strong> คลิกห้องว่างแล้วเลือก Assign</li>
+          </ul>
+        </div>
+        <div id="fd3" class="flow-detail">
+          <h4>🚶 Check-in — เช็คอิน</h4>
+          <ul class="flow-steps-list">
+            <li>ไปที่เมนู <strong>Arrivals</strong> → หาชื่อแขก</li>
+            <li>ตรวจสอบว่า Assign ห้องแล้ว (ปุ่มจะเปลี่ยนเป็นสีน้ำเงิน "Check-in")</li>
+            <li>กด <strong>Check-in</strong> → ระบบขอข้อมูลแขก</li>
+            <li>สแกนบัตรประชาชน (Thai ID Reader) หรือ Passport (OCR)</li>
+            <li>ยืนยัน → ห้องเปลี่ยนเป็น In-House ทันที</li>
+          </ul>
+        </div>
+        <div id="fd4" class="flow-detail">
+          <h4>🏨 In-House — แขกพักอยู่</h4>
+          <ul class="flow-steps-list">
+            <li>ดูรายชื่อแขกทุกห้องได้ที่เมนู <strong>In-House</strong></li>
+            <li>กด <strong>Move Room</strong> หากต้องการย้ายห้อง</li>
+            <li>กด <strong>Options</strong> → เพิ่ม Extra Charge, ดู Folio, เพิ่ม Trace</li>
+            <li>ใช้ <strong>Logbook</strong> ฝากข้อความให้กะต่อไป</li>
+          </ul>
+        </div>
+        <div id="fd5" class="flow-detail">
+          <h4>💳 Payment — ชำระเงิน</h4>
+          <ul class="flow-steps-list">
+            <li>เปิด Folio แขกผ่าน Options → Folio / Payments</li>
+            <li>ตรวจสอบค่าใช้จ่ายทั้งหมด: ค่าห้อง + Extra Charges + POS</li>
+            <li>เลือกวิธีชำระ: Cash / Bank Transfer / Credit Card</li>
+            <li>กด Post Payment → ยืนยัน</li>
+          </ul>
+        </div>
+        <div id="fd6" class="flow-detail">
+          <h4>🚪 Check-out — เช็คเอาท์</h4>
+          <ul class="flow-steps-list">
+            <li>ไปที่เมนู <strong>Departures</strong> → หาชื่อแขก</li>
+            <li>ตรวจสอบ Folio ว่าชำระครบหรือยัง</li>
+            <li>กด <strong>Check-out</strong> → ยืนยัน</li>
+            <li>ห้องเปลี่ยนสถานะเป็น <strong>Dirty</strong> โดยอัตโนมัติ รอแม่บ้าน</li>
+          </ul>
+        </div>
+        <div id="fd7" class="flow-detail">
+          <h4>🧹 Housekeeping — ทำความสะอาด</h4>
+          <ul class="flow-steps-list">
+            <li>ระบบส่งงานไปที่ <strong>Housekeeping</strong> โดยอัตโนมัติ (Dirty Pool)</li>
+            <li>HK Supervisor Assign ห้อง Dirty ให้แม่บ้านแต่ละคนใน Timeline</li>
+            <li>แม่บ้านทำเสร็จ → กด Finish → Supervisor กด Approve</li>
+            <li>ห้องเปลี่ยนเป็น <strong>Clean</strong> ✓ พร้อมรับแขกใหม่</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ─── SECTION 3: Live Screens ─── -->
+  <div class="section" id="screens">
+    <div class="sec-title"><span class="sec-num">3</span> หน้าจอหลักแต่ละเมนู — ดู Live</div>
+    <p class="sec-desc">คลิก tab เพื่อดูหน้าจอจริงแต่ละเมนู</p>
+
+    <div class="card">
+      <div class="card-hd" style="overflow-x:auto;">
+        <div style="display:flex;gap:4px;flex-wrap:nowrap;">
+          <button class="screen-tab active" onclick="showScreen('board','Room Diary — แผนที่ห้องพัก',this)">🗓️ Room Diary</button>
+          <button class="screen-tab" onclick="showScreen('arrivals','Arrivals — แขกมาวันนี้',this)">🚶 Arrivals</button>
+          <button class="screen-tab" onclick="showScreen('inhouse','In-House — แขกที่พักอยู่',this)">🏨 In-House</button>
+          <button class="screen-tab" onclick="showScreen('departures','Departures — แขกออกวันนี้',this)">🚪 Departures</button>
+          <button class="screen-tab" onclick="showScreen('reservations','Reservations — รายการจอง',this)">📋 Reservations</button>
+          <button class="screen-tab" onclick="showScreen('housekeeping','Housekeeping — แม่บ้าน',this)">🧹 Housekeeping</button>
+          <button class="screen-tab" onclick="showScreen('night-audit','Night Audit — ปิดยอดคืน',this)">🌙 Night Audit</button>
+        </div>
+      </div>
+      <div class="card-bd" style="padding:0;">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots">
+              <div class="frame-dot" style="background:#ff5f57"></div>
+              <div class="frame-dot" style="background:#ffbd2e"></div>
+              <div class="frame-dot" style="background:#28c840"></div>
+            </div>
+            <div class="frame-url" id="screen-url">localhost:3000/pms/board — Room Diary — แผนที่ห้องพัก</div>
+          </div>
+          <iframe id="screen-iframe" src="http://localhost:3000/pms/board" title="Screen" loading="lazy"></iframe>
+          <div class="frame-caption" id="screen-caption">📸 Room Diary — แสดงสถานะห้องทุกห้องแยกชั้น คลิกห้องเพื่อดูรายละเอียดหรือ Assign ห้อง</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room status legend -->
+    <div style="margin-top:14px;">
+      <div style="font-size:12px;font-weight:700;color:var(--slate-500);margin-bottom:8px;">สีสถานะห้องใน Room Diary:</div>
+      <div class="legend">
+        <div class="legend-item" style="color:#15803d;border-color:#bbf7d0;background:#f0fdf4"><span style="width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block;flex-shrink:0"></span> Available — ห้องว่าง</div>
+        <div class="legend-item" style="color:#92400e;border-color:#fde68a;background:#fffbeb"><span style="width:10px;height:10px;background:#f59e0b;border-radius:50%;display:inline-block;flex-shrink:0"></span> Due In — กำลังมาวันนี้</div>
+        <div class="legend-item" style="color:#1e40af;border-color:#bfdbfe;background:#eff6ff"><span style="width:10px;height:10px;background:#3b82f6;border-radius:50%;display:inline-block;flex-shrink:0"></span> In-House — พักอยู่</div>
+        <div class="legend-item" style="color:#991b1b;border-color:#fecaca;background:#fef2f2"><span style="width:10px;height:10px;background:#ef4444;border-radius:50%;display:inline-block;flex-shrink:0"></span> Dirty — รอทำความสะอาด</div>
+        <div class="legend-item" style="color:#7e22ce;border-color:#e9d5ff;background:#fdf4ff"><span style="width:10px;height:10px;background:#a855f7;border-radius:50%;display:inline-block;flex-shrink:0"></span> Due Out — กำลังออกวันนี้</div>
+        <div class="legend-item" style="color:#374151;border-color:#d1d5db;background:#f9fafb"><span style="width:10px;height:10px;background:repeating-linear-gradient(45deg,#d1d5db 0,#d1d5db 2px,transparent 0,transparent 50%);background-size:6px 6px;display:inline-block;flex-shrink:0"></span> Blocked — บล็อกห้อง</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ─── SECTION 4: Glossary ─── -->
+  <div class="section" id="glossary">
+    <div class="sec-title"><span class="sec-num">4</span> คำศัพท์สำคัญที่ต้องรู้</div>
+    <p class="sec-desc">ค้นหาคำศัพท์ได้เลย หรือเลื่อนดูทั้งหมด</p>
+
+    <div class="card">
+      <div class="card-bd">
+        <div class="gloss-search-wrap">
+          <input class="gloss-search" type="text" placeholder="ค้นหา... เช่น Folio, No-Show, Check-in, Dirty" oninput="filterGloss(this.value)">
+        </div>
+        <div class="gloss-grid" id="glossGrid">
+
+          <div class="gloss-item" data-kw="reservation booking จอง"><div class="g-en">Reservation</div><div class="g-th">การจองห้องพัก</div><div class="g-desc">การบันทึกว่าแขกต้องการพักในช่วงวันที่กำหนด ยังไม่ได้เข้าพักจริง ระบบสร้าง Booking ID ให้</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="check-in checkin เช็คอิน"><div class="g-en">Check-in</div><div class="g-th">การเช็คอิน</div><div class="g-desc">กระบวนการรับแขกเข้าพัก ยืนยันตัวตน รับกุญแจ ห้องเปลี่ยนสถานะเป็น In-House ทันที</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="check-out checkout เช็คเอาท์"><div class="g-en">Check-out</div><div class="g-th">การเช็คเอาท์</div><div class="g-desc">กระบวนการส่งแขกออก ชำระเงินครบ คืนกุญแจ ห้องเปลี่ยนเป็น Dirty โดยอัตโนมัติ</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="folio bill บิล ค่าใช้จ่าย"><div class="g-en">Folio</div><div class="g-th">บิลค่าใช้จ่ายของแขก</div><div class="g-desc">รายการค่าใช้จ่ายทั้งหมดในการเข้าพักครั้งนี้ ได้แก่ ค่าห้อง + Extra Charges + POS + Deposit</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="no-show noshow ไม่มา"><div class="g-en">No-Show</div><div class="g-th">แขกจองแต่ไม่มา</div><div class="g-desc">แขกที่จองห้องไว้แต่ไม่มาเช็คอินในวันที่กำหนด ต้องทำ Mark No-Show ใน Night Audit ทุกคืน</div><span class="g-tag tag-mgr">Manager</span></div>
+
+          <div class="gloss-item" data-kw="occupancy อัตราเข้าพัก"><div class="g-en">Occupancy %</div><div class="g-th">อัตราการเข้าพัก</div><div class="g-desc">เปอร์เซ็นต์ห้องที่มีแขกอยู่ เช่น 29% = แขก 6 ห้องจาก 21 ห้องขาย</div><span class="g-tag tag-mgr">Manager</span></div>
+
+          <div class="gloss-item" data-kw="adr average daily rate ราคาเฉลี่ย"><div class="g-en">ADR</div><div class="g-th">ราคาห้องเฉลี่ยต่อคืน</div><div class="g-desc">Average Daily Rate = รายได้ค่าห้องรวม ÷ จำนวนห้องที่ขายออกได้</div><span class="g-tag tag-mgr">Manager</span></div>
+
+          <div class="gloss-item" data-kw="revpar revenue per available"><div class="g-en">RevPAR</div><div class="g-th">รายได้ต่อห้องพักทั้งหมด</div><div class="g-desc">Revenue Per Available Room = รายได้ ÷ ห้องทั้งหมด (รวมห้องว่าง) วัดประสิทธิภาพโดยรวม</div><span class="g-tag tag-mgr">Manager</span></div>
+
+          <div class="gloss-item" data-kw="night audit eod ปิดยอด"><div class="g-en">Night Audit</div><div class="g-th">ปิดยอดประจำวัน</div><div class="g-desc">กระบวนการปิดวันทางบัญชี 5 ขั้น: No-Show → Pre-Check → Preview → Confirm → Summary ทำทุกคืน</div><span class="g-tag tag-mgr">Manager Only</span></div>
+
+          <div class="gloss-item" data-kw="business date วันที่ระบบ"><div class="g-en">Business Date</div><div class="g-th">วันที่ทำการของระบบ</div><div class="g-desc">วันที่ที่ระบบใช้คำนวณทุกอย่าง อาจต่างจากวันจริงถ้ายังไม่ได้ทำ Night Audit</div><span class="g-tag tag-mgr">Manager</span></div>
+
+          <div class="gloss-item" data-kw="walkin walk-in เดินเข้ามา"><div class="g-en">Walk-in</div><div class="g-th">แขกไม่ได้จองล่วงหน้า</div><div class="g-desc">แขกที่เดินเข้ามาหาห้องพักโดยตรง ไม่ได้จองล่วงหน้า จะแสดง Source = Walk-in</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="ota online booking agoda"><div class="g-en">OTA</div><div class="g-th">เว็บจองออนไลน์</div><div class="g-desc">Online Travel Agent เช่น Booking.com, Agoda การจองผ่านช่องทางนี้แสดง Source = OTA</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="assign room จัดห้อง เลือกห้อง"><div class="g-en">Assign Room</div><div class="g-th">การจัดห้องให้แขก</div><div class="g-desc">การเลือกเลขห้องจริงให้กับการจอง ต้องทำก่อน Check-in เสมอ ถ้ายังไม่ Assign จะ Check-in ไม่ได้</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="dirty สกปรก ทำความสะอาด"><div class="g-en">Dirty</div><div class="g-th">ห้องรอทำความสะอาด</div><div class="g-desc">สถานะห้องหลัง Check-out หรือใช้บริการ รอ Housekeeping ทำความสะอาดก่อนขายได้ใหม่</div><span class="g-tag tag-hk">Housekeeping</span></div>
+
+          <div class="gloss-item" data-kw="extra charge ค่าใช้จ่ายเพิ่ม"><div class="g-en">Extra Charge</div><div class="g-th">ค่าใช้จ่ายเพิ่มเติม</div><div class="g-desc">ค่าบริการนอกเหนือค่าห้อง เช่น อาหาร มินิบาร์ ค่าล่วงเวลา บันทึกใน Folio ของแขก</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="deposit มัดจำ เงินล่วงหน้า"><div class="g-en">Deposit</div><div class="g-th">เงินมัดจำล่วงหน้า</div><div class="g-desc">เงินที่แขกชำระล่วงหน้าก่อนเช็คอิน บันทึกในระบบเพื่อหักออกจาก Folio ตอน Check-out</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="trace แจ้งเตือน reminder บันทึก"><div class="g-en">Trace</div><div class="g-th">บันทึกเตือนความจำ</div><div class="g-desc">ข้อความแจ้งเตือนที่ผูกกับการจอง เช่น "แขกแพ้อาหาร" จะแสดงบน Dashboard วันที่แขกมา</div><span class="g-tag tag-all">ทุกแผนก</span></div>
+
+          <div class="gloss-item" data-kw="day use dayuse รายวัน"><div class="g-en">Day Use</div><div class="g-th">เช่าห้องรายวันไม่ค้างคืน</div><div class="g-desc">การเข้าพักแบบไม่ค้างคืน เช่น พักกลางวัน ระบบจัดการห้องต่างจากการจองปกติ</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="source แหล่งที่มาการจอง"><div class="g-en">Source</div><div class="g-th">แหล่งที่มาการจอง</div><div class="g-desc">ระบุว่าแขกจองผ่านช่องทางไหน: Walk-in, Direct, OTA, Agent แต่ละ Source มีสีต่างกันในระบบ</div><span class="g-tag tag-fd">Front Desk</span></div>
+
+          <div class="gloss-item" data-kw="back-to-back b2b"><div class="g-en">Back-to-Back</div><div class="g-th">จองห้องติดกัน 2 รายการ</div><div class="g-desc">แขกรายใหม่จะเข้าห้องเดิมในวันที่แขกรายก่อน Check-out ต้องทำความสะอาดระหว่างวัน</div><span class="g-tag tag-hk">Housekeeping</span></div>
+
+        </div>
+        <div id="noGloss" style="display:none;text-align:center;padding:20px;color:var(--slate-400);font-size:13px;">ไม่พบคำศัพท์ที่ค้นหา</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ─── SECTION 5: Roles ─── -->
+  <div class="section" id="roles">
+    <div class="sec-title"><span class="sec-num">5</span> ใครใช้เมนูไหน</div>
+    <p class="sec-desc">ตารางสรุปว่าแต่ละตำแหน่งใช้เมนูไหนบ้าง</p>
+
+    <div class="card">
+      <div class="card-bd" style="padding:0;overflow-x:auto;">
+        <table class="role-tbl">
+          <thead>
+            <tr>
+              <th>เมนู</th>
+              <th>Front Desk</th>
+              <th>Housekeeping</th>
+              <th>Manager</th>
+              <th>หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Dashboard</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ดูตลอดเวลา</td></tr>
+            <tr><td><strong>Room Diary</strong></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ทุกคนดูได้</td></tr>
+            <tr><td><strong>Arrivals</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">Check-in แขก</td></tr>
+            <tr><td><strong>In-House</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ดูแขกที่พักอยู่</td></tr>
+            <tr><td><strong>Departures</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">Check-out แขก</td></tr>
+            <tr><td><strong>Reservations</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">สร้าง/แก้ไขการจอง</td></tr>
+            <tr><td><strong>Housekeeping</strong></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">HK Supervisor Assign งาน</td></tr>
+            <tr><td><strong>Guest Profiles</strong></td><td><span class="chk">✓</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ดู/แก้ไขประวัติแขก</td></tr>
+            <tr><td><strong>Logbook</strong></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ทุกแผนก</td></tr>
+            <tr><td><strong>Inventory</strong></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">HK จัดการสต็อก</td></tr>
+            <tr><td><strong>Rate Grid/Plans</strong></td><td><span class="dash">—</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:var(--slate-400)">ผู้จัดการตั้งราคา</td></tr>
+            <tr><td><strong>Night Audit</strong></td><td><span class="dash">—</span></td><td><span class="dash">—</span></td><td><span class="chk">✓</span></td><td style="font-size:12px;color:#dc2626;font-weight:600">⚠️ ผู้จัดการเท่านั้น</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEXT -->
+  <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:var(--radius);padding:24px 28px;text-align:center;margin-top:36px;">
+    <div style="font-size:26px;margin-bottom:6px;">🎉</div>
+    <h3 style="font-size:17px;font-weight:700;color:#15803d;margin-bottom:6px;">เสร็จหมวด 1 แล้ว!</h3>
+    <p style="font-size:13.5px;color:#166534;margin-bottom:14px;">รู้จักโปรแกรม เมนูทั้งหมด Flow และคำศัพท์ครบแล้ว<br>พร้อมเรียนหมวดถัดไป: <strong>Reservation → Check-in → Check-out</strong></p>
+    <div style="display:inline-block;background:#15803d;color:white;padding:9px 22px;border-radius:7px;font-size:13px;font-weight:700;opacity:.6;">หมวด 2: Reservation Flow (เร็วๆ นี้)</div>
+  </div>
+
+</main>
+</div>
+
+<button id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<style>
+.screen-tab { background:white; border:1.5px solid var(--slate-200); border-radius:7px; padding:7px 12px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all .15s; font-family:inherit; }
+.screen-tab:hover { border-color:var(--brand); color:var(--brand); }
+.screen-tab.active { background:var(--brand); border-color:var(--brand); color:white; }
+</style>
+
+<script>
+// TOOLTIP
+function showTT(el, e) {
+  const t = document.getElementById('tt');
+  document.getElementById('tt-title').textContent = el.dataset.en + ' — ' + el.dataset.th;
+  document.getElementById('tt-desc').textContent = el.dataset.desc;
+  document.getElementById('tt-url').textContent = el.dataset.url;
+  t.classList.add('show'); moveTT(e);
+}
+function hideTT() { document.getElementById('tt').classList.remove('show'); }
+function toggleGroup(header) {
+  header.parentElement.classList.toggle('collapsed');
+}
+function selectModule(el) {
+  // 1. Highlight the card
+  document.querySelectorAll('.mod-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+
+  // 2. Update iframe
+  const iframe = document.getElementById('split-iframe');
+  const frameUrl = document.getElementById('split-frame-url');
+  const path = el.dataset.url;
+  
+  iframe.src = 'http://localhost:3000' + path;
+  frameUrl.textContent = 'localhost:3000' + path;
+
+  // 3. Smooth scroll to the top of the section (optional but helpful)
+  document.getElementById('modules').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+document.addEventListener('mousemove', e => { if (document.getElementById('tt').classList.contains('show')) moveTT(e); });
+function moveTT(e) {
+  const t = document.getElementById('tt');
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + 280 > window.innerWidth) x = e.clientX - 286;
+  if (y + 140 > window.innerHeight) y = e.clientY - 150;
+  t.style.left = x + 'px'; t.style.top = y + 'px';
+}
+
+// FLOW
+function toggleFlow(n) {
+  for (let i=1;i<=7;i++) {
+    document.getElementById('fd'+i).classList.remove('show');
+    document.getElementById('fb'+i).classList.remove('active');
+  }
+  const det = document.getElementById('fd'+n);
+  const box = document.getElementById('fb'+n);
+  det.classList.add('show'); box.classList.add('active');
+}
+
+// SCREEN TABS
+const captions = {
+  board: '📸 Room Diary — แสดงสถานะห้องทุกห้องแยกตามชั้น คลิกห้องเพื่อ Assign หรือดูรายละเอียด',
+  arrivals: '📸 Arrivals — รายชื่อแขกที่ต้อง Check-in วันนี้ ปุ่มสีน้ำเงิน = พร้อม Check-in / สีเทา = ยังต้อง Assign Room',
+  inhouse: '📸 In-House — รายชื่อแขกที่ Check-in แล้ว แสดง Nights Remaining สีส้ม = ออกวันพรุ่งนี้',
+  departures: '📸 Departures — รายชื่อแขกที่ต้อง Check-out วันนี้ สถานะ Checked Out (เขียว) = เสร็จแล้ว',
+  reservations: '📸 Reservations — รายการจองทั้งหมด กรองได้ตาม Status/Source/วันที่ กด + New Booking เพื่อสร้างใหม่',
+  housekeeping: '📸 Housekeeping — Timeline View แม่บ้านแต่ละคน พร้อม Summary สถานะห้องด้านบน',
+  'night-audit': '📸 Night Audit — ขั้นตอนที่ 1/5 จัดการ No-Show ก่อน แล้วค่อย Proceed ต่อ'
+};
+function showScreen(page, label, btn) {
+  document.querySelectorAll('.screen-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('screen-iframe').src = 'http://localhost:3000/pms/' + page;
+  document.getElementById('screen-url').textContent = 'localhost:3000/pms/' + page + ' — ' + label;
+  document.getElementById('screen-caption').textContent = captions[page] || '';
+}
+
+// GLOSSARY SEARCH
+function filterGloss(q) {
+  const items = document.querySelectorAll('.gloss-item');
+  const low = q.toLowerCase().trim();
+  let found = 0;
+  items.forEach(item => {
+    const text = (item.dataset.kw || '') + ' ' + item.textContent.toLowerCase();
+    const show = !low || text.includes(low);
+    item.style.display = show ? '' : 'none';
+    if (show) found++;
+  });
+  document.getElementById('noGloss').style.display = found === 0 ? 'block' : 'none';
+}
+
+// SCROLL TOP
+window.addEventListener('scroll', () => {
+  document.getElementById('scrollTop').classList.toggle('vis', window.scrollY > 300);
+});
+
+// ACTIVE NAV
+const navAs = document.querySelectorAll('.nav-a[href^="#"]');
+const secs = document.querySelectorAll('[id]');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navAs.forEach(a => a.classList.remove('active'));
+      const a = document.querySelector('.nav-a[href="#' + e.target.id + '"]');
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.2 });
+secs.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,783 @@
+import { NextRequest, NextResponse } from "next/server";
+import { isValidDateString } from "@/lib/dates";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { BoardRoomStatus } from "@/lib/board-layout";
+import { getBusinessDate } from "@/lib/fo-prepare";
+import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
+import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
+
+type HousekeepingStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
+type GuestSummary = {
+  reservation_id: string | null;
+  guest_profile_id: string | null;
+  is_checked_in: boolean;
+  guest_name: string | null;
+  booking_code: string | null;
+  specials: string | null;
+  note: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+  source: string | null;
+  booking_group_id: string | null;
+  group_code: string | null;
+  group_name: string | null;
+};
+
+type HousekeepingTaskSummary = {
+  status: HousekeepingStatus;
+  assigned_maid_name: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  approved_at: string | null;
+  is_no_service: boolean;
+  no_service_note: string | null;
+};
+
+type HousekeepingTaskRow = {
+  room_id: string;
+  status: HousekeepingStatus;
+  assigned_maid_name: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  approved_at: string | null;
+  is_no_service: boolean | null;
+  no_service_note?: string | null;
+};
+
+function parseJsonRecord(value: unknown): Record<string, any> {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, any>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function mapHousekeepingToBoardStatus(status: HousekeepingStatus): BoardRoomStatus {
+  if (status === "dirty") return "dirty";
+  if (status === "in_progress" || status === "paused") return "cleaning";
+  if (status === "cleaned" || status === "approved") return "approved";
+  return "available";
+}
+
+export async function GET(request: NextRequest) {
+  const requestedDate = request.nextUrl.searchParams.get("date");
+  if (requestedDate && !isValidDateString(requestedDate)) {
+    return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD." }, { status: 400 });
+  }
+
+  const supabase = createServerSupabaseClient();
+  const date = await getBusinessDate(supabase, requestedDate);
+
+  const { data: roomsData, error: roomsError } = await supabase
+    .from("rooms")
+    .select("id, room_number, is_sellable, closure_reason, wing, is_dayuse, room_types(name_en)")
+    .eq("is_visible_on_board", true)
+    .eq("is_dayuse", false)
+    .order("floor_number", { ascending: true, nullsFirst: false })
+    .order("wing", { ascending: true, nullsFirst: false })
+    .order("sort_order", { ascending: true, nullsFirst: false });
+
+
+  if (roomsError) {
+    return NextResponse.json({ error: roomsError.message }, { status: 500 });
+  }
+
+  const { data: reservationNights, error: reservationError } = await supabase
+    .from("reservation_nights")
+    .select(`
+      room_id,
+      reservations!reservation_nights_reservation_id_fkey(
+        id,
+        status,
+        guest_profile_id,
+        guest_name,
+        booking_code,
+        specials,
+        note,
+        booking_group_id,
+        checkin_date,
+        checkout_date,
+        source
+      )
+    `)
+    .eq("stay_date", date)
+    .is("cancelled_at", null);
+
+  if (reservationError) {
+    return NextResponse.json({ error: reservationError.message }, { status: 500 });
+  }
+
+  const { data: departuresToday, error: departuresError } = await supabase
+    .from("reservations")
+    .select(`
+      id,
+      guest_profile_id,
+      guest_name,
+      booking_code,
+      specials,
+      note,
+      booking_group_id,
+      checkin_date,
+      checkout_date,
+      source,
+      reservation_nights(
+        room_id,
+        stay_date,
+        cancelled_at
+      )
+    `)
+    .eq("status", "active")
+    .eq("checkout_date", date);
+
+  if (departuresError) {
+    return NextResponse.json({ error: departuresError.message }, { status: 500 });
+  }
+
+  const { data: effectivePlannedMoves, error: effectivePlannedMovesError } = await supabase
+    .from("reservation_room_plans")
+    .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id")
+    .eq("status", "planned")
+    .lte("start_date", date)
+    .gt("end_date", date);
+
+  if (effectivePlannedMovesError) {
+    return NextResponse.json({ error: effectivePlannedMovesError.message }, { status: 500 });
+  }
+
+  const groupIds = new Set<string>();
+  (reservationNights ?? []).forEach((night: any) => {
+    const reservationRef = Array.isArray(night?.reservations)
+      ? night.reservations[0]
+      : night?.reservations;
+    if (!reservationRef || reservationRef.status !== "active") return;
+    if (reservationRef?.booking_group_id) {
+      groupIds.add(String(reservationRef.booking_group_id));
+    }
+  });
+  (departuresToday ?? []).forEach((reservation: any) => {
+    if (reservation?.booking_group_id) {
+      groupIds.add(String(reservation.booking_group_id));
+    }
+  });
+
+  const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
+  if (groupIds.size > 0) {
+    const { data: groups, error: groupError } = await supabase
+      .from("booking_groups")
+      .select("id, group_code, group_name")
+      .in("id", Array.from(groupIds));
+
+    if (groupError) {
+      return NextResponse.json({ error: groupError.message }, { status: 500 });
+    }
+
+    (groups ?? []).forEach((g: any) => {
+      groupMetaById.set(String(g.id), {
+        group_code: g.group_code ?? null,
+        group_name: g.group_name ?? null
+      });
+    });
+  }
+
+  const effectivePlanReservationIds = Array.from(
+    new Set((effectivePlannedMoves ?? []).map((row: any) => row?.reservation_id ? String(row.reservation_id) : "").filter(Boolean))
+  );
+  let effectivePlanReservationsRaw: any[] = [];
+  if (effectivePlanReservationIds.length > 0) {
+    const { data: plannedReservations, error: plannedReservationError } = await supabase
+      .from("reservations")
+      .select("id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source")
+      .in("id", effectivePlanReservationIds)
+      .eq("status", "active");
+
+    if (plannedReservationError) {
+      return NextResponse.json({ error: plannedReservationError.message }, { status: 500 });
+    }
+
+    (plannedReservations ?? []).forEach((reservation: any) => {
+      if (reservation?.booking_group_id) {
+        groupIds.add(String(reservation.booking_group_id));
+      }
+    });
+    effectivePlanReservationsRaw = plannedReservations ?? [];
+
+    if (groupIds.size > 0) {
+      const missingGroupIds = Array.from(groupIds).filter((groupId) => !groupMetaById.has(groupId));
+      if (missingGroupIds.length > 0) {
+        const { data: extraGroups, error: extraGroupError } = await supabase
+          .from("booking_groups")
+          .select("id, group_code, group_name")
+          .in("id", missingGroupIds);
+        if (extraGroupError) {
+          return NextResponse.json({ error: extraGroupError.message }, { status: 500 });
+        }
+        (extraGroups ?? []).forEach((g: any) => {
+          groupMetaById.set(String(g.id), {
+            group_code: g.group_code ?? null,
+            group_name: g.group_name ?? null,
+          });
+        });
+      }
+    }
+
+  }
+
+  const reservationIdsForCheckin = new Set<string>();
+  (reservationNights ?? []).forEach((night: any) => {
+    const reservationRef = Array.isArray(night?.reservations)
+      ? night.reservations[0]
+      : night?.reservations;
+    if (!reservationRef || reservationRef.status !== "active") return;
+    if (reservationRef?.id) {
+      reservationIdsForCheckin.add(String(reservationRef.id));
+    }
+  });
+  (departuresToday ?? []).forEach((reservation: any) => {
+    if (reservation?.id) {
+      reservationIdsForCheckin.add(String(reservation.id));
+    }
+  });
+
+  const checkedInReservationSet = new Set<string>();
+  if (reservationIdsForCheckin.size > 0) {
+    const { data: checkedInLogs, error: checkedInLogError } = await supabase
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("entity_type", "reservation")
+      .eq("action", "checked_in")
+      .in("entity_id", Array.from(reservationIdsForCheckin));
+
+    if (checkedInLogError) {
+      return NextResponse.json({ error: checkedInLogError.message }, { status: 500 });
+    }
+
+    (checkedInLogs ?? []).forEach((log: any) => {
+      checkedInReservationSet.add(String(log.entity_id));
+    });
+  }
+
+  const effectivePlanReservationsById = new Map<string, GuestSummary>();
+  effectivePlanReservationsRaw.forEach((reservation: any) => {
+    const reservationId = reservation?.id ? String(reservation.id) : null;
+    const groupId = reservation.booking_group_id ? String(reservation.booking_group_id) : null;
+    const groupMeta = groupId ? groupMetaById.get(groupId) : null;
+    if (reservationId) {
+      effectivePlanReservationsById.set(reservationId, {
+        reservation_id: reservationId,
+        is_checked_in: checkedInReservationSet.has(reservationId),
+        guest_profile_id: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
+        guest_name: reservation.guest_name ?? null,
+        booking_code: reservation.booking_code ?? null,
+        specials: reservation.specials ?? null,
+        note: reservation.note ?? null,
+        checkin_date: reservation.checkin_date ?? null,
+        checkout_date: reservation.checkout_date ?? null,
+        source: reservation.source ?? null,
+        booking_group_id: groupId,
+        group_code: groupMeta?.group_code ?? null,
+        group_name: groupMeta?.group_name ?? null,
+      });
+    }
+  });
+
+  const plannedMoveSourceGuestByRoomId = new Map<string, GuestSummary>();
+  const plannedMoveTargetGuestByRoomId = new Map<string, GuestSummary>();
+  (effectivePlannedMoves ?? []).forEach((move: any) => {
+    const reservationId = move?.reservation_id ? String(move.reservation_id) : null;
+    if (!reservationId) return;
+    const guest = effectivePlanReservationsById.get(reservationId);
+    if (!guest) return;
+    if (move?.from_room_id_snapshot) {
+      plannedMoveSourceGuestByRoomId.set(String(move.from_room_id_snapshot), guest);
+    }
+    if (move?.to_room_id) {
+      plannedMoveTargetGuestByRoomId.set(String(move.to_room_id), guest);
+    }
+  });
+
+  const hkSelectBase =
+    "room_id, status, assigned_maid_name, started_at, finished_at, approved_at, is_no_service";
+  let { data: housekeepingTasksRaw, error: housekeepingError } = await supabase
+    .from("housekeeping_tasks")
+    .select(`${hkSelectBase}, no_service_note`)
+    .eq("stay_date", date);
+
+  if (housekeepingError) {
+    const message = String(housekeepingError.message ?? "").toLowerCase();
+    if (message.includes("no_service_note")) {
+      return NextResponse.json(
+        {
+          error:
+            "DB migration required: apply 20260303_phase11_hk_no_service_note.sql before using board API.",
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ error: housekeepingError.message }, { status: 500 });
+  }
+  const housekeepingTasks = (housekeepingTasksRaw ?? []) as unknown as HousekeepingTaskRow[];
+
+  // Fetch Room Blocks (now using room_id UUID)
+  const { data: roomBlocks } = await supabase
+    .from("room_blocks")
+    .select("room_id, block_type, reason")
+    .lte("start_date", date)
+    .gte("end_date", date);
+
+  const blocksByRoomId = new Map<string, { type: string, reason: string }>();
+  (roomBlocks || []).forEach(b => {
+    if (b.room_id) blocksByRoomId.set(b.room_id, { type: b.block_type, reason: b.reason });
+  });
+
+  const occupiedGuestByRoomId = new Map<string, GuestSummary>();
+  const arrivalGuestByRoomId = new Map<string, GuestSummary>();
+
+  (reservationNights ?? []).forEach((night: any) => {
+    const roomId = night?.room_id ? String(night.room_id) : "";
+    if (!roomId) return;
+
+    const reservationRef = Array.isArray(night.reservations)
+      ? night.reservations[0]
+      : night.reservations;
+    if (!reservationRef || reservationRef.status !== "active") return;
+    const reservationId = reservationRef.id ? String(reservationRef.id) : null;
+    const groupId = reservationRef.booking_group_id ? String(reservationRef.booking_group_id) : null;
+    const groupMeta = groupId ? groupMetaById.get(groupId) : null;
+
+    const guest: GuestSummary = {
+      reservation_id: reservationId,
+      is_checked_in: reservationId ? checkedInReservationSet.has(reservationId) : false,
+      guest_profile_id: reservationRef.guest_profile_id ? String(reservationRef.guest_profile_id) : null,
+      guest_name: reservationRef.guest_name ?? null,
+      booking_code: reservationRef.booking_code ?? null,
+      specials: reservationRef.specials ?? null,
+      note: reservationRef.note ?? null,
+      checkin_date: reservationRef.checkin_date ?? null,
+      checkout_date: reservationRef.checkout_date ?? null,
+      source: reservationRef.source ?? null,
+      booking_group_id: groupId,
+      group_code: groupMeta?.group_code ?? null,
+      group_name: groupMeta?.group_name ?? null,
+    };
+
+    occupiedGuestByRoomId.set(roomId, guest);
+    if (guest.checkin_date === date) {
+      arrivalGuestByRoomId.set(roomId, guest);
+    }
+  });
+
+  const departureGuestByRoomId = new Map<string, GuestSummary>();
+  (departuresToday ?? []).forEach((reservation: any) => {
+    const nights = Array.isArray(reservation?.reservation_nights)
+      ? reservation.reservation_nights
+      : reservation?.reservation_nights
+        ? [reservation.reservation_nights]
+        : [];
+
+    const activeNights = nights.filter((n: any) => !n?.cancelled_at && n?.room_id);
+    if (activeNights.length === 0) return;
+
+    activeNights.sort((a: any, b: any) => String(b?.stay_date ?? "").localeCompare(String(a?.stay_date ?? "")));
+    const latestNight = activeNights[0];
+    const roomId = latestNight?.room_id ? String(latestNight.room_id) : "";
+    if (!roomId) return;
+    const reservationId = reservation.id ? String(reservation.id) : null;
+    const groupId = reservation.booking_group_id ? String(reservation.booking_group_id) : null;
+    const groupMeta = groupId ? groupMetaById.get(groupId) : null;
+
+    departureGuestByRoomId.set(roomId, {
+      reservation_id: reservationId,
+      is_checked_in: reservationId ? checkedInReservationSet.has(reservationId) : false,
+      guest_profile_id: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
+      guest_name: reservation.guest_name ?? null,
+      booking_code: reservation.booking_code ?? null,
+      specials: reservation.specials ?? null,
+      note: reservation.note ?? null,
+      checkin_date: reservation.checkin_date ?? null,
+      checkout_date: reservation.checkout_date ?? null,
+      source: reservation.source ?? null,
+      booking_group_id: groupId,
+      group_code: groupMeta?.group_code ?? null,
+      group_name: groupMeta?.group_name ?? null,
+    });
+  });
+
+  const reservationIdSet = new Set<string>();
+  const reservationProfileSeed = new Map<string, string | null>();
+  const pushGuestLoyaltySeed = (guest: GuestSummary | null) => {
+    if (!guest?.reservation_id) return;
+    reservationIdSet.add(guest.reservation_id);
+    if (!reservationProfileSeed.has(guest.reservation_id)) {
+      reservationProfileSeed.set(guest.reservation_id, guest.guest_profile_id ?? null);
+    }
+  };
+  occupiedGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+  departureGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+  arrivalGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+  plannedMoveSourceGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+  plannedMoveTargetGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+
+  const loyaltyByReservationId = await buildReservationLoyaltyMap(
+    supabase,
+    Array.from(reservationIdSet),
+    reservationProfileSeed
+  );
+
+  const alertSummaryByReservationId = new Map<string, {
+    count: number;
+    firstMessage: string | null;
+    highestSeverity: "info" | "warning" | "critical" | null;
+  }>();
+  if (reservationIdSet.size > 0) {
+    const { data: reservationAlerts, error: reservationAlertsError } = await supabase
+      .from("reservation_alerts")
+      .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
+      .in("reservation_id", Array.from(reservationIdSet));
+
+    if (reservationAlertsError) {
+      return NextResponse.json({ error: reservationAlertsError.message }, { status: 500 });
+    }
+
+    const legacyCodes = Array.from(
+      new Set((reservationAlerts ?? []).filter((row: any) => !row?.alert_template_id && row?.alert_code).map((row: any) => normalizeAlertCodeKey(row.alert_code)).filter(Boolean))
+    );
+    let templateMap = new Map<string, any>();
+    if (legacyCodes.length > 0) {
+      const { data: templates, error: templateError } = await supabase
+        .from("alert_templates")
+        .select("id, code, name, description, category, display_surfaces, severity, icon");
+      if (templateError) {
+        return NextResponse.json({ error: templateError.message }, { status: 500 });
+      }
+      templateMap = new Map((templates ?? []).map((template: any) => [normalizeAlertCodeKey(template.code), template]));
+    }
+    const resolvedRows = attachTemplateFallback(reservationAlerts ?? [], templateMap);
+
+    const grouped = new Map<string, any[]>();
+    for (const row of resolvedRows) {
+      const reservationId = String((row as any)?.reservation_id ?? "");
+      if (!reservationId) continue;
+      if (!grouped.has(reservationId)) grouped.set(reservationId, []);
+      grouped.get(reservationId)?.push(row);
+    }
+
+    grouped.forEach((rows, reservationId) => {
+      const alerts = rows
+        .map((row) => mapEffectiveReservationAlert(row))
+        .filter((alert) => !alert.is_dismissed);
+      const visibleAlerts = filterAlertsForSurface(alerts, "room_diary");
+      const summary = summarizeAlerts(visibleAlerts);
+      if (summary.count > 0) {
+        alertSummaryByReservationId.set(reservationId, summary);
+      }
+    });
+  }
+
+  const roomMoveByReservation = new Map<string, {
+    move_date: string;
+    moved_at: string;
+    from_room_number: string;
+    to_room_number: string;
+    reason: string;
+  }>();
+
+  if (reservationIdSet.size > 0) {
+    const reservationIds = Array.from(reservationIdSet);
+    const { data: roomMoveLogs, error: roomMoveError } = await supabase
+      .from("audit_logs")
+      .select("entity_id, created_at, before_json, after_json")
+      .eq("entity_type", "reservation")
+      .eq("action", "room_moved")
+      .in("entity_id", reservationIds);
+
+    if (roomMoveError) {
+      return NextResponse.json({ error: roomMoveError.message }, { status: 500 });
+    }
+
+    for (const log of roomMoveLogs ?? []) {
+      const reservationId = String(log.entity_id);
+      const movedAt = String(log.created_at ?? "");
+      const before = parseJsonRecord(log.before_json);
+      const after = parseJsonRecord(log.after_json);
+      const moveDate = String(after.move_date ?? (movedAt ? movedAt.slice(0, 10) : ""));
+      if (!moveDate || moveDate > date) continue;
+
+      const incoming = {
+        move_date: moveDate,
+        moved_at: movedAt,
+        from_room_number: String(before.room_number ?? "unknown"),
+        to_room_number: String(after.room_number ?? "unknown"),
+        reason: typeof after.reason === "string" ? after.reason : ""
+      };
+      const existing = roomMoveByReservation.get(reservationId);
+      if (!existing) {
+        roomMoveByReservation.set(reservationId, incoming);
+        continue;
+      }
+      if (
+        incoming.move_date > existing.move_date ||
+        (incoming.move_date === existing.move_date && incoming.moved_at > existing.moved_at)
+      ) {
+        roomMoveByReservation.set(reservationId, incoming);
+      }
+    }
+  }
+
+  const reservedRoomIds = new Set<string>();
+  occupiedGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
+  departureGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
+  plannedMoveSourceGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
+
+  const housekeepingByRoomId = new Map<string, HousekeepingTaskSummary>();
+  housekeepingTasks.forEach((task) => {
+    housekeepingByRoomId.set(task.room_id, {
+      status: task.status as HousekeepingStatus,
+      assigned_maid_name: task.assigned_maid_name ?? null,
+      started_at: task.started_at ?? null,
+      finished_at: task.finished_at ?? null,
+      approved_at: task.approved_at ?? null,
+      is_no_service: task.is_no_service ?? false,
+      no_service_note: task.no_service_note ?? null
+    });
+  });
+  // ── Transfer Data (Phase 11) ──────────────────────
+  const transferByRoomId = new Map<string, {
+    transfer_id: string;
+    pickup_datetime: string;
+    transfer_type: string;
+    status: string;
+    guest_note: string | null;
+    alert_enabled: boolean;
+  }>();
+
+  try {
+    const runTransferQuery = async (selectClause: string) =>
+      supabase
+        .from("transfers")
+        .select(selectClause)
+        .gte("pickup_datetime", `${date}T00:00:00+07:00`)
+        .lt("pickup_datetime", `${date}T24:00:00+07:00`)
+        .in("status", ["pending", "confirmed", "driver_assigned"])
+        .order("pickup_datetime", { ascending: true });
+
+    let { data: todayTransfers, error: transferQueryError } = await runTransferQuery(
+      "id, reservation_id, pickup_datetime, transfer_type, status, guest_note, alert_enabled"
+    );
+
+    if (transferQueryError) {
+      const message = String(transferQueryError.message ?? "").toLowerCase();
+      // Backward-compatible fallback for DBs that have not applied alert_enabled migration yet.
+      if (!message.includes("alert_enabled")) {
+        throw transferQueryError;
+      }
+      const fallbackResult = await runTransferQuery(
+        "id, reservation_id, pickup_datetime, transfer_type, status, guest_note"
+      );
+      todayTransfers = fallbackResult.data;
+      transferQueryError = fallbackResult.error;
+      if (transferQueryError) throw transferQueryError;
+    }
+
+    if (todayTransfers && todayTransfers.length > 0) {
+      // Map transfer -> room using reservation_nights with due-out fallback:
+      // exact stay_date first, otherwise latest stay_date <= board date.
+      const transferResIds = [...new Set(todayTransfers.map((t: any) => t.reservation_id))];
+      const { data: transferNights } = await supabase
+        .from("reservation_nights")
+        .select("reservation_id, stay_date, room_id")
+        .in("reservation_id", transferResIds)
+        .lte("stay_date", date)
+        .is("cancelled_at", null);
+
+      const resIdToRoomId = new Map<string, string>();
+      if (transferNights) {
+        const grouped = new Map<string, any[]>();
+        for (const n of transferNights as any[]) {
+          const reservationId = String(n.reservation_id);
+          const existing = grouped.get(reservationId);
+          if (existing) existing.push(n);
+          else grouped.set(reservationId, [n]);
+        }
+        for (const [reservationId, rows] of grouped.entries()) {
+          const exact = rows.find((row) => String(row.stay_date) === date);
+          if (exact?.room_id) {
+            resIdToRoomId.set(reservationId, String(exact.room_id));
+            continue;
+          }
+          const latest = rows.sort((a, b) => String(b.stay_date).localeCompare(String(a.stay_date)))[0];
+          if (latest?.room_id) {
+            resIdToRoomId.set(reservationId, String(latest.room_id));
+          }
+        }
+      }
+
+      // Attach earliest unfinished transfer per room
+      for (const t of todayTransfers as any[]) {
+        const roomId = resIdToRoomId.get(t.reservation_id);
+        if (roomId && !transferByRoomId.has(roomId)) {
+          transferByRoomId.set(roomId, {
+            transfer_id: t.id,
+            pickup_datetime: t.pickup_datetime,
+            transfer_type: t.transfer_type,
+            status: t.status,
+            guest_note: t.guest_note,
+            alert_enabled: t.alert_enabled !== false,
+          });
+        }
+      }
+    }
+  } catch (transferErr) {
+    // Non-blocking: if transfers table doesn't exist yet, skip gracefully
+    console.warn("[Board API] Transfer query skipped:", transferErr);
+  }
+
+  const counts: Record<BoardRoomStatus, number> = {
+    available: 0,
+    reserved: 0,
+    dirty: 0,
+    cleaning: 0,
+    approved: 0,
+    closed: 0
+  };
+
+  const rooms = (roomsData ?? []).map((room) => {
+    let status: any;
+    let closure_reason = room.closure_reason;
+    const block = blocksByRoomId.get(room.id);
+    const arrivalGuest = arrivalGuestByRoomId.get(room.id) ?? null;
+    const plannedSourceGuest = plannedMoveSourceGuestByRoomId.get(room.id) ?? null;
+    const plannedTargetGuest = plannedMoveTargetGuestByRoomId.get(room.id) ?? null;
+    const hasArrivalTodayPending = Boolean(arrivalGuest && !arrivalGuest.is_checked_in);
+    const hasPlannedSourceToday = Boolean(plannedSourceGuest);
+    const hasPlannedTargetToday = Boolean(plannedTargetGuest);
+    const hasDepartureToday = departureGuestByRoomId.has(room.id);
+    const hasOccupiedStay = occupiedGuestByRoomId.has(room.id);
+    const isDueOut = hasDepartureToday || hasPlannedSourceToday;
+    const isDueIn = hasArrivalTodayPending || hasPlannedTargetToday;
+
+    if (block) {
+      status = block.type.toLowerCase(); // 'ooo' or 'oos'
+      closure_reason = block.reason;
+    } else if (!room.is_sellable) {
+      status = "closed";
+    } else if (reservedRoomIds.has(room.id)) {
+      status = "reserved";
+    } else {
+      const housekeepingTask = housekeepingByRoomId.get(room.id);
+      status = housekeepingTask ? mapHousekeepingToBoardStatus(housekeepingTask.status) : "available";
+    }
+
+    let diary_state: "available" | "due_in" | "inhouse" | "back_to_back" | "due_out" | null = null;
+    if (!block && room.is_sellable) {
+      if (isDueOut && isDueIn) diary_state = "back_to_back";
+      else if (isDueOut) diary_state = "due_out";
+      else if (isDueIn) diary_state = "due_in";
+      else if (hasOccupiedStay) diary_state = "inhouse";
+      else diary_state = "available";
+    }
+
+    if (!counts[status as BoardRoomStatus]) counts[status as BoardRoomStatus] = 0;
+    counts[status as BoardRoomStatus] += 1;
+
+    const roomTypeRef = room.room_types as { name_en?: string } | null;
+    const housekeepingTask = housekeepingByRoomId.get(room.id) ?? null;
+    const departureGuest = plannedSourceGuest ?? departureGuestByRoomId.get(room.id) ?? null;
+    const occupiedGuest = occupiedGuestByRoomId.get(room.id) ?? null;
+    const dueInGuest =
+      (arrivalGuest && !arrivalGuest.is_checked_in ? arrivalGuest : null) ??
+      (hasPlannedTargetToday ? plannedTargetGuest : null);
+    const guest =
+      diary_state === "back_to_back" || diary_state === "due_out"
+        ? departureGuest
+        : diary_state === "due_in"
+          ? dueInGuest
+          : occupiedGuest;
+    const loyalty = guest?.reservation_id
+      ? loyaltyByReservationId.get(guest.reservation_id)
+      : null;
+    const roomMove = guest?.reservation_id
+      ? roomMoveByReservation.get(guest.reservation_id)
+      : null;
+    const movedIntoCurrentRoom =
+      Boolean(roomMove) && roomMove?.to_room_number === room.room_number;
+    const alertSummary = guest?.reservation_id
+      ? alertSummaryByReservationId.get(guest.reservation_id)
+      : null;
+
+    return {
+      room_id: room.id,
+      room_number: room.room_number,
+      room_type: roomTypeRef?.name_en ?? "Unknown",
+      sellable: room.is_sellable,
+      closure_reason,
+      status,
+      wing: (room as any).wing ?? null,
+      guest_name: guest?.guest_name ?? null,
+      booking_code: guest?.booking_code ?? null,
+      specials: guest?.specials ?? null,
+      special_request: typeof guest?.specials === "string" && guest.specials.trim().length > 0
+        ? guest.specials.trim()
+        : null,
+      guest_checkin_date: guest?.checkin_date ?? null,
+      guest_checkout_date: guest?.checkout_date ?? null,
+      source: guest?.source ?? null,
+      reservation_id: guest?.reservation_id ?? null,
+      guest_profile_id: guest?.guest_profile_id ?? null,
+      vip_tier: loyalty?.vip_tier ?? null,
+      stay_count: loyalty?.stay_count ?? 0,
+      night_count: loyalty?.night_count ?? 0,
+      main_stay_count: loyalty?.main_stay_count ?? 0,
+      main_night_count: loyalty?.main_night_count ?? 0,
+      accompanying_stay_count: loyalty?.accompanying_stay_count ?? 0,
+      accompanying_night_count: loyalty?.accompanying_night_count ?? 0,
+      due_in_guest_name: dueInGuest?.guest_name ?? null,
+      due_in_booking_code: dueInGuest?.booking_code ?? null,
+      due_in_checkin_date: dueInGuest?.checkin_date ?? null,
+      due_in_checkout_date: dueInGuest?.checkout_date ?? null,
+      due_in_source: dueInGuest?.source ?? null,
+      due_in_reservation_id: dueInGuest?.reservation_id ?? null,
+      booking_group_id: guest?.booking_group_id ?? null,
+      group_code: guest?.group_code ?? null,
+      group_name: guest?.group_name ?? null,
+      room_move_from: movedIntoCurrentRoom ? roomMove?.from_room_number ?? null : null,
+      room_move_reason: movedIntoCurrentRoom ? roomMove?.reason ?? null : null,
+      room_move_date: movedIntoCurrentRoom ? roomMove?.move_date ?? null : null,
+      alert_count: alertSummary?.count ?? 0,
+      first_alert_message: alertSummary?.firstMessage ?? null,
+      alert_severity: alertSummary?.highestSeverity ?? null,
+      diary_state,
+      hk_status: housekeepingTask?.status ?? null,
+      hk_assigned_maid: housekeepingTask?.assigned_maid_name ?? null,
+      hk_started_at: housekeepingTask?.started_at ?? null,
+      hk_finished_at: housekeepingTask?.finished_at ?? null,
+      hk_approved_at: housekeepingTask?.approved_at ?? null,
+      hk_is_no_service: housekeepingTask?.is_no_service ?? false,
+      hk_no_service_note: housekeepingTask?.no_service_note ?? null,
+      // Phase 11: Transfer overlay
+      transfer_pickup_at: transferByRoomId.get(room.id)?.pickup_datetime ?? null,
+      transfer_type_icon: transferByRoomId.has(room.id)
+        ? (["bus_ferry_pickup", "ticket_only"].includes(transferByRoomId.get(room.id)!.transfer_type) ? "⛵" : "🚗")
+        : null,
+      transfer_status: transferByRoomId.get(room.id)?.status ?? null,
+      transfer_id: transferByRoomId.get(room.id)?.transfer_id ?? null,
+      transfer_guest_note: transferByRoomId.get(room.id)?.guest_note ?? null,
+      transfer_alert_enabled: transferByRoomId.get(room.id)?.alert_enabled ?? true,
+    };
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      date,
+      counts,
+      rooms
+    },
+    { status: 200 }
+  );
+}
