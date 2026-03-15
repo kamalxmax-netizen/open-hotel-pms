@@ -233,7 +233,7 @@ function scanSourceLabel(source: ScanPoolSource): string {
 function scanSourceBadgeClass(source: ScanPoolSource): string {
   if (source === "thai_id") return "bg-sky-100 text-sky-700";
   if (source === "passport_ocr") return "bg-purple-100 text-purple-700";
-  return "bg-slate-100 text-slate-700";
+  return "bg-[var(--bg-muted)] text-[var(--text-table-cell)]";
 }
 
 export default function GroupCheckinWizardPage({ params }: { params: { id: string } }) {
@@ -1414,24 +1414,24 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
+      <div className="min-h-screen bg-[var(--bg-body)] flex items-center justify-center text-[var(--text-secondary)]">
         Loading group check-in wizard...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-body)]">
+      <header className="bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <div>
           <div className="flex items-center gap-3">
-            <Link href={backHref} className="text-slate-500 hover:text-indigo-700 text-sm font-semibold">
+            <Link href={backHref} className="text-[var(--text-secondary)] hover:text-indigo-700 text-sm font-semibold">
               Back to Group Detail
             </Link>
             <span className="text-slate-300">|</span>
             <h1 className="text-xl font-bold text-slate-800">Group Check-in Wizard</h1>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             <span className="font-semibold text-indigo-700">{groupData?.group_code || "—"}</span>
             <span className="mx-2">·</span>
             <span>{groupData?.group_name || "Group"}</span>
@@ -1445,7 +1445,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         <div className="flex items-center gap-2">
           {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex items-center gap-2">
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${currentStep === step ? "bg-indigo-600 text-white" : currentStep > step ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"}`}>
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${currentStep === step ? "bg-indigo-600 text-white" : currentStep > step ? "bg-emerald-500 text-white" : "bg-slate-200 text-[var(--text-secondary)]"}`}>
                 {currentStep > step ? "✓" : step}
               </div>
               {step < 4 ? <div className={`h-0.5 w-6 ${currentStep > step ? "bg-emerald-500" : "bg-slate-200"}`} /> : null}
@@ -1455,7 +1455,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       </header>
 
       <main className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-6xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="max-w-6xl mx-auto bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm p-6">
           {error ? <div className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
           {info ? <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div> : null}
 
@@ -1464,16 +1464,16 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               <div className="flex items-end justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-800">Step 1 — Select Rooms</h2>
-                  <p className="text-sm text-slate-500">Choose rooms to include in this check-in run.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">Choose rooms to include in this check-in run.</p>
                 </div>
-                <div className="text-sm text-slate-600 font-semibold">
+                <div className="text-sm text-[var(--text-secondary)] font-semibold">
                   {selectedReservations.length} selected / {reservations.filter((row) => !row.is_checked_in && row.has_assigned_room && row.status === "active").length} eligible
                 </div>
               </div>
 
-              <div className="overflow-auto border border-slate-200 rounded-xl">
+              <div className="overflow-auto border border-[var(--border-default)] rounded-xl">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
                     <tr>
                       <th className="p-3 w-10 text-left">
                         <input
@@ -1496,7 +1496,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                       return (
                         <tr
                           key={row.id}
-                          className={`border-t border-slate-100 ${row.selected ? "bg-indigo-50/50" : ""} ${disabled ? "opacity-60" : "hover:bg-slate-50"}`}
+                          className={`border-t border-[var(--border-subtle)] ${row.selected ? "bg-indigo-50/50" : ""} ${disabled ? "opacity-60" : "hover:bg-[var(--bg-body)]"}`}
                           onClick={() => {
                             if (!disabled) toggleSelection(row.id);
                           }}
@@ -1509,12 +1509,12 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                               onChange={() => undefined}
                             />
                           </td>
-                          <td className="p-3 font-semibold text-slate-700">{row.booking_code}</td>
+                          <td className="p-3 font-semibold text-[var(--text-table-cell)]">{row.booking_code}</td>
                           <td className="p-3">
                             <div className="font-semibold text-slate-800">{row.room_number}</div>
-                            <div className="text-xs text-slate-500">{row.room_type}</div>
+                            <div className="text-xs text-[var(--text-secondary)]">{row.room_type}</div>
                           </td>
-                          <td className="p-3 text-slate-700">{row.guest_name || "—"}</td>
+                          <td className="p-3 text-[var(--text-table-cell)]">{row.guest_name || "—"}</td>
                           <td className="p-3">
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded ${hk.className}`}>{hk.label}</span>
                           </td>
@@ -1538,14 +1538,14 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Step 2 — Guest Assignment</h2>
-                <p className="text-sm text-slate-500">Search/scan guest pool, assign primary or accompanying immediately, then auto-distribute by booking order.</p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-sm text-[var(--text-secondary)]">Search/scan guest pool, assign primary or accompanying immediately, then auto-distribute by booking order.</p>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Manual profile entry is currently per booking. Use <span className="font-semibold">Manual (per booking)</span> to open reservation editor.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <div className="lg:col-span-7 border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+                <div className="lg:col-span-7 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-semibold text-slate-800">Scan Pool</h3>
                     <button
@@ -1567,20 +1567,20 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-[var(--text-secondary)]">
                     Strategy: rebuild all assignments in selected scope, match main by profile id first, then equal split by room.
                   </p>
 
-                  <div className="border border-slate-200 rounded-lg max-h-80 overflow-auto bg-slate-50">
+                  <div className="border border-[var(--border-default)] rounded-lg max-h-80 overflow-auto bg-[var(--bg-body)]">
                     {scannedGuestPool.length === 0 ? (
-                      <div className="px-3 py-4 text-sm text-slate-500">No identities in pool yet.</div>
+                      <div className="px-3 py-4 text-sm text-[var(--text-secondary)]">No identities in pool yet.</div>
                     ) : (
                       <div className="divide-y divide-slate-100">
                         {scannedGuestPool.map((guest) => (
-                          <div key={guest.id} className="px-3 py-2 flex items-center justify-between gap-2 bg-white">
+                          <div key={guest.id} className="px-3 py-2 flex items-center justify-between gap-2 bg-[var(--bg-surface)]">
                             <div>
                               <div className="text-sm font-medium text-slate-800">{guestDisplayName(guest)}</div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
                                 <span className={`inline-flex rounded px-1.5 py-0.5 font-semibold ${scanSourceBadgeClass(guest.source)}`}>
                                   {scanSourceLabel(guest.source)}
                                 </span>
@@ -1603,7 +1603,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   </div>
                 </div>
 
-                <div className="lg:col-span-5 border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <div className="lg:col-span-5 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-body)] space-y-3">
                   <h3 className="font-semibold text-slate-800">Manual Assign</h3>
                   <div className="flex flex-col gap-2">
                     <input
@@ -1652,9 +1652,9 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{searchError}</div>
                   ) : null}
 
-                  <div className="border border-slate-200 rounded-lg bg-white max-h-80 overflow-auto">
+                  <div className="border border-[var(--border-default)] rounded-lg bg-[var(--bg-surface)] max-h-80 overflow-auto">
                     {searchResults.length === 0 ? (
-                      <div className="px-3 py-4 text-sm text-slate-500">No search result yet.</div>
+                      <div className="px-3 py-4 text-sm text-[var(--text-secondary)]">No search result yet.</div>
                     ) : (
                       <div className="divide-y divide-slate-100">
                         {searchResults.map((guest) => {
@@ -1664,7 +1664,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                             <div key={guest.id} className="px-3 py-2 flex items-center justify-between gap-3">
                               <div>
                                 <div className="text-sm font-semibold text-slate-800">{guestDisplayName(guest)}</div>
-                                <div className="text-xs text-slate-500">
+                                <div className="text-xs text-[var(--text-secondary)]">
                                   {guest.phone ? `Phone: ${guest.phone}` : "No phone"}
                                   {guest.profile_status ? ` · ${guest.profile_status}` : ""}
                                   {guest.member_no ? ` · #${guest.member_no}` : ""}
@@ -1707,7 +1707,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     className={`border rounded-lg p-4 ${
                       targetReservationId === row.id
                         ? "border-indigo-300 bg-indigo-50/40"
-                        : "border-slate-200 bg-slate-50"
+                        : "border-[var(--border-default)] bg-[var(--bg-body)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -1715,7 +1715,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                         <div className="font-semibold text-slate-800">
                           Room {row.room_number} · {row.booking_code}
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-[var(--text-secondary)]">
                           {row.party.primary ? "Primary linked" : "Primary not linked"}
                           {" · "}
                           {row.party.accompanying.length} accompanying
@@ -1741,12 +1741,12 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded border border-slate-200 bg-white p-3">
-                        <div className="text-xs font-semibold text-slate-500 uppercase">Primary</div>
+                      <div className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                        <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Primary</div>
                         {row.party.primary ? (
                           <div className="mt-1">
                             <div className="font-medium text-slate-800">{row.party.primary.display_name}</div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-[var(--text-secondary)]">
                               {row.party.primary.profile_status || "draft"}
                               {row.party.primary.nationality_code ? ` · ${row.party.primary.nationality_code}` : ""}
                             </div>
@@ -1770,17 +1770,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                         )}
                       </div>
 
-                      <div className="rounded border border-slate-200 bg-white p-3">
-                        <div className="text-xs font-semibold text-slate-500 uppercase mb-2">Accompanying</div>
+                      <div className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                        <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Accompanying</div>
                         {row.party.accompanying.length === 0 ? (
-                          <div className="text-sm text-slate-500">No accompanying guest</div>
+                          <div className="text-sm text-[var(--text-secondary)]">No accompanying guest</div>
                         ) : (
                           <div className="space-y-2">
                             {row.party.accompanying.map((guest) => (
                               <div key={guest.guest_profile_id} className="flex items-start justify-between gap-2">
                                 <div>
                                   <div className="text-sm font-medium text-slate-800">{guest.display_name}</div>
-                                  <div className="text-xs text-slate-500">
+                                  <div className="text-xs text-[var(--text-secondary)]">
                                     {guest.profile_status || "draft"}
                                     {guest.nationality_code ? ` · ${guest.nationality_code}` : ""}
                                   </div>
@@ -1802,7 +1802,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   </div>
                 ))}
                 {selectedReservations.length === 0 ? (
-                  <div className="text-sm text-slate-500">No selected rooms. Go back to Step 1.</div>
+                  <div className="text-sm text-[var(--text-secondary)]">No selected rooms. Go back to Step 1.</div>
                 ) : null}
               </div>
             </div>
@@ -1813,17 +1813,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-800">Step 3 — Payment Plan</h2>
-                  <p className="text-sm text-slate-500">Configure split-by-room or master payment.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">Configure split-by-room or master payment.</p>
                 </div>
-                <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <div className="flex items-center bg-[var(--bg-muted)] p-1 rounded-lg border border-[var(--border-default)]">
                   <button
-                    className={`px-4 py-1.5 text-sm rounded ${paymentMode === "split" ? "bg-white text-indigo-700 font-semibold" : "text-slate-500"}`}
+                    className={`px-4 py-1.5 text-sm rounded ${paymentMode === "split" ? "bg-[var(--bg-surface)] text-indigo-700 font-semibold" : "text-[var(--text-secondary)]"}`}
                     onClick={() => setPaymentMode("split")}
                   >
                     Split
                   </button>
                   <button
-                    className={`px-4 py-1.5 text-sm rounded ${paymentMode === "master" ? "bg-white text-indigo-700 font-semibold" : "text-slate-500"}`}
+                    className={`px-4 py-1.5 text-sm rounded ${paymentMode === "master" ? "bg-[var(--bg-surface)] text-indigo-700 font-semibold" : "text-[var(--text-secondary)]"}`}
                     onClick={() => setPaymentMode("master")}
                   >
                     Master
@@ -1832,8 +1832,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Current Remaining</div>
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 text-sm text-[var(--text-table-cell)]">
+                  <div className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Current Remaining</div>
                   <div className="font-bold text-lg mt-1">
                     ฿ {selectedRemainingTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </div>
@@ -1866,10 +1866,10 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                       ...defaultSplitPlanByDeposit(row.id, row.deposit_amount),
                     };
                     return (
-                      <div key={row.id} className="border border-slate-200 rounded-xl p-4">
+                      <div key={row.id} className="border border-[var(--border-default)] rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="font-semibold text-slate-800">{row.booking_code} · Room {row.room_number}</div>
-                          <div className="text-sm text-slate-500">Remain: ฿ {row.remaining_balance.toFixed(2)}</div>
+                          <div className="text-sm text-[var(--text-secondary)]">Remain: ฿ {row.remaining_balance.toFixed(2)}</div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
@@ -1956,8 +1956,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   })}
                 </div>
               ) : (
-                <div className="space-y-3 border border-slate-200 rounded-xl p-4">
-                  <p className="text-sm text-slate-500">Master payment will be allocated by remaining balance on server.</p>
+                <div className="space-y-3 border border-[var(--border-default)] rounded-xl p-4">
+                  <p className="text-sm text-[var(--text-secondary)]">Master payment will be allocated by remaining balance on server.</p>
                   {masterPayments.map((line) => (
                     <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
                       <div className="md:col-span-3">
@@ -2003,22 +2003,22 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               )}
 
               {paymentPreview ? (
-                <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+                <div className="border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
                   <div className="text-sm font-semibold text-slate-800">
                     Preview ({paymentPreview.payment_mode})
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-6 gap-2 text-xs">
-                    <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                    <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1">
                       Grand Total: ฿ {paymentPreview.grand_total.toFixed(2)}
                     </div>
-                    <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                    <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1">
                       Payment Received: ฿ {paymentPreview.payment_received.toFixed(2)}
                     </div>
-                    <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                    <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1">
                       Deposit Received: ฿ {paymentPreview.deposit_received.toFixed(2)}
                     </div>
-                    <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                    <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1">
                       Current Remaining: ฿ {paymentPreview.remaining_balance.toFixed(2)}
                     </div>
                     <div className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700">
@@ -2045,7 +2045,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     {paymentPreview.room_rows.map((row) => (
                       <div
                         key={row.reservation_id}
-                        className="text-xs rounded border border-slate-200 bg-slate-50 px-2 py-1 flex items-center justify-between"
+                        className="text-xs rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1 flex items-center justify-between"
                       >
                         <span>{row.booking_code}</span>
                         <span>
@@ -2058,13 +2058,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   {paymentPreview.payment_mode === "master" && paymentPreview.allocation_preview.length > 0 ? (
                     <div className="space-y-2">
                       {paymentPreview.allocation_preview.map((line) => (
-                        <div key={`${line.line_index}-${line.method}`} className="border border-slate-200 rounded-lg p-2">
-                          <div className="text-xs font-semibold text-slate-700">
+                        <div key={`${line.line_index}-${line.method}`} className="border border-[var(--border-default)] rounded-lg p-2">
+                          <div className="text-xs font-semibold text-[var(--text-table-cell)]">
                             Line #{line.line_index + 1} · {line.method} · ฿ {line.amount.toFixed(2)}
                           </div>
                           <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
                             {line.allocations.map((row) => (
-                              <div key={`${line.line_index}-${row.reservation_id}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1">
+                              <div key={`${line.line_index}-${row.reservation_id}`} className="rounded border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1">
                                 {row.booking_code}: ฿ {row.allocated_amount.toFixed(2)}
                               </div>
                             ))}
@@ -2082,13 +2082,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Step 4 — Confirm Check-in</h2>
-                <p className="text-sm text-slate-500">Review ready/not-ready rooms and submit partial check-in.</p>
+                <p className="text-sm text-[var(--text-secondary)]">Review ready/not-ready rooms and submit partial check-in.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                 <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">Ready: {step4Buckets.ready.length}</div>
                 <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">Not Ready: {step4Buckets.notReady.length}</div>
-                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">Already Done: {step4Buckets.done.length}</div>
+                <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">Already Done: {step4Buckets.done.length}</div>
               </div>
 
               <div className="space-y-3">
@@ -2107,23 +2107,23 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   </div>
                 ))}
                 {step4Buckets.done.map((row) => (
-                  <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  <div key={row.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
                     {row.booking_code} · Room {row.room_number} already checked in
                   </div>
                 ))}
               </div>
 
               {confirmResults ? (
-                <div className="rounded border border-slate-200 p-3 bg-white">
+                <div className="rounded border border-[var(--border-default)] p-3 bg-[var(--bg-surface)]">
                   <h3 className="font-semibold text-slate-800 mb-2">Confirm Results</h3>
                   <div className="space-y-2 text-sm">
                     {confirmResults.map((row) => (
-                      <div key={row.reservation_id} className="border border-slate-100 rounded p-2">
+                      <div key={row.reservation_id} className="border border-[var(--border-subtle)] rounded p-2">
                         <div className="font-medium text-slate-800">
                           {row.booking_code || row.reservation_id} · {row.guest_name || "—"}
                         </div>
-                        <div className="text-xs text-slate-600">status: {row.status}</div>
-                        {row.codes.length > 0 ? <div className="text-xs text-slate-600">codes: {row.codes.join(", ")}</div> : null}
+                        <div className="text-xs text-[var(--text-secondary)]">status: {row.status}</div>
+                        {row.codes.length > 0 ? <div className="text-xs text-[var(--text-secondary)]">codes: {row.codes.join(", ")}</div> : null}
                         {row.missing_fields?.length ? <div className="text-xs text-amber-700">missing: {row.missing_fields.join(", ")}</div> : null}
                         {row.error ? <div className="text-xs text-rose-700">error: {row.error}</div> : null}
                       </div>
@@ -2136,7 +2136,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         </div>
       </main>
 
-      <footer className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between sticky bottom-0 z-20">
+      <footer className="bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex items-center justify-between sticky bottom-0 z-20">
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost" onClick={handleSaveAndExit} disabled={busy || step2Busy}>
             Save Draft & Exit

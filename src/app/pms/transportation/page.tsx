@@ -440,7 +440,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
         } finally { setSubmitting(false); }
     }
 
-    const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    const inputCls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     const invalidCls = "border-rose-300 bg-rose-50 focus:ring-rose-200 focus:border-rose-400";
     const canNext1 = selectedRes !== null;
     const canNext2 = isBoatType
@@ -456,19 +456,19 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={step < 5 ? onClose : undefined}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <div className="sticky top-0 bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-900">New Transfer Booking</h2>
-                        {step < 5 && <p className="text-xs text-slate-400 mt-0.5">Step {step} of 4</p>}
+                        <h2 className="text-lg font-bold text-[var(--text-primary)]">New Transfer Booking</h2>
+                        {step < 5 && <p className="text-xs text-[var(--text-muted)] mt-0.5">Step {step} of 4</p>}
                     </div>
-                    {step < 5 && <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>}
+                    {step < 5 && <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-xl">×</button>}
                 </div>
 
                 {/* Progress bar */}
                 {step < 5 && (
-                    <div className="h-1 bg-slate-100">
+                    <div className="h-1 bg-[var(--bg-muted)]">
                         <div className="h-1 bg-blue-500 transition-all duration-300" style={{ width: `${(step / 4) * 100}%` }} />
                     </div>
                 )}
@@ -480,18 +480,18 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             <h3 className="font-semibold text-slate-800 mb-4">Find Reservation</h3>
                             <input autoFocus type="text" placeholder="Search by guest name or booking code…" value={resSearch} onChange={e => setResSearch(e.target.value)}
                                 className={inputCls} />
-                            {resLoading && <p className="text-xs text-slate-400 mt-2">Searching…</p>}
+                            {resLoading && <p className="text-xs text-[var(--text-muted)] mt-2">Searching…</p>}
                             {resResults.length > 0 && (
-                                <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden">
+                                <div className="mt-2 border border-[var(--border-default)] rounded-xl overflow-hidden">
                                     {resResults.map(r => (
                                         <button key={r.id} type="button" onClick={() => setSelectedRes(r)}
-                                            className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-0 ${selectedRes?.id === r.id ? "bg-blue-50" : ""}`}>
+                                            className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-[var(--border-subtle)] last:border-0 ${selectedRes?.id === r.id ? "bg-blue-50" : ""}`}>
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <p className="font-medium text-slate-900">{r.guest_name}</p>
-                                                    <p className="text-xs text-slate-400 font-mono">{r.booking_code}</p>
+                                                    <p className="font-medium text-[var(--text-primary)]">{r.guest_name}</p>
+                                                    <p className="text-xs text-[var(--text-muted)] font-mono">{r.booking_code}</p>
                                                 </div>
-                                                <div className="text-right text-xs text-slate-400">
+                                                <div className="text-right text-xs text-[var(--text-muted)]">
                                                     <p>{r.checkin_date} → {r.checkout_date}</p>
                                                     {r.room_number && <p>Room {r.room_number}</p>}
                                                 </div>
@@ -503,8 +503,8 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             {selectedRes && (
                                 <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
                                     <p className="text-xs font-semibold text-blue-700">Selected Guest</p>
-                                    <p className="font-bold text-slate-900">{selectedRes.guest_name}</p>
-                                    <p className="text-xs font-mono text-slate-500">{selectedRes.booking_code}</p>
+                                    <p className="font-bold text-[var(--text-primary)]">{selectedRes.guest_name}</p>
+                                    <p className="text-xs font-mono text-[var(--text-secondary)]">{selectedRes.booking_code}</p>
                                 </div>
                             )}
                         </div>
@@ -514,10 +514,10 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {step === 2 && (
                         <div className="space-y-4">
                             <h3 className="font-semibold text-slate-800">✈️ Trip Details — {selectedRes?.guest_name}</h3>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-xs font-semibold text-slate-600">Transport Mode</p>
+                            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+                                <p className="text-xs font-semibold text-[var(--text-secondary)]">Transport Mode</p>
                                 <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "car" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-300 bg-white text-slate-600"}`}>
+                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "car" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
                                         <input
                                             type="radio"
                                             name="trip-mode"
@@ -526,7 +526,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         />
                                         Car
                                     </label>
-                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "boat" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-300 bg-white text-slate-600"}`}>
+                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "boat" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
                                         <input
                                             type="radio"
                                             name="trip-mode"
@@ -541,7 +541,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             {isBoatType ? (
                                 <>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Travel Date *</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Travel Date *</label>
                                         <input
                                             type="date"
                                             value={pickupDatetime?.slice(0, 10) ?? ""}
@@ -578,7 +578,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 <>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Transfer Type</label>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Transfer Type</label>
                                             <select value={transferType} onChange={e => setTransferType(e.target.value)} className={inputCls}>
                                                 {["airport_pickup", "airport_dropoff", "hotel_to_anywhere"].map(t => (
                                                     <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
@@ -586,7 +586,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Service Mode</label>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Service Mode</label>
                                             <select value={serviceMode} onChange={e => setServiceMode(e.target.value)} className={inputCls}>
                                                 {["company_pickup", "hotel_arrange", "driver_only"].map(m => (
                                                     <option key={m} value={m}>{m.replace(/_/g, " ")}</option>
@@ -595,7 +595,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Pickup Date & Time *</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Pickup Date & Time *</label>
                                         <input
                                             type="datetime-local"
                                             value={pickupDatetime}
@@ -607,7 +607,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         {carPickupDatetimeInvalid && <p className="mt-1 text-xs text-rose-600">Pickup date/time is required.</p>}
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Pickup Location *</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Pickup Location *</label>
                                         <input
                                             type="text"
                                             value={pickupLocation}
@@ -620,7 +620,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         {carPickupLocationInvalid && <p className="mt-1 text-xs text-rose-600">Pickup location is required.</p>}
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Drop-off Location *</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Drop-off Location *</label>
                                         <input
                                             type="text"
                                             value={dropoffLocation}
@@ -636,16 +636,16 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             )}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Passengers</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Passengers</label>
                                     <input type="number" min="1" max="50" value={pax} onChange={e => setPax(e.target.value)} className={inputCls} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Luggage</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Luggage</label>
                                     <input type="number" min="0" max="20" value={luggage} onChange={e => setLuggage(e.target.value)} className={inputCls} />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Staff Note</label>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Staff Note</label>
                                 <textarea rows={2} value={staffNote} onChange={e => setStaffNote(e.target.value)} placeholder="Internal notes…" className={inputCls} />
                             </div>
                         </div>
@@ -656,7 +656,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                         <div className="space-y-4">
                             <h3 className="font-semibold text-slate-800">🚗 Provider</h3>
                             {providersLoading && (
-                                <p className="text-xs text-slate-500">Loading provider data…</p>
+                                <p className="text-xs text-[var(--text-secondary)]">Loading provider data…</p>
                             )}
                             {providersError && (
                                 <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
@@ -666,14 +666,14 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             {isBoatType ? (
                                 <>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Boat Company</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Boat Company</label>
                                         <select value={selectedCompanyId} onChange={e => { setSelectedCompanyId(e.target.value); setSelectedRouteId(""); }} className={inputCls}>
                                             <option value="">— Select company —</option>
                                             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Route / Schedule</label>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Route / Schedule</label>
                                         <select
                                             value={selectedRouteId}
                                             onChange={e => setSelectedRouteId(e.target.value)}
@@ -700,7 +700,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         const route = routes.find(r => r.id === selectedRouteId);
                                         return route ? (
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Departure Time</label>
+                                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Departure Time</label>
                                                 <select
                                                     value={selectedDepartureTime}
                                                     onChange={e => {
@@ -722,7 +722,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 </>
                             ) : (
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Assign Driver (optional)</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Assign Driver (optional)</label>
                                     <select value={selectedDriverId} onChange={e => setSelectedDriverId(e.target.value)} className={inputCls}>
                                         <option value="">— Unassigned —</option>
                                         {drivers.filter(d => (d as any).is_active !== false).map(d => <option key={d.id} value={d.id}>{d.name}{d.phone ? ` · ${d.phone}` : ""}</option>)}
@@ -738,24 +738,24 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             <h3 className="font-semibold text-slate-800">💰 Pricing</h3>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Selling Price ฿</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Selling Price ฿</label>
                                     <input type="number" min="0" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} placeholder="0" className={inputCls} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Cost Price ฿</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Cost Price ฿</label>
                                     <input type="number" min="0" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0" className={inputCls} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Driver Fee ฿</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Driver Fee ฿</label>
                                     <input type="number" min="0" value={driverFee} onChange={e => setDriverFee(e.target.value)} placeholder="0" className={inputCls} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Commission ฿</label>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Commission ฿</label>
                                     <input type="number" min="0" value={driverCommission} onChange={e => setDriverCommission(e.target.value)} placeholder="0" className={inputCls} />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Payment Method</label>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Method</label>
                                 <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={inputCls}>
                                     <option value="">unpaid</option>
                                     {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
@@ -763,16 +763,16 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             </div>
 
                             {/* Summary */}
-                            <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-1">
-                                <p className="font-semibold text-slate-700 mb-2">Summary</p>
-                                <p><span className="text-slate-500">Guest:</span> <strong>{selectedRes?.guest_name}</strong></p>
-                                <p><span className="text-slate-500">Mode:</span> {isBoatType ? "Boat" : "Car"}</p>
-                                <p><span className="text-slate-500">Type:</span> {transferType.replace(/_/g, " ")}</p>
-                                <p><span className="text-slate-500">Pickup:</span> {pickupDatetime ? new Date(pickupDatetime).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "—"}</p>
-                                <p><span className="text-slate-500">Route:</span> {pickupLocation} → {dropoffLocation}</p>
-                                <p><span className="text-slate-500">Pax:</span> {pax} · Luggage: {luggage}</p>
-                                {sellingPrice && <p><span className="text-slate-500">Sell:</span> <strong className="text-green-700">฿{parseFloat(sellingPrice).toLocaleString()}</strong></p>}
-                                {costPrice && <p><span className="text-slate-500">Net commission:</span> <strong className="text-blue-700">฿{(parseFloat(sellingPrice || "0") - parseFloat(costPrice || "0")).toLocaleString()}</strong></p>}
+                            <div className="bg-[var(--bg-body)] rounded-xl p-4 text-sm space-y-1">
+                                <p className="font-semibold text-[var(--text-table-cell)] mb-2">Summary</p>
+                                <p><span className="text-[var(--text-secondary)]">Guest:</span> <strong>{selectedRes?.guest_name}</strong></p>
+                                <p><span className="text-[var(--text-secondary)]">Mode:</span> {isBoatType ? "Boat" : "Car"}</p>
+                                <p><span className="text-[var(--text-secondary)]">Type:</span> {transferType.replace(/_/g, " ")}</p>
+                                <p><span className="text-[var(--text-secondary)]">Pickup:</span> {pickupDatetime ? new Date(pickupDatetime).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "—"}</p>
+                                <p><span className="text-[var(--text-secondary)]">Route:</span> {pickupLocation} → {dropoffLocation}</p>
+                                <p><span className="text-[var(--text-secondary)]">Pax:</span> {pax} · Luggage: {luggage}</p>
+                                {sellingPrice && <p><span className="text-[var(--text-secondary)]">Sell:</span> <strong className="text-green-700">฿{parseFloat(sellingPrice).toLocaleString()}</strong></p>}
+                                {costPrice && <p><span className="text-[var(--text-secondary)]">Net commission:</span> <strong className="text-blue-700">฿{(parseFloat(sellingPrice || "0") - parseFloat(costPrice || "0")).toLocaleString()}</strong></p>}
                             </div>
                             {submitError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{submitError}</p>}
                         </div>
@@ -782,14 +782,14 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {step === 5 && (
                         <div className="text-center py-6">
                             <div className="text-5xl mb-4">✅</div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-1">Transfer Booked!</h3>
+                            <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1">Transfer Booked!</h3>
                             {voucherNumber && (
                                 <div className="mt-3 inline-block px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl">
                                     <p className="text-xs text-blue-500 font-semibold">VOUCHER</p>
                                     <p className="text-lg font-mono font-bold text-blue-700">{voucherNumber}</p>
                                 </div>
                             )}
-                            <p className="text-sm text-slate-500 mt-3">
+                            <p className="text-sm text-[var(--text-secondary)] mt-3">
                                 Transfer logged · Alert & Trace created · Folio posted
                             </p>
                             <div className="flex gap-3 mt-6 justify-center">
@@ -797,7 +797,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                     className="px-5 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700">Done</button>
                                 {voucherNumber && (
                                     <a href={`/pms/transportation?print=${voucherNumber}`} target="_blank"
-                                        className="px-5 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">
+                                        className="px-5 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">
                                         🖨️ Print Voucher
                                     </a>
                                 )}
@@ -808,9 +808,9 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
 
                 {/* Footer nav */}
                 {step < 5 && (
-                    <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex gap-3 rounded-b-2xl">
+                    <div className="sticky bottom-0 bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex gap-3 rounded-b-2xl">
                         {step > 1 && (
-                            <button onClick={() => setStep(s => (s - 1) as Step)} className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">← Back</button>
+                            <button onClick={() => setStep(s => (s - 1) as Step)} className="px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">← Back</button>
                         )}
                         <div className="flex-1" />
                         {step < 4 ? (
@@ -930,27 +930,27 @@ function EditTransferModal({
         }
     }
 
-    const fieldCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    const fieldCls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     const fieldInvalidCls = "border-rose-300 bg-rose-50 focus:ring-rose-200 focus:border-rose-400";
     const pickupDatetimeInvalid = showValidation && !pickupDatetime;
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+            <div className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="sticky top-0 bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-900">Edit Booking</h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <h2 className="text-lg font-bold text-[var(--text-primary)]">Edit Booking</h2>
+                        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                             {transfer.guest_name} {transfer.booking_code ? `(${transfer.booking_code})` : ""}
                         </p>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+                    <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-xl">×</button>
                 </div>
 
                 <div className="p-6 space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Pickup Date & Time</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Pickup Date & Time</label>
                             <input
                                 type="datetime-local"
                                 value={pickupDatetime}
@@ -962,7 +962,7 @@ function EditTransferModal({
                             {pickupDatetimeInvalid && <p className="mt-1 text-xs text-rose-600">Pickup date/time is required.</p>}
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Driver</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Driver</label>
                             <select
                                 value={driverId}
                                 onChange={(e) => setDriverId(e.target.value)}
@@ -981,19 +981,19 @@ function EditTransferModal({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Selling Price ฿</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Selling Price ฿</label>
                             <input type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} className={fieldCls} />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Cost Price ฿</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Cost Price ฿</label>
                             <input type="number" min="0" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className={fieldCls} />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Driver Fee ฿</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Driver Fee ฿</label>
                             <input type="number" min="0" step="0.01" value={driverFee} onChange={(e) => setDriverFee(e.target.value)} className={fieldCls} />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Driver Commission ฿</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Driver Commission ฿</label>
                             <input
                                 type="number"
                                 min="0"
@@ -1006,15 +1006,15 @@ function EditTransferModal({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Staff Note</label>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Staff Note</label>
                         <textarea rows={3} value={staffNote} onChange={(e) => setStaffNote(e.target.value)} className={fieldCls} />
                     </div>
 
                     {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
                 </div>
 
-                <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
-                    <button onClick={onClose} disabled={saving} className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">
+                <div className="sticky bottom-0 bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
+                    <button onClick={onClose} disabled={saving} className="px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">
                         Cancel
                     </button>
                     <button onClick={saveChanges} disabled={saving} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -1091,13 +1091,13 @@ export default function TransportationDailyBoard() {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Transportation — Daily Board</h1>
-                    <p className="text-sm text-slate-500 mt-1">Transfer schedule sorted by pickup time · Auto-refreshes every 30s</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Transportation — Daily Board</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Transfer schedule sorted by pickup time · Auto-refreshes every 30s</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
-                    <button onClick={fetchData} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-sm hover:bg-slate-50">↺ Refresh</button>
+                        className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
+                    <button onClick={fetchData} className="px-4 py-2 border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-xl text-sm hover:bg-[var(--bg-body)]">↺ Refresh</button>
                     <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
                         + New Transfer
                     </button>
@@ -1108,7 +1108,7 @@ export default function TransportationDailyBoard() {
             {data?.summary && (
                 <div className="grid grid-cols-6 gap-3 mb-6">
                     {[
-                        { label: "Total", value: data.summary.total, color: "bg-slate-100 text-slate-800" },
+                        { label: "Total", value: data.summary.total, color: "bg-[var(--bg-muted)] text-slate-800" },
                         { label: "Pending", value: data.summary.pending, color: "bg-yellow-100 text-yellow-800" },
                         { label: "Confirmed", value: data.summary.confirmed, color: "bg-blue-100 text-blue-800" },
                         { label: "In Progress", value: data.summary.in_progress, color: "bg-green-100 text-green-800" },
@@ -1128,46 +1128,46 @@ export default function TransportationDailyBoard() {
                     <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
                 </div>
             ) : !data?.transfers?.length ? (
-                <div className="text-center py-20 text-slate-400">
+                <div className="text-center py-20 text-[var(--text-muted)]">
                     <p className="text-lg">No transfers for {date}</p>
                     <button onClick={() => setShowModal(true)} className="mt-3 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm">+ New Transfer</button>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Time</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Type</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Guest</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Room</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Route</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Driver / Boat</th>
-                                <th className="px-4 py-3 text-right font-semibold text-slate-600">฿ Sell</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Payment</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Status</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Action</th>
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Time</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Type</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Guest</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Room</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Route</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Driver / Boat</th>
+                                <th className="px-4 py-3 text-right font-semibold text-[var(--text-secondary)]">฿ Sell</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Payment</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Status</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {data.transfers.map(t => (
-                                <tr key={t.id} className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${getUrgencyClass(t.pickup_datetime, t.status)}`}>
+                                <tr key={t.id} className={`border-b border-[var(--border-subtle)] transition-colors hover:bg-[var(--bg-body)] ${getUrgencyClass(t.pickup_datetime, t.status)}`}>
                                     <td className="px-4 py-3 font-mono font-bold">{formatTime(t.pickup_datetime)}</td>
                                     <td className="px-4 py-3 text-lg">{transferIcon(t)}</td>
                                     <td className="px-4 py-3">
-                                        <p className="font-medium text-slate-900">{t.guest_name}</p>
-                                        {t.booking_code && <p className="text-xs text-slate-400 font-mono">{t.booking_code}</p>}
+                                        <p className="font-medium text-[var(--text-primary)]">{t.guest_name}</p>
+                                        {t.booking_code && <p className="text-xs text-[var(--text-muted)] font-mono">{t.booking_code}</p>}
                                     </td>
-                                    <td className="px-4 py-3 font-mono text-slate-600">{t.room_number ?? "—"}</td>
+                                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{t.room_number ?? "—"}</td>
                                     <td className="px-4 py-3">
-                                        <p className="text-slate-700 truncate max-w-[180px]">{t.pickup_location} → {t.dropoff_location}</p>
+                                        <p className="text-[var(--text-table-cell)] truncate max-w-[180px]">{t.pickup_location} → {t.dropoff_location}</p>
                                         {t.boat_company_name && <p className="text-xs text-blue-600">{t.boat_company_name}</p>}
                                     </td>
                                     <td className="px-4 py-3">
                                         {t.driver_name ? (
                                             <div>
-                                                <p className="text-slate-700 font-medium">{t.driver_name}</p>
-                                                {t.driver_phone && <p className="text-xs text-slate-400">{t.driver_phone}</p>}
+                                                <p className="text-[var(--text-table-cell)] font-medium">{t.driver_name}</p>
+                                                {t.driver_phone && <p className="text-xs text-[var(--text-muted)]">{t.driver_phone}</p>}
                                             </div>
                                         ) : <span className="text-slate-300 italic">Unassigned</span>}
                                     </td>
@@ -1187,7 +1187,7 @@ export default function TransportationDailyBoard() {
                                             <button
                                                 onClick={() => setEditingTransfer(t)}
                                                 disabled={["completed", "cancelled", "no_show"].includes(t.status)}
-                                                className="px-2 py-1 text-xs bg-slate-50 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                className="px-2 py-1 text-xs bg-[var(--bg-body)] border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-lg hover:bg-[var(--bg-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
                                                 title={["completed", "cancelled", "no_show"].includes(t.status) ? "Closed bookings cannot be edited" : "Edit booking"}
                                             >
                                                 Edit

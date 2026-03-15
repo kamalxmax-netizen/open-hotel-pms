@@ -210,7 +210,7 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
         return (
             <button
                 type="button"
-                className="h-4 w-4 text-[14px] leading-none font-black text-slate-600 hover:text-slate-900 disabled:opacity-40"
+                className="h-4 w-4 text-[14px] leading-none font-black text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40"
                 title="Add Link"
                 onClick={() => setIsOpen(true)}
                 disabled={disabled}
@@ -223,14 +223,14 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
     return (
         <div
             ref={popupRef}
-            className={`flex flex-col gap-2 p-2 bg-white border shadow-lg rounded-md absolute z-50 bottom-full mb-1 w-72 max-w-[min(18rem,calc(100vw-1rem))] ${
+            className={`flex flex-col gap-2 p-2 bg-[var(--bg-surface)] border shadow-lg rounded-md absolute z-50 bottom-full mb-1 w-72 max-w-[min(18rem,calc(100vw-1rem))] ${
                 align === "right" ? "right-0" : "left-0"
             }`}
             style={{ transform: popupNudgeX === 0 ? undefined : `translateX(${popupNudgeX}px)` }}
         >
             <div className="flex justify-between items-center border-b pb-1">
-                <span className="text-xs font-bold text-slate-700">Add Link / Mention</span>
-                <button onClick={closePicker} className="text-slate-400 hover:text-slate-700 text-xs">
+                <span className="text-xs font-bold text-[var(--text-table-cell)]">Add Link / Mention</span>
+                <button onClick={closePicker} className="text-[var(--text-muted)] hover:text-[var(--text-table-cell)] text-xs">
                     Cancel
                 </button>
             </div>
@@ -252,8 +252,8 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
             </div>
 
             {activeTab === "room" && (
-                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
-                    <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <div className="flex items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-body)] p-1">
+                    <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                         Link Mode
                     </span>
                     <button
@@ -262,7 +262,7 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
                         className={`rounded px-2 py-1 text-[11px] font-semibold ${
                             roomLinkMode === "dynamic"
                                 ? "bg-brand-100 text-brand-700"
-                                : "text-slate-600 hover:bg-slate-100"
+                                : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                         }`}
                     >
                         Lock
@@ -273,7 +273,7 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
                         className={`rounded px-2 py-1 text-[11px] font-semibold ${
                             roomLinkMode === "static"
                                 ? "bg-slate-200 text-slate-800"
-                                : "text-slate-600 hover:bg-slate-100"
+                                : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                         }`}
                     >
                         No Lock
@@ -328,17 +328,17 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
                     </div>
 
                     {(activeTab === "guest" || activeTab === "staff") && (
-                        <div className="max-h-28 overflow-auto border rounded-md p-1 bg-slate-50">
-                            {isLoading && <div className="text-[10px] text-slate-500 px-1 py-0.5">Loading...</div>}
+                        <div className="max-h-28 overflow-auto border rounded-md p-1 bg-[var(--bg-body)]">
+                            {isLoading && <div className="text-[10px] text-[var(--text-secondary)] px-1 py-0.5">Loading...</div>}
                             {!isLoading && errorText && <div className="text-[10px] text-rose-600 px-1 py-0.5">{errorText}</div>}
                             {!isLoading && !errorText && options.length === 0 && (
-                                <div className="text-[10px] text-slate-500 px-1 py-0.5">No results</div>
+                                <div className="text-[10px] text-[var(--text-secondary)] px-1 py-0.5">No results</div>
                             )}
                             {options.map(option => (
                                 <button
                                     key={option.id}
                                     onClick={() => setSelected(option)}
-                                    className={`w-full text-left text-[11px] px-2 py-1 rounded ${selected?.id === option.id ? "bg-brand-100 text-brand-700" : "hover:bg-slate-100 text-slate-700"}`}
+                                    className={`w-full text-left text-[11px] px-2 py-1 rounded ${selected?.id === option.id ? "bg-brand-100 text-brand-700" : "hover:bg-[var(--bg-surface-hover)] text-[var(--text-table-cell)]"}`}
                                 >
                                     {option.label}
                                 </button>

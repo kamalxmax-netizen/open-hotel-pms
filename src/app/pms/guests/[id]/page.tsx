@@ -134,9 +134,9 @@ function countStayNights(rows: GuestHistoryStay[]) {
 
 function SummaryMetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="border-r border-slate-200 px-5 py-5 last:border-r-0">
-      <p className="text-sm font-medium tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
+    <div className="border-r border-[var(--border-default)] px-5 py-5 last:border-r-0">
+      <p className="text-sm font-medium tracking-wide text-[var(--text-secondary)]">{label}</p>
+      <p className="mt-2 text-3xl font-bold tracking-tight text-[var(--text-primary)]">{value}</p>
     </div>
   );
 }
@@ -149,8 +149,8 @@ function InfoBox({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 px-5 pb-5 pt-3">
-      <div className="-mt-6 inline-flex bg-white px-2 text-xl font-semibold text-slate-700">{title}</div>
+    <section className="rounded-2xl border border-[var(--border-default)] px-5 pb-5 pt-3">
+      <div className="-mt-6 inline-flex bg-[var(--bg-surface)] px-2 text-xl font-semibold text-[var(--text-table-cell)]">{title}</div>
       <div className="pt-1">{children}</div>
     </section>
   );
@@ -293,10 +293,10 @@ function EditGuestProfileModal({
               <option value="longest">VIP+</option>
             </select>
           </div>
-          <label className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700 md:col-span-2">
+          <label className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-[var(--text-table-cell)] md:col-span-2">
             <input
               type="checkbox"
-              className="form-checkbox rounded border-slate-300 text-rose-600"
+              className="form-checkbox rounded border-[var(--border-input)] text-rose-600"
               checked={form.blacklisted}
               onChange={(e) => onChange({ blacklisted: e.target.checked })}
             />
@@ -338,12 +338,12 @@ function StaySummaryDrawer({
   return (
     <div className="fixed inset-0 z-[90] flex justify-end bg-slate-950/30" onClick={onClose}>
       <aside
-        className="h-full w-full max-w-[420px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl"
+        className="h-full w-full max-w-[420px] overflow-y-auto border-l border-[var(--border-default)] bg-[var(--bg-surface)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-5">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
               Stay Summary {summary?.booking_code ? `— ${summary.booking_code}` : ""}
             </h2>
           </div>
@@ -353,19 +353,19 @@ function StaySummaryDrawer({
         </div>
 
         {loading ? (
-          <div className="px-6 py-10 text-sm text-slate-500">Loading stay summary...</div>
+          <div className="px-6 py-10 text-sm text-[var(--text-secondary)]">Loading stay summary...</div>
         ) : error ? (
           <div className="px-6 py-10">
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
           </div>
         ) : !summary ? (
-          <div className="px-6 py-10 text-sm text-slate-500">No stay summary available.</div>
+          <div className="px-6 py-10 text-sm text-[var(--text-secondary)]">No stay summary available.</div>
         ) : (
           <>
             <div className="space-y-5 px-6 py-5 text-lg leading-9 text-slate-800">
-              <div className="rounded-2xl border border-slate-200 px-5 py-4">
+              <div className="rounded-2xl border border-[var(--border-default)] px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-semibold text-slate-900">
+                  <span className="text-2xl font-semibold text-[var(--text-primary)]">
                     Room {summary.room_number || "—"}
                   </span>
                   <span
@@ -378,7 +378,7 @@ function StaySummaryDrawer({
                     {summary.role === "primary" ? "Main Guest" : "Accompanying"}
                   </span>
                 </div>
-                <div className="mt-3 space-y-1 text-base leading-8 text-slate-700">
+                <div className="mt-3 space-y-1 text-base leading-8 text-[var(--text-table-cell)]">
                   <div>CI: {formatDateTime(summary.checked_in_at) === "—" ? formatDate(summary.checkin_date) : formatDateTime(summary.checked_in_at)}</div>
                   <div>CO: {formatDateTime(summary.checked_out_at) === "—" ? formatDate(summary.checkout_date) : formatDateTime(summary.checked_out_at)}</div>
                   <div>Source: {valueOrDash(summary.source)}</div>
@@ -386,8 +386,8 @@ function StaySummaryDrawer({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 px-5 py-5">
-                <h3 className="text-2xl font-semibold text-slate-900">Financial Summary</h3>
+              <div className="rounded-2xl border border-[var(--border-default)] px-5 py-5">
+                <h3 className="text-2xl font-semibold text-[var(--text-primary)]">Financial Summary</h3>
                 <div className="mt-6 space-y-3 text-lg leading-9">
                   <div className="flex items-center justify-between gap-4">
                     <span>Room Revenue</span>
@@ -433,7 +433,7 @@ function StaySummaryDrawer({
               </div>
             </div>
 
-            <div className="border-t border-slate-200 px-6 py-5">
+            <div className="border-t border-[var(--border-default)] px-6 py-5">
               <div className="flex justify-end">
                 <Link href={`/pms/reservations?open=${summary.reservation_id}`} className="btn btn-primary">
                 Open Reservation
@@ -651,7 +651,7 @@ export default function GuestProfileDetailPage() {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="card p-6 text-sm text-slate-500">Loading guest profile...</div>
+        <div className="card p-6 text-sm text-[var(--text-secondary)]">Loading guest profile...</div>
       </div>
     );
   }
@@ -675,13 +675,13 @@ export default function GuestProfileDetailPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-6">
       <section className="card overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-5">
+        <div className="border-b border-[var(--border-default)] px-5 py-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <Link className="text-sm font-medium text-brand-600 underline underline-offset-2" href="/pms/guests">
                 ← Back to Guest Profiles
               </Link>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-[var(--text-primary)]">
                 {formatGuestDisplayName(profile)}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -728,9 +728,9 @@ export default function GuestProfileDetailPage() {
           <SummaryMetricCard label="Tips" value={fmtMoney(history.summary.total_tips)} />
         </div>
 
-        <div className="space-y-6 border-t border-slate-200 px-5 py-6">
+        <div className="space-y-6 border-t border-[var(--border-default)] px-5 py-6">
           <InfoBox title="Identity">
-            <div className="grid gap-4 text-lg text-slate-700 md:grid-cols-3">
+            <div className="grid gap-4 text-lg text-[var(--text-table-cell)] md:grid-cols-3">
               <div>
                 <div>Gender: {valueOrDash(profile.gender)}</div>
                 <div>ID: {valueOrDash(profile.id_number || profile.id_card_number)}</div>
@@ -750,7 +750,7 @@ export default function GuestProfileDetailPage() {
           </InfoBox>
 
           <InfoBox title="Contact">
-            <div className="grid gap-4 text-lg text-slate-700 md:grid-cols-3">
+            <div className="grid gap-4 text-lg text-[var(--text-table-cell)] md:grid-cols-3">
               <div>Phone: {valueOrDash(profile.phone)}</div>
               <div>Email: {valueOrDash(profile.email)}</div>
               <div>LINE: {valueOrDash(profile.line_id)}</div>
@@ -758,21 +758,21 @@ export default function GuestProfileDetailPage() {
           </InfoBox>
 
           <InfoBox title="Preferences">
-            <div className="grid gap-4 text-lg text-slate-700 md:grid-cols-[1.2fr_1fr]">
+            <div className="grid gap-4 text-lg text-[var(--text-table-cell)] md:grid-cols-[1.2fr_1fr]">
               <div>{valueOrDash(profile.preferences)}</div>
               <div>Notes: {valueOrDash(profile.notes)}</div>
             </div>
           </InfoBox>
         </div>
 
-        <div className="border-t border-slate-200 px-5 py-5">
+        <div className="border-t border-[var(--border-default)] px-5 py-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Stay History</h2>
-            <p className="text-lg text-slate-500">{combinedStays.length} records</p>
+            <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">Stay History</h2>
+            <p className="text-lg text-[var(--text-secondary)]">{combinedStays.length} records</p>
           </div>
         </div>
 
-        <div className="overflow-x-auto border-t border-slate-200">
+        <div className="overflow-x-auto border-t border-[var(--border-default)]">
           <table className="data-table">
             <thead>
               <tr>
@@ -788,7 +788,7 @@ export default function GuestProfileDetailPage() {
             <tbody>
               {combinedStays.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="py-10 text-center text-sm text-[var(--text-secondary)]">
                     No stay history found.
                   </td>
                 </tr>
@@ -798,10 +798,10 @@ export default function GuestProfileDetailPage() {
                   return (
                     <tr
                       key={`${stay.reservation_id}-${stay.role}`}
-                      className="cursor-pointer transition hover:bg-slate-50"
+                      className="cursor-pointer transition hover:bg-[var(--bg-body)]"
                       onClick={() => setSelectedStay(stay)}
                     >
-                      <td className="font-semibold text-slate-900">{valueOrDash(stay.booking_code)}</td>
+                      <td className="font-semibold text-[var(--text-primary)]">{valueOrDash(stay.booking_code)}</td>
                       <td>{valueOrDash(stay.room_number)}</td>
                       <td>
                         <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${roleMeta.tone}`}>
@@ -812,7 +812,7 @@ export default function GuestProfileDetailPage() {
                       <td>{formatDateTime(stay.checked_in_at) === "—" ? formatDate(stay.checkin_date) : formatDateTime(stay.checked_in_at)}</td>
                       <td>{formatDateTime(stay.checked_out_at) === "—" ? formatDate(stay.checkout_date) : formatDateTime(stay.checked_out_at)}</td>
                       <td>{valueOrDash(stay.status)}</td>
-                      <td className="text-right font-semibold text-slate-900">{fmtMoney(stay.total_price)}</td>
+                      <td className="text-right font-semibold text-[var(--text-primary)]">{fmtMoney(stay.total_price)}</td>
                     </tr>
                   );
                 })

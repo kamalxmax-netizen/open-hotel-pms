@@ -403,8 +403,8 @@ export default function AccountingPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Commission and Tips</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Commission and Tips</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Commission and Tips</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
             Commission workflow and tip ledger in one place.
           </p>
         </div>
@@ -414,30 +414,30 @@ export default function AccountingPage() {
       </div>
 
       <div className="card p-3 flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+        <div className="flex gap-1 rounded-lg bg-[var(--bg-muted)] p-1">
           <button
-            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "transfer" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "transfer" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
               }`}
             onClick={() => setTab("transfer")}
           >
             Transfer Revenue
           </button>
           <button
-            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "transfer_tx" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "transfer_tx" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
               }`}
             onClick={() => setTab("transfer_tx")}
           >
             Transfer Transactions
           </button>
           <button
-            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "commission" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "commission" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
               }`}
             onClick={() => setTab("commission")}
           >
             Commission
           </button>
           <button
-            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "tip" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+            className={`px-3 py-1.5 rounded-md text-sm font-semibold ${tab === "tip" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
               }`}
             onClick={() => setTab("tip")}
           >
@@ -446,11 +446,11 @@ export default function AccountingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">From</span>
+          <span className="text-xs text-[var(--text-secondary)]">From</span>
           <input className="form-input py-1 text-sm w-36" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">To</span>
+          <span className="text-xs text-[var(--text-secondary)]">To</span>
           <input className="form-input py-1 text-sm w-36" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
 
@@ -498,23 +498,23 @@ export default function AccountingPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Gross Sell</p>
-              <p className="text-xl font-bold text-slate-900">{fmtMoney(report?.kpis.gross_sell ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Gross Sell</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">{fmtMoney(report?.kpis.gross_sell ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Total Cost</p>
-              <p className="text-xl font-bold text-slate-900">{fmtMoney(report?.kpis.total_cost ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Total Cost</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">{fmtMoney(report?.kpis.total_cost ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Gross Margin</p>
-              <p className="text-xl font-bold text-slate-900">{fmtMoney(report?.kpis.gross_margin ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Gross Margin</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">{fmtMoney(report?.kpis.gross_margin ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Commission Payable</p>
+              <p className="text-xs text-[var(--text-secondary)]">Commission Payable</p>
               <p className="text-xl font-bold text-amber-700">{fmtMoney(report?.kpis.commission_payable ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Net Margin</p>
+              <p className="text-xs text-[var(--text-secondary)]">Net Margin</p>
               <p className="text-xl font-bold text-emerald-700">{fmtMoney(report?.kpis.net_margin ?? 0)}</p>
             </div>
           </div>
@@ -522,7 +522,7 @@ export default function AccountingPage() {
           <div className="card p-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-[var(--border-subtle)]">
                   <th className="text-left py-2">Date</th>
                   <th className="text-left py-2">Guest</th>
                   <th className="text-left py-2">Room</th>
@@ -540,7 +540,7 @@ export default function AccountingPage() {
                     <td className="py-2">{row.date}</td>
                     <td className="py-2">
                       <p className="font-medium text-slate-800">{row.guest_name}</p>
-                      <p className="text-xs text-slate-400">{row.booking_code ?? "-"}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{row.booking_code ?? "-"}</p>
                     </td>
                     <td className="py-2">{row.room_number ?? "-"}</td>
                     <td className="py-2">{row.route}</td>
@@ -553,7 +553,7 @@ export default function AccountingPage() {
                 ))}
                 {(report?.transfers ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-500">
+                    <td colSpan={9} className="py-8 text-center text-[var(--text-secondary)]">
                       No transfer records in selected date range.
                     </td>
                   </tr>
@@ -568,7 +568,7 @@ export default function AccountingPage() {
         <div className="card p-4 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-[var(--border-subtle)]">
                 <th className="text-left py-2">Created</th>
                 <th className="text-left py-2">Transfer</th>
                 <th className="text-left py-2">Staff</th>
@@ -587,7 +587,7 @@ export default function AccountingPage() {
                   <td className="py-2 text-right">{fmtMoney(row.base_amount)}</td>
                   <td className="py-2 text-right">{fmtMoney(row.commission_amount)}</td>
                   <td className="py-2">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize">
+                    <span className="rounded-full bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-semibold capitalize">
                       {row.status}
                     </span>
                   </td>
@@ -614,7 +614,7 @@ export default function AccountingPage() {
               ))}
               {commissions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">
+                  <td colSpan={7} className="py-8 text-center text-[var(--text-secondary)]">
                     No commission entries.
                   </td>
                 </tr>
@@ -629,11 +629,11 @@ export default function AccountingPage() {
           <div className="card p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <p className="text-xs text-slate-500">Rows</p>
-                <p className="text-xl font-bold text-slate-900">{transferTxRows.length}</p>
+                <p className="text-xs text-[var(--text-secondary)]">Rows</p>
+                <p className="text-xl font-bold text-[var(--text-primary)]">{transferTxRows.length}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Charge Total</p>
+                <p className="text-xs text-[var(--text-secondary)]">Charge Total</p>
                 <p className="text-xl font-bold text-emerald-700">
                   {fmtMoney(
                     transferTxRows
@@ -643,7 +643,7 @@ export default function AccountingPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Refund Total</p>
+                <p className="text-xs text-[var(--text-secondary)]">Refund Total</p>
                 <p className="text-xl font-bold text-rose-700">
                   {fmtMoney(
                     transferTxRows
@@ -658,7 +658,7 @@ export default function AccountingPage() {
           <div className="card p-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-[var(--border-subtle)]">
                   <th className="text-left py-2">Date/Time</th>
                   <th className="text-left py-2">Type</th>
                   <th className="text-left py-2">Transfer ID</th>
@@ -674,7 +674,7 @@ export default function AccountingPage() {
                   <tr key={row.id} className="border-b border-slate-50">
                     <td className="py-2">
                       <p>{row.transaction_date}</p>
-                      <p className="text-xs text-slate-400">{formatDateTime(row.created_at)}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{formatDateTime(row.created_at)}</p>
                     </td>
                     <td className="py-2">
                       <span
@@ -688,17 +688,17 @@ export default function AccountingPage() {
                         {row.tx_type}
                       </span>
                     </td>
-                    <td className="py-2 font-mono text-xs text-slate-600">{row.transfer_id}</td>
-                    <td className="py-2 font-mono text-xs text-slate-600">{row.reservation_id ?? "-"}</td>
+                    <td className="py-2 font-mono text-xs text-[var(--text-secondary)]">{row.transfer_id}</td>
+                    <td className="py-2 font-mono text-xs text-[var(--text-secondary)]">{row.reservation_id ?? "-"}</td>
                     <td className="py-2 text-right font-semibold">{fmtMoney(Number(row.amount ?? 0))}</td>
                     <td className="py-2 capitalize">{row.payment_method ?? "-"}</td>
                     <td className="py-2">{row.cashier_name ?? "-"}</td>
-                    <td className="py-2 text-slate-600">{row.note ?? "-"}</td>
+                    <td className="py-2 text-[var(--text-secondary)]">{row.note ?? "-"}</td>
                   </tr>
                 ))}
                 {transferTxRows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-500">
+                    <td colSpan={8} className="py-8 text-center text-[var(--text-secondary)]">
                       No transfer transactions in selected date range.
                     </td>
                   </tr>
@@ -712,7 +712,7 @@ export default function AccountingPage() {
       {tab === "tip" && (
         <div className="space-y-4">
           <div className="card p-4">
-            <h2 className="text-sm font-bold text-slate-700 mb-3">Add Tip</h2>
+            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Add Tip</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <select className="form-input" value={tipType} onChange={(e) => setTipType(e.target.value as "unassigned" | "manual_staff")}>
                 <option value="unassigned">Unassigned</option>
@@ -775,7 +775,7 @@ export default function AccountingPage() {
                 {tipReservationInvalid && (
                   <p className="mt-1 text-xs text-rose-600 md:col-span-3">Please select reservation for Manual Staff tip.</p>
                 )}
-                <p className="text-xs text-slate-500 md:col-span-3">
+                <p className="text-xs text-[var(--text-secondary)] md:col-span-3">
                   Eligible guests are limited to today&apos;s Due In, Due Out, and In House. If guest is not found, use
                   Unassigned and add note.
                 </p>
@@ -791,7 +791,7 @@ export default function AccountingPage() {
           <div className="card p-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-[var(--border-subtle)]">
                   <th className="text-left py-2">Created</th>
                   <th className="text-left py-2">Type</th>
                   <th className="text-left py-2">Assigned</th>
@@ -810,7 +810,7 @@ export default function AccountingPage() {
                     <td className="py-2 text-right">{fmtMoney(row.amount)}</td>
                     <td className="py-2">{row.payment_method}</td>
                     <td className="py-2">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize">
+                      <span className="rounded-full bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-semibold capitalize">
                         {row.status}
                       </span>
                     </td>
@@ -837,7 +837,7 @@ export default function AccountingPage() {
                 ))}
                 {tips.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                    <td colSpan={7} className="py-8 text-center text-[var(--text-secondary)]">
                       No tip entries.
                     </td>
                   </tr>

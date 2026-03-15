@@ -335,7 +335,7 @@ export default function StockLevelsPage() {
             <div className="mb-6">
                 <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Inventory</p>
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900">Stock Levels</h1>
+                    <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Stock Levels</h1>
                     <div className="flex gap-2">
                         {activeTab === "main" && (
                             <>
@@ -369,33 +369,33 @@ export default function StockLevelsPage() {
             {/* Summary Tiles */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="card border-l-4 border-l-slate-400 p-4">
-                    <p className="text-xs text-slate-500 font-medium">Total Products</p>
-                    <p className="text-2xl font-extrabold text-slate-900">{mainStock.length}</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-medium">Total Products</p>
+                    <p className="text-2xl font-extrabold text-[var(--text-primary)]">{mainStock.length}</p>
                 </div>
                 <div className="card border-l-4 border-l-emerald-500 p-4">
-                    <p className="text-xs text-slate-500 font-medium">In Stock</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-medium">In Stock</p>
                     <p className="text-2xl font-extrabold text-emerald-600">{mainStock.filter(i => i.quantity > i.reorder_level).length}</p>
                 </div>
                 <div className="card border-l-4 border-l-amber-400 p-4">
-                    <p className="text-xs text-slate-500 font-medium">Low Stock</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-medium">Low Stock</p>
                     <p className="text-2xl font-extrabold text-amber-600">{lowCount}</p>
                 </div>
                 <div className="card border-l-4 border-l-red-500 p-4">
-                    <p className="text-xs text-slate-500 font-medium">Out of Stock</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-medium">Out of Stock</p>
                     <p className="text-2xl font-extrabold text-red-600">{outCount}</p>
                 </div>
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1">
+            <div className="flex gap-1 mb-4 bg-[var(--bg-muted)] rounded-lg p-1">
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                             activeTab === tab.key
-                                ? "bg-white text-brand-700 shadow-sm"
-                                : "text-slate-500 hover:text-slate-700"
+                                ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm"
+                                : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                         }`}
                     >
                         {tab.label}
@@ -408,20 +408,20 @@ export default function StockLevelsPage() {
                 {isLoading ? (
                     <div className="p-4 space-y-3">
                         {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="animate-pulse rounded-lg bg-slate-100 h-12" />
+                            <div key={i} className="animate-pulse rounded-lg bg-[var(--bg-muted)] h-12" />
                         ))}
                     </div>
                 ) : activeTab === "main" ? (
                     /* Main Stock Table */
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-slate-100">
-                                <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Product</th>
-                                <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Category</th>
-                                <th className="text-right text-xs font-semibold text-slate-500 uppercase px-4 py-3">Quantity</th>
-                                <th className="text-right text-xs font-semibold text-slate-500 uppercase px-4 py-3">Reorder At</th>
-                                <th className="text-center text-xs font-semibold text-slate-500 uppercase px-4 py-3">Status</th>
-                                <th className="text-center text-xs font-semibold text-slate-500 uppercase px-4 py-3">
+                            <tr className="border-b border-[var(--border-subtle)]">
+                                <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Product</th>
+                                <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Category</th>
+                                <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Quantity</th>
+                                <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Reorder At</th>
+                                <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Status</th>
+                                <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">
                                     Show on Dashboard
                                 </th>
                             </tr>
@@ -431,10 +431,10 @@ export default function StockLevelsPage() {
                                 const status = stockStatus(item.quantity, item.reorder_level);
                                 const StatusIcon = status.icon;
                                 return (
-                                    <tr key={item.product_id} className="hover:bg-slate-50 transition-colors">
+                                    <tr key={item.product_id} className="hover:bg-[var(--bg-body)] transition-colors">
                                         <td className="px-4 py-3">
-                                            <p className="text-sm font-semibold text-slate-900">{item.product_name ?? "—"}</p>
-                                            <p className="text-xs text-slate-400">{item.unit ?? ""}</p>
+                                            <p className="text-sm font-semibold text-[var(--text-primary)]">{item.product_name ?? "—"}</p>
+                                            <p className="text-xs text-[var(--text-muted)]">{item.unit ?? ""}</p>
                                         </td>
                                         <td className="px-4 py-3">
                                             <Badge variant="secondary" className="text-[10px]">
@@ -442,11 +442,11 @@ export default function StockLevelsPage() {
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : item.quantity <= item.reorder_level ? "text-amber-600" : "text-slate-900"}`}>
+                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : item.quantity <= item.reorder_level ? "text-amber-600" : "text-[var(--text-primary)]"}`}>
                                                 {item.quantity}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-right text-sm text-slate-500">{item.reorder_level}</td>
+                                        <td className="px-4 py-3 text-right text-sm text-[var(--text-secondary)]">{item.reorder_level}</td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${status.color}`}>
                                                 <StatusIcon className="w-3 h-3" />
@@ -454,10 +454,10 @@ export default function StockLevelsPage() {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-center">
-                                            <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                                            <label className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                                                 <input
                                                     type="checkbox"
-                                                    className="h-4 w-4 rounded border-slate-300"
+                                                    className="h-4 w-4 rounded border-[var(--border-input)]"
                                                     checked={Boolean(item.show_on_inventory_dashboard ?? true)}
                                                     disabled={dashboardToggleProductId === item.product_id}
                                                     onChange={(e) =>
@@ -476,7 +476,7 @@ export default function StockLevelsPage() {
                             })}
                             {mainStock.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                                    <td colSpan={6} className="text-center py-12 text-[var(--text-muted)]">
                                         <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                         <p className="text-sm">No stock data available</p>
                                     </td>
@@ -488,10 +488,10 @@ export default function StockLevelsPage() {
                     /* Floor Stock Table */
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-slate-100">
-                                <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Product</th>
-                                <th className="text-right text-xs font-semibold text-slate-500 uppercase px-4 py-3">Quantity</th>
-                                <th className="text-center text-xs font-semibold text-slate-500 uppercase px-4 py-3">Status</th>
+                            <tr className="border-b border-[var(--border-subtle)]">
+                                <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Product</th>
+                                <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Quantity</th>
+                                <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -499,13 +499,13 @@ export default function StockLevelsPage() {
                                 const status = stockStatus(item.quantity);
                                 const StatusIcon = status.icon;
                                 return (
-                                    <tr key={item.product_id} className="hover:bg-slate-50 transition-colors">
+                                    <tr key={item.product_id} className="hover:bg-[var(--bg-body)] transition-colors">
                                         <td className="px-4 py-3">
-                                            <p className="text-sm font-semibold text-slate-900">{item.product_name ?? "—"}</p>
-                                            <p className="text-xs text-slate-400">{item.unit ?? ""}</p>
+                                            <p className="text-sm font-semibold text-[var(--text-primary)]">{item.product_name ?? "—"}</p>
+                                            <p className="text-xs text-[var(--text-muted)]">{item.unit ?? ""}</p>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : "text-slate-900"}`}>
+                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : "text-[var(--text-primary)]"}`}>
                                                 {item.quantity}
                                             </span>
                                         </td>
@@ -520,7 +520,7 @@ export default function StockLevelsPage() {
                             })}
                             {currentFloorItems.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="text-center py-12 text-slate-400">
+                                    <td colSpan={3} className="text-center py-12 text-[var(--text-muted)]">
                                         <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                         <p className="text-sm">No stock data for Floor {currentFloorNumber}</p>
                                     </td>
@@ -539,11 +539,11 @@ export default function StockLevelsPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Product</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Product</label>
                             <select
                                 value={transferProduct}
                                 onChange={(e) => setTransferProduct(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
                                 {mainStock.filter(i => i.quantity > 0).map(item => (
                                     <option key={item.product_id} value={item.product_id}>
@@ -553,11 +553,11 @@ export default function StockLevelsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Target Floor</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Target Floor</label>
                             <select
                                 value={transferFloor}
                                 onChange={(e) => setTransferFloor(Number(e.target.value))}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
                                 <option value={1}>Floor 1</option>
                                 <option value={2}>Floor 2</option>
@@ -565,7 +565,7 @@ export default function StockLevelsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Quantity</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Quantity</label>
                             <Input
                                 type="number"
                                 min={1}
@@ -575,7 +575,7 @@ export default function StockLevelsPage() {
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Note (optional)</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Note (optional)</label>
                             <Input
                                 value={transferNote}
                                 onChange={(e) => setTransferNote(e.target.value)}
@@ -605,11 +605,11 @@ export default function StockLevelsPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Product</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Product</label>
                             <select
                                 value={receiveProduct}
                                 onChange={(e) => setReceiveProduct(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
                                 {mainStock.map(item => (
                                     <option key={item.product_id} value={item.product_id}>
@@ -619,7 +619,7 @@ export default function StockLevelsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Quantity to Add (+)</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Quantity to Add (+)</label>
                             <Input
                                 type="number"
                                 min={1}
@@ -627,10 +627,10 @@ export default function StockLevelsPage() {
                                 onChange={(e) => setReceiveQty(parseInt(e.target.value) || 0)}
                                 className="mt-1"
                             />
-                            <p className="text-xs text-slate-400 mt-1">This will increase current main stock (current + add).</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">This will increase current main stock (current + add).</p>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Note (optional)</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Note (optional)</label>
                             <Input
                                 value={receiveNote}
                                 onChange={(e) => setReceiveNote(e.target.value)}
@@ -660,7 +660,7 @@ export default function StockLevelsPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Location</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Location</label>
                             <select
                                 value={typeof adjustLocation === "number" ? adjustLocation : "main"}
                                 onChange={(e) => {
@@ -674,7 +674,7 @@ export default function StockLevelsPage() {
                                     setAdjustProduct(nextItems[0]?.product_id ?? "");
                                     setAdjustNewQuantity(nextItems[0]?.quantity ?? 0);
                                 }}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
                                 <option value="main">Main Stock</option>
                                 <option value="1">Floor 1</option>
@@ -683,7 +683,7 @@ export default function StockLevelsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Product</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Product</label>
                             <select
                                 value={adjustProduct}
                                 onChange={(e) => {
@@ -696,7 +696,7 @@ export default function StockLevelsPage() {
                                     const selected = items.find((item) => item.product_id === nextProductId);
                                     setAdjustNewQuantity(selected?.quantity ?? 0);
                                 }}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
                                 {(adjustLocation === "main" ? mainStock : (floorStocks[typeof adjustLocation === "number" ? adjustLocation : 1] ?? [])).map(item => (
                                     <option key={item.product_id} value={item.product_id}>
@@ -706,7 +706,7 @@ export default function StockLevelsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">New Quantity (absolute)</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">New Quantity (absolute)</label>
                             <Input
                                 type="number"
                                 min={0}
@@ -715,10 +715,10 @@ export default function StockLevelsPage() {
                                 placeholder="e.g. 25"
                                 className="mt-1"
                             />
-                            <p className="text-xs text-slate-400 mt-1">This sets final stock quantity directly.</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">This sets final stock quantity directly.</p>
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Reason / Note</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Reason / Note</label>
                             <Input
                                 value={adjustNote}
                                 onChange={(e) => setAdjustNote(e.target.value)}

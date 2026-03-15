@@ -143,8 +143,8 @@ export default function DuplicatesPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Guests</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Duplicate Profiles</h1>
-                    <p className="text-sm text-slate-400 mt-0.5">{total} suspect pairs</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Duplicate Profiles</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-0.5">{total} suspect pairs</p>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                     <select className="form-select text-sm py-1.5" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -181,7 +181,7 @@ export default function DuplicatesPage() {
             ) : pairs.length === 0 ? (
                 <div className="card p-8 text-center">
                     <p className="text-4xl mb-2">✅</p>
-                    <p className="text-sm font-semibold text-slate-500">No {statusFilter} duplicates</p>
+                    <p className="text-sm font-semibold text-[var(--text-secondary)]">No {statusFilter} duplicates</p>
                     {statusFilter === "pending" && (
                         <div className="mt-4">
                             <button
@@ -211,7 +211,7 @@ export default function DuplicatesPage() {
                                         <span className={`text-sm font-bold px-2 py-0.5 rounded ${scoreColor}`}>
                                             Score: {pair.score}
                                         </span>
-                                        <div className="h-1.5 w-24 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className="h-1.5 w-24 rounded-full bg-[var(--bg-muted)] overflow-hidden">
                                             <div className={`h-full rounded-full ${pair.score >= 70 ? "bg-emerald-500" : "bg-amber-400"}`} style={{ width: `${scorePct}%` }} />
                                         </div>
                                     </div>
@@ -233,7 +233,7 @@ export default function DuplicatesPage() {
 
                                 {/* Actions */}
                                 {statusFilter === "pending" && (
-                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                    <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-subtle)]">
                                         <button
                                             disabled={isLoading}
                                             onClick={() => handleMerge(pair.profile_a, pair.profile_b, pair.id)}
@@ -276,23 +276,23 @@ export default function DuplicatesPage() {
 
 /* ─── Profile Card ───────────────────────────────────── */
 function ProfileCard({ profile, label }: { profile: ProfileData | null; label: string }) {
-    if (!profile) return <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-400">Profile not found</div>;
+    if (!profile) return <div className="rounded-lg bg-[var(--bg-body)] p-3 text-sm text-[var(--text-muted)]">Profile not found</div>;
 
     const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—";
 
     return (
-        <div className="rounded-lg border border-slate-200 p-3 bg-slate-50">
+        <div className="rounded-lg border border-[var(--border-default)] p-3 bg-[var(--bg-body)]">
             <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{label}</span>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">{label}</span>
                 {profile.profile_status && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${profile.profile_status === "verified" ? "bg-emerald-100 text-emerald-700"
-                        : profile.profile_status === "merged" ? "bg-slate-200 text-slate-500"
+                        : profile.profile_status === "merged" ? "bg-slate-200 text-[var(--text-secondary)]"
                             : "bg-amber-100 text-amber-700"
                         }`}>{profile.profile_status}</span>
                 )}
             </div>
             <p className="text-sm font-bold text-slate-800">{name}</p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-500">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1.5 text-xs text-[var(--text-secondary)]">
                 {profile.phone && <span>📱 {profile.phone}</span>}
                 {profile.email && <span>✉️ {profile.email}</span>}
                 {profile.nationality_code && <span>🏳️ {profile.nationality_code}</span>}

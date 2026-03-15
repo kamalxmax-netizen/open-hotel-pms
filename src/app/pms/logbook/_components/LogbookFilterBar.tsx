@@ -23,7 +23,7 @@ export function LogbookFilterBar({ filterType, setFilterType }: LogbookFilterBar
                 <button
                     key={tab.value}
                     onClick={() => setFilterType(tab.value)}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${filterType === tab.value ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${filterType === tab.value ? 'bg-[var(--bg-surface)] text-brand-700 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]'}`}
                 >
                     {tab.label}
                 </button>

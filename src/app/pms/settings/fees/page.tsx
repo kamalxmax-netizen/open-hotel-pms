@@ -95,7 +95,7 @@ export default function FeeTemplatesPage() {
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
             <div>
                 <h1 className="page-title">Fee Templates</h1>
-                <p className="text-sm text-slate-500">Manage extra charges, penalties, and policy fees</p>
+                <p className="text-sm text-[var(--text-secondary)]">Manage extra charges, penalties, and policy fees</p>
             </div>
 
             {msg.text && (
@@ -129,7 +129,7 @@ export default function FeeTemplatesPage() {
                                 placeholder="E.g. AIRPORT_TRANSFER"
                                 required
                             />
-                            <p className="text-[10px] text-slate-400 mt-1">Unique identifier (letters and underscores only)</p>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-1">Unique identifier (letters and underscores only)</p>
                         </div>
                         <div>
                             <label className="form-label">Display Name</label>
@@ -172,10 +172,10 @@ export default function FeeTemplatesPage() {
                 </form>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden text-sm">
+            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden text-sm">
                 <table className="w-full text-left">
                     <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-xs uppercase tracking-wider">
+                        <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)] text-[var(--text-secondary)] font-semibold text-xs uppercase tracking-wider">
                             <th className="px-4 py-3">Code</th>
                             <th className="px-4 py-3">Name</th>
                             <th className="px-4 py-3">Category</th>
@@ -187,34 +187,34 @@ export default function FeeTemplatesPage() {
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                                <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
                                     <div className="btn-spinner mx-auto" />
                                 </td>
                             </tr>
                         ) : templates.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                                <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
                                     No fee templates found.
                                 </td>
                             </tr>
                         ) : (
                             templates.map((t) => (
-                                <tr key={t.code} className={!t.is_active ? "opacity-50 bg-slate-50" : "hover:bg-slate-50"}>
-                                    <td className="px-4 py-3 font-mono font-semibold text-slate-700">{t.code}</td>
-                                    <td className="px-4 py-3 font-medium text-slate-900">{t.name}</td>
+                                <tr key={t.code} className={!t.is_active ? "opacity-50 bg-[var(--bg-body)]" : "hover:bg-[var(--bg-body)]"}>
+                                    <td className="px-4 py-3 font-mono font-semibold text-[var(--text-table-cell)]">{t.code}</td>
+                                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{t.name}</td>
                                     <td className="px-4 py-3">
                                         <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
                                             {t.category}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-right font-mono text-slate-600">
+                                    <td className="px-4 py-3 text-right font-mono text-[var(--text-secondary)]">
                                         {Number(t.default_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         {t.is_active ? (
                                             <span className="text-emerald-600 text-[10px] font-bold bg-emerald-100 px-2 py-0.5 rounded">ACTIVE</span>
                                         ) : (
-                                            <span className="text-slate-400 text-[10px] font-bold bg-slate-200 px-2 py-0.5 rounded">INACTIVE</span>
+                                            <span className="text-[var(--text-muted)] text-[10px] font-bold bg-slate-200 px-2 py-0.5 rounded">INACTIVE</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-center">

@@ -108,8 +108,8 @@ export default function RoomBlocksPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Room Blocks</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage Out of Order (OOO) and Out of Service (OOS) rooms</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Room Blocks</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Manage Out of Order (OOO) and Out of Service (OOS) rooms</p>
                 </div>
                 {!isAdding && (
                     <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
@@ -126,7 +126,7 @@ export default function RoomBlocksPage() {
                     <h3 className="font-bold text-slate-800 mb-4">New Room Block</h3>
                     <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Room Number</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Room Number</label>
                             <select
                                 required
                                 className="input"
@@ -140,7 +140,7 @@ export default function RoomBlocksPage() {
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Type</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Type</label>
                             <select
                                 required
                                 className="input"
@@ -152,7 +152,7 @@ export default function RoomBlocksPage() {
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Start Date</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Start Date</label>
                             <input
                                 type="date"
                                 required
@@ -162,7 +162,7 @@ export default function RoomBlocksPage() {
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">End Date</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">End Date</label>
                             <input
                                 type="date"
                                 required
@@ -172,7 +172,7 @@ export default function RoomBlocksPage() {
                             />
                         </div>
                         <div className="space-y-1 md:col-span-2">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Reason</label>
+                            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Reason</label>
                             <input
                                 type="text"
                                 required
@@ -197,9 +197,9 @@ export default function RoomBlocksPage() {
 
             {/* List */}
             {loading ? (
-                <div className="h-40 bg-slate-100 animate-pulse rounded-xl" />
+                <div className="h-40 bg-[var(--bg-muted)] animate-pulse rounded-xl" />
             ) : blocks.length === 0 ? (
-                <div className="card p-12 text-center text-slate-500">
+                <div className="card p-12 text-center text-[var(--text-secondary)]">
                     No active room blocks.
                 </div>
             ) : (
@@ -226,10 +226,10 @@ export default function RoomBlocksPage() {
                                     </td>
                                     <td className="text-sm">
                                         <div className="font-medium">{b.start_date}</div>
-                                        <div className="text-slate-500 text-xs">to {b.end_date}</div>
+                                        <div className="text-[var(--text-secondary)] text-xs">to {b.end_date}</div>
                                     </td>
-                                    <td className="text-sm text-slate-700">{b.reason}</td>
-                                    <td className="text-xs text-slate-500">{b.created_by_name || "System"}</td>
+                                    <td className="text-sm text-[var(--text-table-cell)]">{b.reason}</td>
+                                    <td className="text-xs text-[var(--text-secondary)]">{b.created_by_name || "System"}</td>
                                     <td className="text-right flex justify-end">
                                         <button
                                             className="text-xs text-red-600 hover:text-red-800 p-2"

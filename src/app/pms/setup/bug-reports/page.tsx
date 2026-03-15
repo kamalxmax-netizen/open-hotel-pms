@@ -51,8 +51,8 @@ export default function BugReportsPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Bug Reports</h1>
-          <p className="text-sm text-slate-500 mt-1">รายงานปัญหาจากพนักงาน</p>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Bug Reports</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">รายงานปัญหาจากพนักงาน</p>
         </div>
         <div className="flex gap-1.5">
           {["open", "in_progress", "resolved", "wontfix", "all"].map((s) => (
@@ -72,9 +72,9 @@ export default function BugReportsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-slate-400">กำลังโหลด...</div>
+        <div className="text-sm text-[var(--text-muted)]">กำลังโหลด...</div>
       ) : reports.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-[var(--text-muted)]">
           <p className="text-3xl mb-3">🎉</p>
           <p className="text-sm">ไม่มี bug reports ใน status นี้</p>
         </div>
@@ -92,7 +92,7 @@ export default function BugReportsPage() {
                   className={`w-full text-left p-3.5 rounded-xl border transition-all ${
                     isSelected
                       ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400"
-                      : "border-slate-200 bg-white hover:border-slate-300"
+                      : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--border-input)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -102,11 +102,11 @@ export default function BugReportsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-[10px] text-slate-400 font-mono truncate">
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono truncate">
                       {report.page_url.replace(/^https?:\/\/[^/]+/, "")}
                     </span>
                     <span className="text-[10px] text-slate-300">•</span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       {new Date(report.created_at).toLocaleDateString("th-TH", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
                       })}
@@ -119,7 +119,7 @@ export default function BugReportsPage() {
 
           {/* Detail */}
           {selected && (
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-semibold text-slate-800">รายละเอียด</h3>
                 <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${STATUS_LABELS[selected.status]?.color ?? "bg-slate-100 text-slate-500"}`}>
@@ -127,7 +127,7 @@ export default function BugReportsPage() {
                 </span>
               </div>
 
-              <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 leading-relaxed">
+              <div className="text-sm text-[var(--text-table-cell)] bg-[var(--bg-body)] rounded-lg p-3 leading-relaxed">
                 {selected.description}
               </div>
 
@@ -137,22 +137,22 @@ export default function BugReportsPage() {
                   <img
                     src={selected.screenshot_url}
                     alt="Bug screenshot"
-                    className="w-full rounded-lg border border-slate-200 hover:opacity-90 transition"
+                    className="w-full rounded-lg border border-[var(--border-default)] hover:opacity-90 transition"
                   />
                 </a>
               )}
 
-              <div className="text-xs text-slate-500 space-y-1">
+              <div className="text-xs text-[var(--text-secondary)] space-y-1">
                 <p><span className="font-medium">หน้า:</span> <span className="font-mono">{selected.page_url.replace(/^https?:\/\/[^/]+/, "")}</span></p>
                 {selected.reporter_email && <p><span className="font-medium">รายงานโดย:</span> {selected.reporter_email}</p>}
                 <p><span className="font-medium">เวลา:</span> {new Date(selected.created_at).toLocaleString("th-TH")}</p>
                 {selected.browser_info?.userAgent && (
-                  <p className="font-mono text-[10px] text-slate-400 truncate">{selected.browser_info.userAgent}</p>
+                  <p className="font-mono text-[10px] text-[var(--text-muted)] truncate">{selected.browser_info.userAgent}</p>
                 )}
               </div>
 
               {/* Status actions */}
-              <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-[var(--border-subtle)]">
                 {Object.entries(STATUS_LABELS).map(([s, meta]) => (
                   <button
                     key={s}

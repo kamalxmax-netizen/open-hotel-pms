@@ -41,13 +41,13 @@ export function LogbookArchiveDrawer({
   return (
     <div className="fixed inset-0 z-[90]">
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[440px] border-l border-slate-200 bg-white shadow-2xl">
+      <div className="absolute right-0 top-0 h-full w-full max-w-[440px] border-l border-[var(--border-default)] bg-[var(--bg-surface)] shadow-2xl">
         <div className="flex h-full flex-col">
-          <div className="border-b border-slate-200 px-4 py-4">
+          <div className="border-b border-[var(--border-default)] px-4 py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Archive</h2>
-                <p className="text-xs text-slate-500">Restore or permanently delete inactive notes.</p>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Archive</h2>
+                <p className="text-xs text-[var(--text-secondary)]">Restore or permanently delete inactive notes.</p>
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
                 Close
@@ -65,7 +65,7 @@ export function LogbookArchiveDrawer({
                 <select
                   value={filterType}
                   onChange={(event) => setFilterType(event.target.value as "all" | LogbookNote["note_type"])}
-                  className="form-select h-9 rounded-md border border-slate-300 bg-white px-3 text-xs"
+                  className="form-select h-9 rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 text-xs"
                 >
                   <option value="all">All types</option>
                   <option value="general">General</option>
@@ -86,13 +86,13 @@ export function LogbookArchiveDrawer({
 
           <div className="flex-1 overflow-auto px-4 py-4">
             {filtered.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-[var(--border-input)] bg-[var(--bg-body)] px-4 py-6 text-center text-sm text-[var(--text-secondary)]">
                 No archived notes match this filter.
               </div>
             ) : (
               <div className="space-y-3">
                 {filtered.map((note) => (
-                  <div key={note.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div key={note.id} className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -105,12 +105,12 @@ export function LogbookArchiveDrawer({
                             </span>
                           ) : null}
                         </div>
-                        <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{note.title || "Untitled note"}</h3>
-                        <p className="mt-1 line-clamp-3 text-xs text-slate-600">{note.body || "No text content."}</p>
+                        <h3 className="mt-2 truncate text-sm font-semibold text-[var(--text-primary)]">{note.title || "Untitled note"}</h3>
+                        <p className="mt-1 line-clamp-3 text-xs text-[var(--text-secondary)]">{note.body || "No text content."}</p>
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-1 text-[11px] text-slate-500">
+                    <div className="mt-3 grid grid-cols-1 gap-1 text-[11px] text-[var(--text-secondary)]">
                       <span>
                         Archived:{" "}
                         {note.archived_at ? new Date(note.archived_at).toLocaleString() : "Unknown"}

@@ -444,14 +444,14 @@ export default function FoPreparePage() {
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Inventory</p>
-          <h1 className="text-2xl font-extrabold text-slate-900">FO Daily Prepare</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">FO Daily Prepare</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             Morning prepare by room sale, then end-of-day return to main stock.
           </p>
         </div>
         <div className="flex items-end gap-2">
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase">Business Date</label>
+            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Business Date</label>
             <Input
               type="date"
               value={businessDate}
@@ -474,30 +474,30 @@ export default function FoPreparePage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="card p-4">
-          <p className="text-xs text-slate-500 font-medium">Target Rooms</p>
-          <p className="text-2xl font-extrabold text-slate-900">{targetRoomsCount}</p>
+          <p className="text-xs text-[var(--text-secondary)] font-medium">Target Rooms</p>
+          <p className="text-2xl font-extrabold text-[var(--text-primary)]">{targetRoomsCount}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-slate-500 font-medium">Suggested Qty</p>
-          <p className="text-2xl font-extrabold text-slate-900">{totalSuggestedQty}</p>
+          <p className="text-xs text-[var(--text-secondary)] font-medium">Suggested Qty</p>
+          <p className="text-2xl font-extrabold text-[var(--text-primary)]">{totalSuggestedQty}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-slate-500 font-medium">Prepare Qty</p>
-          <p className="text-2xl font-extrabold text-slate-900">{totalPrepareQty}</p>
+          <p className="text-xs text-[var(--text-secondary)] font-medium">Prepare Qty</p>
+          <p className="text-2xl font-extrabold text-[var(--text-primary)]">{totalPrepareQty}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-slate-500 font-medium">Batch Status</p>
-          <p className="text-xl font-extrabold text-slate-900">
+          <p className="text-xs text-[var(--text-secondary)] font-medium">Batch Status</p>
+          <p className="text-xl font-extrabold text-[var(--text-primary)]">
             {existingBatch ? existingBatch.status.toUpperCase() : "NOT PREPARED"}
           </p>
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+      <div className="flex gap-1 rounded-lg bg-[var(--bg-muted)] p-1 w-fit">
         <button
           onClick={() => setActiveTab("prepare")}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-            activeTab === "prepare" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "prepare" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
           }`}
         >
           Morning Prepare
@@ -505,7 +505,7 @@ export default function FoPreparePage() {
         <button
           onClick={() => setActiveTab("return")}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-            activeTab === "return" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "return" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
           }`}
         >
           End-of-day Return
@@ -527,7 +527,7 @@ export default function FoPreparePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="card p-4">
-              <label className="text-xs font-semibold text-slate-500 uppercase">Prepared By</label>
+              <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepared By</label>
               <Input
                 value={preparedBy}
                 onChange={(e) => setPreparedBy(e.target.value)}
@@ -537,7 +537,7 @@ export default function FoPreparePage() {
               />
             </div>
             <div className="card p-4">
-              <label className="text-xs font-semibold text-slate-500 uppercase">Prepare Note</label>
+              <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepare Note</label>
               <Input
                 value={prepareNote}
                 onChange={(e) => setPrepareNote(e.target.value)}
@@ -552,23 +552,23 @@ export default function FoPreparePage() {
             {isLoading ? (
               <div className="p-4 space-y-3">
                 {Array.from({ length: 6 }).map((_, idx) => (
-                  <div key={idx} className="h-11 rounded-md bg-slate-100 animate-pulse" />
+                  <div key={idx} className="h-11 rounded-md bg-[var(--bg-muted)] animate-pulse" />
                 ))}
               </div>
             ) : suggestions.length === 0 ? (
-              <div className="p-10 text-center text-slate-500 text-sm">
+              <div className="p-10 text-center text-[var(--text-secondary)] text-sm">
                 No daily-prepare suggestions found for this date.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/80">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Floor</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Product</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Rooms</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Suggested</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Prepare Qty</th>
+                    <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-body)]/80">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Product</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Rooms</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Suggested</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepare Qty</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -576,13 +576,13 @@ export default function FoPreparePage() {
                       const key = prepareKey(row);
                       return (
                         <tr key={key}>
-                          <td className="px-4 py-2.5 font-medium text-slate-700">Floor {row.floor_number}</td>
+                          <td className="px-4 py-2.5 font-medium text-[var(--text-table-cell)]">Floor {row.floor_number}</td>
                           <td className="px-4 py-2.5">
-                            <p className="font-medium text-slate-900">{row.product_name}</p>
-                            <p className="text-[11px] text-slate-500">{row.unit}</p>
+                            <p className="font-medium text-[var(--text-primary)]">{row.product_name}</p>
+                            <p className="text-[11px] text-[var(--text-secondary)]">{row.unit}</p>
                           </td>
-                          <td className="px-4 py-2.5 text-right text-slate-600">{row.room_count}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-700">{row.suggested_qty}</td>
+                          <td className="px-4 py-2.5 text-right text-[var(--text-secondary)]">{row.room_count}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-[var(--text-table-cell)]">{row.suggested_qty}</td>
                           <td className="px-4 py-2.5 text-right">
                             <Input
                               type="number"
@@ -621,7 +621,7 @@ export default function FoPreparePage() {
       ) : (
         <div className="space-y-4">
           {!batchDetail ? (
-            <div className="card p-10 text-center text-slate-500 text-sm">
+            <div className="card p-10 text-center text-[var(--text-secondary)] text-sm">
               No pending return batch found for this date.
             </div>
           ) : (
@@ -652,7 +652,7 @@ export default function FoPreparePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="card p-4">
-                  <label className="text-xs font-semibold text-slate-500 uppercase">Returned By</label>
+                  <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Returned By</label>
                   <Input
                     value={returnedBy}
                     onChange={(e) => setReturnedBy(e.target.value)}
@@ -661,7 +661,7 @@ export default function FoPreparePage() {
                   />
                 </div>
                 <div className="card p-4">
-                  <label className="text-xs font-semibold text-slate-500 uppercase">Return Note</label>
+                  <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Return Note</label>
                   <Input
                     value={returnNote}
                     onChange={(e) => setReturnNote(e.target.value)}
@@ -693,7 +693,7 @@ export default function FoPreparePage() {
                         type="checkbox"
                         checked={forceReturn}
                         onChange={(e) => setForceReturn(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300"
+                        className="h-4 w-4 rounded border-[var(--border-input)]"
                       />
                       Force return now
                     </label>
@@ -711,36 +711,36 @@ export default function FoPreparePage() {
 
               <div className="card overflow-hidden">
                 {!batchDetail ? (
-                  <div className="p-10 text-center text-slate-500 text-sm">Loading batch details...</div>
+                  <div className="p-10 text-center text-[var(--text-secondary)] text-sm">Loading batch details...</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/80">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Floor</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Product</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Prepared</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Used</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">System Remaining</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Floor Current</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Return Qty</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Line Note</th>
+                        <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-body)]/80">
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Product</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepared</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Used</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">System Remaining</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor Current</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Return Qty</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Line Note</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {batchDetail.items.map((row) => (
                           <tr key={row.id}>
-                            <td className="px-4 py-2.5 font-medium text-slate-700">Floor {row.floor_number}</td>
+                            <td className="px-4 py-2.5 font-medium text-[var(--text-table-cell)]">Floor {row.floor_number}</td>
                             <td className="px-4 py-2.5">
-                              <p className="font-medium text-slate-900">{row.product_name}</p>
-                              <p className="text-[11px] text-slate-500">{row.unit}</p>
+                              <p className="font-medium text-[var(--text-primary)]">{row.product_name}</p>
+                              <p className="text-[11px] text-[var(--text-secondary)]">{row.unit}</p>
                             </td>
-                            <td className="px-4 py-2.5 text-right text-slate-700">{row.prepared_qty}</td>
-                            <td className="px-4 py-2.5 text-right text-slate-700">{row.used_qty}</td>
+                            <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.prepared_qty}</td>
+                            <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.used_qty}</td>
                             <td className="px-4 py-2.5 text-right font-semibold text-slate-800">
                               {row.suggested_remaining}
                             </td>
-                            <td className="px-4 py-2.5 text-right text-slate-700">{row.floor_current_qty}</td>
+                            <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.floor_current_qty}</td>
                             <td className="px-4 py-2.5 text-right">
                               <Input
                                 type="number"

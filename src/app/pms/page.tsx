@@ -51,10 +51,10 @@ function StatTile({
   href?: string;
 }) {
   const inner = (
-    <div className={`stat-card border-l-4 ${color} hover:shadow-md transition bg-white p-4 rounded-xl shadow-sm h-full`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-3xl font-extrabold text-slate-900 mt-2">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+    <div className={`stat-card border-l-4 ${color} hover:shadow-md transition bg-[var(--bg-surface)] p-4 rounded-xl shadow-sm h-full`}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{label}</p>
+      <p className="text-3xl font-extrabold text-[var(--text-primary)] mt-2">{value}</p>
+      {sub && <p className="text-xs text-[var(--text-muted)] mt-1">{sub}</p>}
     </div>
   );
   return href ? <Link href={href} className="block h-full">{inner}</Link> : inner;
@@ -127,8 +127,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-        <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-1">{today}</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Dashboard</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">{today}</p>
       </div>
 
       {/* Row 1: EOD Alert */}
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       {loading && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white p-4 rounded-xl shadow-sm animate-pulse h-28 border border-slate-100" />
+            <div key={i} className="bg-[var(--bg-surface)] p-4 rounded-xl shadow-sm animate-pulse h-28 border border-[var(--border-subtle)]" />
           ))}
         </div>
       )}
@@ -194,8 +194,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Row 3: Movement Badges */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Live Front Desk Operations</h2>
+          <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3">Live Front Desk Operations</h2>
             <div className="flex flex-wrap gap-2 md:gap-4">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-lg border border-brand-200 text-sm">
                  <span className="font-semibold">Arrivals:</span> 
@@ -205,7 +205,7 @@ export default function DashboardPage() {
                  <span className="font-semibold">Departures:</span> 
                  <span className="font-bold">{data.live.departures_checked_out}/{data.live.departures}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-sm">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg border border-[var(--border-default)] text-sm">
                  <span className="font-semibold">In-house:</span> 
                  <span className="font-bold">{data.live.in_house}</span>
               </div>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
           {/* Row 4: Two-column Charts */}
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Cash Received By Method */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
               <h2 className="text-sm font-semibold text-slate-800 mb-4">Cash Received Today</h2>
               <div className="space-y-4">
                  {[
@@ -241,17 +241,17 @@ export default function DashboardPage() {
                     return (
                       <div key={item.key}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-slate-700">{item.label}</span>
-                          <span className="font-bold text-slate-900">{formatB(item.val)} <span className="text-slate-400 font-normal">({pct}%)</span></span>
+                          <span className="font-medium text-[var(--text-table-cell)]">{item.label}</span>
+                          <span className="font-bold text-[var(--text-primary)]">{formatB(item.val)} <span className="text-[var(--text-muted)] font-normal">({pct}%)</span></span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2.5">
+                        <div className="w-full bg-[var(--bg-muted)] rounded-full h-2.5">
                           <div className={`${getMethodColor(item.key)} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div>
                         </div>
                       </div>
                     )
                  })}
                  {(data.payments.total || 0) === 0 && (
-                   <div className="text-sm text-slate-400 py-6 text-center italic border border-dashed border-slate-200 rounded-lg bg-slate-50">
+                   <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
                      No payments received yet.
                    </div>
                  )}
@@ -259,7 +259,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Revenue By Source */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
               <h2 className="text-sm font-semibold text-slate-800 mb-4">Revenue by Source</h2>
                <div className="space-y-4">
                  {Object.entries(data.revenue.by_source || {})
@@ -268,17 +268,17 @@ export default function DashboardPage() {
                     return (
                       <div key={source}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-slate-700 capitalize">{source} <span className="text-slate-400 font-normal ml-1">({stats.nights} nights)</span></span>
-                          <span className="font-bold text-slate-900">{formatB(stats.revenue)} <span className="text-slate-400 font-normal">({stats.pct.toFixed(0)}%)</span></span>
+                          <span className="font-medium text-[var(--text-table-cell)] capitalize">{source} <span className="text-[var(--text-muted)] font-normal ml-1">({stats.nights} nights)</span></span>
+                          <span className="font-bold text-[var(--text-primary)]">{formatB(stats.revenue)} <span className="text-[var(--text-muted)] font-normal">({stats.pct.toFixed(0)}%)</span></span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2.5">
+                        <div className="w-full bg-[var(--bg-muted)] rounded-full h-2.5">
                           <div className={`${getSourceColor(source)} h-2.5 rounded-full`} style={{ width: `${stats.pct}%` }}></div>
                         </div>
                       </div>
                     )
                  })}
                  {(!data.revenue.by_source || Object.keys(data.revenue.by_source).length === 0) && (
-                   <div className="text-sm text-slate-400 py-6 text-center italic border border-dashed border-slate-200 rounded-lg bg-slate-50">
+                   <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
                      No revenue recorded yet.
                    </div>
                  )}
@@ -287,15 +287,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Row 5: 7-Day Trend */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
             <h2 className="text-sm font-semibold text-slate-800 mb-6">7-Day Revenue Trend</h2>
             
             {(!data.trend || data.trend.length === 0) ? (
-              <div className="h-40 flex items-center justify-center text-slate-400 text-sm italic border border-dashed border-slate-200 rounded-lg bg-slate-50">
+              <div className="h-40 flex items-center justify-center text-[var(--text-muted)] text-sm italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
                 No data yet
               </div>
             ) : (
-              <div className="flex items-end gap-2 h-48 mt-4 pt-4 border-t border-slate-100">
+              <div className="flex items-end gap-2 h-48 mt-4 pt-4 border-t border-[var(--border-subtle)]">
                 {data.trend.map((day, i) => {
                   // Find max revenue for scaling. Fallback to 1 if all 0 to avoid division by zero
                    const maxRev = Math.max(1, ...data.trend.map(d => d.revenue));
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                        />
                        
                        {/* Label */}
-                       <div className="mt-2 text-[10px] text-slate-500 font-medium rotate-[-45deg] origin-top-left translate-y-2 translate-x-3 w-12 whitespace-nowrap">
+                       <div className="mt-2 text-[10px] text-[var(--text-secondary)] font-medium rotate-[-45deg] origin-top-left translate-y-2 translate-x-3 w-12 whitespace-nowrap">
                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                        </div>
                      </div>
@@ -327,7 +327,7 @@ export default function DashboardPage() {
                 })}
               </div>
             )}
-            <div className="mt-8 flex items-center gap-4 text-xs text-slate-500">
+            <div className="mt-8 flex items-center gap-4 text-xs text-[var(--text-secondary)]">
               <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-brand-400 rounded-sm"></div> Weekday</div>
               <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-brand-500 rounded-sm"></div> Weekend</div>
             </div>
@@ -335,9 +335,9 @@ export default function DashboardPage() {
 
           {/* Row 6: Extras  */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex justify-between items-center group">
+             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 flex justify-between items-center group">
                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-brand-600 transition-colors">Transfer Services</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Transfer Services</p>
                   <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.transfer_revenue)}</p>
                </div>
                <div className="text-right">
@@ -346,19 +346,19 @@ export default function DashboardPage() {
                </div>
              </div>
              
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 group">
-               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-brand-600 transition-colors">POS Revenue</p>
+             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
+               <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">POS Revenue</p>
                <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.pos_revenue)}</p>
              </div>
 
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 group">
-               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-brand-600 transition-colors">Tips Logged</p>
+             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
+               <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Tips Logged</p>
                <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.tip_total)}</p>
              </div>
 
-             <div className="bg-white rounded-xl shadow-sm border border-rose-200 p-4 flex items-center justify-between group">
+             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-rose-200 p-4 flex items-center justify-between group">
                <div>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-rose-600 transition-colors">Day Use Revenue</p>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-rose-600 transition-colors">Day Use Revenue</p>
                  <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.dayuse_revenue)}</p>
                </div>
                <div className="text-right">
@@ -373,25 +373,25 @@ export default function DashboardPage() {
             {/* Arrivals preview */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-700">Arriving Today</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Arriving Today</h2>
                 <Link href="/pms/arrivals" className="text-xs text-brand-600 hover:underline">
                   View all →
                 </Link>
               </div>
               {!data.arrivals_preview || data.arrivals_preview.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-200 rounded-lg bg-slate-50 italic">No arrivals today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No arrivals today</p>
               ) : (
-                <div className="space-y-2 bg-white">
+                <div className="space-y-2 bg-[var(--bg-surface)]">
                   {data.arrivals_preview.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5">
+                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-[var(--bg-body)] px-3 py-2.5">
                       <div>
                         <p className="text-sm font-semibold text-slate-800">{item.guest_name}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-[var(--text-muted)]">
                           {item.source?.toUpperCase()}
                           {item.checkin_time ? ` · C/I ${item.checkin_time}` : ""}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-[var(--text-table-cell)]">
                         {formatB(item.total_price)}
                       </span>
                     </div>
@@ -403,19 +403,19 @@ export default function DashboardPage() {
             {/* Departures preview */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-700">Departing Today</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Departing Today</h2>
                 <Link href="/pms/departures" className="text-xs text-brand-600 hover:underline">
                   View all →
                 </Link>
               </div>
               {!data.departures_preview || data.departures_preview.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-200 rounded-lg bg-slate-50 italic">No departures today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No departures today</p>
               ) : (
-                <div className="space-y-2 bg-white">
+                <div className="space-y-2 bg-[var(--bg-surface)]">
                   {data.departures_preview.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5">
+                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-[var(--bg-body)] px-3 py-2.5">
                       <p className="text-sm font-semibold text-slate-800">{item.guest_name}</p>
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-[var(--text-table-cell)]">
                          {formatB(item.total_price)}
                       </span>
                     </div>
@@ -439,13 +439,13 @@ export default function DashboardPage() {
               {!tracesData ? (
                 <div className="animate-pulse h-20 bg-white/50 rounded-lg"></div>
               ) : tracesData.total === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-amber-200 rounded-lg bg-amber-50/50 italic">No open traces today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-amber-200 rounded-lg bg-amber-50/50 italic">No open traces today</p>
               ) : (
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {tracesData.traces.map((t: any) => (
                     <div
                       key={t.id}
-                      className="bg-white border border-slate-200 rounded-lg p-3 hover:border-amber-300 transition cursor-pointer shadow-sm"
+                      className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg p-3 hover:border-amber-300 transition cursor-pointer shadow-sm"
                       onClick={() => setOptionsRes({
                         id: t.reservation_id,
                         name: t.guest_name,
@@ -457,10 +457,10 @@ export default function DashboardPage() {
                         <span className="badge bg-slate-200 text-slate-700 font-bold tracking-wide">{t.dept}</span>
                         <div className="text-right leading-tight">
                           <p className="text-xs font-bold text-slate-800">Room {t.room_number}</p>
-                          <p className="text-[10px] text-slate-500 truncate max-w-[100px]">{t.guest_name}</p>
+                          <p className="text-[10px] text-[var(--text-secondary)] truncate max-w-[100px]">{t.guest_name}</p>
                         </div>
                       </div>
-                      <p className="text-sm text-slate-700 font-medium leading-snug">{t.trace_text}</p>
+                      <p className="text-sm text-[var(--text-table-cell)] font-medium leading-snug">{t.trace_text}</p>
                       {t.loan_item_code && (
                         <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 w-fit px-1.5 py-0.5 rounded">
                           <span>📦</span> {t.loan_qty}x {t.loan_item_code}

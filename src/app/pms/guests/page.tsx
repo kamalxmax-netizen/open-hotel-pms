@@ -71,9 +71,9 @@ function hasNonDefaultFilter(
 
 function EmptySearchState() {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
-      <h2 className="mt-5 text-xl font-semibold text-slate-900">Type at least 3 characters to search guest profiles</h2>
-      <p className="mt-3 text-sm leading-7 text-slate-500">
+    <div className="rounded-2xl border border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] px-6 py-16 text-center">
+      <h2 className="mt-5 text-xl font-semibold text-[var(--text-primary)]">Type at least 3 characters to search guest profiles</h2>
+      <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">
         You can also filter by Verified, Draft, VIP, or Blacklisted.
       </p>
     </div>
@@ -82,7 +82,7 @@ function EmptySearchState() {
 
 function NoResultsState() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center text-sm text-slate-500">
+    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-6 py-14 text-center text-sm text-[var(--text-secondary)]">
       No guest profiles matched this search.
     </div>
   );
@@ -363,8 +363,8 @@ export default function GuestsPage() {
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Guest Profiles</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage guest records and stay history.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Guest Profiles</h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Manage guest records and stay history.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/pms/guests/duplicates" className="btn btn-secondary">
@@ -385,7 +385,7 @@ export default function GuestsPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-200 bg-white px-5 py-4">
+        <div className="border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-5 py-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_200px_180px_190px_auto] xl:items-center">
             <div className="relative">
               <input
@@ -443,14 +443,14 @@ export default function GuestsPage() {
         </div>
 
         {canSearch ? (
-          <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-600">
-            Matched: <span className="font-semibold text-slate-900">{response.summary.matched}</span>
+          <div className="border-b border-[var(--border-default)] bg-[var(--bg-body)] px-5 py-3 text-sm text-[var(--text-secondary)]">
+            Matched: <span className="font-semibold text-[var(--text-primary)]">{response.summary.matched}</span>
             <span className="mx-3 text-slate-300">·</span>
-            Verified: <span className="font-semibold text-slate-900">{response.summary.verified}</span>
+            Verified: <span className="font-semibold text-[var(--text-primary)]">{response.summary.verified}</span>
             <span className="mx-3 text-slate-300">·</span>
-            Draft: <span className="font-semibold text-slate-900">{response.summary.draft}</span>
+            Draft: <span className="font-semibold text-[var(--text-primary)]">{response.summary.draft}</span>
             <span className="mx-3 text-slate-300">·</span>
-            VIP: <span className="font-semibold text-slate-900">{response.summary.vip}</span>
+            VIP: <span className="font-semibold text-[var(--text-primary)]">{response.summary.vip}</span>
           </div>
         ) : null}
 
@@ -465,7 +465,7 @@ export default function GuestsPage() {
             <NoResultsState />
           ) : (
             <>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto rounded-2xl border border-[var(--border-default)]">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -481,7 +481,7 @@ export default function GuestsPage() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="py-10 text-center text-sm text-slate-500">
+                        <td colSpan={7} className="py-10 text-center text-sm text-[var(--text-secondary)]">
                           Loading guest profiles...
                         </td>
                       </tr>
@@ -492,23 +492,23 @@ export default function GuestsPage() {
                         return (
                           <tr
                             key={profile.id}
-                            className="cursor-pointer transition hover:bg-slate-50"
+                            className="cursor-pointer transition hover:bg-[var(--bg-body)]"
                             onClick={() => router.push(`/pms/guests/${profile.id}`)}
                           >
                             <td>
-                              <div className="font-semibold text-slate-900">
+                              <div className="font-semibold text-[var(--text-primary)]">
                                 {formatGuestDisplayName(profile)}
                               </div>
-                              <div className="mt-1 text-xs font-mono text-slate-400">
+                              <div className="mt-1 text-xs font-mono text-[var(--text-muted)]">
                                 {profile.member_no || profile.id.slice(0, 8)}
                               </div>
                             </td>
                             <td>
                               <div className="text-sm text-slate-800">{profile.phone || "—"}</div>
-                              <div className="mt-1 text-xs text-slate-400">{profile.email || "—"}</div>
+                              <div className="mt-1 text-xs text-[var(--text-muted)]">{profile.email || "—"}</div>
                             </td>
                             <td>
-                              <div className="flex items-center gap-2 text-sm text-slate-700">
+                              <div className="flex items-center gap-2 text-sm text-[var(--text-table-cell)]">
                                 <span className="text-lg leading-none">
                                   {getNationalityFlag(profile.nationality_code || profile.country || "")}
                                 </span>
@@ -522,7 +522,7 @@ export default function GuestsPage() {
                               <span className={`badge text-xs ${vipMeta.tone}`}>{vipMeta.label}</span>
                             </td>
                             <td className="text-center font-semibold text-slate-800">{profile.stay_count}</td>
-                            <td className="text-sm text-slate-700">{formatLastStay(profile.last_stay_date)}</td>
+                            <td className="text-sm text-[var(--text-table-cell)]">{formatLastStay(profile.last_stay_date)}</td>
                           </tr>
                         );
                       })
@@ -531,8 +531,8 @@ export default function GuestsPage() {
                 </table>
               </div>
 
-              <div className="flex flex-col gap-3 px-2 pt-4 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-slate-500">
+              <div className="flex flex-col gap-3 px-2 pt-4 text-sm text-[var(--text-table-cell)] sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[var(--text-secondary)]">
                   {response.total > 0
                     ? `Showing ${(page - 1) * response.page_size + 1}-${Math.min(
                         page * response.page_size,

@@ -118,7 +118,7 @@ const STATUS_STYLE: Record<
         label: "Clean ✓"
     },
     closed: {
-        card: "border-slate-200 bg-slate-100 opacity-60",
+        card: "border-[var(--border-default)] bg-[var(--bg-muted)] opacity-60",
         badge: "status-closed",
         label: "Renovation"
     },
@@ -500,7 +500,7 @@ function RoomCard({
                     {/* Row 1: room number + status/tier badges */}
                     <div className="flex items-start justify-between gap-1">
                         <div className="flex items-center gap-1">
-                            <span className={`${roomNoClass} font-bold text-slate-900 leading-none`}>{room.room_number}</span>
+                            <span className={`${roomNoClass} font-bold text-[var(--text-primary)] leading-none`}>{room.room_number}</span>
                             {diary && (
                                 <span
                                     className={`text-[11px] font-black leading-none ${diary.symbolClass}`}
@@ -531,7 +531,7 @@ function RoomCard({
 
                     {/* Detail mode: dates */}
                     {viewMode === "detail" && isReserved && room.guest_checkin_date && (
-                        <p className="text-[9px] text-slate-400 leading-tight">
+                        <p className="text-[9px] text-[var(--text-muted)] leading-tight">
                             {room.guest_checkin_date?.slice(5)} → {room.guest_checkout_date?.slice(5)}
                         </p>
                     )}
@@ -546,7 +546,7 @@ function RoomCard({
                     {/* Bottom row */}
                     {viewMode === "detail" ? (
                         <div className="mt-auto flex items-end justify-between gap-1">
-                            <p className="text-[10px] text-slate-500 font-medium truncate leading-tight">
+                            <p className="text-[10px] text-[var(--text-secondary)] font-medium truncate leading-tight">
                                 {isBlocked
                                     ? (room.closure_reason || "No Reason")
                                     : isReserved && room.source
@@ -572,7 +572,7 @@ function RoomCard({
                                     {returnStats.text}
                                 </span>
                             ) : isReserved && room.booking_code ? (
-                                <span className="text-[8px] text-slate-400 font-mono shrink-0">
+                                <span className="text-[8px] text-[var(--text-muted)] font-mono shrink-0">
                                     #{room.booking_code.slice(-4)}
                                 </span>
                             ) : null}
@@ -622,7 +622,7 @@ function RoomCard({
                         <span className={`badge ${s.badge} text-[9px]`}>{s.label}</span>
                     </div>
                     <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[10px] text-slate-400">{room.room_type}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">{room.room_type}</p>
                         {loyaltyVisual.tierEmoji && (
                             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold ${loyaltyVisual.tierBadgeClass}`}>
                                 {loyaltyVisual.tierEmoji} {loyaltyVisual.tierLabel}
@@ -638,14 +638,14 @@ function RoomCard({
                     {isReserved && (
                         <div className="mt-1.5 space-y-0.5">
                             {room.guest_name && <p className="text-xs font-semibold text-slate-800">{room.guest_name}</p>}
-                            {room.booking_code && <p className="text-[10px] text-slate-500 font-mono">{room.booking_code}</p>}
+                            {room.booking_code && <p className="text-[10px] text-[var(--text-secondary)] font-mono">{room.booking_code}</p>}
                             {room.guest_checkin_date && (
-                                <p className="text-[10px] text-slate-400">
+                                <p className="text-[10px] text-[var(--text-muted)]">
                                     {room.guest_checkin_date} → {room.guest_checkout_date}
                                 </p>
                             )}
                             {room.source && (
-                                <span className="inline-block text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
+                                <span className="inline-block text-[9px] bg-[var(--bg-muted)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded-full">
                                     {SOURCE_LABEL[room.source] ?? room.source}
                                 </span>
                             )}
@@ -708,20 +708,20 @@ function RoomCard({
                         </div>
                     )}
                     {room.booking_group_id && groupPeers.length > 0 && (
-                        <div className="mt-2 border-t border-slate-100 pt-2">
+                        <div className="mt-2 border-t border-[var(--border-subtle)] pt-2">
                             <div className="flex items-center justify-between gap-2 mb-1">
                                 <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
                                     {room.group_code ?? "Group"}
                                 </span>
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-[var(--text-muted)]">
                                     {groupPeers.length} room{groupPeers.length !== 1 ? "s" : ""}
                                 </span>
                             </div>
                             <div className="max-h-20 overflow-auto space-y-0.5">
                                 {groupPeers.map((peer) => (
-                                    <div key={`${room.booking_group_id}-${peer.room_number}`} className="text-[10px] text-slate-600 flex items-center justify-between gap-2">
-                                        <span className="font-semibold text-slate-700">Room {peer.room_number}</span>
-                                        <span className="truncate text-slate-500">{peer.guest_name ?? "—"}</span>
+                                    <div key={`${room.booking_group_id}-${peer.room_number}`} className="text-[10px] text-[var(--text-secondary)] flex items-center justify-between gap-2">
+                                        <span className="font-semibold text-[var(--text-table-cell)]">Room {peer.room_number}</span>
+                                        <span className="truncate text-[var(--text-secondary)]">{peer.guest_name ?? "—"}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1177,16 +1177,16 @@ export default function BoardPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Room Diary</h1>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Room Diary</h1>
                     {data && (
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                             {data.date} · {data.rooms.filter((r) => r.sellable).length} sellable rooms
                         </p>
                     )}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     {/* Date Quick View (Yesterday / Today / Tomorrow) */}
-                    <div className="flex border border-slate-200 rounded-lg p-0.5 bg-slate-100 text-xs">
+                    <div className="flex border border-[var(--border-default)] rounded-lg p-0.5 bg-[var(--bg-muted)] text-xs">
                         {([
                             { label: "Yesterday", offset: -1 as DateViewOffset },
                             { label: "Today", offset: 0 as DateViewOffset },
@@ -1198,9 +1198,9 @@ export default function BoardPage() {
                                 disabled={!baseBusinessDate && opt.offset !== 0}
                                 className={`px-3 py-1.5 rounded-md font-medium transition ${dateOffset === opt.offset
                                     ? opt.offset === 0
-                                        ? "bg-white shadow text-slate-900"
+                                        ? "bg-[var(--bg-surface)] shadow text-[var(--text-primary)]"
                                         : "bg-rose-600 text-white shadow"
-                                    : "text-slate-500 hover:text-slate-700"
+                                    : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                                     } ${!baseBusinessDate && opt.offset !== 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                                 {opt.label}
@@ -1208,14 +1208,14 @@ export default function BoardPage() {
                         ))}
                     </div>
                     {/* View Mode Toggle */}
-                    <div className="flex border border-slate-200 rounded-lg p-0.5 bg-slate-100 text-xs">
+                    <div className="flex border border-[var(--border-default)] rounded-lg p-0.5 bg-[var(--bg-muted)] text-xs">
                         {(["compact", "detail"] as const).map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => setViewMode(mode)}
                                 className={`px-3 py-1.5 rounded-md font-medium capitalize transition ${viewMode === mode
-                                    ? "bg-white shadow text-slate-900"
-                                    : "text-slate-500 hover:text-slate-700"
+                                    ? "bg-[var(--bg-surface)] shadow text-[var(--text-primary)]"
+                                    : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                                     }`}
                             >
                                 {mode === "compact" ? "⊞ Compact" : "☰ Detail"}
@@ -1225,13 +1225,13 @@ export default function BoardPage() {
                     {/* Legend */}
                     <button
                         onClick={() => setHideFadedRooms((v) => !v)}
-                        className={`btn text-xs border border-slate-200 ${hideFadedRooms ? "btn-secondary" : "btn-ghost"}`}
+                        className={`btn text-xs border border-[var(--border-default)] ${hideFadedRooms ? "btn-secondary" : "btn-ghost"}`}
                     >
                         {hideFadedRooms ? "Show Faded Rooms" : "Hide Faded Rooms"}
                     </button>
                     <button
                         onClick={() => setShowLegend(true)}
-                        className="btn btn-ghost text-xs border border-slate-200"
+                        className="btn btn-ghost text-xs border border-[var(--border-default)]"
                     >
                         ? Legend
                     </button>
@@ -1262,7 +1262,7 @@ export default function BoardPage() {
                                     onClick={() => toggleFilter(f.key)}
                                     className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
                                         ? "border-brand-400 bg-brand-600 text-white"
-                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                                         }`}
                                 >
                                     {f.label} {count > 0 && `(${count})`}
@@ -1274,7 +1274,7 @@ export default function BoardPage() {
                         onClick={() => setShowHkDirtyLayer((v) => !v)}
                         className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${showHkDirtyLayer
                             ? "border-rose-300 bg-rose-50 text-rose-700"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                             }`}
                         title="Toggle dirty housekeeping pattern layer on room cards"
                     >
@@ -1319,7 +1319,7 @@ export default function BoardPage() {
                     const rightRowDayUseRooms = attachDayUseToLeftRow ? [] : floorDayUseRooms;
                     return (
                         <div key={floor.label} className={fi > 0 ? "floor-gap" : ""}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                            <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3">
                                 {floor.label}
                             </p>
                             {/* Scrollable container — holds both wings, never wraps */}
@@ -1365,9 +1365,9 @@ export default function BoardPage() {
                                     {/* Corridor divider */}
                                     {floor.leftWing.length > 0 && floor.rightWing.length > 0 && (
                                         <div className="flex items-center gap-1 px-1">
-                                            <div className="flex-1 border-t border-dashed border-slate-200" />
-                                            <span className="text-[9px] text-slate-300 font-semibold tracking-widest">CORRIDOR</span>
-                                            <div className="flex-1 border-t border-dashed border-slate-200" />
+                                            <div className="flex-1 border-t border-dashed border-[var(--border-default)]" />
+                                            <span className="text-[9px] text-[var(--text-muted)] font-semibold tracking-widest">CORRIDOR</span>
+                                            <div className="flex-1 border-t border-dashed border-[var(--border-default)]" />
                                         </div>
                                     )}
                                     {/* R wing row */}
@@ -1454,7 +1454,7 @@ export default function BoardPage() {
                     onClick={() => setMobileSheet(null)}
                 >
                     <div
-                        className="w-full bg-white rounded-t-2xl p-5 pb-8 shadow-2xl"
+                        className="w-full bg-[var(--bg-surface)] rounded-t-2xl p-5 pb-8 shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="w-8 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
@@ -1472,7 +1472,7 @@ export default function BoardPage() {
                             return (
                                 <>
                                     <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xl font-bold text-slate-900">{r.room_number}</span>
+                                        <span className="text-xl font-bold text-[var(--text-primary)]">{r.room_number}</span>
                                         <span className={`badge ${s.badge} text-xs`}>{s.label}</span>
                                         {diary && (
                                             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${diary.chipClass}`}>
@@ -1480,18 +1480,18 @@ export default function BoardPage() {
                                                 {diary.label}
                                             </span>
                                         )}
-                                        <span className="text-sm text-slate-400">{r.room_type}</span>
+                                        <span className="text-sm text-[var(--text-muted)]">{r.room_type}</span>
                                     </div>
                                     {r.status === "reserved" && (
                                         <div className="space-y-1 mb-4">
                                             {r.guest_name && <p className="text-sm font-semibold text-slate-800">{r.guest_name}</p>}
-                                            {r.booking_code && <p className="text-xs font-mono text-slate-500">{r.booking_code}</p>}
+                                            {r.booking_code && <p className="text-xs font-mono text-[var(--text-secondary)]">{r.booking_code}</p>}
                                             {r.guest_checkin_date && (
-                                                <p className="text-xs text-slate-400">
+                                                <p className="text-xs text-[var(--text-muted)]">
                                                     {r.guest_checkin_date} → {r.guest_checkout_date}
                                                 </p>
                                             )}
-                                            {r.source && <p className="text-xs text-slate-500">{SOURCE_LABEL[r.source] ?? r.source}</p>}
+                                            {r.source && <p className="text-xs text-[var(--text-secondary)]">{SOURCE_LABEL[r.source] ?? r.source}</p>}
                                         </div>
                                     )}
                                     <div className="flex gap-2">
@@ -1524,19 +1524,19 @@ export default function BoardPage() {
                     onClick={() => setShowLegend(false)}
                 >
                     <div
-                        className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+                        className="bg-[var(--bg-surface)] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h3 className="text-base font-bold text-slate-900 mb-4">Status Legend</h3>
+                        <h3 className="text-base font-bold text-[var(--text-primary)] mb-4">Status Legend</h3>
                         <div className="mb-4 space-y-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Diary Symbols</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Diary Symbols</p>
                             {(Object.entries(DIARY_STYLE) as [DiaryState, typeof DIARY_STYLE[DiaryState]][]).map(([key, val]) => (
                                 <div key={key} className="flex items-center gap-3">
                                     <span className={`inline-flex items-center justify-center w-24 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${val.chipClass}`}>
                                         <span className={`mr-1 font-black ${val.symbolClass}`}>{val.symbol}</span>
                                         {val.label}
                                     </span>
-                                    <span className="text-xs text-slate-500">
+                                    <span className="text-xs text-[var(--text-secondary)]">
                                         {key === "available" ? "Room is empty, no assigned booking" :
                                             key === "due_in" ? "Assigned arrival expected today" :
                                                 key === "inhouse" ? "Checked-in guest staying in room" :
@@ -1552,7 +1552,7 @@ export default function BoardPage() {
                                     <span className={`badge ${val.badge} text-[10px] w-24 text-center shrink-0`}>
                                         {val.label}
                                     </span>
-                                    <span className="text-xs text-slate-500">
+                                    <span className="text-xs text-[var(--text-secondary)]">
                                         {key === "available" ? "Empty and ready for guests" :
                                             key === "reserved" ? "Guest checked in / arriving today" :
                                                 key === "dirty" ? "Needs housekeeping after checkout" :

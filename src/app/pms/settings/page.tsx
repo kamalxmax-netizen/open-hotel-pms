@@ -154,19 +154,19 @@ export default function SettingsPage() {
         <div key="settings-form-mounted" className="max-w-2xl mx-auto space-y-8 pb-12">
             <div>
                 <h1 className="page-title">Settings</h1>
-                <p className="text-sm text-slate-500">Hotel configuration and Night Audit management</p>
+                <p className="text-sm text-[var(--text-secondary)]">Hotel configuration and Night Audit management</p>
             </div>
 
             {/* ── Night Audit Block (always visible) ─────────── */}
             <div className={`rounded-xl border p-4 space-y-3 ${eodVeryLate ? "bg-rose-50 border-rose-200" :
                 eodOverdue ? "bg-amber-50 border-amber-200" :
-                    "bg-slate-50 border-slate-200"
+                    "bg-[var(--bg-body)] border-[var(--border-default)]"
                 }`}>
                 <div className="flex items-start justify-between gap-2">
                     <div>
                         <p className={`text-sm font-bold ${eodVeryLate ? "text-rose-700" :
                             eodOverdue ? "text-amber-700" :
-                                "text-slate-700"
+                                "text-[var(--text-table-cell)]"
                             }`}>
                             {eodVeryLate ? `🚨 Night Audit — ${eodStatus!.days_overdue} days overdue!` :
                                 eodOverdue ? "⚠️ Night Audit Required" :
@@ -174,13 +174,13 @@ export default function SettingsPage() {
                                         "🌙 Night Audit"}
                         </p>
                         {eodStatus && (
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                                 Business Date: <strong>{eodStatus.business_date}</strong>
                                 {" · "}Calendar: <strong>{eodStatus.calendar_date}</strong>
                             </p>
                         )}
                         {!eodStatus && settings.business_date && (
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                                 Business Date: <strong>{settings.business_date}</strong>
                             </p>
                         )}
@@ -219,7 +219,7 @@ export default function SettingsPage() {
                 </div>
 
                 {eodUpToDate && (
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-[var(--text-muted)]">
                         EOD auto-button appears tomorrow once the business day ends.
                         Use <em>Force Run</em> to test the flow now.
                     </p>
@@ -239,8 +239,8 @@ export default function SettingsPage() {
             {/* ── Settings Form ─────────────────────────────── */}
             <form onSubmit={handleSave} className="space-y-6">
                 {/* Hotel Info */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Hotel Info</h2>
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Hotel Info</h2>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="form-label">Hotel Name</label>
@@ -261,13 +261,13 @@ export default function SettingsPage() {
                     <div>
                         <label className="form-label">Sellable Rooms (total)</label>
                         <input type="number" min="1" className="form-input" value={settings.sellable_rooms} onChange={(e) => setField("sellable_rooms", parseInt(e.target.value) || 0)} />
-                        <p className="text-xs text-slate-400 mt-1">Used to calculate Occupancy % and RevPAR in Night Audit</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">Used to calculate Occupancy % and RevPAR in Night Audit</p>
                     </div>
                 </div>
 
                 {/* Check-in / Check-out Times */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Check-in / Check-out</h2>
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Check-in / Check-out</h2>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="form-label">Check-in Time</label>
@@ -285,21 +285,21 @@ export default function SettingsPage() {
                     <div>
                         <label className="form-label">Late Check-out Fee (THB)</label>
                         <div className="relative">
-                            <span className="absolute left-3 top-2.5 text-sm text-slate-400">฿</span>
+                            <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                             <input type="number" min="0" step="0.01" className="form-input pl-7" value={settings.late_checkout_fee} onChange={(e) => setField("late_checkout_fee", parseFloat(e.target.value) || 0)} />
                         </div>
                     </div>
                 </div>
 
                 {/* Night Audit Settings */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Night Audit Reminder</h2>
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Night Audit Reminder</h2>
                     <div>
                         <label className="form-label">Remind at (time)</label>
                         <select className="form-select" value={settings.eod_reminder_time} onChange={(e) => setField("eod_reminder_time", e.target.value)}>
                             {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
-                        <p className="text-xs text-slate-400 mt-1">Dashboard shows an alert if Night Audit has not been run by this time</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">Dashboard shows an alert if Night Audit has not been run by this time</p>
                     </div>
                     <div>
                         <label className="form-label">Popup snooze (minutes)</label>
@@ -311,7 +311,7 @@ export default function SettingsPage() {
                             value={settings.night_audit_popup_snooze_min}
                             onChange={(e) => setField("night_audit_popup_snooze_min", Math.max(1, Math.min(1440, parseInt(e.target.value, 10) || 30)))}
                         />
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                             Operational pages will hide the Night Audit warning for this many minutes after staff dismiss it.
                         </p>
                     </div>

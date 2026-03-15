@@ -54,7 +54,7 @@ export default function AppShell({
   }, [isMaidApp, isStandalonePopup, router]);
 
   if (isMaidApp || isStandalonePopup || isLoginPage) {
-    return <div className="bg-slate-50 min-h-screen">{children}</div>;
+    return <div className="bg-[var(--bg-body)] min-h-screen">{children}</div>;
   }
 
   return (

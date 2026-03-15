@@ -109,9 +109,9 @@ const SOURCE_LIGHT: Record<string, string> = {
 function KpiTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
     return (
         <div className={`card p-4 flex flex-col gap-1 ${color ?? ""}`}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-            <p className="text-2xl font-bold text-slate-900 leading-tight">{value}</p>
-            {sub && <p className="text-xs text-slate-400">{sub}</p>}
+            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)] leading-tight">{value}</p>
+            {sub && <p className="text-xs text-[var(--text-muted)]">{sub}</p>}
         </div>
     );
 }
@@ -121,7 +121,7 @@ function OccBar({ pct }: { pct: number }) {
     const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-brand-500" : "bg-rose-400";
     return (
         <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="flex-1 h-2 rounded-full bg-[var(--bg-muted)] overflow-hidden">
                 <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
             </div>
             <span className="text-xs font-semibold tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
@@ -133,15 +133,15 @@ function OccBar({ pct }: { pct: number }) {
 type ViewMode = "summary" | "detail";
 function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
     return (
-        <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+        <div className="flex bg-[var(--bg-muted)] rounded-lg p-0.5 gap-0.5">
             <button
                 onClick={() => onChange("summary")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === "summary" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === "summary" ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                     }`}
             >Summary</button>
             <button
                 onClick={() => onChange("detail")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === "detail" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === "detail" ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                     }`}
             >Transfer Reference</button>
         </div>
@@ -210,9 +210,9 @@ export default function RevenuePage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Revenue</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Revenue Report</h1>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Revenue Report</h1>
                     {data && (
-                        <p className="text-sm text-slate-400 mt-0.5">
+                        <p className="text-sm text-[var(--text-muted)] mt-0.5">
                             {startDate === endDate ? startDate : `${startDate} → ${endDate}`}
                             &nbsp;·&nbsp;{data.sellable_rooms} sellable rooms
                         </p>
@@ -230,17 +230,17 @@ export default function RevenuePage() {
                     {PRESETS.map((p, i) => (
                         <button key={i} onClick={() => applyPreset(i)}
                             className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition
-                ${preset === i ? "border-brand-400 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                ${preset === i ? "border-brand-400 bg-brand-600 text-white" : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"}`}
                         >{p.label}</button>
                     ))}
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">From</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">From</label>
                     <input type="date" className="form-input py-1 text-sm w-36" value={startDate}
                         onChange={(e) => { setStartDate(e.target.value); setPreset(-1); }} />
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">To</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">To</label>
                     <input type="date" className="form-input py-1 text-sm w-36" value={endDate}
                         onChange={(e) => { setEndDate(e.target.value); setPreset(-1); }} />
                 </div>
@@ -274,11 +274,11 @@ export default function RevenuePage() {
 
                         {/* Source Breakdown */}
                         <div className="card p-4 lg:col-span-2">
-                            <h2 className="text-sm font-bold text-slate-700 mb-3">Revenue by Source</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Revenue by Source</h2>
                             {loading ? (
                                 <div className="space-y-3">
                                     {Array.from({ length: 4 }).map((_, i) => (
-                                        <div key={i} className="h-12 rounded-lg bg-slate-100 animate-pulse" />
+                                        <div key={i} className="h-12 rounded-lg bg-[var(--bg-muted)] animate-pulse" />
                                     ))}
                                 </div>
                             ) : (
@@ -313,15 +313,15 @@ export default function RevenuePage() {
 
                         {/* Daily Breakdown Table */}
                         <div className="card p-4 lg:col-span-3 overflow-hidden">
-                            <h2 className="text-sm font-bold text-slate-700 mb-3">Daily Breakdown</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Daily Breakdown</h2>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b border-slate-100">
-                                            <th className="text-left pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">Date</th>
-                                            <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">Revenue</th>
-                                            <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide pr-2">Rooms</th>
-                                            <th className="pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide min-w-[120px]">Occupancy</th>
+                                        <tr className="border-b border-[var(--border-subtle)]">
+                                            <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Date</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Revenue</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pr-2">Rooms</th>
+                                            <th className="pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide min-w-[120px]">Occupancy</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -343,14 +343,14 @@ export default function RevenuePage() {
                                                 return (
                                                     <tr key={day.date} className={`border-b border-slate-50 ${isToday ? "bg-brand-50" : isWeekend ? "bg-rose-50/40" : ""}`}>
                                                         <td className="py-2 pr-3">
-                                                            <span className={`text-xs font-semibold mr-1.5 ${isWeekend ? "text-rose-500" : "text-slate-400"}`}>{dow}</span>
-                                                            <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-slate-700"}`}>{day.date}</span>
+                                                            <span className={`text-xs font-semibold mr-1.5 ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
+                                                            <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-[var(--text-table-cell)]"}`}>{day.date}</span>
                                                             {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 px-1 py-0.5 font-bold">TODAY</span>}
                                                         </td>
                                                         <td className="py-2 text-right font-semibold text-slate-800">
                                                             {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-slate-300">—</span>}
                                                         </td>
-                                                        <td className="py-2 text-right pr-3 text-slate-600 text-sm">{day.occupied}/{data?.sellable_rooms ?? "?"}</td>
+                                                        <td className="py-2 text-right pr-3 text-[var(--text-secondary)] text-sm">{day.occupied}/{data?.sellable_rooms ?? "?"}</td>
                                                         <td className="py-2"><OccBar pct={day.occ_pct} /></td>
                                                     </tr>
                                                 );
@@ -359,10 +359,10 @@ export default function RevenuePage() {
                                     </tbody>
                                     {!loading && data && (
                                         <tfoot>
-                                            <tr className="border-t-2 border-slate-200">
-                                                <td className="pt-2 text-xs font-bold text-slate-500 uppercase">Total</td>
-                                                <td className="pt-2 text-right font-bold text-slate-900">{fmtMoney(kpi?.total_revenue ?? 0)}</td>
-                                                <td className="pt-2 text-right pr-3 font-bold text-slate-700">{kpi?.occupied_nights}</td>
+                                            <tr className="border-t-2 border-[var(--border-default)]">
+                                                <td className="pt-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Total</td>
+                                                <td className="pt-2 text-right font-bold text-[var(--text-primary)]">{fmtMoney(kpi?.total_revenue ?? 0)}</td>
+                                                <td className="pt-2 text-right pr-3 font-bold text-[var(--text-table-cell)]">{kpi?.occupied_nights}</td>
                                                 <td className="pt-2">
                                                     <OccBar pct={kpi?.occupancy_pct ?? 0} />
                                                 </td>
@@ -377,7 +377,7 @@ export default function RevenuePage() {
                     {/* Revenue bar chart (visual only) */}
                     {!loading && data && data.by_day.length > 1 && (
                         <div className="card p-4">
-                            <h2 className="text-sm font-bold text-slate-700 mb-3">Revenue Bar Chart</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Revenue Bar Chart</h2>
                             <div className="flex items-end gap-1 h-24 overflow-x-auto">
                                 {data.by_day.map((day) => {
                                     const h = maxRev > 0 ? (day.revenue / maxRev) * 100 : 0;
@@ -394,14 +394,14 @@ export default function RevenuePage() {
                                                     style={{ height: `${Math.max(h, day.revenue > 0 ? 4 : 0)}%` }}
                                                 />
                                             </div>
-                                            <span className={`text-[9px] font-semibold ${isWeekend ? "text-rose-500" : "text-slate-400"}`}>
+                                            <span className={`text-[9px] font-semibold ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>
                                                 {d.getDate()}
                                             </span>
                                         </div>
                                     );
                                 })}
                             </div>
-                            <div className="flex gap-3 mt-2 text-xs text-slate-400">
+                            <div className="flex gap-3 mt-2 text-xs text-[var(--text-muted)]">
                                 <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-brand-500 inline-block" />Today</span>
                                 <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-rose-400 inline-block" />Weekend</span>
                                 <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-slate-300 inline-block" />Weekday</span>
@@ -412,10 +412,10 @@ export default function RevenuePage() {
                     {/* ★ Phase 11A: Transfer Revenue Reference (not counted in Hotel Revenue) */}
                     <div className="card p-4 border-l-4 border-l-amber-400">
                         <div className="flex items-center gap-2 mb-3">
-                            <h2 className="text-sm font-bold text-slate-700">Transfer Revenue Reference</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-table-cell)]">Transfer Revenue Reference</h2>
                             <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold uppercase">Separate</span>
                         </div>
-                        <p className="text-xs text-slate-400 mb-3">
+                        <p className="text-xs text-[var(--text-muted)] mb-3">
                             Transfer revenue is tracked separately and not included in Hotel Revenue totals above.
                         </p>
                         {transferRef ? (
@@ -424,9 +424,9 @@ export default function RevenuePage() {
                                     <p className="text-[10px] font-semibold text-amber-600 uppercase">Gross Sell</p>
                                     <p className="text-lg font-bold text-amber-800">{fmtMoney(transferRef.kpis.gross_sell)}</p>
                                 </div>
-                                <div className="bg-slate-50 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Cost</p>
-                                    <p className="text-lg font-bold text-slate-700">{fmtMoney(transferRef.kpis.total_cost)}</p>
+                                <div className="bg-[var(--bg-body)] rounded-lg p-3">
+                                    <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase">Cost</p>
+                                    <p className="text-lg font-bold text-[var(--text-table-cell)]">{fmtMoney(transferRef.kpis.total_cost)}</p>
                                 </div>
                                 <div className="bg-emerald-50 rounded-lg p-3">
                                     <p className="text-[10px] font-semibold text-emerald-600 uppercase">Margin</p>
@@ -442,7 +442,7 @@ export default function RevenuePage() {
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-slate-400 italic">No transfer data available for this period.</p>
+                            <p className="text-sm text-[var(--text-muted)] italic">No transfer data available for this period.</p>
                         )}
                     </div>
                 </>
@@ -452,7 +452,7 @@ export default function RevenuePage() {
             {view === "detail" && (
                 <div className="card p-4">
                     <div className="flex items-center gap-2 mb-4">
-                        <h2 className="text-sm font-bold text-slate-700">Transfer Revenue Detail</h2>
+                        <h2 className="text-sm font-bold text-[var(--text-table-cell)]">Transfer Revenue Detail</h2>
                         <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold uppercase">Not in Hotel Revenue</span>
                     </div>
 
@@ -463,9 +463,9 @@ export default function RevenuePage() {
                                 <p className="text-[10px] font-semibold text-amber-600 uppercase">Gross Sell</p>
                                 <p className="text-lg font-bold text-amber-800">{fmtMoney(transferRef.kpis.gross_sell)}</p>
                             </div>
-                            <div className="bg-slate-50 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-slate-500 uppercase">Cost</p>
-                                <p className="text-lg font-bold text-slate-700">{fmtMoney(transferRef.kpis.total_cost)}</p>
+                            <div className="bg-[var(--bg-body)] rounded-lg p-3">
+                                <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase">Cost</p>
+                                <p className="text-lg font-bold text-[var(--text-table-cell)]">{fmtMoney(transferRef.kpis.total_cost)}</p>
                             </div>
                             <div className="bg-emerald-50 rounded-lg p-3">
                                 <p className="text-[10px] font-semibold text-emerald-600 uppercase">Margin</p>
@@ -487,16 +487,16 @@ export default function RevenuePage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b border-slate-100">
-                                        <th className="text-left pb-2 text-xs font-semibold text-slate-400 uppercase">Date</th>
-                                        <th className="text-left pb-2 text-xs font-semibold text-slate-400 uppercase">Guest</th>
-                                        <th className="text-left pb-2 text-xs font-semibold text-slate-400 uppercase">Booking</th>
-                                        <th className="text-left pb-2 text-xs font-semibold text-slate-400 uppercase">Route</th>
-                                        <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase">Sell</th>
-                                        <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase">Cost</th>
-                                        <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase">Margin</th>
-                                        <th className="text-right pb-2 text-xs font-semibold text-slate-400 uppercase">Commission</th>
-                                        <th className="text-center pb-2 text-xs font-semibold text-slate-400 uppercase">Status</th>
+                                    <tr className="border-b border-[var(--border-subtle)]">
+                                        <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Date</th>
+                                        <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Guest</th>
+                                        <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Booking</th>
+                                        <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Route</th>
+                                        <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Sell</th>
+                                        <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Cost</th>
+                                        <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Margin</th>
+                                        <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Commission</th>
+                                        <th className="text-center pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -505,13 +505,13 @@ export default function RevenuePage() {
                                             : row.status === "cancelled" ? "bg-rose-100 text-rose-700"
                                                 : "bg-slate-100 text-slate-600";
                                         return (
-                                            <tr key={row.transfer_id} className="border-b border-slate-50 hover:bg-slate-50">
-                                                <td className="py-2 text-xs text-slate-500">{row.date}</td>
-                                                <td className="py-2 font-semibold text-slate-700">{row.guest_name ?? "—"}</td>
-                                                <td className="py-2 text-xs text-slate-500">{row.booking_code ?? "—"}</td>
-                                                <td className="py-2 text-xs text-slate-600">{row.route ?? "—"}</td>
+                                            <tr key={row.transfer_id} className="border-b border-slate-50 hover:bg-[var(--bg-body)]">
+                                                <td className="py-2 text-xs text-[var(--text-secondary)]">{row.date}</td>
+                                                <td className="py-2 font-semibold text-[var(--text-table-cell)]">{row.guest_name ?? "—"}</td>
+                                                <td className="py-2 text-xs text-[var(--text-secondary)]">{row.booking_code ?? "—"}</td>
+                                                <td className="py-2 text-xs text-[var(--text-secondary)]">{row.route ?? "—"}</td>
                                                 <td className="py-2 text-right font-semibold text-slate-800">{fmtMoney(row.selling_price)}</td>
-                                                <td className="py-2 text-right text-slate-500">{fmtMoney(row.cost_price)}</td>
+                                                <td className="py-2 text-right text-[var(--text-secondary)]">{fmtMoney(row.cost_price)}</td>
                                                 <td className="py-2 text-right font-semibold text-emerald-700">{fmtMoney(row.margin)}</td>
                                                 <td className="py-2 text-right text-violet-600">{fmtMoney(row.commission)}</td>
                                                 <td className="py-2 text-center">
@@ -522,10 +522,10 @@ export default function RevenuePage() {
                                     })}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="border-t-2 border-slate-200">
-                                        <td colSpan={4} className="pt-2 text-xs font-bold text-slate-500 uppercase">Total ({transferRef.transfers.length} transfers)</td>
-                                        <td className="pt-2 text-right font-bold text-slate-900">{fmtMoney(transferRef.kpis.gross_sell)}</td>
-                                        <td className="pt-2 text-right font-bold text-slate-600">{fmtMoney(transferRef.kpis.total_cost)}</td>
+                                    <tr className="border-t-2 border-[var(--border-default)]">
+                                        <td colSpan={4} className="pt-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Total ({transferRef.transfers.length} transfers)</td>
+                                        <td className="pt-2 text-right font-bold text-[var(--text-primary)]">{fmtMoney(transferRef.kpis.gross_sell)}</td>
+                                        <td className="pt-2 text-right font-bold text-[var(--text-secondary)]">{fmtMoney(transferRef.kpis.total_cost)}</td>
                                         <td className="pt-2 text-right font-bold text-emerald-700">{fmtMoney(transferRef.kpis.gross_margin)}</td>
                                         <td className="pt-2 text-right font-bold text-violet-700">{fmtMoney(transferRef.kpis.commission_payable)}</td>
                                         <td />
@@ -534,7 +534,7 @@ export default function RevenuePage() {
                             </table>
                         </div>
                     ) : (
-                        <p className="text-sm text-slate-400 italic py-4 text-center">No transfer data for this period.</p>
+                        <p className="text-sm text-[var(--text-muted)] italic py-4 text-center">No transfer data for this period.</p>
                     )}
                 </div>
             )}

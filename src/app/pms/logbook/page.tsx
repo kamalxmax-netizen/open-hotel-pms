@@ -801,7 +801,7 @@ export default function LogbookPage() {
 
   return (
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#f8f9fa]">
-      <div className="z-50 flex flex-none items-center justify-between gap-4 overflow-x-auto border-b bg-white p-3 shadow-sm sm:p-4">
+      <div className="z-50 flex flex-none items-center justify-between gap-4 overflow-x-auto border-b bg-[var(--bg-surface)] p-3 shadow-sm sm:p-4">
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <h1 className="text-lg font-bold text-slate-800 sm:text-xl">Logbook</h1>
           <LogbookFilterBar filterType={filterType} setFilterType={setFilterType} />
@@ -818,18 +818,18 @@ export default function LogbookPage() {
         </div>
       </div>
 
-      <div className="canvas-bg relative hidden flex-1 overflow-auto bg-slate-50 sm:block">
+      <div className="canvas-bg relative hidden flex-1 overflow-auto bg-[var(--bg-body)] sm:block">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg border bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            <div className="rounded-lg border bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-secondary)] shadow-sm">
               Loading logbook notes...
             </div>
           </div>
         ) : fetchError ? (
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="max-w-md rounded-lg border border-rose-200 bg-white p-4 shadow-sm">
+            <div className="max-w-md rounded-lg border border-rose-200 bg-[var(--bg-surface)] p-4 shadow-sm">
               <p className="text-sm font-semibold text-rose-700">Failed to load logbook notes</p>
-              <p className="mt-1 text-xs text-slate-600">{fetchError}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">{fetchError}</p>
               <button
                 onClick={fetchNotes}
                 className="mt-3 inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
@@ -840,9 +840,9 @@ export default function LogbookPage() {
           </div>
         ) : notes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="max-w-md rounded-lg border bg-white p-5 text-center shadow-sm">
+            <div className="max-w-md rounded-lg border bg-[var(--bg-surface)] p-5 text-center shadow-sm">
               <p className="text-sm font-semibold text-slate-800">No notes yet</p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Start with your first post-it note. You can drag, resize, link, mention, archive, and restore.
               </p>
               <button
@@ -872,7 +872,7 @@ export default function LogbookPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto bg-slate-50 pb-20 sm:hidden">
+      <div className="flex-1 overflow-auto bg-[var(--bg-body)] pb-20 sm:hidden">
         <LogbookMobileList
           notes={notes}
           onUpdateContent={handleUpdateNoteContent}
@@ -912,11 +912,11 @@ export default function LogbookPage() {
       />
 
       {archiveUndo ? (
-        <div className="fixed bottom-4 right-4 z-[95] w-[min(92vw,360px)] rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-2xl">
+        <div className="fixed bottom-4 right-4 z-[95] w-[min(92vw,360px)] rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 shadow-2xl">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">Note archived</p>
-              <p className="truncate text-xs text-slate-500">{archiveUndo.note.title || "Untitled note"}</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Note archived</p>
+              <p className="truncate text-xs text-[var(--text-secondary)]">{archiveUndo.note.title || "Untitled note"}</p>
             </div>
             <Button size="sm" className="h-8 px-3 text-xs" onClick={handleUndoArchive}>
               Undo

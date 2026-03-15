@@ -11,9 +11,9 @@ export default function NewNotePage() {
                 <h1 className="text-xl font-bold text-slate-800">Create New Note</h1>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border shadow-sm text-center text-slate-500 flex flex-col items-center gap-3 py-24">
+            <div className="bg-[var(--bg-surface)] p-6 rounded-2xl border shadow-sm text-center text-[var(--text-secondary)] flex flex-col items-center gap-3 py-24">
                 <p className="text-5xl mb-2">📝</p>
-                <h3 className="font-bold text-slate-700 text-lg">Note Form Generation Pending</h3>
+                <h3 className="font-bold text-[var(--text-table-cell)] text-lg">Note Form Generation Pending</h3>
                 <p className="max-w-md mx-auto text-sm leading-relaxed">
                     The complex Logbook Note Form (with @mentions, room relations, and priority settings) will be implemented in Phase 12C.
                 </p>

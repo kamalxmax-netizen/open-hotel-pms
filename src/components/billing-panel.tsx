@@ -293,14 +293,14 @@ export function BillingPanel({
     (balanceDueSatang > 0 || (deferPersist && pendingPayments.length > 0));
 
   return (
-    <div className="bg-white border rounded-xl overflow-hidden shadow-sm flex flex-col">
+    <div className="bg-[var(--bg-surface)] border rounded-xl overflow-hidden shadow-sm flex flex-col">
       {/* HEADER */}
-      <div className="bg-slate-50 px-5 py-4 border-b flex justify-between items-center">
+      <div className="bg-[var(--bg-body)] px-5 py-4 border-b flex justify-between items-center">
         <h3 className="font-bold text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
            <span className="text-lg">💳</span> Guest Folio
         </h3>
         <div className="text-right">
-          <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Outstanding Balance</div>
+          <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-widest font-bold mb-1">Outstanding Balance</div>
           <span
             className={`font-mono text-xl font-black ${
               balanceDueSatang > 0
@@ -319,12 +319,12 @@ export function BillingPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b">
         {/* CHARGES PANEL */}
         <div className="p-5 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 border-b pb-2">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b pb-2">
             Charges Summary
           </h4>
           
           <div className="space-y-2">
-            <div className="flex justify-between items-center text-sm text-slate-700">
+            <div className="flex justify-between items-center text-sm text-[var(--text-table-cell)]">
               <span className="font-medium">Room Charges</span>
               <span className="font-mono">฿ {formatMoney(totalPrice)}</span>
             </div>
@@ -345,10 +345,10 @@ export function BillingPanel({
             
             {(extraCharges.length > 0 || policyPreviewSatang > 0) && (
               <div className="pt-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Extra Charges</span>
+                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest mb-1 block">Extra Charges</span>
                 <div className="space-y-1">
                   {extraCharges.map((c, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm text-slate-600 pl-2 border-l-2 border-slate-200">
+                    <div key={idx} className="flex justify-between items-center text-sm text-[var(--text-secondary)] pl-2 border-l-2 border-[var(--border-default)]">
                       <span>{c.fee_template_name || "Extra Charge"}</span>
                       <span className="font-mono">฿ {formatMoney(Number(c.amount))}</span>
                     </div>
@@ -363,7 +363,7 @@ export function BillingPanel({
               </div>
             )}
             
-            <div className="pt-2 border-t flex justify-between items-center text-sm font-bold text-slate-900">
+            <div className="pt-2 border-t flex justify-between items-center text-sm font-bold text-[var(--text-primary)]">
               <span>Total Charges</span>
               <span className="font-mono">฿ {formatMoney(fromSatang(totalChargesSatang))}</span>
             </div>
@@ -384,17 +384,17 @@ export function BillingPanel({
 
         {/* CREDITS PANEL */}
         <div className="p-5 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 border-b pb-2 flex justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b pb-2 flex justify-between">
             <span>Payment</span>
-            <span className="text-slate-700">฿ {formatMoney(fromSatang(totalCreditsSatang))}</span>
+            <span className="text-[var(--text-table-cell)]">฿ {formatMoney(fromSatang(totalCreditsSatang))}</span>
           </h4>
 
           {loading ? (
-             <div className="text-xs text-slate-400 py-2">Loading timeline...</div>
+             <div className="text-xs text-[var(--text-muted)] py-2">Loading timeline...</div>
           ) : (
             <div className="space-y-2">
               {creditRows.length === 0 && (
-                  <p className="text-xs text-slate-400 italic">No payments recorded</p>
+                  <p className="text-xs text-[var(--text-muted)] italic">No payments recorded</p>
               )}
               {creditRows.map((p, idx) => {
                 const amount = Number(p.amount) || 0;
@@ -415,13 +415,13 @@ export function BillingPanel({
                          <button
                            type="button"
                            onClick={() => handleRemovePendingPayment(p.pending_index as number)}
-                           className="text-[10px] text-slate-400 hover:text-rose-500"
+                           className="text-[10px] text-[var(--text-muted)] hover:text-rose-500"
                          >
                            (remove)
                          </button>
                       )}
                     </div>
-                    <span className="font-mono font-medium text-slate-700">
+                    <span className="font-mono font-medium text-[var(--text-table-cell)]">
                       {isRefund ? "- ฿ " : "฿ "}
                       {formatMoney(amount)}
                     </span>
@@ -455,7 +455,7 @@ export function BillingPanel({
 
       {/* FOOTER ACTIONS */}
       {canShowAddForm && (
-        <div className="bg-slate-50 p-4 border-t flex flex-wrap gap-2 items-end">
+        <div className="bg-[var(--bg-body)] p-4 border-t flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[300px] flex gap-2">
             <select
               className="form-select flex-[0.8] text-sm h-9 px-2"
@@ -468,7 +468,7 @@ export function BillingPanel({
               ))}
             </select>
             <div className="relative flex-1">
-              <span className="absolute left-2 top-2 text-slate-400 font-bold text-sm">฿</span>
+              <span className="absolute left-2 top-2 text-[var(--text-muted)] font-bold text-sm">฿</span>
               <input
                 type="number"
                 min="0"

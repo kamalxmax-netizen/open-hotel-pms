@@ -416,7 +416,7 @@ export function StaffListTab() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="h-40 bg-slate-100 animate-pulse rounded-lg border"></div>
+                        <div key={i} className="h-40 bg-[var(--bg-muted)] animate-pulse rounded-lg border"></div>
                     ))}
                 </div>
             ) : (
@@ -489,9 +489,9 @@ export function StaffListTab() {
                         </Card>
                     ))}
                     {staffList.length === 0 && (
-                        <div className="col-span-full text-center py-16 px-4 bg-slate-50 rounded-xl border border-dashed text-slate-500">
+                        <div className="col-span-full text-center py-16 px-4 bg-[var(--bg-body)] rounded-xl border border-dashed text-[var(--text-secondary)]">
                             <p className="text-4xl mb-3">👥</p>
-                            <p className="font-medium text-slate-700">No staff members found.</p>
+                            <p className="font-medium text-[var(--text-table-cell)]">No staff members found.</p>
                             <p className="text-sm">Check profiles/users setup, then refresh to sync to Staff Directory.</p>
                         </div>
                     )}

@@ -12,8 +12,8 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 const variantClasses: Record<BadgeVariant, string> = {
   default: "bg-brand-100 text-brand-700",
-  secondary: "bg-slate-100 text-slate-700",
-  outline: "border border-slate-300 bg-white text-slate-700",
+  secondary: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]",
+  outline: "border border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-table-cell)]",
   destructive: "bg-rose-100 text-rose-700",
 };
 

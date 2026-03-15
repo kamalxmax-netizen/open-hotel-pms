@@ -33,8 +33,8 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600 mb-4"></div>
+      <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-brand-600 mb-4"></div>
         <p className="text-sm">Running system pre-checks...</p>
       </div>
     )
@@ -52,13 +52,13 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
 
   if (isReady && warnings.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
+        <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
                 <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
             </div>
-            <h3 className="text-lg font-medium text-slate-900">All Clear</h3>
+            <h3 className="text-lg font-medium text-[var(--text-primary)]">All Clear</h3>
             <p className="mt-1 text-sm">System is ready for Night Audit.</p>
         </div>
       )

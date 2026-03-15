@@ -125,21 +125,21 @@ function RatingForm({ transferId, onSaved }: { transferId: string; onSaved: () =
     if (done) return <p className="text-xs text-emerald-600 font-medium">✓ Rating saved</p>;
 
     return (
-        <form onSubmit={submit} className="mt-3 pt-3 border-t border-slate-200">
-            <p className="text-xs font-semibold text-slate-600 mb-2">Rate Driver Performance</p>
+        <form onSubmit={submit} className="mt-3 pt-3 border-t border-[var(--border-default)]">
+            <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">Rate Driver Performance</p>
             <div className="grid grid-cols-3 gap-2 mb-2">
                 {[["Punctuality", punct, setPunct], ["Value", value, setValue], ["Service", service, setService]].map(([label, val, set]) => (
                     <div key={label as string}>
-                        <label className="block text-[10px] text-slate-400 mb-1">{label as string}</label>
+                        <label className="block text-[10px] text-[var(--text-muted)] mb-1">{label as string}</label>
                         <select value={val as number} onChange={e => (set as any)(parseInt(e.target.value))}
-                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
+                            className="w-full px-2 py-1 border border-[var(--border-input)] rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
                             {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{"★".repeat(n)} ({n})</option>)}
                         </select>
                     </div>
                 ))}
             </div>
             <textarea rows={1} value={comment} onChange={e => setComment(e.target.value)} placeholder="Optional comment…"
-                className="w-full px-2 py-1 border border-slate-300 rounded-lg text-xs mb-2 focus:ring-1 focus:ring-blue-500" />
+                className="w-full px-2 py-1 border border-[var(--border-input)] rounded-lg text-xs mb-2 focus:ring-1 focus:ring-blue-500" />
             <button type="submit" disabled={saving} className="px-3 py-1 bg-amber-500 text-white rounded-lg text-xs hover:bg-amber-600 disabled:opacity-60">
                 {saving ? "Saving…" : "Submit Rating"}
             </button>
@@ -194,20 +194,20 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
 
     return (
         <tr>
-            <td colSpan={10} className="bg-slate-50 px-6 py-4 border-b border-slate-200">
+            <td colSpan={10} className="bg-[var(--bg-body)] px-6 py-4 border-b border-[var(--border-default)]">
                 <div className="grid grid-cols-2 gap-6 text-sm">
                     {/* Left: details */}
                     <div className="space-y-2">
-                        <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Transfer Details</p>
-                        <p><span className="text-slate-400">Pickup Time:</span> {formatBangkokDateTime(transfer.pickup_datetime)}</p>
-                        <p><span className="text-slate-400">Mode:</span> {transfer.service_mode.replace(/_/g, " ")}</p>
-                        <p><span className="text-slate-400">Pax:</span> {transfer.pax}</p>
-                        <p><span className="text-slate-400">Pickup:</span> {transfer.pickup_location} → {transfer.dropoff_location}</p>
-                        {transfer.driver_name && <p><span className="text-slate-400">Driver:</span> {transfer.driver_name}{transfer.driver_phone ? ` · ${transfer.driver_phone}` : ""}</p>}
-                        {transfer.actual_price != null && <p><span className="text-slate-400">Actual Price:</span> ฿{transfer.actual_price.toLocaleString()}</p>}
-                        {transfer.driver_fee != null && <p><span className="text-slate-400">Driver Fee:</span> ฿{transfer.driver_fee.toLocaleString()}</p>}
-                        {transfer.driver_commission != null && <p><span className="text-slate-400">Driver Commission:</span> ฿{transfer.driver_commission.toLocaleString()}</p>}
-                        {transfer.staff_note && <p><span className="text-slate-400">Note:</span> {transfer.staff_note}</p>}
+                        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">Transfer Details</p>
+                        <p><span className="text-[var(--text-muted)]">Pickup Time:</span> {formatBangkokDateTime(transfer.pickup_datetime)}</p>
+                        <p><span className="text-[var(--text-muted)]">Mode:</span> {transfer.service_mode.replace(/_/g, " ")}</p>
+                        <p><span className="text-[var(--text-muted)]">Pax:</span> {transfer.pax}</p>
+                        <p><span className="text-[var(--text-muted)]">Pickup:</span> {transfer.pickup_location} → {transfer.dropoff_location}</p>
+                        {transfer.driver_name && <p><span className="text-[var(--text-muted)]">Driver:</span> {transfer.driver_name}{transfer.driver_phone ? ` · ${transfer.driver_phone}` : ""}</p>}
+                        {transfer.actual_price != null && <p><span className="text-[var(--text-muted)]">Actual Price:</span> ฿{transfer.actual_price.toLocaleString()}</p>}
+                        {transfer.driver_fee != null && <p><span className="text-[var(--text-muted)]">Driver Fee:</span> ฿{transfer.driver_fee.toLocaleString()}</p>}
+                        {transfer.driver_commission != null && <p><span className="text-[var(--text-muted)]">Driver Commission:</span> ฿{transfer.driver_commission.toLocaleString()}</p>}
+                        {transfer.staff_note && <p><span className="text-[var(--text-muted)]">Note:</span> {transfer.staff_note}</p>}
 
                         {/* Status actions */}
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -240,7 +240,7 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                                 </button>
                             )}
                         </div>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-[var(--text-secondary)]">
                             Edit booking is available on Daily Board page as popup.
                         </p>
                         {showInProgressStartButton && !canStartNow && (
@@ -257,23 +257,23 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
 
                     {/* Right: voucher */}
                     <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Voucher</p>
+                        <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Voucher</p>
                         {loadingVoucher ? (
                             <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                         ) : !voucher ? (
-                            <p className="text-xs text-slate-400 italic">No voucher found</p>
+                            <p className="text-xs text-[var(--text-muted)] italic">No voucher found</p>
                         ) : (
-                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-1 text-sm">
+                            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-4 space-y-1 text-sm">
                                 <div className="flex items-center justify-between mb-2">
                                     <p className="font-mono font-bold text-blue-700">{voucher.voucher_number}</p>
-                                    <button onClick={() => window.print()} className="px-2 py-1 text-xs border border-slate-300 rounded-lg hover:bg-slate-50">🖨️ Print</button>
+                                    <button onClick={() => window.print()} className="px-2 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">🖨️ Print</button>
                                 </div>
-                                {voucher.route_description && <p><span className="text-slate-400">Route:</span> {voucher.route_description}</p>}
-                                {voucher.departure_time && <p><span className="text-slate-400">Departs:</span> {voucher.departure_time}</p>}
-                                {voucher.pier_name && <p><span className="text-slate-400">Pier:</span> {voucher.pier_name}</p>}
-                                {voucher.pickup_time && <p><span className="text-slate-400">Pickup:</span> {voucher.pickup_time}</p>}
-                                {voucher.driver_name && <p><span className="text-slate-400">Driver:</span> {voucher.driver_name}</p>}
-                                {voucher.vehicle_info && <p><span className="text-slate-400">Vehicle:</span> {voucher.vehicle_info}</p>}
+                                {voucher.route_description && <p><span className="text-[var(--text-muted)]">Route:</span> {voucher.route_description}</p>}
+                                {voucher.departure_time && <p><span className="text-[var(--text-muted)]">Departs:</span> {voucher.departure_time}</p>}
+                                {voucher.pier_name && <p><span className="text-[var(--text-muted)]">Pier:</span> {voucher.pier_name}</p>}
+                                {voucher.pickup_time && <p><span className="text-[var(--text-muted)]">Pickup:</span> {voucher.pickup_time}</p>}
+                                {voucher.driver_name && <p><span className="text-[var(--text-muted)]">Driver:</span> {voucher.driver_name}</p>}
+                                {voucher.vehicle_info && <p><span className="text-[var(--text-muted)]">Vehicle:</span> {voucher.vehicle_info}</p>}
                                 {voucher.special_instructions && <p className="text-xs text-amber-700 mt-2 bg-amber-50 rounded p-2">{voucher.special_instructions}</p>}
                             </div>
                         )}
@@ -320,39 +320,39 @@ export default function TransferHistoryPage() {
         <div className="p-6 max-w-[1400px] mx-auto">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Transfer History</h1>
-                    <p className="text-sm text-slate-500 mt-1">Full archive with status management, ratings, and vouchers</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Transfer History</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Full archive with status management, ratings, and vouchers</p>
                 </div>
             </div>
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
                 <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500">From</label>
+                    <label className="text-xs text-[var(--text-secondary)]">From</label>
                     <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
+                        className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500">To</label>
+                    <label className="text-xs text-[var(--text-secondary)]">To</label>
                     <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
+                        className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500">
+                    className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm focus:ring-2 focus:ring-blue-500">
                     <option value="">All Status</option>
                     {["completed", "cancelled", "no_show", "pending", "confirmed", "driver_assigned", "in_progress"].map(s => (
                         <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
                     ))}
                 </select>
                 <input type="text" placeholder="Search guest…" value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                    className="px-3 py-2 border border-slate-300 rounded-xl text-sm w-44 focus:ring-2 focus:ring-blue-500" />
+                    className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm w-44 focus:ring-2 focus:ring-blue-500" />
             </div>
 
             {/* Summary */}
-            <div className="flex items-center gap-6 mb-4 px-4 py-3 bg-slate-50 rounded-xl text-sm">
-                <span className="text-slate-500">Results: <strong>{total}</strong></span>
-                <span className="text-slate-500">Revenue: <strong className="text-emerald-700 font-mono">฿{totalRevenue.toLocaleString()}</strong></span>
-                <span className="text-slate-500">Net Commission: <strong className="text-blue-700 font-mono">฿{totalCommission.toLocaleString()}</strong></span>
+            <div className="flex items-center gap-6 mb-4 px-4 py-3 bg-[var(--bg-body)] rounded-xl text-sm">
+                <span className="text-[var(--text-secondary)]">Results: <strong>{total}</strong></span>
+                <span className="text-[var(--text-secondary)]">Revenue: <strong className="text-emerald-700 font-mono">฿{totalRevenue.toLocaleString()}</strong></span>
+                <span className="text-[var(--text-secondary)]">Net Commission: <strong className="text-blue-700 font-mono">฿{totalCommission.toLocaleString()}</strong></span>
             </div>
 
             {loading ? (
@@ -360,43 +360,43 @@ export default function TransferHistoryPage() {
                     <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
                 </div>
             ) : transfers.length === 0 ? (
-                <div className="text-center py-20 text-slate-400">
+                <div className="text-center py-20 text-[var(--text-muted)]">
                     <p className="text-lg">No transfers found for this period</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Date</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Time</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Type</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Guest</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Route</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Driver</th>
-                                <th className="px-4 py-3 text-right font-semibold text-slate-600">Sell ฿</th>
-                                <th className="px-4 py-3 text-right font-semibold text-slate-600">Cost ฿</th>
-                                <th className="px-4 py-3 text-right font-semibold text-slate-600">Net ฿</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Status</th>
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Date</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Time</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Type</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Guest</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Route</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Driver</th>
+                                <th className="px-4 py-3 text-right font-semibold text-[var(--text-secondary)]">Sell ฿</th>
+                                <th className="px-4 py-3 text-right font-semibold text-[var(--text-secondary)]">Cost ฿</th>
+                                <th className="px-4 py-3 text-right font-semibold text-[var(--text-secondary)]">Net ฿</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {transfers.map(t => (
                                 <Fragment key={t.id}>
                                     <tr
-                                        className={`border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer ${expandedId === t.id ? "bg-blue-50" : ""}`}
+                                        className={`border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)] transition-colors cursor-pointer ${expandedId === t.id ? "bg-blue-50" : ""}`}
                                         onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}>
-                                        <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(t.pickup_datetime)}</td>
+                                        <td className="px-4 py-3 text-[var(--text-secondary)] text-xs">{formatDate(t.pickup_datetime)}</td>
                                         <td className="px-4 py-3 font-mono font-semibold">{formatTime(t.pickup_datetime)}</td>
                                         <td className="px-4 py-3 text-lg">{TYPE_ICONS[t.transfer_type] ?? "🚗"}</td>
                                         <td className="px-4 py-3">
-                                            <p className="font-medium text-slate-900">{t.guest_name}</p>
-                                            {t.booking_code && <p className="text-xs text-slate-400 font-mono">{t.booking_code}</p>}
+                                            <p className="font-medium text-[var(--text-primary)]">{t.guest_name}</p>
+                                            {t.booking_code && <p className="text-xs text-[var(--text-muted)] font-mono">{t.booking_code}</p>}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-700 truncate max-w-[160px]">{t.pickup_location} → {t.dropoff_location}</td>
-                                        <td className="px-4 py-3 text-slate-600">{t.driver_name ?? <span className="text-slate-300">—</span>}</td>
+                                        <td className="px-4 py-3 text-[var(--text-table-cell)] truncate max-w-[160px]">{t.pickup_location} → {t.dropoff_location}</td>
+                                        <td className="px-4 py-3 text-[var(--text-secondary)]">{t.driver_name ?? <span className="text-slate-300">—</span>}</td>
                                         <td className="px-4 py-3 text-right font-mono">{t.selling_price != null ? t.selling_price.toLocaleString() : "—"}</td>
-                                        <td className="px-4 py-3 text-right font-mono text-slate-400">{t.cost_price != null ? t.cost_price.toLocaleString() : "—"}</td>
+                                        <td className="px-4 py-3 text-right font-mono text-[var(--text-muted)]">{t.cost_price != null ? t.cost_price.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3 text-right font-mono font-medium text-blue-700">{t.net_commission != null ? t.net_commission.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100"}`}>

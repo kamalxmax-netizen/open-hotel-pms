@@ -92,8 +92,8 @@ export default function RatePlansPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Revenue</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Rate Plans</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage rack, direct, long-stay, VIP, and promo pricing rules</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Rate Plans</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Manage rack, direct, long-stay, VIP, and promo pricing rules</p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
           + New Rate Plan
@@ -139,11 +139,11 @@ export default function RatePlansPage() {
         {loading ? (
           <div className="p-6 space-y-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-11 rounded-lg bg-slate-100 animate-pulse" />
+              <div key={i} className="h-11 rounded-lg bg-[var(--bg-muted)] animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-500">No rate plans found.</div>
+          <div className="p-10 text-center text-[var(--text-secondary)]">No rate plans found.</div>
         ) : (
           <table className="data-table">
             <thead>
@@ -162,19 +162,19 @@ export default function RatePlansPage() {
               {filtered.map((plan) => (
                 <tr key={plan.id}>
                   <td>
-                    <span className="font-bold text-slate-900">{plan.code}</span>
+                    <span className="font-bold text-[var(--text-primary)]">{plan.code}</span>
                   </td>
                   <td>
                     <div className="font-semibold text-slate-800">{plan.name_en}</div>
-                    {plan.name_th && <div className="text-xs text-slate-400">{plan.name_th}</div>}
+                    {plan.name_th && <div className="text-xs text-[var(--text-muted)]">{plan.name_th}</div>}
                   </td>
                   <td>
-                    <div className="text-sm text-slate-700">{plan.discount_type}</div>
-                    <div className="text-xs text-slate-500">{formatDiscount(plan)}</div>
+                    <div className="text-sm text-[var(--text-table-cell)]">{plan.discount_type}</div>
+                    <div className="text-xs text-[var(--text-secondary)]">{formatDiscount(plan)}</div>
                   </td>
                   <td>{plan.min_nights}</td>
-                  <td className="text-sm text-slate-600">{formatPeriod(plan)}</td>
-                  <td className="text-sm text-slate-600">
+                  <td className="text-sm text-[var(--text-secondary)]">{formatPeriod(plan)}</td>
+                  <td className="text-sm text-[var(--text-secondary)]">
                     {plan.access_summary?.label ?? "Public"}
                   </td>
                   <td>

@@ -211,8 +211,8 @@ export default function InHousePage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">In-House</h1>
-                    <p className="text-sm text-slate-500 mt-1">{today}</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">In-House</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">{today}</p>
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={load}>
                     ↻ Refresh
@@ -236,18 +236,18 @@ export default function InHousePage() {
             {!loading && reservations.length === 0 && !error && (
                 <div className="card p-12 text-center">
                     <p className="text-3xl mb-3">🛏️</p>
-                    <p className="text-slate-500 font-medium">No in-house guests right now</p>
-                    <p className="text-slate-400 text-sm mt-1">Arrivals may not be checked-in yet.</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No in-house guests right now</p>
+                    <p className="text-[var(--text-muted)] text-sm mt-1">Arrivals may not be checked-in yet.</p>
                 </div>
             )}
 
             {!loading && reservations.length > 0 && (
                 <div className="flex items-center gap-4 text-sm">
-                    <span className="font-semibold text-slate-700">
+                    <span className="font-semibold text-[var(--text-table-cell)]">
                         {reservations.length} in-house guest{reservations.length !== 1 ? "s" : ""}
                     </span>
-                    <span className="text-slate-400">·</span>
-                    <span className="text-slate-600">
+                    <span className="text-[var(--text-muted)]">·</span>
+                    <span className="text-[var(--text-secondary)]">
                         {reservations.filter((r) => r.nights_remaining <= 1).length} leaving tomorrow/soon
                     </span>
                 </div>
@@ -272,8 +272,8 @@ export default function InHousePage() {
                                 return (
                                 <tr key={r.id} className={loyaltyVisual.rowClass}>
                                     <td>
-                                        <div className="font-bold text-slate-900">Room {r.room_number}</div>
-                                        <div className="text-xs text-slate-400">{r.room_type}</div>
+                                        <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
+                                        <div className="text-xs text-[var(--text-muted)]">{r.room_type}</div>
                                     </td>
                                     <td>
                                         <div className="flex items-center gap-2">
@@ -304,15 +304,15 @@ export default function InHousePage() {
                                                 </span>
                                             )}
                                         </div>
-                                        {r.phone && <div className="text-xs text-slate-400">{r.phone}</div>}
+                                        {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                     </td>
                                     <td>
                                         <div className="text-sm">{r.checkin_date}</div>
-                                        <div className="text-xs text-slate-400">→ {r.checkout_date}</div>
+                                        <div className="text-xs text-[var(--text-muted)]">→ {r.checkout_date}</div>
                                     </td>
                                     <td>
                                         <span
-                                            className={`font-semibold ${r.nights_remaining <= 1 ? "text-amber-700" : "text-slate-700"}`}
+                                            className={`font-semibold ${r.nights_remaining <= 1 ? "text-amber-700" : "text-[var(--text-table-cell)]"}`}
                                         >
                                             {r.nights_remaining} night{r.nights_remaining !== 1 ? "s" : ""}
                                         </span>
@@ -368,7 +368,7 @@ export default function InHousePage() {
 
             {/* Day Use Section */}
             {!loading && dayUseReservations.length > 0 && (
-                <div className="mt-8 border-t-2 border-dashed border-slate-200 pt-6">
+                <div className="mt-8 border-t-2 border-dashed border-[var(--border-default)] pt-6">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-sm font-bold uppercase tracking-widest text-[#e11d48]">Day Use In-House</p>
                     </div>
@@ -387,15 +387,15 @@ export default function InHousePage() {
                                 {dayUseReservations.map((r) => (
                                     <tr key={r.id} className="hover:bg-rose-50/50">
                                         <td>
-                                            <div className="font-bold text-slate-900">Room {r.room_number}</div>
+                                            <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
                                             <div className="text-[10px] uppercase font-bold text-[#e11d48]">Day Use</div>
                                         </td>
                                         <td>
                                             <div className="font-semibold text-slate-800">{r.guest_name}</div>
-                                            {r.phone && <div className="text-xs text-slate-400">{r.phone}</div>}
+                                            {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                         </td>
                                         <td className="w-1/4 min-w-[140px]">
-                                            <div className="bg-white border border-[#fecdd3] rounded-lg p-2 inline-block shadow-sm">
+                                            <div className="bg-[var(--bg-surface)] border border-[#fecdd3] rounded-lg p-2 inline-block shadow-sm">
                                                 <DayUseTimer expiresAt={r.dayuse_expires_at} />
                                             </div>
                                         </td>
@@ -405,7 +405,7 @@ export default function InHousePage() {
                                         <td>
                                             <div className="flex gap-2 flex-wrap">
                                                 <button
-                                                    className="btn btn-secondary btn-sm bg-white border-slate-300 text-slate-700"
+                                                    className="btn btn-secondary btn-sm bg-[var(--bg-surface)] border-[var(--border-input)] text-[var(--text-table-cell)]"
                                                     onClick={() => setDayUseExtendTarget(r)}
                                                 >
                                                     Extend

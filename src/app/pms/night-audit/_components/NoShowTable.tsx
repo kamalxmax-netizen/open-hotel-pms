@@ -91,8 +91,8 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600 mb-4"></div>
+      <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-brand-600 mb-4"></div>
         <p className="text-sm">Loading pending no-shows...</p>
       </div>
     )
@@ -104,13 +104,13 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
 
   if (noShows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
+      <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
           <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-slate-900">All pending no-shows resolved</h3>
+        <h3 className="text-lg font-medium text-[var(--text-primary)]">All pending no-shows resolved</h3>
         <p className="mt-1 text-sm">Proceed to the Pre-Check step.</p>
       </div>
     )
@@ -120,12 +120,12 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
     <div className="relative">
       {actionLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-lg">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600"></div>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-brand-600"></div>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-left text-sm text-slate-500">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-700">
+      <div className="overflow-x-auto rounded-lg border border-[var(--border-default)]">
+        <table className="w-full text-left text-sm text-[var(--text-secondary)]">
+          <thead className="bg-[var(--bg-body)] text-xs uppercase text-[var(--text-table-cell)]">
             <tr>
               <th className="px-4 py-3 font-semibold">Guest</th>
               <th className="px-4 py-3 font-semibold">Booking</th>
@@ -136,18 +136,18 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
           </thead>
           <tbody className="divide-y divide-slate-200">
             {noShows.map((ns) => (
-              <tr key={ns.id} className="hover:bg-slate-50">
+              <tr key={ns.id} className="hover:bg-[var(--bg-body)]">
                 <td className="px-4 py-3">
-                  <div className="font-semibold text-slate-900">{ns.guest_name}</div>
-                  <div className="text-[11px] text-slate-400">{ns.phone}</div>
+                  <div className="font-semibold text-[var(--text-primary)]">{ns.guest_name}</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">{ns.phone}</div>
                 </td>
                 <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-slate-600">{ns.booking_code}</span>
+                    <span className="font-mono text-xs text-[var(--text-secondary)]">{ns.booking_code}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-rose-600 font-medium">{ns.checkin_date}</span>
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-700">{ns.room_number || "Unassigned"}</td>
+                <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{ns.room_number || "Unassigned"}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
@@ -173,19 +173,19 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
       {/* Mark Dialog */}
       {markItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+          <div className="w-full max-w-sm rounded-xl bg-[var(--bg-surface)] p-6 shadow-lg">
             <h3 className="text-lg font-bold text-rose-700 mb-2">Mark as No-Show?</h3>
             <div className="mb-6 space-y-3">
-              <p className="text-sm text-slate-600">
-                Enter charge amount for <span className="font-semibold text-slate-900">{markItem.guest_name}</span>. Default is 0 (no charge).
+              <p className="text-sm text-[var(--text-secondary)]">
+                Enter charge amount for <span className="font-semibold text-[var(--text-primary)]">{markItem.guest_name}</span>. Default is 0 (no charge).
               </p>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Charge Amount (THB)</label>
+                <label className="block text-xs font-semibold text-[var(--text-table-cell)] mb-1">Charge Amount (THB)</label>
                 <input
                   type="number"
                   min={0}
                   step="0.01"
-                  className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white"
+                  className="w-full rounded-lg border border-[var(--border-input)] p-2 text-sm bg-[var(--bg-surface)]"
                   value={chargeAmountInput}
                   onChange={(e) => {
                     setChargeAmountInput(e.target.value)
@@ -200,9 +200,9 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                   <p className="mt-1 text-xs text-rose-600">Enter a valid charge amount (0 or higher).</p>
                 )}
               </div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Charge From</label>
+              <label className="block text-xs font-semibold text-[var(--text-table-cell)] mb-1">Charge From</label>
               <select
-                className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white"
+                className="w-full rounded-lg border border-[var(--border-input)] p-2 text-sm bg-[var(--bg-surface)]"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
@@ -222,7 +222,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                   setShowMarkValidation(false)
                   setMarkValidationError("")
                 }}
-                className="w-full sm:w-auto justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="w-full sm:w-auto justify-center rounded-lg border border-[var(--border-input)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]"
               >
                 Cancel
               </button>

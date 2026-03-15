@@ -75,19 +75,19 @@ export default function RateSummaryPanel({
     };
 
     return (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden text-sm w-full">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm rounded-xl overflow-hidden text-sm w-full">
             {/* Header */}
-            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="bg-[var(--bg-body)] px-4 py-3 border-b border-[var(--border-default)] flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:bg-[var(--bg-surface-hover)]"
                         onClick={() => setExpanded((value) => !value)}
                         aria-label={expanded ? "Collapse rate breakdown" : "Expand rate breakdown"}
                     >
                         <span className={`text-xs transition-transform ${expanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
                     </button>
-                    <h4 className="font-bold text-slate-700 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                    <h4 className="font-bold text-[var(--text-table-cell)] uppercase tracking-widest text-[11px] flex items-center gap-2">
                         Rate Breakdown
                         {source === "ota" && (
                             <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px]">
@@ -96,7 +96,7 @@ export default function RateSummaryPanel({
                         )}
                     </h4>
                 </div>
-                <div className="text-slate-500 font-bold text-xs">
+                <div className="text-[var(--text-secondary)] font-bold text-xs">
                     {nightlyRates.length} Night{nightlyRates.length > 1 ? "s" : ""}
                 </div>
             </div>
@@ -106,7 +106,7 @@ export default function RateSummaryPanel({
                     {/* Nightly Rates List */}
                     <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
                         {nightlyRates.length === 0 ? (
-                            <div className="text-center text-slate-400 py-4 italic text-xs">
+                            <div className="text-center text-[var(--text-muted)] py-4 italic text-xs">
                                 No dates selected
                             </div>
                         ) : (
@@ -115,7 +115,7 @@ export default function RateSummaryPanel({
                                 return (
                                     <div
                                         key={idx}
-                                        className={`flex items-center justify-between px-2 py-1.5 rounded-md ${isWeekend ? "bg-amber-50 text-amber-900" : "text-slate-600 hover:bg-slate-50"
+                                        className={`flex items-center justify-between px-2 py-1.5 rounded-md ${isWeekend ? "bg-amber-50 text-amber-900" : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function RateSummaryPanel({
                                         <div className="font-mono font-medium">
                                             {source === "ota" && editable && onNightlyRateChange ? (
                                                 <div className="relative w-28">
-                                                    <span className="absolute left-2 top-1.5 text-slate-400 text-xs">฿</span>
+                                                    <span className="absolute left-2 top-1.5 text-[var(--text-muted)] text-xs">฿</span>
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -153,17 +153,17 @@ export default function RateSummaryPanel({
                         )}
                     </div>
 
-                    <div className="border-t border-slate-100 mx-4" />
+                    <div className="border-t border-[var(--border-subtle)] mx-4" />
 
                     {/* Totals & Discount */}
-                    <div className="p-4 space-y-3 bg-slate-50">
-                        <div className="flex items-center justify-between text-slate-600 font-medium">
+                    <div className="p-4 space-y-3 bg-[var(--bg-body)]">
+                        <div className="flex items-center justify-between text-[var(--text-secondary)] font-medium">
                             <div className="flex items-center gap-2">
                                 <span>Subtotal</span>
                                 {(editable || hasDiscount) && (
                                     <button
                                         type="button"
-                                        className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:bg-slate-50"
+                                        className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-muted)] shadow-sm transition hover:bg-[var(--bg-body)]"
                                         onClick={() => setDiscountExpanded((value) => !value)}
                                         aria-label={discountExpanded ? "Collapse discount" : "Expand discount"}
                                     >
@@ -175,9 +175,9 @@ export default function RateSummaryPanel({
                         </div>
 
                         {editable && discountExpanded && (
-                            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm space-y-2">
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-sm space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs text-slate-500">
+                                    <span className="text-xs text-[var(--text-secondary)]">
                                         {discountType === "percent" ? "Percent" : discountType === "fixed_total" ? "Fix for all" : "Fix per night"}
                                     </span>
                                     <div className="flex items-center gap-1">
@@ -186,7 +186,7 @@ export default function RateSummaryPanel({
                                             min="0"
                                             max={discountType === "percent" ? 100 : undefined}
                                             placeholder={discountType === "percent" ? "%" : "THB"}
-                                            className="form-input text-right text-sm w-20 py-1 px-2 border-slate-200"
+                                            className="form-input text-right text-sm w-20 py-1 px-2 border-[var(--border-default)]"
                                             value={discountValue || ""}
                                             onChange={(e) => {
                                                 const rawValue = e.target.value;
@@ -199,7 +199,7 @@ export default function RateSummaryPanel({
                                             }}
                                         />
                                         <select
-                                            className="form-select w-[132px] py-1 px-2 text-xs border-slate-200"
+                                            className="form-select w-[132px] py-1 px-2 text-xs border-[var(--border-default)]"
                                             value={discountType}
                                             onChange={(e) => {
                                                 const nextType = e.target.value as BookingDiscountType;
@@ -221,7 +221,7 @@ export default function RateSummaryPanel({
                                             <input
                                                 type="text"
                                                 placeholder="Reason for discount..."
-                                                className="form-input text-xs w-full py-1.5 border-slate-200"
+                                                className="form-input text-xs w-full py-1.5 border-[var(--border-default)]"
                                                 value={discountReason || ""}
                                                 onChange={(e) => {
                                                     if (onDiscountChange) onDiscountChange(discountType, discountValue, e.target.value);
@@ -237,16 +237,16 @@ export default function RateSummaryPanel({
                         )}
 
                         {!editable && hasDiscount && discountExpanded && (
-                            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm text-rose-600">
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-sm text-rose-600">
                                 <div className="flex items-center justify-between">
                                     <span className="font-medium">Discount ({discountReadonlyValueLabel})</span>
                                     <span className="font-mono font-medium">
                                         - ฿ {formatMoney(fromSatang(discountAmountSatang))}
                                     </span>
                                 </div>
-                                <div className="mt-1 text-xs text-slate-500">{discountModeLabel}</div>
+                                <div className="mt-1 text-xs text-[var(--text-secondary)]">{discountModeLabel}</div>
                                 {discountReason && (
-                                    <div className="mt-2 border-t border-slate-100 pt-2 text-xs text-rose-600/90">
+                                    <div className="mt-2 border-t border-[var(--border-subtle)] pt-2 text-xs text-rose-600/90">
                                         {discountReason}
                                     </div>
                                 )}
@@ -254,7 +254,7 @@ export default function RateSummaryPanel({
                         )}
 
                         {/* Total Row */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-lg">
+                        <div className="flex items-center justify-between pt-2 border-t border-[var(--border-default)] text-lg">
                             <span className="font-black text-slate-800">TOTAL</span>
                             <span className="font-black font-mono text-brand-700">
                                 ฿ {formatMoney(fromSatang(totalSatang))}

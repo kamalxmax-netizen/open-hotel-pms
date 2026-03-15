@@ -144,7 +144,7 @@ export default function CancelFeeModal({
                 </div>
 
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                         Cancellation Reason <span className="text-rose-500">*</span>
                     </label>
                     <textarea
@@ -167,17 +167,17 @@ export default function CancelFeeModal({
                         id="noFeeCancel"
                         checked={noFee}
                         onChange={(e) => setNoFee(e.target.checked)}
-                        className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                        className="w-4 h-4 text-brand-600 rounded border-[var(--border-input)] focus:ring-brand-500"
                     />
-                    <label htmlFor="noFeeCancel" className="text-sm font-semibold text-slate-700 select-none cursor-pointer">
+                    <label htmlFor="noFeeCancel" className="text-sm font-semibold text-[var(--text-table-cell)] select-none cursor-pointer">
                         No fee
                     </label>
                 </div>
 
                 {!noFee && (
-                    <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-fade-in">
+                    <div className="space-y-3 p-4 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg animate-fade-in">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Penalty Amount (฿)
                             </label>
                             <input
@@ -198,13 +198,13 @@ export default function CancelFeeModal({
                                 </p>
                             )}
                             {canUsePrepaidSettlement && (
-                                <p className="mt-1 text-xs text-slate-500">Fee cap: ฿{formatMoney(feeCap)}</p>
+                                <p className="mt-1 text-xs text-[var(--text-secondary)]">Fee cap: ฿{formatMoney(feeCap)}</p>
                             )}
                         </div>
 
                         {!canUsePrepaidSettlement && (
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                     Collect Method
                                 </label>
                                 <select
@@ -228,7 +228,7 @@ export default function CancelFeeModal({
                         )}
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Fee Note
                             </label>
                             <input
@@ -245,13 +245,13 @@ export default function CancelFeeModal({
                 {canUsePrepaidSettlement && (
                     <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 rounded-lg">
                         <div className="text-xs font-bold text-sky-700 uppercase tracking-wider">Refund Summary</div>
-                        <div className="text-sm text-slate-700 space-y-1">
+                        <div className="text-sm text-[var(--text-table-cell)] space-y-1">
                             <p>Pre-paid: ฿{formatMoney(prepaidNet)}</p>
                             <p>Less fee: ฿{formatMoney(feeInputAmount)}</p>
                             <p className="font-semibold text-emerald-700">Refund due: ฿{formatMoney(refundDuePreview)}</p>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Refund Method
                             </label>
                             <select
@@ -265,7 +265,7 @@ export default function CancelFeeModal({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Refund Note
                             </label>
                             <input
@@ -279,9 +279,9 @@ export default function CancelFeeModal({
                     </div>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-default)]">
                     <button
-                        className="btn bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                        className="btn bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]"
                         onClick={onClose}
                     >
                         Keep Booking

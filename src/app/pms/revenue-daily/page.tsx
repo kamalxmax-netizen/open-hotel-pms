@@ -77,9 +77,9 @@ const SOURCE_COLOR: Record<string, string> = {
 function KpiTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
     return (
         <div className="card p-4 flex flex-col items-center justify-center text-center">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">{label}</div>
-            <div className="text-2xl font-bold text-slate-900">{value}</div>
-            {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+            <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-widest mb-1">{label}</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{value}</div>
+            {sub && <div className="text-xs text-[var(--text-muted)] mt-1">{sub}</div>}
         </div>
     );
 }
@@ -137,8 +137,8 @@ export default function RevenueDailyPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Revenue Daily Summary</h1>
-                    <p className="text-sm text-slate-500">Per-room breakdown of nightly revenue.</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Revenue Daily Summary</h1>
+                    <p className="text-sm text-[var(--text-secondary)]">Per-room breakdown of nightly revenue.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input
@@ -158,7 +158,7 @@ export default function RevenueDailyPage() {
             {/* Controls */}
             <div className="card p-3 flex flex-wrap items-center gap-6">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-600">Floor:</span>
+                    <span className="text-sm font-semibold text-[var(--text-secondary)]">Floor:</span>
                     <select
                         className="input py-1.5 px-3 text-sm"
                         value={floorFilter}
@@ -172,7 +172,7 @@ export default function RevenueDailyPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-600">Show:</span>
+                    <span className="text-sm font-semibold text-[var(--text-secondary)]">Show:</span>
                     <select
                         className="input py-1.5 px-3 text-sm"
                         value={showMode}
@@ -183,14 +183,14 @@ export default function RevenueDailyPage() {
                     </select>
                 </div>
 
-                <div className="flex items-center gap-4 border-l border-slate-200 pl-4">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showDayUse} onChange={(e) => setShowDayUse(e.target.checked)} />
-                        <span className="font-medium text-slate-700">Day Use</span>
+                <div className="flex items-center gap-4 border-l border-[var(--border-default)] pl-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-body)] p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-[var(--border-input)] rounded focus:ring-brand-500" checked={showDayUse} onChange={(e) => setShowDayUse(e.target.checked)} />
+                        <span className="font-medium text-[var(--text-table-cell)]">Day Use</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} />
-                        <span className="font-medium text-slate-700">POS</span>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-body)] p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-[var(--border-input)] rounded focus:ring-brand-500" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} />
+                        <span className="font-medium text-[var(--text-table-cell)]">POS</span>
                     </label>
                 </div>
             </div>
@@ -223,7 +223,7 @@ export default function RevenueDailyPage() {
                 <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm whitespace-nowrap">
-                            <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b border-slate-200">
+                            <thead className="bg-[var(--bg-body)] text-[var(--text-secondary)] uppercase text-xs font-bold border-b border-[var(--border-default)]">
                                 <tr>
                                     <th className="px-4 py-3">Room</th>
                                     <th className="px-4 py-3 text-right">Rate</th>
@@ -242,19 +242,19 @@ export default function RevenueDailyPage() {
                                         <div key={floor} className="contents">
                                             {/* Floor Header */}
                                             <tr>
-                                                <td colSpan={5} className="px-4 py-2 bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                                                <td colSpan={5} className="px-4 py-2 bg-[var(--bg-body)] font-bold text-[var(--text-table-cell)] border-b border-[var(--border-default)]">
                                                     FLOOR {floor}
                                                 </td>
                                             </tr>
                                             {/* Rooms */}
                                             {floorRooms.map(r => (
-                                                <tr key={r.room_number} className={`hover:bg-slate-50 transition-colors ${!r.is_occupied ? "text-slate-400 bg-slate-50/50" : ""}`}>
+                                                <tr key={r.room_number} className={`hover:bg-[var(--bg-body)] transition-colors ${!r.is_occupied ? "text-[var(--text-muted)] bg-[var(--bg-body)]/50" : ""}`}>
                                                     <td className="px-4 py-3 font-medium">
                                                         {r.room_number}
                                                         {r.is_occupied && <span className="ml-2 inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" title="Occupied" />}
                                                     </td>
                                                     <td className="px-4 py-3 text-right font-semibold">
-                                                        {!r.is_occupied ? "—" : (r.nightly_price === 0 ? <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full uppercase tracking-wider">Comp</span> : fmtMoney(r.nightly_price))}
+                                                        {!r.is_occupied ? "—" : (r.nightly_price === 0 ? <span className="text-xs bg-slate-200 text-[var(--text-table-cell)] px-2 py-0.5 rounded-full uppercase tracking-wider">Comp</span> : fmtMoney(r.nightly_price))}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {r.is_occupied && r.source ? (
@@ -264,21 +264,21 @@ export default function RevenueDailyPage() {
                                                             </div>
                                                         ) : null}
                                                     </td>
-                                                    <td className="px-4 py-3 text-slate-500">
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">
                                                         {r.is_occupied ? r.night_label : null}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {r.is_occupied ? (
                                                             <div className="flex items-center gap-2">
                                                                 <span className="font-semibold text-slate-800">{r.guest_name || "Unknown"}</span>
-                                                                {r.booking_code && <span className="text-xs text-slate-400">({r.booking_code})</span>}
+                                                                {r.booking_code && <span className="text-xs text-[var(--text-muted)]">({r.booking_code})</span>}
                                                             </div>
                                                         ) : null}
                                                     </td>
                                                 </tr>
                                             ))}
                                             {/* Floor Subtotal */}
-                                            <tr className="bg-slate-50/50 text-xs text-slate-500">
+                                            <tr className="bg-[var(--bg-body)]/50 text-xs text-[var(--text-secondary)]">
                                                 <td colSpan={5} className="px-4 py-2 pl-6">
                                                     (subtotal: <span className="font-semibold">{fmtMoney(floorRevenue)}</span> · {floorOccupied} occupied)
                                                 </td>
@@ -296,11 +296,11 @@ export default function RevenueDailyPage() {
                                                 </td>
                                             </tr>
                                             {dUserRooms.map(du => (
-                                                <tr key={`du-${du.room_number}`} className="hover:bg-slate-50">
+                                                <tr key={`du-${du.room_number}`} className="hover:bg-[var(--bg-body)]">
                                                     <td className="px-4 py-3 font-medium">{du.room_number}</td>
                                                     <td className="px-4 py-3 text-right font-semibold">{fmtMoney(du.revenue)}</td>
-                                                    <td className="px-4 py-3 text-slate-500">—</td>
-                                                    <td className="px-4 py-3 text-slate-500">{du.sessions} sess</td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">—</td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{du.sessions} sess</td>
                                                     <td className="px-4 py-3 font-semibold text-slate-800 text-sm">Day Use Daily Revenue</td>
                                                 </tr>
                                             ))}
@@ -321,8 +321,8 @@ export default function RevenueDailyPage() {
                                                     POS / F&B
                                                 </td>
                                             </tr>
-                                            <tr className="hover:bg-slate-50">
-                                                <td className="px-4 py-3 font-medium text-slate-700">POS</td>
+                                            <tr className="hover:bg-[var(--bg-body)]">
+                                                <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">POS</td>
                                                 <td className="px-4 py-3 text-right font-semibold">{fmtMoney(data.pos_total)}</td>
                                                 <td className="px-4 py-3" colSpan={3}></td>
                                             </tr>
@@ -331,7 +331,7 @@ export default function RevenueDailyPage() {
                                 })()}
 
                             </tbody>
-                            <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                            <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                 <tr>
                                     <td className="px-4 py-4 font-black text-slate-800 text-lg uppercase tracking-wider">
                                         Total

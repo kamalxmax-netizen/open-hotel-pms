@@ -127,9 +127,9 @@ export default function DepositModal({
         >
             <form id="deposit-form" onSubmit={handleSubmit} className="space-y-4">
                 {/* Booking summary */}
-                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm">
+                <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2 text-sm">
                     <div className="font-bold text-slate-800">{guestName}</div>
-                    <div className="text-slate-400 text-xs">{bookingCode} · Total ฿{totalPrice.toLocaleString()}</div>
+                    <div className="text-[var(--text-muted)] text-xs">{bookingCode} · Total ฿{totalPrice.toLocaleString()}</div>
                 </div>
 
                 {/* Existing deposit badge */}
@@ -154,7 +154,7 @@ export default function DepositModal({
                 <div>
                     <label className="form-label">{hasPaid ? "Top Up Amount (THB) *" : "Deposit Amount (THB) *"}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-sm text-slate-400">฿</span>
+                        <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                         <input
                             required
                             type="number"
@@ -167,7 +167,7 @@ export default function DepositModal({
                         />
                     </div>
                     {depositPct > 0 && (
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                             = {depositPct}% of total ฿{totalPrice.toLocaleString()}
                         </p>
                     )}
@@ -185,7 +185,7 @@ export default function DepositModal({
                                 className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition
                   ${method === m
                                         ? "border-brand-500 bg-brand-600 text-white"
-                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                     }`}
                             >{m}</button>
                         ))}

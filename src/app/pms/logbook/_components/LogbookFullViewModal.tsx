@@ -62,11 +62,11 @@ export function LogbookFullViewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(92vw,1100px)] p-0">
-        <div className="flex h-[88vh] flex-col overflow-visible rounded-xl bg-white">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex h-[88vh] flex-col overflow-visible rounded-xl bg-[var(--bg-surface)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--border-default)] px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Full View</h2>
-              <p className="text-xs text-slate-500">Large editor for detailed reading and staff-friendly editing.</p>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Full View</h2>
+              <p className="text-xs text-[var(--text-secondary)]">Large editor for detailed reading and staff-friendly editing.</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => onArchive(note.id)}>
@@ -81,7 +81,7 @@ export function LogbookFullViewModal({
           <div className="flex-1 overflow-x-visible overflow-y-auto px-5 py-5">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Title</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Title</label>
                 <Input
                   value={note.title}
                   onChange={(event) =>
@@ -96,7 +96,7 @@ export function LogbookFullViewModal({
               </div>
 
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Type</label>
                 <select
                   value={note.note_type}
                   onChange={(event) =>
@@ -106,7 +106,7 @@ export function LogbookFullViewModal({
                       { historyMode: "immediate", saveMode: "immediate" }
                     )
                   }
-                  className="form-select h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                  className="form-select h-11 rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 text-sm"
                 >
                   <option value="general">General</option>
                   <option value="task">Task</option>
@@ -141,7 +141,7 @@ export function LogbookFullViewModal({
               />
 
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Body</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Body</label>
                 <Textarea
                   value={note.body}
                   onChange={(event) =>
@@ -158,25 +158,25 @@ export function LogbookFullViewModal({
                     )
                   }
                   style={getRichBodyTextareaStyle(richBody)}
-                  className="min-h-[360px] resize-none bg-slate-50 text-base leading-7"
+                  className="min-h-[360px] resize-none bg-[var(--bg-body)] text-base leading-7"
                 />
               </div>
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Links and Mentions</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Links and Mentions</label>
                   <LogbookLinkPicker
                     onAddLink={(link) => onAddLink(note.id, link)}
                     onAddMention={(mention) => onAddMention(note.id, mention)}
                     align="right"
                   />
                 </div>
-                <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
                   {note.links?.map((link) => (
                     <button
                       key={link.id}
                       type="button"
-                      className="rounded-full border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                      className="rounded-full border border-black/10 bg-[var(--bg-surface)] px-2 py-1 text-xs font-semibold text-[var(--text-table-cell)] shadow-sm"
                       onClick={async () => {
                         const href = await resolveLogbookLinkHref(link)
                         router.push(href)
@@ -213,7 +213,7 @@ export function LogbookFullViewModal({
                     </button>
                   ))}
                   {!note.links?.length && !note.mentions?.length ? (
-                    <span className="text-xs text-slate-500">No links or mentions yet.</span>
+                    <span className="text-xs text-[var(--text-secondary)]">No links or mentions yet.</span>
                   ) : null}
                 </div>
               </div>

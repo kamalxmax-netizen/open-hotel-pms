@@ -74,7 +74,7 @@ export function DepositPanel({
             return (
               <div
                 key={`${line.method}-${idx}-${line.amount}`}
-                className="flex items-center justify-between rounded-md border border-amber-200 bg-white px-2 py-1.5 text-xs"
+                className="flex items-center justify-between rounded-md border border-amber-200 bg-[var(--bg-surface)] px-2 py-1.5 text-xs"
               >
                 <div className="min-w-0">
                   <span className="font-semibold text-amber-900">{methodLabel}</span>
@@ -94,7 +94,7 @@ export function DepositPanel({
       )}
 
       {depositNote && (
-        <div className="rounded-md border border-amber-300 bg-white px-2 py-1.5 text-xs text-amber-900">
+        <div className="rounded-md border border-amber-300 bg-[var(--bg-surface)] px-2 py-1.5 text-xs text-amber-900">
           <span className="font-semibold">Deposit Note:</span> {depositNote}
         </div>
       )}
@@ -121,8 +121,8 @@ export function DepositPanel({
                 ))}
               </select>
             </div>
-            <div className="col-span-4 border relative rounded-md bg-white">
-              <span className="absolute left-2 top-1.5 text-slate-400 font-bold text-sm">฿</span>
+            <div className="col-span-4 border relative rounded-md bg-[var(--bg-surface)]">
+              <span className="absolute left-2 top-1.5 text-[var(--text-muted)] font-bold text-sm">฿</span>
               <input
                 type="number"
                 min="0"
@@ -187,7 +187,7 @@ export function DepositPanel({
       )}
 
       {!canEditDeposit && (
-        <div className="rounded-md border border-amber-300 bg-white px-2.5 py-2 text-xs text-amber-900">
+        <div className="rounded-md border border-amber-300 bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-amber-900">
           Deposit is locked before check-in. Use pre-payment only until guest is checked in.
         </div>
       )}

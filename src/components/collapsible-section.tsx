@@ -36,7 +36,7 @@ export default function CollapsibleSection({
 
     return (
         <div
-            className={`relative rounded-xl bg-white after:pointer-events-none after:absolute after:inset-0 after:rounded-xl after:border after:border-slate-200 after:content-[''] ${className}`}
+            className={`relative rounded-xl bg-[var(--bg-surface)] after:pointer-events-none after:absolute after:inset-0 after:rounded-xl after:border after:border-[var(--border-default)] after:content-[''] ${className}`}
         >
             <button
                 type="button"
@@ -44,18 +44,18 @@ export default function CollapsibleSection({
                 aria-expanded={isOpen}
                 aria-controls={`${id}-panel`}
                 onClick={() => setOpen((v) => !v)}
-                className="w-full flex items-center gap-2 px-4 py-3 text-left bg-white hover:bg-slate-50 transition group"
+                className="w-full flex items-center gap-2 px-4 py-3 text-left bg-[var(--bg-surface)] hover:bg-[var(--bg-body)] transition group"
             >
                 {/* Chevron */}
                 <svg
-                    className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${isOpen ? "rotate-90" : ""}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
 
                 {icon && <span className="text-sm">{icon}</span>}
-                <span className="text-sm font-semibold text-slate-700 flex-1">{title}</span>
+                <span className="text-sm font-semibold text-[var(--text-table-cell)] flex-1">{title}</span>
                 {badge}
             </button>
 
@@ -64,7 +64,7 @@ export default function CollapsibleSection({
                     id={`${id}-panel`}
                     role="region"
                     aria-labelledby={`${id}-header`}
-                    className="px-4 pb-4 pt-1 border-t border-slate-100 bg-white"
+                    className="px-4 pb-4 pt-1 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]"
                 >
                     {children}
                 </div>

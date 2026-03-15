@@ -190,27 +190,27 @@ export default function AssignRoomModal({
             onClose={onClose}
         >
             <div className="space-y-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-2">
+                <div className="bg-[var(--bg-body)] border border-[var(--border-default)] rounded-xl p-4 flex flex-col gap-2">
                     <div className="flex justify-between items-start gap-4">
                         <div>
                             <h3 className="font-bold text-slate-800 text-lg">{guestName}</h3>
                             <p className="text-sm text-brand-600 font-semibold">{roomTypeName}</p>
                             {isSwapMode && currentRoomNumber && (
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Current room: <span className="font-semibold text-slate-700">Room {currentRoomNumber}</span>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    Current room: <span className="font-semibold text-[var(--text-table-cell)]">Room {currentRoomNumber}</span>
                                 </p>
                             )}
                         </div>
                         <div className="text-right">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Stay</p>
-                            <p className="text-sm font-medium text-slate-700">{checkinDate} → {checkoutDate}</p>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Stay</p>
+                            <p className="text-sm font-medium text-[var(--text-table-cell)]">{checkinDate} → {checkoutDate}</p>
                         </div>
                     </div>
                 </div>
 
                 {preferences.length > 0 && (
                     <div>
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Guest Preferences</h4>
+                        <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Guest Preferences</h4>
                         <div className="flex flex-wrap gap-1.5">
                             {preferences.map((p) => (
                                 <span key={p.code} className="badge bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -228,20 +228,20 @@ export default function AssignRoomModal({
                 )}
 
                 <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-4 mb-2">
+                    <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mt-4 mb-2">
                         Vacant Rooms
                     </h4>
 
                     {loading ? (
                         <div className="space-y-2">
                             {[1, 2, 3].map((i) => (
-                                <div key={i} className="h-16 bg-slate-100 animate-pulse rounded-lg border border-slate-200" />
+                                <div key={i} className="h-16 bg-[var(--bg-muted)] animate-pulse rounded-lg border border-[var(--border-default)]" />
                             ))}
                         </div>
                     ) : recommendations.length === 0 ? (
-                        <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-lg">
+                        <div className="text-center py-6 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg">
                             <p className="text-amber-600 font-medium">No available rooms of type {roomTypeName}</p>
-                            <p className="text-xs text-slate-500 mt-1">Check calendar for conflicts or overbookings.</p>
+                            <p className="text-xs text-[var(--text-secondary)] mt-1">Check calendar for conflicts or overbookings.</p>
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -250,7 +250,7 @@ export default function AssignRoomModal({
                                     key={room.room_id}
                                     className={`flex items-center justify-between p-3 rounded-lg border transition-all ${room.status === "conflict"
                                         ? "bg-rose-50 border-rose-200 opacity-60"
-                                        : "bg-white border-slate-200 hover:border-brand-300 hover:shadow-sm"
+                                        : "bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
                                         }`}
                                 >
                                     <div>
@@ -275,7 +275,7 @@ export default function AssignRoomModal({
                                                 </div>
                                             )}
                                             {room.matched_features.length === 0 && room.missing_features.length === 0 && preferences.length > 0 && (
-                                                <div className="text-[11px] text-slate-400">No matching features</div>
+                                                <div className="text-[11px] text-[var(--text-muted)]">No matching features</div>
                                             )}
                                         </div>
 
@@ -300,8 +300,8 @@ export default function AssignRoomModal({
                 {isSwapMode && (
                     <div>
                         <div className="flex items-center justify-between gap-2 mb-2 mt-4">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Swap Candidates</h4>
-                            <div className="text-[11px] text-slate-400">
+                            <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Swap Candidates</h4>
+                            <div className="text-[11px] text-[var(--text-muted)]">
                                 {swapCounts.allowed} can swap · {swapCounts.blocked} blocked
                             </div>
                         </div>
@@ -309,13 +309,13 @@ export default function AssignRoomModal({
                         {loading ? (
                             <div className="space-y-2">
                                 {[1, 2].map((i) => (
-                                    <div key={i} className="h-20 bg-slate-100 animate-pulse rounded-lg border border-slate-200" />
+                                    <div key={i} className="h-20 bg-[var(--bg-muted)] animate-pulse rounded-lg border border-[var(--border-default)]" />
                                 ))}
                             </div>
                         ) : swapCandidates.length === 0 ? (
-                            <div className="text-center py-6 bg-slate-50 border border-slate-200 rounded-lg">
-                                <p className="text-slate-500 font-medium">No swap candidates found</p>
-                                <p className="text-xs text-slate-400 mt-1">Only assigned reservations that are not checked in appear here.</p>
+                            <div className="text-center py-6 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg">
+                                <p className="text-[var(--text-secondary)] font-medium">No swap candidates found</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">Only assigned reservations that are not checked in appear here.</p>
                             </div>
                         ) : (
                             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
@@ -342,16 +342,16 @@ export default function AssignRoomModal({
                                     <div
                                         key={candidate.reservation_id}
                                         className={`rounded-lg border p-3 transition-all ${candidate.can_swap
-                                            ? "bg-white border-slate-200 hover:border-brand-300 hover:shadow-sm"
+                                            ? "bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
                                             : "bg-rose-50 border-rose-200 opacity-50"
                                             }`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
-                                                <div className="font-semibold text-slate-900 truncate">
-                                                    [{candidate.room_number ?? "—"}] {candidate.guest_name} <span className="text-slate-400">{candidate.booking_code}</span>
+                                                <div className="font-semibold text-[var(--text-primary)] truncate">
+                                                    [{candidate.room_number ?? "—"}] {candidate.guest_name} <span className="text-[var(--text-muted)]">{candidate.booking_code}</span>
                                                 </div>
-                                                <div className="text-xs text-slate-500 mt-1">
+                                                <div className="text-xs text-[var(--text-secondary)] mt-1">
                                                     {formatStayLine(candidate.checkin_date, candidate.checkout_date, candidate.nights)}
                                                 </div>
                                                 {candidate.can_swap ? (

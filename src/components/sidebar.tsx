@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { useTheme } from "@/components/theme-provider";
 
 const NAV_ITEMS = [
     {
@@ -108,6 +109,7 @@ export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
+    const { setTheme, isDark } = useTheme();
 
     useEffect(() => {
         const supabase = createBrowserSupabaseClient();
@@ -145,10 +147,13 @@ export default function Sidebar() {
         <aside className="sidebar">
             {/* Logo */}
             <div className="sidebar-logo">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white font-bold text-sm">P</span>
+                <span
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white font-bold text-sm"
+                    style={{ backgroundColor: "#1B4038" }}
+                >P</span>
                 <div>
-                    <p className="text-sm font-bold text-slate-900 leading-none">Hotel PMS</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Management System</p>
+                    <p className="text-sm font-bold leading-none" style={{ color: "var(--text-primary)" }}>OpenHotel</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Hotel PMS</p>
                 </div>
             </div>
 
@@ -176,8 +181,18 @@ export default function Sidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="border-t border-slate-100 p-3 space-y-1">
-                <p className="px-3 text-[10px] text-slate-400">v0.8 — Internal Test</p>
+            <div className="border-t p-3 space-y-1" style={{ borderColor: "var(--border-subtle)" }}>
+                <div className="flex items-center justify-between px-3">
+                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
+                    <button
+                        onClick={() => setTheme(isDark ? "light" : "dark")}
+                        className="p-1 rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                        style={{ color: "var(--text-muted)" }}
+                        title={isDark ? "Light mode" : "Dark mode"}
+                    >
+                        {isDark ? <SunIcon /> : <MoonSmallIcon />}
+                    </button>
+                </div>
                 <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
@@ -377,6 +392,20 @@ function BugIcon() {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>
+    );
+}
+function MoonSmallIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+        </svg>
+    );
+}
+function SunIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+            <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
         </svg>
     );
 }

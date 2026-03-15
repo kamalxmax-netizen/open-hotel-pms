@@ -25,7 +25,7 @@ export function ToggleGroup({
 }) {
   return (
     <ToggleGroupContext.Provider value={{ value, onValueChange }}>
-      <div className={cn("inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white p-1", className)}>
+      <div className={cn("inline-flex items-center gap-1 rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] p-1", className)}>
         {children}
       </div>
     </ToggleGroupContext.Provider>
@@ -46,7 +46,7 @@ export function ToggleGroupItem({
       type="button"
       className={cn(
         "rounded px-2.5 py-1.5 text-sm font-medium transition",
-        active ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100",
+        active ? "bg-brand-600 text-white" : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]",
         className
       )}
       onClick={() => ctx.onValueChange?.(value)}

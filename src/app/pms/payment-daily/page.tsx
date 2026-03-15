@@ -113,15 +113,15 @@ function fmtMoney(n: number) {
 
 /* ─── Column border constants ──────────────────────── */
 // Group separator (between Cash/Transfer/Card groups)
-const B = "border-r border-slate-200";
+const B = "border-r border-[var(--border-default)]";
 // Inner separator (between Payment/Deposit within a group)
-const Bi = "border-r border-slate-100";
+const Bi = "border-r border-[var(--border-subtle)]";
 
 function MoneyCell({ v, negativeRed = false, border = "" }: { v: number; negativeRed?: boolean; border?: string }) {
     if (v === 0) return <td className={`px-2 py-2.5 text-right text-slate-300 ${border}`}>-</td>;
     const isNeg = v < 0;
     return (
-        <td className={`px-2 py-2.5 text-right font-medium ${isNeg && negativeRed ? "text-rose-600" : "text-slate-700"} ${border}`}>
+        <td className={`px-2 py-2.5 text-right font-medium ${isNeg && negativeRed ? "text-rose-600" : "text-[var(--text-table-cell)]"} ${border}`}>
             {isNeg ? `-${fmt(Math.abs(v))}` : fmt(v)}
         </td>
     );
@@ -144,22 +144,22 @@ function PaymentCells({ m }: { m: MethodsMap }) {
 /* ─── Column Header (reused for Today + Advance) ──── */
 function ColumnHeaders() {
     return (
-        <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold">
+        <thead className="bg-[var(--bg-body)] text-[var(--text-secondary)] uppercase text-[11px] font-bold">
             <tr>
-                <th rowSpan={2} className={`px-4 py-2 border-b border-slate-200 ${B} w-48`}>Room / Guest</th>
-                <th rowSpan={2} className={`px-4 py-2 border-b border-slate-200 ${B} text-right w-24`}>Net Total</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-slate-200 ${B} text-center bg-emerald-50 text-emerald-700`}>Cash</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-slate-200 ${B} text-center bg-sky-50 text-sky-700`}>Transfer</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-slate-200 ${B} text-center bg-violet-50 text-violet-700`}>Card / Other</th>
-                <th rowSpan={2} className="px-4 py-2 border-b border-slate-200 w-56">Notes</th>
+                <th rowSpan={2} className={`px-4 py-2 border-b border-[var(--border-default)] ${B} w-48`}>Room / Guest</th>
+                <th rowSpan={2} className={`px-4 py-2 border-b border-[var(--border-default)] ${B} text-right w-24`}>Net Total</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-emerald-50 text-emerald-700`}>Cash</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-sky-50 text-sky-700`}>Transfer</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-violet-50 text-violet-700`}>Card / Other</th>
+                <th rowSpan={2} className="px-4 py-2 border-b border-[var(--border-default)] w-56">Notes</th>
             </tr>
             <tr>
-                <th className={`px-2 py-1 border-b border-slate-200 ${Bi} text-center font-semibold bg-emerald-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-slate-200 ${B} text-center font-semibold bg-emerald-50/60`}>Deposit</th>
-                <th className={`px-2 py-1 border-b border-slate-200 ${Bi} text-center font-semibold bg-sky-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-slate-200 ${B} text-center font-semibold bg-sky-50/60`}>Deposit</th>
-                <th className={`px-2 py-1 border-b border-slate-200 ${Bi} text-center font-semibold bg-violet-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-slate-200 ${B} text-center font-semibold bg-violet-50/60`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-emerald-50/60`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-emerald-50/60`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-sky-50/60`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-sky-50/60`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-violet-50/60`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-violet-50/60`}>Deposit</th>
             </tr>
         </thead>
     );
@@ -228,8 +228,8 @@ export default function PaymentDailyPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Payment Daily Summary</h1>
-                    <p className="text-sm text-slate-500">Per-room payment breakdown with advance accounting.</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Payment Daily Summary</h1>
+                    <p className="text-sm text-[var(--text-secondary)]">Per-room payment breakdown with advance accounting.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input
@@ -249,7 +249,7 @@ export default function PaymentDailyPage() {
             {/* Controls */}
             <div className="card p-3 flex flex-wrap items-center gap-6">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-600">Floor:</span>
+                    <span className="text-sm font-semibold text-[var(--text-secondary)]">Floor:</span>
                     <select
                         className="input py-1.5 px-3 text-sm"
                         value={floorFilter}
@@ -263,7 +263,7 @@ export default function PaymentDailyPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-600">Show:</span>
+                    <span className="text-sm font-semibold text-[var(--text-secondary)]">Show:</span>
                     <select
                         className="input py-1.5 px-3 text-sm"
                         value={showMode}
@@ -274,23 +274,23 @@ export default function PaymentDailyPage() {
                     </select>
                 </div>
 
-                <div className="flex items-center gap-4 border-l border-slate-200 pl-4">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showDayUse} onChange={(e) => setShowDayUse(e.target.checked)} />
-                        <span className="font-medium text-slate-700">Day Use</span>
+                <div className="flex items-center gap-4 border-l border-[var(--border-default)] pl-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-body)] p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-[var(--border-input)] rounded focus:ring-brand-500" checked={showDayUse} onChange={(e) => setShowDayUse(e.target.checked)} />
+                        <span className="font-medium text-[var(--text-table-cell)]">Day Use</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} />
-                        <span className="font-medium text-slate-700">POS</span>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-body)] p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-[var(--border-input)] rounded focus:ring-brand-500" checked={showPos} onChange={(e) => setShowPos(e.target.checked)} />
+                        <span className="font-medium text-[var(--text-table-cell)]">POS</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" checked={showDepositRefunds} onChange={(e) => setShowDepositRefunds(e.target.checked)} />
-                        <span className="font-medium text-slate-700">Deposit Refunds</span>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[var(--bg-body)] p-1 rounded transition-colors">
+                        <input type="checkbox" className="w-4 h-4 text-brand-600 border-[var(--border-input)] rounded focus:ring-brand-500" checked={showDepositRefunds} onChange={(e) => setShowDepositRefunds(e.target.checked)} />
+                        <span className="font-medium text-[var(--text-table-cell)]">Deposit Refunds</span>
                     </label>
                 </div>
 
                 {data && (
-                    <div className="ml-auto text-sm text-slate-600 font-semibold flex gap-4">
+                    <div className="ml-auto text-sm text-[var(--text-secondary)] font-semibold flex gap-4">
                         <span>Net <span className="text-brand-700 text-base">{fmtMoney(data.grand_total.grand_net)}</span></span>
                         <span>Cash Drawer <span className="text-emerald-600 text-base">{fmtMoney(data.reconciliation.net_cash)}</span></span>
                         <span>Transfer <span className="text-sky-600 text-base">{fmtMoney(data.grand_total.transfer.payment)}</span></span>
@@ -303,9 +303,9 @@ export default function PaymentDailyPage() {
                 <div className="flex flex-col gap-6">
                     {/* ═══ TODAY'S ROOMS ═══ */}
                     <div className="card overflow-hidden text-sm">
-                        <div className="px-5 py-3 bg-slate-50 border-b-2 border-slate-200">
+                        <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
                             <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Today&apos;s Rooms</span>
-                            <span className="text-slate-500 text-xs font-normal ml-3">ยอดชำระสำหรับห้องวันนี้</span>
+                            <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดชำระสำหรับห้องวันนี้</span>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -323,7 +323,7 @@ export default function PaymentDailyPage() {
                                             <React.Fragment key={floor}>
                                                 {/* Floor Header */}
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-1.5 bg-slate-50 font-bold text-slate-700 text-xs border-b border-slate-200">
+                                                    <td colSpan={9} className="px-4 py-1.5 bg-[var(--bg-body)] font-bold text-[var(--text-table-cell)] text-xs border-b border-[var(--border-default)]">
                                                         FLOOR {floor}
                                                     </td>
                                                 </tr>
@@ -336,7 +336,7 @@ export default function PaymentDailyPage() {
 
                                                         const isUnpaidOccupied = br.is_occupied;
                                                         return (
-                                                            <tr key={`empty-${br.room_number}`} className="text-slate-400 border-b border-slate-100">
+                                                            <tr key={`empty-${br.room_number}`} className="text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
                                                                 <td className={`px-4 py-2.5 ${B} font-medium`}>
                                                                     {br.room_number}
                                                                     {isUnpaidOccupied && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold uppercase">ค้างจ่าย</span>}
@@ -364,7 +364,7 @@ export default function PaymentDailyPage() {
                                                         return (
                                                             <tr
                                                                 key={`${br.room_number}-${tr.reservation_id || "no-res"}-${idx}`}
-                                                                className={`border-b border-slate-100 transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-slate-50/70" : "hover:bg-slate-50/50"}`}
+                                                                className={`border-b border-[var(--border-subtle)] transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
                                                                 onClick={() => openReservation(tr.reservation_id)}
                                                             >
                                                                 <td className={`px-4 py-2 ${B} leading-tight`}>
@@ -376,13 +376,13 @@ export default function PaymentDailyPage() {
                                                                             </span>
                                                                         )}
                                                                     </span>
-                                                                    <span className="text-xs text-slate-500 block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
+                                                                    <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                                 </td>
                                                                 <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
                                                                     {fmtMoney(tr.total_net)}
                                                                 </td>
                                                                 <PaymentCells m={tr.methods} />
-                                                                <td className="px-3 py-2 text-xs text-slate-500 max-w-[200px]">
+                                                                <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                                     {tr.notes.map((n, i) => (
                                                                         <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
                                                                     ))}
@@ -398,7 +398,7 @@ export default function PaymentDailyPage() {
                                     {unassignedTodayRooms.length > 0 && (
                                         <>
                                             <tr>
-                                                <td colSpan={9} className="px-4 py-1.5 bg-slate-50 font-bold text-slate-700 text-xs border-b border-slate-200 border-t border-slate-200">
+                                                <td colSpan={9} className="px-4 py-1.5 bg-[var(--bg-body)] font-bold text-[var(--text-table-cell)] text-xs border-b border-[var(--border-default)] border-t border-[var(--border-default)]">
                                                     UNASSIGNED / NO ROOM
                                                 </td>
                                             </tr>
@@ -413,7 +413,7 @@ export default function PaymentDailyPage() {
                                                 return (
                                                     <tr
                                                         key={`no-room-${tr.reservation_id || "no-res"}-${idx}`}
-                                                        className={`border-b border-slate-100 transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-slate-50/70" : "hover:bg-slate-50/50"}`}
+                                                        className={`border-b border-[var(--border-subtle)] transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
                                                         onClick={() => openReservation(tr.reservation_id)}
                                                     >
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
@@ -425,13 +425,13 @@ export default function PaymentDailyPage() {
                                                                     </span>
                                                                 )}
                                                             </span>
-                                                            <span className="text-xs text-slate-500 block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
+                                                            <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                         </td>
                                                         <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
                                                             {fmtMoney(tr.total_net)}
                                                         </td>
                                                         <PaymentCells m={tr.methods} />
-                                                        <td className="px-3 py-2 text-xs text-slate-500 max-w-[200px]">
+                                                        <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                             {tr.notes.map((n, i) => (
                                                                 <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
                                                             ))}
@@ -449,15 +449,15 @@ export default function PaymentDailyPage() {
                                         return (
                                             <>
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-1.5 bg-rose-50/50 font-bold text-rose-800 text-xs border-b border-rose-200 border-t border-slate-200">
+                                                    <td colSpan={9} className="px-4 py-1.5 bg-rose-50/50 font-bold text-rose-800 text-xs border-b border-rose-200 border-t border-[var(--border-default)]">
                                                         DAY USE
                                                     </td>
                                                 </tr>
                                                 {duRooms.map(tr => (
-                                                    <tr key={`du-${tr.room_number}`} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                                                    <tr key={`du-${tr.room_number}`} className="hover:bg-[var(--bg-body)]/50 transition-colors border-b border-[var(--border-subtle)]">
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
                                                             <span className="font-bold text-slate-800 block">{tr.room_number}</span>
-                                                            <span className="text-xs text-slate-500 block">Day Use</span>
+                                                            <span className="text-xs text-[var(--text-secondary)] block">Day Use</span>
                                                         </td>
                                                         <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
                                                             {fmtMoney(tr.total_net)}
@@ -481,11 +481,11 @@ export default function PaymentDailyPage() {
                                         return (
                                             <>
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-1.5 bg-amber-50/50 font-bold text-amber-800 text-xs border-b border-amber-200 border-t border-slate-200">
+                                                    <td colSpan={9} className="px-4 py-1.5 bg-amber-50/50 font-bold text-amber-800 text-xs border-b border-amber-200 border-t border-[var(--border-default)]">
                                                         POS / F&B
                                                     </td>
                                                 </tr>
-                                                <tr className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                                                <tr className="hover:bg-[var(--bg-body)]/50 transition-colors border-b border-[var(--border-subtle)]">
                                                     <td className={`px-4 py-2.5 ${B} font-bold text-slate-800`}>
                                                         POS Direct Sales
                                                     </td>
@@ -506,7 +506,7 @@ export default function PaymentDailyPage() {
                                 </tbody>
 
                                 {/* Today Subtotal */}
-                                <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                                <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                     <tr className="font-bold text-sm">
                                         <td className={`px-4 py-3 ${B} text-slate-800 uppercase`}>Today Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.today_subtotal.grand_net)}</td>
@@ -525,9 +525,9 @@ export default function PaymentDailyPage() {
 
                     {/* ═══ ADVANCE PAYMENTS ═══ */}
                     <div className="card overflow-hidden text-sm">
-                        <div className="px-5 py-3 bg-slate-50 border-b-2 border-slate-200">
+                        <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
                             <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Advance Payments</span>
-                            <span className="text-slate-500 text-xs font-normal ml-3">ยอดรับล่วงหน้า Booking/Reservation อนาคต</span>
+                            <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดรับล่วงหน้า Booking/Reservation อนาคต</span>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -537,42 +537,42 @@ export default function PaymentDailyPage() {
                                 <tbody>
                                     {data.advance_payments.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="px-4 py-8 text-center text-slate-400 italic">No advance payments recorded today.</td>
+                                            <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded today.</td>
                                         </tr>
                                     ) : data.advance_payments.map(adv => (
                                         <tr
                                             key={adv.booking_code}
-                                            className={`border-b border-slate-100 transition-colors ${adv.reservation_id ? "cursor-pointer hover:bg-slate-50/70" : "hover:bg-slate-50/50"}`}
+                                            className={`border-b border-[var(--border-subtle)] transition-colors ${adv.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
                                             onClick={() => openReservation(adv.reservation_id)}
                                         >
                                             <td className={`px-4 py-2 ${B} leading-tight`}>
                                                 <div className="flex justify-between items-center mb-0.5">
                                                     <span className="font-bold text-slate-800">{adv.booking_code}</span>
                                                     {adv.room_number ? (
-                                                        <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">RM {adv.room_number}</span>
+                                                        <span className="text-[10px] bg-slate-200 text-[var(--text-table-cell)] px-1.5 py-0.5 rounded font-bold">RM {adv.room_number}</span>
                                                     ) : (
                                                         <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">no room</span>
                                                     )}
                                                 </div>
-                                                <span className="text-xs text-slate-500 block truncate max-w-[160px]" title={adv.guest_name}>{adv.guest_name}</span>
+                                                <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={adv.guest_name}>{adv.guest_name}</span>
                                             </td>
                                             <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
                                                 {fmtMoney(adv.total_net)}
                                             </td>
                                             <PaymentCells m={adv.methods} />
                                             <td className="px-3 py-2 text-xs flex flex-col items-start gap-1 justify-center min-h-[50px]">
-                                                <span className="font-semibold text-slate-600">CI: {adv.checkin_date.split('-').slice(1).reverse().join('/')}</span>
+                                                <span className="font-semibold text-[var(--text-secondary)]">CI: {adv.checkin_date.split('-').slice(1).reverse().join('/')}</span>
                                                 {adv.payment_status === "deposit" && <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded">มัดจำ</span>}
                                                 {adv.payment_status === "partial" && <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-1.5 py-0.5 rounded">บางส่วน</span>}
                                                 {adv.payment_status === "full" && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">เต็ม</span>}
-                                                {adv.notes.length > 0 && <div className="text-slate-400 mt-0.5 truncate max-w-[150px]" title={adv.notes.join(" | ")}>{adv.notes[0]}</div>}
+                                                {adv.notes.length > 0 && <div className="text-[var(--text-muted)] mt-0.5 truncate max-w-[150px]" title={adv.notes.join(" | ")}>{adv.notes[0]}</div>}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
 
                                 {/* Advance Subtotal */}
-                                <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                                <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                     <tr className="font-bold text-sm">
                                         <td className={`px-4 py-3 ${B} text-slate-800 uppercase`}>Advance Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.advance_subtotal.grand_net)}</td>
@@ -616,66 +616,66 @@ export default function PaymentDailyPage() {
                         <div className="p-5 flex flex-col md:flex-row gap-6 items-start justify-between">
                             <div>
                                 <h3 className="font-bold text-slate-800 mb-1 text-sm uppercase tracking-wider">Cash Reconciliation</h3>
-                                <p className="text-slate-500 text-xs max-w-sm">ยอดเงินสดที่ควรมีในลิ้นชักสำหรับวันนี้</p>
+                                <p className="text-[var(--text-secondary)] text-xs max-w-sm">ยอดเงินสดที่ควรมีในลิ้นชักสำหรับวันนี้</p>
                             </div>
-                            <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 min-w-[280px]">
+                            <div className="bg-[var(--bg-body)] rounded-lg border border-[var(--border-default)] p-4 min-w-[280px]">
                                 <div className="flex justify-between items-center py-1.5">
-                                    <span className="text-slate-600 text-sm">Cash Payments</span>
+                                    <span className="text-[var(--text-secondary)] text-sm">Cash Payments</span>
                                     <span className="text-slate-800 font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_payments)}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-1.5 border-b border-slate-200 pb-3">
-                                    <span className="text-slate-600 text-sm">Cash Deposits</span>
+                                <div className="flex justify-between items-center py-1.5 border-b border-[var(--border-default)] pb-3">
+                                    <span className="text-[var(--text-secondary)] text-sm">Cash Deposits</span>
                                     <span className="text-slate-800 font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_deposits)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-1.5 pt-3">
-                                    <span className="text-slate-600 text-sm">Cash Refunds</span>
+                                    <span className="text-[var(--text-secondary)] text-sm">Cash Refunds</span>
                                     <span className="text-rose-600 font-semibold text-sm">-{fmtMoney(data.reconciliation.cash_refunds)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-1.5">
-                                    <span className="text-slate-600 text-sm">Non-cash Deposit Offset</span>
+                                    <span className="text-[var(--text-secondary)] text-sm">Non-cash Deposit Offset</span>
                                     <span className="text-rose-600 font-semibold text-sm">-{fmtMoney(data.reconciliation.non_cash_deposit_offset ?? 0)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 mt-3 bg-emerald-50 rounded-lg px-3 -mx-1 border border-emerald-200">
                                     <span className="text-emerald-900 font-bold uppercase tracking-wider text-sm">Net Cash</span>
                                     <span className="text-emerald-700 font-black text-lg">{fmtMoney(data.reconciliation.net_cash)}</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-widest font-bold">ยอดในลิ้นชัก</p>
+                                <p className="text-[10px] text-[var(--text-muted)] text-center mt-2 uppercase tracking-widest font-bold">ยอดในลิ้นชัก</p>
                             </div>
                         </div>
                     </div>
 
                     {showDepositRefunds && (
                         <div className="card overflow-hidden text-sm">
-                            <div className="px-5 py-3 bg-slate-50 border-b-2 border-slate-200">
+                            <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
                                 <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Deposit Refunds (Info Only)</span>
-                                <span className="text-slate-500 text-xs font-normal ml-3">ไม่กระทบ subtotal / grand total / net cash</span>
+                                <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ไม่กระทบ subtotal / grand total / net cash</span>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left whitespace-nowrap border-collapse">
-                                    <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold">
+                                    <thead className="bg-[var(--bg-body)] text-[var(--text-secondary)] uppercase text-[11px] font-bold">
                                         <tr>
-                                            <th className="px-4 py-2 border-b border-slate-200">Booking</th>
-                                            <th className="px-4 py-2 border-b border-slate-200">Guest</th>
-                                            <th className="px-4 py-2 border-b border-slate-200">Room</th>
-                                            <th className="px-4 py-2 border-b border-slate-200">Method</th>
-                                            <th className="px-4 py-2 border-b border-slate-200 text-right">Amount</th>
-                                            <th className="px-4 py-2 border-b border-slate-200">Note</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)]">Booking</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)]">Guest</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)]">Room</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)]">Method</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)] text-right">Amount</th>
+                                            <th className="px-4 py-2 border-b border-[var(--border-default)]">Note</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(data.deposit_refunds ?? []).length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 italic">No deposit refunds on this date.</td>
+                                                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)] italic">No deposit refunds on this date.</td>
                                             </tr>
                                         ) : (
                                             (data.deposit_refunds ?? []).map((row, idx) => (
-                                                <tr key={`${row.reservation_id}-${row.paid_at ?? idx}`} className="border-b border-slate-100">
-                                                    <td className="px-4 py-2.5 font-medium text-slate-700">{row.booking_code}</td>
-                                                    <td className="px-4 py-2.5 text-slate-600">{row.guest_name}</td>
-                                                    <td className="px-4 py-2.5 text-slate-600">{row.room_number || "-"}</td>
-                                                    <td className="px-4 py-2.5 text-slate-600 uppercase">{row.method}</td>
-                                                    <td className="px-4 py-2.5 text-right font-medium text-slate-700">{fmtMoney(row.amount)}</td>
-                                                    <td className="px-4 py-2.5 text-slate-500">{row.note || "-"}</td>
+                                                <tr key={`${row.reservation_id}-${row.paid_at ?? idx}`} className="border-b border-[var(--border-subtle)]">
+                                                    <td className="px-4 py-2.5 font-medium text-[var(--text-table-cell)]">{row.booking_code}</td>
+                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{row.guest_name}</td>
+                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{row.room_number || "-"}</td>
+                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)] uppercase">{row.method}</td>
+                                                    <td className="px-4 py-2.5 text-right font-medium text-[var(--text-table-cell)]">{fmtMoney(row.amount)}</td>
+                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{row.note || "-"}</td>
                                                 </tr>
                                             ))
                                         )}

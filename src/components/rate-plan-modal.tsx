@@ -500,10 +500,10 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           <p className="-mt-2 text-xs text-rose-600">Valid until must be after valid from.</p>
         )}
 
-        <div className="rounded-xl border border-slate-200 p-3">
+        <div className="rounded-xl border border-[var(--border-default)] p-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-slate-700">Applicable Room Types</p>
-            <label className="flex items-center gap-2 text-xs text-slate-600">
+            <p className="text-sm font-semibold text-[var(--text-table-cell)]">Applicable Room Types</p>
+            <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
               <input
                 type="checkbox"
                 checked={form.apply_all}
@@ -516,10 +516,10 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           {!form.apply_all && (
             <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
               {loadingRoomTypes ? (
-                <p className="text-xs text-slate-500">Loading room types...</p>
+                <p className="text-xs text-[var(--text-secondary)]">Loading room types...</p>
               ) : (
                 roomTypes.map((roomType) => (
-                  <label key={roomType.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <label key={roomType.id} className="flex items-center gap-2 text-sm text-[var(--text-table-cell)]">
                     <input
                       type="checkbox"
                       checked={form.apply_to_room_types.includes(roomType.id)}
@@ -533,14 +533,14 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+        <div className="rounded-xl border border-[var(--border-default)] p-3 space-y-3">
           <div>
-            <p className="text-sm font-semibold text-slate-700">Guest Tiers</p>
-            <p className="text-xs text-slate-500 mt-1">Exact match rule. Select the tiers that can access this rate plan.</p>
+            <p className="text-sm font-semibold text-[var(--text-table-cell)]">Guest Tiers</p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">Exact match rule. Select the tiers that can access this rate plan.</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {(["loyal", "vip", "longest"] as TierCode[]).map((tierCode) => (
-              <label key={tierCode} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <label key={tierCode} className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-table-cell)]">
                 <input
                   type="checkbox"
                   checked={form.tier_codes.includes(tierCode)}
@@ -552,10 +552,10 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+        <div className="rounded-xl border border-[var(--border-default)] p-3 space-y-3">
           <div>
-            <p className="text-sm font-semibold text-slate-700">Special Guests</p>
-            <p className="text-xs text-slate-500 mt-1">Search guest profiles by name, phone, or member number. Draft and verified profiles are both allowed.</p>
+            <p className="text-sm font-semibold text-[var(--text-table-cell)]">Special Guests</p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">Search guest profiles by name, phone, or member number. Draft and verified profiles are both allowed.</p>
           </div>
 
           <div>
@@ -569,15 +569,15 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           </div>
 
           {profileQuery.trim().length > 0 && profileQuery.trim().length < 3 && (
-            <p className="text-xs text-slate-500">Type at least 3 characters to search.</p>
+            <p className="text-xs text-[var(--text-secondary)]">Type at least 3 characters to search.</p>
           )}
 
           {searchingProfiles && (
-            <p className="text-xs text-slate-500">Searching profiles...</p>
+            <p className="text-xs text-[var(--text-secondary)]">Searching profiles...</p>
           )}
 
           {!searchingProfiles && profileResults.length > 0 && (
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200">
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-[var(--border-default)]">
               {profileResults.map((profile) => {
                 const fullName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Unnamed profile";
                 const alreadySelected = form.profile_ids.includes(profile.id);
@@ -585,13 +585,13 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
                   <button
                     key={profile.id}
                     type="button"
-                    className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50 disabled:opacity-60"
+                    className="flex w-full items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2 text-left text-sm last:border-b-0 hover:bg-[var(--bg-body)] disabled:opacity-60"
                     onClick={() => addProfile(profile)}
                     disabled={alreadySelected}
                   >
                     <span>
                       <span className="font-medium text-slate-800">{fullName}</span>
-                      <span className="ml-2 text-xs text-slate-500">
+                      <span className="ml-2 text-xs text-[var(--text-secondary)]">
                         {profile.member_no ? `#${profile.member_no}` : profile.profile_status ?? "guest"}
                       </span>
                     </span>
@@ -605,18 +605,18 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           )}
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Selected Profiles</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Selected Profiles</p>
             {selectedProfiles.length === 0 ? (
-              <p className="text-sm text-slate-500">No special guest profiles selected. This rate plan will rely on public or tier access only.</p>
+              <p className="text-sm text-[var(--text-secondary)]">No special guest profiles selected. This rate plan will rely on public or tier access only.</p>
             ) : (
               <div className="space-y-2">
                 {selectedProfiles.map((profile) => {
                   const fullName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Unnamed profile";
                   return (
-                    <div key={profile.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <div key={profile.id} className="flex items-center justify-between rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm">
                       <div>
                         <p className="font-medium text-slate-800">{fullName}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-[var(--text-secondary)]">
                           {profile.member_no ? `#${profile.member_no} · ` : ""}
                           {profile.profile_status ?? "guest"}
                         </p>
@@ -636,7 +636,7 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
           </div>
         </div>
 
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        <div className="rounded-xl border border-dashed border-[var(--border-input)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
           Access summary:{" "}
           {form.profile_ids.length > 0
             ? `Special: ${form.profile_ids.length} profile${form.profile_ids.length === 1 ? "" : "s"}`
@@ -645,7 +645,7 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
               : "Public"}
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-[var(--text-table-cell)]">
           <input
             type="checkbox"
             checked={form.is_active}

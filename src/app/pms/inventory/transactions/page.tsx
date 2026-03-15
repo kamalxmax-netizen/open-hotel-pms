@@ -41,7 +41,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
     transfer_in: { label: "Transfer In", color: "bg-emerald-100 text-emerald-700" },
     sale: { label: "POS Sale", color: "bg-brand-100 text-brand-700" },
     receive: { label: "Received", color: "bg-green-100 text-green-700" },
-    adjust: { label: "Adjusted", color: "bg-slate-100 text-slate-700" },
+    adjust: { label: "Adjusted", color: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]" },
     return: { label: "Returned", color: "bg-purple-100 text-purple-700" },
 };
 
@@ -131,7 +131,7 @@ export default function TransactionsPage() {
             <div className="mb-6">
                 <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Inventory</p>
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900">Transaction History</h1>
+                    <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Transaction History</h1>
                     <Button variant="outline" size="sm" onClick={fetchTransactions} disabled={isLoading}>
                         <RefreshCwIcon className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : ""}`} />
                         Refresh
@@ -143,7 +143,7 @@ export default function TransactionsPage() {
             <div className="card p-4 mb-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 uppercase">From</label>
+                        <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">From</label>
                         <Input
                             type="date"
                             value={dateFrom}
@@ -152,7 +152,7 @@ export default function TransactionsPage() {
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 uppercase">To</label>
+                        <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">To</label>
                         <Input
                             type="date"
                             value={dateTo}
@@ -161,11 +161,11 @@ export default function TransactionsPage() {
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 uppercase">Action</label>
+                        <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Action</label>
                         <select
                             value={actionFilter}
                             onChange={(e) => setActionFilter(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                         >
                             <option value="">All Actions</option>
                             <option value="use">Used (HK)</option>
@@ -178,11 +178,11 @@ export default function TransactionsPage() {
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 uppercase">Floor</label>
+                        <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor</label>
                         <select
                             value={floorFilter}
                             onChange={(e) => setFloorFilter(e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                         >
                             <option value="">All Floors</option>
                             <option value="1">Floor 1</option>
@@ -191,7 +191,7 @@ export default function TransactionsPage() {
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 uppercase">Search</label>
+                        <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Search</label>
                         <div className="relative mt-1">
                             <Input
                                 placeholder="Product, room, staff..."
@@ -203,7 +203,7 @@ export default function TransactionsPage() {
                 </div>
                 {/* Active filters count */}
                 <div className="flex items-center gap-2 mt-3">
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-[var(--text-muted)]">
                         Showing {filteredTx.length} of {totalCount} records
                         {(actionFilter || floorFilter) && " (filtered)"}
                     </p>
@@ -215,22 +215,22 @@ export default function TransactionsPage() {
                 {isLoading ? (
                     <div className="p-4 space-y-3">
                         {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="animate-pulse rounded-lg bg-slate-100 h-12" />
+                            <div key={i} className="animate-pulse rounded-lg bg-[var(--bg-muted)] h-12" />
                         ))}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Date/Time</th>
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Product</th>
-                                    <th className="text-center text-xs font-semibold text-slate-500 uppercase px-4 py-3">Action</th>
-                                    <th className="text-right text-xs font-semibold text-slate-500 uppercase px-4 py-3">Qty</th>
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">From / To</th>
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Room</th>
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">By</th>
-                                    <th className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">Note</th>
+                                <tr className="border-b border-[var(--border-subtle)]">
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Date/Time</th>
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Product</th>
+                                    <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Action</th>
+                                    <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Qty</th>
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">From / To</th>
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Room</th>
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">By</th>
+                                    <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Note</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -238,12 +238,12 @@ export default function TransactionsPage() {
                                     const actionInfo = ACTION_LABELS[tx.action] ?? { label: tx.action, color: "bg-slate-100 text-slate-600" };
                                     const isNegative = tx.quantity_change < 0;
                                     return (
-                                        <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                                        <tr key={tx.id} className="hover:bg-[var(--bg-body)] transition-colors">
+                                            <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">
                                                 {formatThaiDate(tx.created_at)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <p className="text-sm font-medium text-slate-900">{tx.product_name ?? "—"}</p>
+                                                <p className="text-sm font-medium text-[var(--text-primary)]">{tx.product_name ?? "—"}</p>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${actionInfo.color}`}>
@@ -256,19 +256,19 @@ export default function TransactionsPage() {
                                                     {isNegative ? tx.quantity_change : `+${tx.quantity_change}`}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-slate-500">
+                                            <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
                                                 {tx.from_location && tx.to_location
                                                     ? `${tx.from_location} → ${tx.to_location}`
                                                     : tx.from_location ?? tx.to_location ?? "—"
                                                 }
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                            <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
                                                 {tx.room_number ?? "—"}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                            <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
                                                 {tx.performed_by ?? "—"}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-slate-400 max-w-[200px] truncate" title={tx.note ?? ""}>
+                                            <td className="px-4 py-3 text-sm text-[var(--text-muted)] max-w-[200px] truncate" title={tx.note ?? ""}>
                                                 {tx.note ?? "—"}
                                             </td>
                                         </tr>
@@ -276,7 +276,7 @@ export default function TransactionsPage() {
                                 })}
                                 {filteredTx.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="text-center py-12 text-slate-400">
+                                        <td colSpan={8} className="text-center py-12 text-[var(--text-muted)]">
                                             <ListIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                             <p className="text-sm">No transactions found</p>
                                         </td>
@@ -289,8 +289,8 @@ export default function TransactionsPage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-                        <p className="text-xs text-slate-400">
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-subtle)]">
+                        <p className="text-xs text-[var(--text-muted)]">
                             Page {page + 1} of {totalPages}
                         </p>
                         <div className="flex gap-2">

@@ -230,8 +230,8 @@ export default function ArrivalsPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Arrivals</h1>
-                    <p className="text-sm text-slate-500 mt-1">{today}</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Arrivals</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">{today}</p>
                 </div>
                 <div className="flex gap-2 flex-wrap items-center">
                     <div className="relative min-w-[260px]">
@@ -266,7 +266,7 @@ export default function ArrivalsPage() {
             {loading && (
                 <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-200" />
+                        <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--bg-muted)]" />
                     ))}
                 </div>
             )}
@@ -275,30 +275,30 @@ export default function ArrivalsPage() {
             {!loading && arrivals.length === 0 && !error && (
                 <div className="card p-12 text-center">
                     <p className="text-3xl mb-3">🎉</p>
-                    <p className="text-slate-500 font-medium">No arrivals today</p>
-                    <p className="text-slate-400 text-sm mt-1">All caught up!</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No arrivals today</p>
+                    <p className="text-[var(--text-muted)] text-sm mt-1">All caught up!</p>
                 </div>
             )}
 
             {!loading && arrivals.length > 0 && filteredArrivals.length === 0 && (
                 <div className="card p-12 text-center">
-                    <p className="text-slate-500 font-medium">No arrivals match this search</p>
-                    <p className="text-slate-400 text-sm mt-1">Try guest name, phone, booking code, or OTA ref.</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No arrivals match this search</p>
+                    <p className="text-[var(--text-muted)] text-sm mt-1">Try guest name, phone, booking code, or OTA ref.</p>
                 </div>
             )}
 
             {/* Summary bar */}
             {!loading && arrivals.length > 0 && filteredArrivals.length > 0 && (
                 <div className="flex items-center gap-4 text-sm">
-                    <span className="font-semibold text-slate-700">{filteredArrivals.length} arrival{filteredArrivals.length !== 1 ? "s" : ""}</span>
+                    <span className="font-semibold text-[var(--text-table-cell)]">{filteredArrivals.length} arrival{filteredArrivals.length !== 1 ? "s" : ""}</span>
                     {filteredArrivals.length !== arrivals.length && (
                         <>
-                            <span className="text-slate-400">/ {arrivals.length} total</span>
+                            <span className="text-[var(--text-muted)]">/ {arrivals.length} total</span>
                         </>
                     )}
-                    <span className="text-slate-400">·</span>
+                    <span className="text-[var(--text-muted)]">·</span>
                     <span className="text-emerald-600 font-semibold">{filteredArrivals.filter((a) => doneIds.has(a.id)).length} checked in</span>
-                    <span className="text-slate-400">·</span>
+                    <span className="text-[var(--text-muted)]">·</span>
                     <span className="text-amber-600 font-semibold">{filteredArrivals.filter((a) => !doneIds.has(a.id)).length} waiting</span>
                 </div>
             )}
@@ -326,15 +326,15 @@ export default function ArrivalsPage() {
                                 return (
                                     <tr
                                         key={a.id}
-                                        className={done ? "opacity-50 bg-slate-50 [&>td]:bg-slate-50" : isNoShow ? "bg-slate-50 [&>td]:bg-slate-50" : loyaltyVisual.rowClass}
+                                        className={done ? "opacity-50 bg-[var(--bg-body)] [&>td]:bg-[var(--bg-body)]" : isNoShow ? "bg-[var(--bg-body)] [&>td]:bg-[var(--bg-body)]" : loyaltyVisual.rowClass}
                                     >
                                         <td>
-                                            <div className="font-bold text-slate-900">Room {a.room_number}</div>
-                                            <div className="text-xs text-slate-400">{a.room_type}</div>
+                                            <div className="font-bold text-[var(--text-primary)]">Room {a.room_number}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">{a.room_type}</div>
                                         </td>
                                         <td>
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <div className="font-semibold text-slate-800 min-w-0 flex-1 truncate" title={a.guest_name}>
+                                                <div className="font-semibold text-[var(--text-primary)] min-w-0 flex-1 truncate" title={a.guest_name}>
                                                     {a.guest_name}
                                                 </div>
                                                 {a.booking_group_id && (
@@ -367,26 +367,26 @@ export default function ArrivalsPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            {a.phone && <div className="text-xs text-slate-400">{a.phone}</div>}
+                                            {a.phone && <div className="text-xs text-[var(--text-muted)]">{a.phone}</div>}
                                         </td>
                                         <td>
-                                            <span className={`badge ${SOURCE_COLOR[a.source] ?? "bg-slate-100 text-slate-600"}`}>
+                                            <span className={`badge ${SOURCE_COLOR[a.source] ?? "bg-[var(--bg-muted)] text-[var(--text-secondary)]"}`}>
                                                 {SOURCE_LABEL[a.source] ?? a.source}
                                             </span>
                                         </td>
                                         <td>
                                             <div className="text-sm">{a.checkin_date}</div>
-                                            <div className="text-xs text-slate-400">→ {a.checkout_date} ({a.nights}N)</div>
+                                            <div className="text-xs text-[var(--text-muted)]">→ {a.checkout_date} ({a.nights}N)</div>
                                         </td>
                                         <td>
                                             {a.checkin_time ? (
                                                 <span className="text-sm font-semibold text-amber-700">{a.checkin_time}</span>
                                             ) : (
-                                                <span className="text-xs text-slate-400">—</span>
+                                                <span className="text-xs text-[var(--text-muted)]">—</span>
                                             )}
                                         </td>
                                         <td>
-                                            <span className="font-semibold text-slate-800">฿{fmt(a.total_price)}</span>
+                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(a.total_price)}</span>
                                         </td>
                                         <td>
                                             {done ? (
@@ -395,7 +395,7 @@ export default function ArrivalsPage() {
                                                     <button className="btn btn-secondary btn-sm" onClick={() => setOptionsArrival(a)}>⋯ Options</button>
                                                 </div>
                                             ) : isNoShow ? (
-                                                <span className="badge bg-slate-100 text-slate-500">No-Show</span>
+                                                <span className="badge bg-[var(--bg-muted)] text-[var(--text-secondary)]">No-Show</span>
                                             ) : (
                                                 <div className="flex gap-1">
                                                     {a.room_number === "—" ? (
@@ -423,7 +423,7 @@ export default function ArrivalsPage() {
                                                     )}
                                                     <button className="btn btn-secondary btn-sm" onClick={() => setOptionsArrival(a)}>⋯ Options</button>
                                                     <button
-                                                        className="btn btn-ghost btn-sm text-slate-400 hover:text-rose-600"
+                                                        className="btn btn-ghost btn-sm text-[var(--text-muted)] hover:text-rose-600"
                                                         onClick={() => handleNoShow(a)}
                                                         title="Mark as No-Show"
                                                     >
@@ -538,27 +538,27 @@ export default function ArrivalsPage() {
             {/* Mark No-Show Dialog */}
             {markNoShowArrival && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+                    <div className="w-full max-w-sm rounded-xl bg-[var(--bg-surface)] p-6 shadow-lg">
                         <h3 className="text-lg font-bold text-rose-700 mb-2">Mark as No-Show?</h3>
                         <div className="mb-6 space-y-3">
-                            <p className="text-sm text-slate-600">
-                                Enter charge amount for <span className="font-semibold text-slate-900">{markNoShowArrival.guest_name}</span>. Default is 0 (no charge).
+                            <p className="text-sm text-[var(--text-secondary)]">
+                                Enter charge amount for <span className="font-semibold text-[var(--text-primary)]">{markNoShowArrival.guest_name}</span>. Default is 0 (no charge).
                             </p>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Charge Amount (THB)</label>
+                                <label className="block text-xs font-semibold text-[var(--text-table-cell)] mb-1">Charge Amount (THB)</label>
                                 <input
                                     type="number"
                                     min={0}
                                     step="0.01"
-                                    className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white"
+                                    className="w-full rounded-lg border border-[var(--border-input)] p-2 text-sm bg-[var(--bg-surface)]"
                                     value={chargeAmountInput}
                                     onChange={(e) => setChargeAmountInput(e.target.value)}
                                     disabled={actionLoading}
                                 />
                             </div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Charge From</label>
+                            <label className="block text-xs font-semibold text-[var(--text-table-cell)] mb-1">Charge From</label>
                             <select
-                                className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white"
+                                className="w-full rounded-lg border border-[var(--border-input)] p-2 text-sm bg-[var(--bg-surface)]"
                                 value={paymentMethod}
                                 onChange={(e) => setPaymentMethod(e.target.value as NoShowPaymentMethod)}
                                 disabled={actionLoading}
@@ -573,7 +573,7 @@ export default function ArrivalsPage() {
                             <button
                                 onClick={() => setMarkNoShowArrival(null)}
                                 disabled={actionLoading}
-                                className="w-full sm:w-auto justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                className="w-full sm:w-auto justify-center rounded-lg border border-[var(--border-input)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-60"
                             >
                                 Cancel
                             </button>

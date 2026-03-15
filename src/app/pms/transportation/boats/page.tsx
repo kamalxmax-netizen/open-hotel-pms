@@ -89,10 +89,10 @@ function Field({ label, value, onChange, placeholder, type = "text", textarea = 
     label: string; value: string; onChange: (v: string) => void;
     placeholder?: string; type?: string; textarea?: boolean; required?: boolean; invalid?: boolean;
 }) {
-    const cls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    const cls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     return (
         <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">{label}{required && " *"}</label>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">{label}{required && " *"}</label>
             {textarea
                 ? <textarea rows={2} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cls} required={required} aria-invalid={invalid} />
                 : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cls} required={required} aria-invalid={invalid} />
@@ -113,7 +113,7 @@ function DepartureTimesInput({ times, onChange, invalid = false }: { times: stri
     }
     return (
         <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Departure Times *</label>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Departure Times *</label>
             <div
                 className={`flex flex-wrap gap-1 mb-2 rounded-md border px-2 py-1 min-h-9 ${
                     invalid ? "border-rose-300 bg-rose-50" : "border-transparent"
@@ -126,13 +126,13 @@ function DepartureTimesInput({ times, onChange, invalid = false }: { times: stri
                         <button type="button" onClick={() => onChange(times.filter(x => x !== t))} className="text-blue-500 hover:text-red-500 ml-0.5">×</button>
                     </span>
                 ))}
-                {times.length === 0 && <span className="text-xs text-slate-400 italic">No times added yet</span>}
+                {times.length === 0 && <span className="text-xs text-[var(--text-muted)] italic">No times added yet</span>}
             </div>
             <div className="flex gap-2">
                 <input type="text" placeholder="HH:MM (e.g. 07:30)" value={input} onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), add())}
-                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500" />
-                <button type="button" onClick={add} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200">Add</button>
+                    className="flex-1 px-3 py-1.5 border border-[var(--border-input)] rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                <button type="button" onClick={add} className="px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg text-sm hover:bg-slate-200">Add</button>
             </div>
             {invalid && <p className="text-xs text-rose-600 mt-1">At least one departure time is required.</p>}
         </div>
@@ -181,8 +181,8 @@ function CompanyModal({ initial, onClose, onSave }: {
 
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-                <h2 className="text-lg font-bold text-slate-900 mb-5">{initial ? "Edit Company" : "Add Boat Company"}</h2>
+            <form onSubmit={handleSubmit} className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-[var(--text-primary)] mb-5">{initial ? "Edit Company" : "Add Boat Company"}</h2>
                 {error && <p className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
                 <div className="space-y-3">
                     <Field label="Company Name" required invalid={showValidation && !name.trim()} value={name} onChange={setName} placeholder="e.g. Lomprayah" />
@@ -197,7 +197,7 @@ function CompanyModal({ initial, onClose, onSave }: {
                     <Field label="Notes" value={notes} onChange={setNotes} placeholder="Internal notes" textarea />
                 </div>
                 <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">Cancel</button>
                     <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-60">
                         {saving ? "Saving…" : "Save"}
                     </button>
@@ -231,24 +231,24 @@ function PierManager({ company, onUpdate }: { company: BoatCompany; onUpdate: ()
 
     return (
         <div className="mt-3 pl-4 border-l-2 border-blue-200">
-            <p className="text-xs font-semibold text-slate-500 mb-2">PIERS</p>
+            <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">PIERS</p>
             <div className="space-y-1 mb-3">
-                {company.piers.length === 0 && <p className="text-xs text-slate-400 italic">No piers yet</p>}
+                {company.piers.length === 0 && <p className="text-xs text-[var(--text-muted)] italic">No piers yet</p>}
                 {company.piers.map(p => (
                     <div key={p.id} className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-600">⚓ {p.name}</span>
-                        {p.location_note && <span className="text-slate-400 text-xs">({p.location_note})</span>}
+                        <span className="text-[var(--text-secondary)]">⚓ {p.name}</span>
+                        {p.location_note && <span className="text-[var(--text-muted)] text-xs">({p.location_note})</span>}
                     </div>
                 ))}
             </div>
             <form onSubmit={addPier} className="flex gap-2">
                 <input type="text" placeholder="Pier name *" value={addName} onChange={e => setAddName(e.target.value)}
-                    className="flex-1 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 px-2 py-1 border border-[var(--border-input)] rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
                     required
                     aria-invalid={showValidation && !addName.trim()}
                 />
                 <input type="text" placeholder="Notes" value={addNote} onChange={e => setAddNote(e.target.value)}
-                    className="w-32 px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500" />
+                    className="w-32 px-2 py-1 border border-[var(--border-input)] rounded-lg text-xs focus:ring-1 focus:ring-blue-500" />
                 <button type="submit" disabled={saving} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs hover:bg-blue-200 disabled:opacity-60">
                     {saving ? "…" : "+Add"}
                 </button>
@@ -326,18 +326,18 @@ function RouteModal({ initial, companies, onClose, onSave, defaultCompanyId }: {
         } finally { setSaving(false); }
     }
 
-    const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    const inputCls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <h2 className="text-lg font-bold text-slate-900 mb-5">{initial ? "Edit Route" : "Add Route"}</h2>
+            <form onSubmit={handleSubmit} className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-[var(--text-primary)] mb-5">{initial ? "Edit Route" : "Add Route"}</h2>
                 {error && <p className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
                 <div className="space-y-4">
                     {/* Company */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Company *</label>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Company *</label>
                         <select
                             value={companyId}
                             onChange={e => { setCompanyId(e.target.value); setDeparturePierId(""); }}
@@ -357,13 +357,13 @@ function RouteModal({ initial, companies, onClose, onSave, defaultCompanyId }: {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Boat Type</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Boat Type</label>
                             <select value={boatType} onChange={e => setBoatType(e.target.value)} className={inputCls}>
                                 {["speedboat", "ferry", "catamaran", "longtail", "private", "other"].map(t => <option key={t}>{t}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Departure Pier</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Departure Pier</label>
                             <select value={departurePierId} onChange={e => setDeparturePierId(e.target.value)} className={inputCls} disabled={piers.length === 0}>
                                 <option value="">{piers.length === 0 ? "— No piers on file —" : "— Any pier —"}</option>
                                 {piers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -385,7 +385,7 @@ function RouteModal({ initial, companies, onClose, onSave, defaultCompanyId }: {
 
                     <div className="flex items-center gap-3 py-2">
                         <input type="checkbox" id="includes_pickup" checked={includesPickup} onChange={e => setIncludesPickup(e.target.checked)} className="rounded" />
-                        <label htmlFor="includes_pickup" className="text-sm text-slate-600">Includes hotel pickup</label>
+                        <label htmlFor="includes_pickup" className="text-sm text-[var(--text-secondary)]">Includes hotel pickup</label>
                         {includesPickup && (
                             <div className="ml-auto">
                                 <Field label="Pickup Fee ฿ (extra)" value={pickupFee} onChange={setPickupFee} placeholder="0" type="number" />
@@ -400,7 +400,7 @@ function RouteModal({ initial, companies, onClose, onSave, defaultCompanyId }: {
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">Cancel</button>
                     <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-60">
                         {saving ? "Saving…" : "Save Route"}
                     </button>
@@ -509,8 +509,8 @@ export default function BoatTicketsPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">⛵ Boat Tickets & Timetable</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage companies, piers, routes, and schedules</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">⛵ Boat Tickets & Timetable</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Manage companies, piers, routes, and schedules</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {viewTab === "timetable" ? (
@@ -526,10 +526,10 @@ export default function BoatTicketsPage() {
             </div>
 
             {/* View tabs */}
-            <div className="flex gap-1 mb-6 bg-slate-100 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 mb-6 bg-[var(--bg-muted)] rounded-xl p-1 w-fit">
                 {([["timetable", "📅 Timetable"], ["companies", "🏢 Companies"]] as [ViewTab, string][]).map(([t, label]) => (
                     <button key={t} onClick={() => setViewTab(t)}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${viewTab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${viewTab === t ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"}`}>
                         {label}
                     </button>
                 ))}
@@ -550,66 +550,66 @@ export default function BoatTicketsPage() {
                     {/* Company filter */}
                     <div>
                         <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)}
-                            className="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 w-56">
+                            className="px-3 py-2 border border-[var(--border-input)] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 w-56">
                             <option value="">All Companies</option>
                             {companies.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
 
                     {Object.keys(grouped).length === 0 ? (
-                        <div className="text-center py-20 text-slate-400">
+                        <div className="text-center py-20 text-[var(--text-muted)]">
                             <p className="text-lg">No routes configured</p>
                             <button onClick={() => setRouteModal({ open: true })} className="mt-2 text-blue-600 text-sm">Add the first route →</button>
                         </div>
                     ) : Object.entries(grouped).map(([companyId, { company, routes: compRoutes }]) => (
-                        <div key={companyId} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                            <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-slate-200">
+                        <div key={companyId} className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
+                            <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-[var(--border-default)]">
                                 <h2 className="text-base font-bold text-blue-900">⛵ {company?.name ?? "Unknown Company"}</h2>
                                 <button onClick={() => setRouteModal({ open: true, defaultCompanyId: companyId })}
                                     className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ Add Route</button>
                             </div>
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200">
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Route</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Pier</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Type</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Departures</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Duration</th>
-                                        <th className="px-4 py-2 text-right font-semibold text-slate-600">Ticket ฿</th>
-                                        <th className="px-4 py-2 text-right font-semibold text-slate-600">Cost ฿</th>
-                                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Pickup</th>
-                                        <th className="px-4 py-2 text-center font-semibold text-slate-600">Actions</th>
+                                    <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Route</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Pier</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Type</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Departures</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Duration</th>
+                                        <th className="px-4 py-2 text-right font-semibold text-[var(--text-secondary)]">Ticket ฿</th>
+                                        <th className="px-4 py-2 text-right font-semibold text-[var(--text-secondary)]">Cost ฿</th>
+                                        <th className="px-4 py-2 text-left font-semibold text-[var(--text-secondary)]">Pickup</th>
+                                        <th className="px-4 py-2 text-center font-semibold text-[var(--text-secondary)]">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {compRoutes.map(r => (
-                                        <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                        <tr key={r.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)] transition-colors">
                                             <td className="px-4 py-3">
-                                                <p className="font-medium text-slate-900">{r.origin}</p>
-                                                <p className="text-xs text-slate-400">→ {r.destination}</p>
+                                                <p className="font-medium text-[var(--text-primary)]">{r.origin}</p>
+                                                <p className="text-xs text-[var(--text-muted)]">→ {r.destination}</p>
                                             </td>
-                                            <td className="px-4 py-3 text-slate-500 text-xs">{r.departure_pier_name ?? "—"}</td>
+                                            <td className="px-4 py-3 text-[var(--text-secondary)] text-xs">{r.departure_pier_name ?? "—"}</td>
                                             <td className="px-4 py-3">
                                                 <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{r.boat_type}</span>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1">
                                                     {(r.departure_times ?? []).map(t => (
-                                                        <span key={t} className="inline-flex px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-xs">{t}</span>
+                                                        <span key={t} className="inline-flex px-1.5 py-0.5 rounded bg-[var(--bg-muted)] text-[var(--text-table-cell)] font-mono text-xs">{t}</span>
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-slate-500 text-xs">{r.duration_minutes ? `${r.duration_minutes}m` : "—"}</td>
+                                            <td className="px-4 py-3 text-[var(--text-secondary)] text-xs">{r.duration_minutes ? `${r.duration_minutes}m` : "—"}</td>
                                             <td className="px-4 py-3 text-right font-mono text-sm">{r.ticket_price != null ? r.ticket_price.toLocaleString() : "—"}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">{r.cost_price != null ? r.cost_price.toLocaleString() : "—"}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-sm text-[var(--text-muted)]">{r.cost_price != null ? r.cost_price.toLocaleString() : "—"}</td>
                                             <td className="px-4 py-3 text-xs">
                                                 {r.includes_pickup ? <span className="text-green-600">✓{r.pickup_fee ? ` +฿${r.pickup_fee}` : ""}</span> : <span className="text-slate-300">No</span>}
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <button onClick={() => setRouteModal({ open: true, editing: r })}
-                                                        className="px-2 py-1 text-xs border border-slate-300 rounded-lg hover:bg-slate-50">Edit</button>
+                                                        className="px-2 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">Edit</button>
                                                     <button onClick={() => deactivateRoute(r.id)}
                                                         className="px-2 py-1 text-xs border border-red-200 text-red-500 rounded-lg hover:bg-red-50">Disable</button>
                                                 </div>
@@ -625,16 +625,16 @@ export default function BoatTicketsPage() {
                 /* ── Companies view ── */
                 <div className="space-y-4">
                     {companies.length === 0 ? (
-                        <div className="text-center py-20 text-slate-400">
+                        <div className="text-center py-20 text-[var(--text-muted)]">
                             <p className="text-lg">No companies yet</p>
                             <button onClick={() => setCompanyModal({ open: true })} className="mt-2 text-blue-600 text-sm">Add the first company →</button>
                         </div>
                     ) : companies.map(c => (
-                        <div key={c.id} className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${!c.is_active ? "opacity-60" : ""}`}>
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                        <div key={c.id} className={`bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-sm overflow-hidden ${!c.is_active ? "opacity-60" : ""}`}>
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)]">
                                 <div>
-                                    <h3 className="font-bold text-slate-900">{c.name}</h3>
-                                    <div className="flex gap-4 mt-1 text-xs text-slate-400">
+                                    <h3 className="font-bold text-[var(--text-primary)]">{c.name}</h3>
+                                    <div className="flex gap-4 mt-1 text-xs text-[var(--text-muted)]">
                                         {c.contact_phone && <span>📞 {c.contact_phone}</span>}
                                         {c.contact_line && <span>LINE: {c.contact_line}</span>}
                                         {c.contact_whatsapp && <span>WA: {c.contact_whatsapp}</span>}
@@ -646,7 +646,7 @@ export default function BoatTicketsPage() {
                                         {c.is_active ? "Active" : "Inactive"}
                                     </span>
                                     <button onClick={() => setCompanyModal({ open: true, editing: c })}
-                                        className="px-3 py-1 text-xs border border-slate-300 rounded-lg hover:bg-slate-50">Edit</button>
+                                        className="px-3 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">Edit</button>
                                     <button onClick={() => setExpandedCompany(expandedCompany === c.id ? null : c.id)}
                                         className="px-3 py-1 text-xs border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50">
                                         {expandedCompany === c.id ? "Hide Piers" : `Piers (${c.piers.length})`}
@@ -658,7 +658,7 @@ export default function BoatTicketsPage() {
                                 </div>
                             </div>
                             {expandedCompany === c.id && (
-                                <div className="px-6 py-4 bg-slate-50">
+                                <div className="px-6 py-4 bg-[var(--bg-body)]">
                                     <PierManager company={c} onUpdate={fetchData} />
                                 </div>
                             )}

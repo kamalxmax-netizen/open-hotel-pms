@@ -86,17 +86,17 @@ export default function EarlyCheckinFeeModal({
                         id="noFeeEarly"
                         checked={noFee}
                         onChange={(e) => setNoFee(e.target.checked)}
-                        className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                        className="w-4 h-4 text-brand-600 rounded border-[var(--border-input)] focus:ring-brand-500"
                     />
-                    <label htmlFor="noFeeEarly" className="text-sm font-semibold text-slate-700 select-none cursor-pointer">
+                    <label htmlFor="noFeeEarly" className="text-sm font-semibold text-[var(--text-table-cell)] select-none cursor-pointer">
                         No fee (Waive early check-in charge)
                     </label>
                 </div>
 
                 {!noFee && (
-                    <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-fade-in">
+                    <div className="space-y-3 p-4 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg animate-fade-in">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Fee Amount (฿)
                             </label>
                             <input
@@ -112,13 +112,13 @@ export default function EarlyCheckinFeeModal({
                             {amountInvalid && (
                                 <div className="text-xs text-rose-600 mt-1">Fee amount must be greater than 0.</div>
                             )}
-                            <div className="text-xs text-slate-500 mt-1">
+                            <div className="text-xs text-[var(--text-secondary)] mt-1">
                                 Suggested: ฿{formatMoney(suggestedFee)}
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Payment Method
                             </label>
                             <select
@@ -133,7 +133,7 @@ export default function EarlyCheckinFeeModal({
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                                 Note
                             </label>
                             <input
@@ -147,9 +147,9 @@ export default function EarlyCheckinFeeModal({
                     </div>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-default)]">
                     <button
-                        className="btn bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                        className="btn bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]"
                         onClick={onClose}
                     >
                         Cancel

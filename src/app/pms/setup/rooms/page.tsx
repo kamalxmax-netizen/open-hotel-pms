@@ -73,7 +73,7 @@ const CONDITION_CATEGORIES = [
 ] as const;
 
 function qualityColor(score: number | null) {
-    if (!score) return "text-slate-400";
+    if (!score) return "text-[var(--text-muted)]";
     if (score >= 8) return "text-emerald-600";
     if (score >= 6) return "text-amber-500";
     return "text-rose-500";
@@ -219,14 +219,14 @@ function RoomCard({
     return (
         <div className="card overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-slate-100 bg-slate-50/80">
+            <div className="flex items-center gap-3 p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-body)]/80">
                 <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-lg text-slate-900">{room.room_number}</span>
-                        <span className="text-sm text-slate-500">·</span>
-                        <span className="text-sm text-slate-600">{room.room_type}</span>
+                        <span className="font-bold text-lg text-[var(--text-primary)]">{room.room_number}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">·</span>
+                        <span className="text-sm text-[var(--text-secondary)]">{room.room_type}</span>
                         {beds.length > 0 && (
-                            <span className="text-xs text-slate-400 ml-1">
+                            <span className="text-xs text-[var(--text-muted)] ml-1">
                                 🛏 {beds.map(b => `${b.quantity}×${BED_TYPES.find(bt => bt.code === b.bed_type_code)?.name ?? b.bed_type_code}`).join(", ")}
                             </span>
                         )}
@@ -242,7 +242,7 @@ function RoomCard({
                                 style={{ width: `${usagePct}%` }}
                             />
                         </div>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-[var(--text-secondary)]">
                             {room.total_nights} nights
                             {avgNights > 0 && (
                                 <span className={usageDiff > 0 ? "text-rose-500" : "text-emerald-500"}>
@@ -256,21 +256,21 @@ function RoomCard({
                 <div className="text-right">
                     <div className={`text-2xl font-bold ${qualityColor(computedScore)}`}>
                         {computedScore.toFixed(1)}
-                        <span className="text-xs font-normal text-slate-400">/10</span>
+                        <span className="text-xs font-normal text-[var(--text-muted)]">/10</span>
                     </div>
-                    <div className="text-xs text-slate-400">{qualityBadge(computedScore)} Quality</div>
+                    <div className="text-xs text-[var(--text-muted)]">{qualityBadge(computedScore)} Quality</div>
                 </div>
             </div>
 
             {/* Tab buttons */}
-            <div className="flex border-b border-slate-100">
+            <div className="flex border-b border-[var(--border-subtle)]">
                 {(["beds", "features", "condition", "amenity"] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setOpen(open === tab ? null : tab)}
                         className={`flex-1 py-2 text-xs font-semibold transition-colors ${open === tab
                             ? "bg-brand-50 text-brand-700 border-b-2 border-brand-500"
-                            : "text-slate-500 hover:bg-slate-50"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                             }`}
                     >
                         {tab === "beds" ? "🛏 Beds" : tab === "features" ? "✨ Features" : tab === "condition" ? "📊 Condition" : "💧 Amenity"}
@@ -281,7 +281,7 @@ function RoomCard({
             {/* ── Beds panel ── */}
             {open === "beds" && (
                 <div className="p-4 space-y-3">
-                    <p className="text-xs text-slate-500">เลือกประเภทเตียงและจำนวนในห้องนี้</p>
+                    <p className="text-xs text-[var(--text-secondary)]">เลือกประเภทเตียงและจำนวนในห้องนี้</p>
                     {BED_TYPES.map(bt => {
                         const existing = beds.find(b => b.bed_type_code === bt.code);
                         const checked = !!existing;
@@ -299,17 +299,17 @@ function RoomCard({
                                 />
                                 <label className="flex-1 text-sm font-medium text-slate-800">
                                     {bt.name}
-                                    <span className="text-xs text-slate-400 ml-1">({bt.width_ft} ft)</span>
+                                    <span className="text-xs text-[var(--text-muted)] ml-1">({bt.width_ft} ft)</span>
                                 </label>
                                 {checked && (
                                     <div className="flex items-center gap-1.5">
                                         <button
-                                            className="h-7 w-7 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-bold"
+                                            className="h-7 w-7 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)] text-sm font-bold"
                                             onClick={() => setBeds(prev => prev.map(b => b.bed_type_code === bt.code ? { ...b, quantity: Math.max(1, b.quantity - 1) } : b))}
                                         >−</button>
                                         <span className="w-6 text-center text-sm font-semibold">{existing?.quantity}</span>
                                         <button
-                                            className="h-7 w-7 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-bold"
+                                            className="h-7 w-7 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)] text-sm font-bold"
                                             onClick={() => setBeds(prev => prev.map(b => b.bed_type_code === bt.code ? { ...b, quantity: b.quantity + 1 } : b))}
                                         >+</button>
                                     </div>
@@ -331,7 +331,7 @@ function RoomCard({
                 <div className="p-4 space-y-4">
                     {Object.entries(featuresByCategory).map(([cat, feats]) => (
                         <div key={cat}>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{cat}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2">{cat}</div>
                             <div className="flex flex-wrap gap-2">
                                 {feats.map(f => {
                                     const has = localFeatures.includes(f.code);
@@ -341,7 +341,7 @@ function RoomCard({
                                             onClick={() => toggleFeature(f.code, has)}
                                             className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${has
                                                 ? "bg-brand-50 border-brand-200 text-brand-700"
-                                                : "border-slate-200 text-slate-500 hover:border-slate-300"
+                                                : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                                                 }`}
                                         >
                                             {has ? "✓ " : ""}{f.name}
@@ -359,10 +359,10 @@ function RoomCard({
                 <div className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                         <div>
-                            <p className="text-xs text-slate-500">
-                                Room type <span className="font-semibold text-slate-700">{room.room_type_code || "N/A"}</span>
+                            <p className="text-xs text-[var(--text-secondary)]">
+                                Room type <span className="font-semibold text-[var(--text-table-cell)]">{room.room_type_code || "N/A"}</span>
                             </p>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-[11px] text-[var(--text-muted)]">
                                 Amenity settings are managed by Room Type.
                             </p>
                         </div>
@@ -375,7 +375,7 @@ function RoomCard({
                     </div>
 
                     {roomAmenities.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
+                        <div className="rounded-lg border border-dashed border-[var(--border-input)] bg-[var(--bg-body)] p-4 text-xs text-[var(--text-secondary)]">
                             No amenity configured for this room type yet.
                         </div>
                     ) : (
@@ -388,18 +388,18 @@ function RoomCard({
                                     return acc;
                                 }, {} as Record<string, AmenityItem[]>)
                             ).map(([category, items]) => (
-                                <div key={category} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{category}</p>
+                                <div key={category} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)]/60 p-3">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">{category}</p>
                                     <div className="mt-2 space-y-1.5">
                                         {items.map((item) => (
-                                            <div key={`${category}-${item.item_name}`} className="flex items-center justify-between rounded-md border border-slate-100 bg-white px-2 py-1.5">
-                                                <span className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                                            <div key={`${category}-${item.item_name}`} className="flex items-center justify-between rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1.5">
+                                                <span className="text-sm font-medium text-[var(--text-table-cell)] flex items-center gap-1.5">
                                                     {item.item_name}
                                                     {item.product_id && (
                                                         <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
                                                     )}
                                                 </span>
-                                                <span className="text-xs font-bold text-slate-500">x{item.default_quantity}</span>
+                                                <span className="text-xs font-bold text-[var(--text-secondary)]">x{item.default_quantity}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -423,12 +423,12 @@ function RoomCard({
                         const catTemplates = deductTemplates.filter(t => t.category === cat.key);
 
                         return (
-                            <div key={cat.key} className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                            <div key={cat.key} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)]/50 p-3">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <span className="text-sm font-semibold text-slate-700 w-32">{cat.label}</span>
+                                    <span className="text-sm font-semibold text-[var(--text-table-cell)] w-32">{cat.label}</span>
                                     {/* Base score selector */}
                                     <select
-                                        className="text-xs border border-slate-200 rounded px-2 py-1 bg-white"
+                                        className="text-xs border border-[var(--border-default)] rounded px-2 py-1 bg-[var(--bg-surface)]"
                                         value={base}
                                         onChange={e => setDetail(prev => ({ ...prev, [cat.base_key]: Number(e.target.value) }))}
                                     >
@@ -436,7 +436,7 @@ function RoomCard({
                                             <option key={v} value={v}>Base {v}/5</option>
                                         ))}
                                     </select>
-                                    <span className="text-xs text-slate-400 flex-1">
+                                    <span className="text-xs text-[var(--text-muted)] flex-1">
                                         {deductTotal > 0 && <span className="text-rose-500">−{deductTotal} pts </span>}
                                     </span>
                                     <span className={`text-sm font-bold ${net >= 4 ? "text-emerald-600" : net >= 3 ? "text-amber-500" : "text-rose-500"}`}>
@@ -461,23 +461,23 @@ function RoomCard({
 
                                 {/* Add deduction */}
                                 {deductPicker === cat.key ? (
-                                    <div className="border border-slate-200 rounded-lg p-3 bg-white space-y-2">
-                                        <p className="text-xs font-semibold text-slate-600">เลือก Preset หรือพิมพ์ใหม่</p>
+                                    <div className="border border-[var(--border-default)] rounded-lg p-3 bg-[var(--bg-surface)] space-y-2">
+                                        <p className="text-xs font-semibold text-[var(--text-secondary)]">เลือก Preset หรือพิมพ์ใหม่</p>
                                         {catTemplates.length > 0 && (
                                             <div className="flex flex-wrap gap-1.5">
                                                 {catTemplates.map(t => (
                                                     <button
                                                         key={t.id}
                                                         onClick={() => addDeduction(cat.key, t.label, t.deduct_points, t.id)}
-                                                        className="text-xs px-2.5 py-1 rounded-full border border-slate-200 hover:border-brand-300 hover:bg-brand-50 transition-colors"
+                                                        className="text-xs px-2.5 py-1 rounded-full border border-[var(--border-default)] hover:border-brand-300 hover:bg-brand-50 transition-colors"
                                                     >
                                                         {t.label} (−{t.deduct_points})
                                                     </button>
                                                 ))}
                                             </div>
                                         )}
-                                        <div className="space-y-2 pt-1 border-t border-slate-100 mt-1">
-                                            <p className="text-xs text-slate-500">หรือพิมพ์รายการใหม่:</p>
+                                        <div className="space-y-2 pt-1 border-t border-[var(--border-subtle)] mt-1">
+                                            <p className="text-xs text-[var(--text-secondary)]">หรือพิมพ์รายการใหม่:</p>
                                             <input
                                                 className="form-input text-sm w-full"
                                                 placeholder="เช่น ผนังมีรอยแตก, พื้นลื่น..."
@@ -503,7 +503,7 @@ function RoomCard({
                                                     disabled={!customLabel.trim() || addingDeduct}
                                                     onClick={() => addDeduction(cat.key, customLabel.trim(), customPts)}
                                                 >{addingDeduct ? "..." : "เพิ่ม"}</button>
-                                                <button className="text-sm text-slate-400 hover:text-slate-600" onClick={() => { setDeductPicker(null); setCustomLabel(""); }}>ยกเลิก</button>
+                                                <button className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)]" onClick={() => { setDeductPicker(null); setCustomLabel(""); }}>ยกเลิก</button>
                                             </div>
                                         </div>
                                     </div>
@@ -553,9 +553,9 @@ function RoomCard({
                     </div>
 
                     {/* Quality preview + save */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-500">Quality Score:</span>
+                            <span className="text-sm text-[var(--text-secondary)]">Quality Score:</span>
                             <span className={`text-xl font-bold ${qualityColor(computedScore)}`}>
                                 {computedScore.toFixed(1)}/10
                             </span>
@@ -835,8 +835,8 @@ export default function RoomsSetupPage() {
             {/* Page header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Room Detail & Mapping</h1>
-                    <p className="text-slate-500 text-sm mt-0.5">Bed configuration, physical condition, and feature mapping for Auto-Assign scoring</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Room Detail & Mapping</h1>
+                    <p className="text-[var(--text-secondary)] text-sm mt-0.5">Bed configuration, physical condition, and feature mapping for Auto-Assign scoring</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
@@ -853,7 +853,7 @@ export default function RoomsSetupPage() {
                         onChange={e => setSearch(e.target.value)}
                     />
                     {/* Legend */}
-                    <div className="text-xs text-slate-400 space-x-3 hidden sm:flex">
+                    <div className="text-xs text-[var(--text-muted)] space-x-3 hidden sm:flex">
                         <span className="text-emerald-600 font-semibold">✅ 8–10</span>
                         <span className="text-amber-500 font-semibold">🟡 6–8</span>
                         <span className="text-rose-500 font-semibold">🔴 &lt;6</span>
@@ -870,8 +870,8 @@ export default function RoomsSetupPage() {
                         { label: "Avg Quality Score", value: (rooms.reduce((s, r) => s + (r.quality_score ?? 5), 0) / Math.max(rooms.length, 1)).toFixed(1) + "/10" },
                     ].map(stat => (
                         <div key={stat.label} className="card p-4">
-                            <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
-                            <div className="text-xs text-slate-500 mt-0.5">{stat.label}</div>
+                            <div className="text-2xl font-bold text-[var(--text-primary)]">{stat.value}</div>
+                            <div className="text-xs text-[var(--text-secondary)] mt-0.5">{stat.label}</div>
                         </div>
                     ))}
                 </div>
@@ -881,8 +881,8 @@ export default function RoomsSetupPage() {
                 <div className="card p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div>
-                            <h2 className="text-sm font-bold text-slate-900">Housekeeping Cleaning Time by Room Type</h2>
-                            <p className="text-xs text-slate-500">
+                            <h2 className="text-sm font-bold text-[var(--text-primary)]">Housekeeping Cleaning Time by Room Type</h2>
+                            <p className="text-xs text-[var(--text-secondary)]">
                                 Base cleaning time per room type. System adds maintenance minutes on top automatically in HK Dashboard and Maid App.
                             </p>
                         </div>
@@ -893,11 +893,11 @@ export default function RoomsSetupPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-slate-200">
-                                    <th className="text-left py-2 pr-2 font-semibold text-slate-500">Room Type</th>
-                                    <th className="text-left py-2 pr-2 font-semibold text-slate-500">Code</th>
-                                    <th className="text-left py-2 pr-2 font-semibold text-slate-500">Cleaning Duration (min)</th>
-                                    <th className="text-right py-2 font-semibold text-slate-500">Action</th>
+                                <tr className="border-b border-[var(--border-default)]">
+                                    <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Room Type</th>
+                                    <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Code</th>
+                                    <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Cleaning Duration (min)</th>
+                                    <th className="text-right py-2 font-semibold text-[var(--text-secondary)]">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -910,9 +910,9 @@ export default function RoomsSetupPage() {
                                     const isChanged = isValidDraft && parsedDraft !== row.cleaning_duration_min;
                                     const isSaving = timingSavingId === key;
                                     return (
-                                        <tr key={row.id} className="border-b border-slate-100">
+                                        <tr key={row.id} className="border-b border-[var(--border-subtle)]">
                                             <td className="py-2 pr-2 font-medium text-slate-800">{row.name_en || "Unknown"}</td>
-                                            <td className="py-2 pr-2 text-slate-600">{row.code || "—"}</td>
+                                            <td className="py-2 pr-2 text-[var(--text-secondary)]">{row.code || "—"}</td>
                                             <td className="py-2 pr-2">
                                                 <input
                                                     type="number"
@@ -947,7 +947,7 @@ export default function RoomsSetupPage() {
                                 })}
                                 {roomTypeTimings.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="py-4 text-xs text-slate-500">
+                                        <td colSpan={4} className="py-4 text-xs text-[var(--text-secondary)]">
                                             No room types found.
                                         </td>
                                     </tr>
@@ -993,16 +993,16 @@ export default function RoomsSetupPage() {
                         className="absolute inset-0 bg-slate-900/35"
                         onClick={() => setAmenitySidebarOpen(false)}
                     />
-                    <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl border-l border-slate-200 flex flex-col">
-                        <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+                    <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-[var(--bg-surface)] shadow-2xl border-l border-[var(--border-default)] flex flex-col">
+                        <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-start justify-between gap-3">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">Setup Amenity</h3>
-                                <p className="text-xs text-slate-500">
+                                <h3 className="text-lg font-bold text-[var(--text-primary)]">Setup Amenity</h3>
+                                <p className="text-xs text-[var(--text-secondary)]">
                                     Configure amenity by room type. Maid finish displays all categories (category hidden).
                                 </p>
                             </div>
                             <button
-                                className="h-8 w-8 rounded border border-slate-200 text-slate-500 hover:bg-slate-50"
+                                className="h-8 w-8 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                 onClick={() => setAmenitySidebarOpen(false)}
                             >
                                 ×
@@ -1066,13 +1066,13 @@ export default function RoomsSetupPage() {
                             </div>
 
                             {amenityDraftItems.length === 0 ? (
-                                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
+                                <div className="rounded-lg border border-dashed border-[var(--border-input)] bg-[var(--bg-body)] p-4 text-xs text-[var(--text-secondary)]">
                                     No amenity items yet. Add Amenity, Linen, or Equipment.
                                 </div>
                             ) : (
                                 <div className="space-y-2">
                                     {amenityDraftItems.map((item, idx) => (
-                                        <div key={`${item.id ?? "new"}-${idx}`} className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
+                                        <div key={`${item.id ?? "new"}-${idx}`} className="rounded-lg border border-[var(--border-default)] p-3 bg-[var(--bg-body)]/50">
                                             {item.product_id && (
                                                 <div className="mb-1.5">
                                                     <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
@@ -1165,7 +1165,7 @@ export default function RoomsSetupPage() {
                             )}
                         </div>
 
-                        <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                        <div className="px-5 py-3 border-t border-[var(--border-default)] flex items-center justify-between gap-2">
                             <span className={`text-xs ${amenityMsg.includes("saved") ? "text-emerald-600" : "text-rose-500"}`}>
                                 {amenityMsg || " "}
                             </span>

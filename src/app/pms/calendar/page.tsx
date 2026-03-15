@@ -92,7 +92,7 @@ const SOURCE_COLOR: Record<string, { bar: string; text: string }> = {
     walkin: { bar: "bg-sky-500", text: "text-white" },
     ota: { bar: "bg-purple-500", text: "text-white" },
     direct: { bar: "bg-emerald-500", text: "text-white" },
-    agent: { bar: "bg-amber-500", text: "text-slate-900" }
+    agent: { bar: "bg-amber-500", text: "text-[var(--text-primary)]" }
 };
 const DEFAULT_COLOR = { bar: "bg-brand-500", text: "text-white" };
 
@@ -260,8 +260,8 @@ function ReservationDetail({
 
                     <div className="flex items-start justify-between gap-3">
                         <div>
-                            <p className={`text-xl font-bold ${isCheckedOut ? "text-slate-400" : "text-slate-900"}`}>{res.guest_name}</p>
-                            {res.phone && <p className="text-sm text-slate-500">{res.phone}</p>}
+                            <p className={`text-xl font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>{res.guest_name}</p>
+                            {res.phone && <p className="text-sm text-[var(--text-secondary)]">{res.phone}</p>}
                             {res.booking_group_id && (
                                 <Link
                                     href={`/pms/groups?group_id=${res.booking_group_id}`}
@@ -283,22 +283,22 @@ function ReservationDetail({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase text-slate-400">Check-in</p>
+                        <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-in</p>
                             <p className="font-bold text-slate-800">{res.checkin_date}</p>
                         </div>
-                        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase text-slate-400">Check-out</p>
+                        <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-out</p>
                             <p className="font-bold text-slate-800">{res.checkout_date}</p>
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-center border-t border-slate-100 pt-3">
-                        <span className="text-sm text-slate-500">{nights} night{nights !== 1 ? "s" : ""}</span>
+                    <div className="flex justify-between items-center border-t border-[var(--border-subtle)] pt-3">
+                        <span className="text-sm text-[var(--text-secondary)]">{nights} night{nights !== 1 ? "s" : ""}</span>
                         <span className="text-2xl font-extrabold text-brand-700">฿{fmt(res.total_price)}</span>
                     </div>
 
-                    <div className="text-xs text-slate-400">Code: {res.booking_code}</div>
+                    <div className="text-xs text-[var(--text-muted)]">Code: {res.booking_code}</div>
                     {res.note && (
                         <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700">📝 {res.note}</div>
                     )}
@@ -568,7 +568,7 @@ function CalendarPageInner() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Booking Calendar</h1>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Booking Calendar</h1>
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={() => { setDetailMode("create"); setDetailResId(undefined); setDetailRoomNumber(undefined); }}>+ New Booking</button>
             </div>
@@ -584,7 +584,7 @@ function CalendarPageInner() {
 
                 {/* Date picker */}
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">From</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">From</label>
                     <input
                         type="date"
                         className="form-input py-1 text-sm w-36"
@@ -595,14 +595,14 @@ function CalendarPageInner() {
 
                 {/* Span selector */}
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">View</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">View</label>
                     {[7, 14, 21, 30].map((n) => (
                         <button
                             key={n}
                             onClick={() => setSpanDays(n)}
                             className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${spanDays === n
                                 ? "border-brand-400 bg-brand-600 text-white"
-                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                 }`}
                         >
                             {n}D
@@ -611,7 +611,7 @@ function CalendarPageInner() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">Room Type</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">Room Type</label>
                     <select
                         className="form-select py-1 text-sm w-44"
                         value={roomTypeFilter}
@@ -627,7 +627,7 @@ function CalendarPageInner() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">Sort</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">Sort</label>
                     <select
                         className="form-select py-1 text-sm w-52"
                         value={roomSort}
@@ -639,7 +639,7 @@ function CalendarPageInner() {
                     </select>
                 </div>
 
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[var(--text-secondary)]">
                     <input
                         type="checkbox"
                         checked={showMoveRelatedOnly}
@@ -649,7 +649,7 @@ function CalendarPageInner() {
                     Move-related only (Before/After)
                 </label>
 
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[var(--text-secondary)]">
                     <input
                         type="checkbox"
                         checked={showActivityOnly}
@@ -660,7 +660,7 @@ function CalendarPageInner() {
                 </label>
 
                 {/* Renovation toggle */}
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600 ml-auto">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[var(--text-secondary)] ml-auto">
                     <input type="checkbox" checked={showReno} onChange={(e) => setShowReno(e.target.checked)} className="rounded" />
                     Show Renovation
                 </label>
@@ -668,12 +668,12 @@ function CalendarPageInner() {
                 {/* Legend */}
                 <div className="flex items-center gap-2 ml-2">
                     {Object.entries(SOURCE_COLOR).map(([src, c]) => (
-                        <span key={src} className="flex items-center gap-1 text-xs text-slate-500">
+                        <span key={src} className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
                             <span className={`inline-block h-2.5 w-5 rounded-sm ${c.bar}`} />
                             {SOURCE_LABEL[src]}
                         </span>
                     ))}
-                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
                         <span className="inline-block h-2.5 w-5 rounded-sm bg-rose-200 border border-rose-400" />
                         Blocked (OOO)
                     </span>
@@ -715,12 +715,12 @@ function CalendarPageInner() {
                     </div>
                     <div className="flex flex-col gap-1.5 ml-4">
                         {data.unassigned.map(res => (
-                            <div key={res.reservation_id} className="flex items-center gap-3 bg-white px-3 py-1.5 rounded border border-amber-100 shadow-sm text-sm">
+                            <div key={res.reservation_id} className="flex items-center gap-3 bg-[var(--bg-surface)] px-3 py-1.5 rounded border border-amber-100 shadow-sm text-sm">
                                 <span className="font-bold text-slate-800">{res.guest_name}</span>
-                                <span className="text-slate-400">·</span>
+                                <span className="text-[var(--text-muted)]">·</span>
                                 <span className="text-brand-600 font-semibold">{res.room_type}</span>
-                                <span className="text-slate-400">·</span>
-                                <span className="text-slate-500">{res.checkin_date} </span>
+                                <span className="text-[var(--text-muted)]">·</span>
+                                <span className="text-[var(--text-secondary)]">{res.checkin_date} </span>
                                 <button className="btn btn-primary btn-sm ml-auto" onClick={() => setAssignModal(res)}>
                                     Assign Room →
                                 </button>
@@ -735,19 +735,19 @@ function CalendarPageInner() {
                 <div className="flex">
                     {/* Frozen room column */}
                     <div
-                        className="flex-shrink-0 border-r border-slate-200 bg-white z-10"
+                        className="flex-shrink-0 border-r border-[var(--border-default)] bg-[var(--bg-surface)] z-10"
                         style={{ width: ROOM_COL_W }}
                     >
                         {/* Header cell */}
                         <div
-                            className="flex items-center px-3 border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400"
+                            className="flex items-center px-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
                             style={{ height: ROW_H }}
                         >
                             Room
                         </div>
                         {loading
                             ? Array.from({ length: 8 }).map((_, i) => (
-                                <div key={i} className="flex items-center px-3 border-b border-slate-100" style={{ height: ROW_H }}>
+                                <div key={i} className="flex items-center px-3 border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                     <div className="h-3 w-20 rounded bg-slate-200 animate-pulse" />
                                 </div>
                             ))
@@ -756,18 +756,18 @@ function CalendarPageInner() {
                                     {filteredRooms.map((room) => (
                                         <div
                                             key={room.room_id}
-                                            className="flex items-center gap-1.5 px-3 border-b border-slate-100 bg-white"
+                                            className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]"
                                             style={{ height: ROW_H }}
                                         >
                                             <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
-                                            <span className="text-[9px] text-slate-400 truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
-                                            {!room.is_sellable && <span className="text-[9px] text-slate-400">🚧</span>}
+                                            <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
+                                            {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
                                         </div>
                                     ))}
                                     {dayUseRooms.length > 0 && (
                                         <>
                                             <div
-                                                className="flex items-center px-3 border-b border-t border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-[#e11d48]"
+                                                className="flex items-center px-3 border-b border-t border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[#e11d48]"
                                                 style={{ height: ROW_H }}
                                             >
                                                 Day Use
@@ -775,12 +775,12 @@ function CalendarPageInner() {
                                             {dayUseRooms.map((room) => (
                                                 <div
                                                     key={room.room_id}
-                                                    className="flex items-center gap-1.5 px-3 border-b border-slate-100 bg-rose-50/20"
+                                                    className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-rose-50/20"
                                                     style={{ height: ROW_H }}
                                                 >
                                                     <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
                                                     <span className="text-[9px] text-[#e11d48] font-bold uppercase truncate">Day Use</span>
-                                                    {!room.is_sellable && <span className="text-[9px] text-slate-400">🚧</span>}
+                                                    {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
                                                 </div>
                                             ))}
                                         </>
@@ -794,7 +794,7 @@ function CalendarPageInner() {
                         <div style={{ width: totalGridW, minWidth: totalGridW }}>
                             {/* Date header */}
                             <div
-                                className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-10"
+                                className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] sticky top-0 z-10"
                                 style={{ height: ROW_H }}
                             >
                                 {days.map((day) => {
@@ -804,12 +804,12 @@ function CalendarPageInner() {
                                     return (
                                         <div
                                             key={day}
-                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-slate-200 text-center select-none ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/40" : ""
+                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/40" : ""
                                                 }`}
                                             style={{ width: COL_W }}
                                         >
-                                            <span className={`text-[9px] font-semibold ${weekend ? "text-rose-400" : "text-slate-400"}`}>{dow}</span>
-                                            <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : weekend ? "text-rose-500" : "text-slate-700"}`}>{d}</span>
+                                            <span className={`text-[9px] font-semibold ${weekend ? "text-rose-400" : "text-[var(--text-muted)]"}`}>{dow}</span>
+                                            <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : weekend ? "text-rose-500" : "text-[var(--text-table-cell)]"}`}>{d}</span>
                                         </div>
                                     );
                                 })}
@@ -818,9 +818,9 @@ function CalendarPageInner() {
                             {/* Room rows */}
                             {loading ? (
                                 Array.from({ length: 8 }).map((_, i) => (
-                                    <div key={i} className="flex border-b border-slate-100" style={{ height: ROW_H }}>
+                                    <div key={i} className="flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                         {days.map((d) => (
-                                            <div key={d} className="flex-shrink-0 border-r border-slate-100" style={{ width: COL_W }} />
+                                            <div key={d} className="flex-shrink-0 border-r border-[var(--border-subtle)]" style={{ width: COL_W }} />
                                         ))}
                                     </div>
                                 ))
@@ -832,12 +832,12 @@ function CalendarPageInner() {
                                         const plannedReleaseBars = getPlannedReleaseBarsForRoom(room);
                                         const plannedBars = getPlannedBarsForRoom(room);
                                         return (
-                                            <div key={room.room_id} className="relative flex border-b border-slate-100" style={{ height: ROW_H }}>
+                                            <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                                 {days.map((day) => (
                                                     <div
                                                         key={day}
-                                                        className={`flex-shrink-0 border-r border-slate-100 cursor-pointer transition-colors ${
-                                                            day === today ? "bg-brand-50/30" : isWeekend(day) ? "bg-rose-50/20" : "hover:bg-slate-50"
+                                                        className={`flex-shrink-0 border-r border-[var(--border-subtle)] cursor-pointer transition-colors ${
+                                                            day === today ? "bg-brand-50/30" : isWeekend(day) ? "bg-rose-50/20" : "hover:bg-[var(--bg-body)]"
                                                         } ${!room.is_sellable ? "bg-slate-100/60" : ""}`}
                                                         style={{ width: COL_W, height: ROW_H }}
                                                         onClick={() => {
@@ -920,7 +920,7 @@ function CalendarPageInner() {
 
                                                 {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight }) => {
                                                     const isCheckedOut = res.status === "checked_out";
-                                                    const sc = isCheckedOut ? { bar: "bg-slate-300", text: "text-slate-600" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
+                                                    const sc = isCheckedOut ? { bar: "bg-slate-300", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                     const groupId = res.booking_group_id ? String(res.booking_group_id) : null;
                                                     const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && groupId === hoverGroupId;
                                                     const shouldFadeGroup = focusReservationId
@@ -975,19 +975,19 @@ function CalendarPageInner() {
 
                                     {dayUseRooms.length > 0 && (
                                         <>
-                                            <div className="flex border-b border-t border-slate-200 bg-slate-50" style={{ height: ROW_H }}>
+                                            <div className="flex border-b border-t border-[var(--border-default)] bg-[var(--bg-body)]" style={{ height: ROW_H }}>
                                                 <div className="px-2 flex items-center text-[10px] font-bold uppercase tracking-wide text-[#e11d48]">Day Use</div>
                                             </div>
                                             {dayUseRooms.map((room) => {
                                                 const roomBlocks = getBlocksForRoom(room);
                                                 return (
-                                                    <div key={room.room_id} className="relative flex border-b border-slate-100 bg-rose-50/10 hover:bg-rose-50/20 transition-colors" style={{ height: ROW_H }}>
+                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-50/20 transition-colors" style={{ height: ROW_H }}>
                                                         {days.map((day) => {
                                                             const hasRes = room.reservations.some((r) => r.nights.includes(day));
                                                             return (
                                                                 <div
                                                                     key={day}
-                                                                    className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-slate-100 cursor-not-allowed ${!room.is_sellable ? "bg-slate-100/60" : ""}`}
+                                                                    className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-slate-100/60" : ""}`}
                                                                     style={{ width: COL_W, height: ROW_H }}
                                                                     title="Use Room Diary board for Day Use actions"
                                                                 >
@@ -1029,7 +1029,7 @@ function CalendarPageInner() {
             {/* Summary footer */}
             {
                 data && !loading && (
-                    <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 flex gap-6 text-xs text-slate-500">
+                    <div className="border-t border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-2 flex gap-6 text-xs text-[var(--text-secondary)]">
                         <span>{visibleRooms.filter((r) => r.is_sellable).length} sellable rooms</span>
                         <span>{visibleRooms.length} visible room(s)</span>
                         <span>

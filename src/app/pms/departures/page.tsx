@@ -134,8 +134,8 @@ export default function DeparturesPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Departures</h1>
-                    <p className="text-sm text-slate-500 mt-1">{today}</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Departures</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">{today}</p>
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={load}>↻ Refresh</button>
             </div>
@@ -153,17 +153,17 @@ export default function DeparturesPage() {
             {!loading && departures.length === 0 && !error && (
                 <div className="card p-12 text-center">
                     <p className="text-3xl mb-3">🏁</p>
-                    <p className="text-slate-500 font-medium">No departures today</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No departures today</p>
                 </div>
             )}
 
             {!loading && departures.length > 0 && (
                 <>
                     <div className="flex items-center gap-4 text-sm">
-                        <span className="font-semibold text-slate-700">{departures.length} departure{departures.length !== 1 ? "s" : ""}</span>
-                        <span className="text-slate-400">·</span>
+                        <span className="font-semibold text-[var(--text-table-cell)]">{departures.length} departure{departures.length !== 1 ? "s" : ""}</span>
+                        <span className="text-[var(--text-muted)]">·</span>
                         <span className="text-emerald-600 font-semibold">{doneIds.size} checked out</span>
-                        <span className="text-slate-400">·</span>
+                        <span className="text-[var(--text-muted)]">·</span>
                         <span className="text-amber-600 font-semibold">{departures.length - doneIds.size} pending</span>
                     </div>
 
@@ -186,13 +186,13 @@ export default function DeparturesPage() {
                                     return (
                                         <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-slate-50 [&>td]:bg-slate-50" : loyaltyVisual.rowClass}>
                                             <td>
-                                                <div className="font-bold text-slate-900">Room {d.room_number}</div>
-                                                <div className="text-xs text-slate-400">{d.room_type}</div>
+                                                <div className="font-bold text-[var(--text-primary)]">Room {d.room_number}</div>
+                                                <div className="text-xs text-[var(--text-muted)]">{d.room_type}</div>
                                             </td>
                                             <td>
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <div
-                                                        className={`font-semibold min-w-0 flex-1 truncate ${isCheckedOut ? "text-slate-400" : "text-slate-800"}`}
+                                                        className={`font-semibold min-w-0 flex-1 truncate ${isCheckedOut ? "text-[var(--text-muted)]" : "text-slate-800"}`}
                                                         title={d.guest_name}
                                                     >
                                                         {d.guest_name}
@@ -207,7 +207,7 @@ export default function DeparturesPage() {
                                                         </Link>
                                                     )}
                                                 </div>
-                                                {d.phone && <div className="text-xs text-slate-400">{d.phone}</div>}
+                                                {d.phone && <div className="text-xs text-[var(--text-muted)]">{d.phone}</div>}
                                             </td>
                                             <td>
                                                 <span className="badge bg-slate-100 text-slate-600 text-xs">
@@ -216,10 +216,10 @@ export default function DeparturesPage() {
                                             </td>
                                             <td>
                                                 <div className="text-sm">{d.checkin_date} → {d.checkout_date}</div>
-                                                <div className="text-xs text-slate-400">{d.nights_count} night{d.nights_count !== 1 ? "s" : ""}</div>
+                                                <div className="text-xs text-[var(--text-muted)]">{d.nights_count} night{d.nights_count !== 1 ? "s" : ""}</div>
                                             </td>
                                             <td>
-                                                <span className={`font-bold ${isCheckedOut ? "text-slate-400" : "text-slate-900"}`}>฿{fmt(d.total_price)}</span>
+                                                <span className={`font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>฿{fmt(d.total_price)}</span>
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (
@@ -244,7 +244,7 @@ export default function DeparturesPage() {
 
             {/* Day Use Section */}
             {!loading && dayUseDepartures.length > 0 && (
-                <div className="mt-8 border-t-2 border-dashed border-slate-200 pt-6">
+                <div className="mt-8 border-t-2 border-dashed border-[var(--border-default)] pt-6">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-sm font-bold uppercase tracking-widest text-[#e11d48]">Day Use Departures</p>
                     </div>
@@ -265,24 +265,24 @@ export default function DeparturesPage() {
                                     return (
                                         <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-slate-50" : "bg-rose-50/20"}>
                                             <td>
-                                                <div className="font-bold text-slate-900">Room {d.room_number}</div>
+                                                <div className="font-bold text-[var(--text-primary)]">Room {d.room_number}</div>
                                                 <div className="text-[10px] uppercase font-bold text-[#e11d48]">Day Use</div>
                                             </td>
                                             <td>
                                                 <div className="font-semibold text-slate-800 truncate">{d.guest_name}</div>
-                                                {d.phone && <div className="text-xs text-slate-400">{d.phone}</div>}
+                                                {d.phone && <div className="text-xs text-[var(--text-muted)]">{d.phone}</div>}
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (
-                                                    <span className="badge bg-slate-100 text-slate-500 text-xs">Closed Session</span>
+                                                    <span className="badge bg-[var(--bg-muted)] text-[var(--text-secondary)] text-xs">Closed Session</span>
                                                 ) : (
-                                                    <div className="bg-white border border-[#fecdd3] rounded-lg p-1.5 inline-block shadow-sm scale-90 origin-left">
+                                                    <div className="bg-[var(--bg-surface)] border border-[#fecdd3] rounded-lg p-1.5 inline-block shadow-sm scale-90 origin-left">
                                                         <DayUseTimer expiresAt={d.dayuse_expires_at} />
                                                     </div>
                                                 )}
                                             </td>
                                             <td>
-                                                <span className={`font-bold ${isCheckedOut ? "text-slate-400" : "text-slate-900"}`}>
+                                                <span className={`font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>
                                                     ฿{fmt(d.total_price ?? d.rate ?? 0)}
                                                 </span>
                                             </td>

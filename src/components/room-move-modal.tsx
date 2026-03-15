@@ -917,9 +917,9 @@ export default function RoomMoveModal({
                     </div>
                 )}
 
-                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <div className="inline-flex rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-1">
                     <button
-                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "move_now" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"}`}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "move_now" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"}`}
                         onClick={() => {
                             setShowValidation(false);
                             setActiveTab("move_now");
@@ -929,7 +929,7 @@ export default function RoomMoveModal({
                         Move Now
                     </button>
                     <button
-                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "plan_move" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"}`}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "plan_move" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"}`}
                         onClick={() => {
                             setShowValidation(false);
                             if (!planEditingId) {
@@ -949,11 +949,11 @@ export default function RoomMoveModal({
                     </button>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Current Room</p>
-                        <p className="text-lg font-bold text-slate-900 mt-0.5">Room {currentRoomNumber}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Stay until {checkoutDate}</p>
+                        <p className="text-xs uppercase tracking-wide text-[var(--text-secondary)] font-semibold">Current Room</p>
+                        <p className="text-lg font-bold text-[var(--text-primary)] mt-0.5">Room {currentRoomNumber}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">Stay until {checkoutDate}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="badge bg-indigo-100 text-indigo-700 border border-indigo-200">
@@ -1035,7 +1035,7 @@ export default function RoomMoveModal({
                         <div>
                             <label className="form-label">New Room</label>
                             {loadingNowRooms ? (
-                                <div className="h-10 rounded-lg bg-slate-100 animate-pulse" />
+                                <div className="h-10 rounded-lg bg-[var(--bg-muted)] animate-pulse" />
                             ) : nowRooms.length === 0 ? (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                                     No available rooms for selected type in the remaining stay.
@@ -1072,15 +1072,15 @@ export default function RoomMoveModal({
                             {moveNowReasonInvalid && <p className="mt-1 text-xs text-rose-600">Please provide a reason.</p>}
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <p className="font-semibold text-slate-700 mb-2 text-sm">Pricing Policy</p>
+                        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                            <p className="font-semibold text-[var(--text-table-cell)] mb-2 text-sm">Pricing Policy</p>
                             <div className="grid gap-2">
                                 {([
                                     ["keep_rtc", "Keep RTC (Free Upgrade / Keep old price)"],
                                     ["reprice_grid", "Update RTC to Rate Grid"],
                                     ["reprice_grid_discount", "Update RTC + Discount"],
                                 ] as Array<[PricingPolicy, string]>).map(([value, label]) => (
-                                    <label key={value} className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${nowPricingPolicy === value ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                                    <label key={value} className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${nowPricingPolicy === value ? "border-emerald-400 bg-emerald-50" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
                                         <input type="radio" className="mr-2" checked={nowPricingPolicy === value} onChange={() => setNowPricingPolicy(value)} disabled={saving || Boolean(effectiveTodayMove)} />
                                         {label}
                                     </label>
@@ -1142,9 +1142,9 @@ export default function RoomMoveModal({
                         )}
 
                         {moveNowDiff && moveNowPreview && (
-                            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                                <p className="font-semibold text-slate-700 mb-1">Rate preview (remaining {nowRemainingNights} night{nowRemainingNights !== 1 ? "s" : ""})</p>
-                                <div className="grid grid-cols-2 gap-y-1 text-slate-600">
+                            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 text-sm">
+                                <p className="font-semibold text-[var(--text-table-cell)] mb-1">Rate preview (remaining {nowRemainingNights} night{nowRemainingNights !== 1 ? "s" : ""})</p>
+                                <div className="grid grid-cols-2 gap-y-1 text-[var(--text-secondary)]">
                                     <span>Current room rate/night</span>
                                     <span className="text-right">฿{fmtMoney(moveNowDiff.current_per_night)}</span>
                                     <span>New room rate/night</span>
@@ -1154,7 +1154,7 @@ export default function RoomMoveModal({
                                     <span>Final total after policy</span>
                                     <span className="text-right font-semibold">฿{fmtMoney(moveNowPreview.finalTotal)}</span>
                                     <span>Delta vs current</span>
-                                    <span className={`text-right font-semibold ${moveNowPreview.delta > 0 ? "text-rose-600" : moveNowPreview.delta < 0 ? "text-emerald-600" : "text-slate-700"}`}>
+                                    <span className={`text-right font-semibold ${moveNowPreview.delta > 0 ? "text-rose-600" : moveNowPreview.delta < 0 ? "text-emerald-600" : "text-[var(--text-table-cell)]"}`}>
                                         {moveNowPreview.delta > 0 ? "+" : moveNowPreview.delta < 0 ? "-" : ""}฿{fmtMoney(Math.abs(moveNowPreview.delta))}
                                     </span>
                                 </div>
@@ -1163,11 +1163,11 @@ export default function RoomMoveModal({
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <div className="rounded-xl border border-slate-200 bg-white">
-                            <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+                            <div className="border-b border-[var(--border-default)] px-4 py-3 flex items-center justify-between gap-3">
                                 <div>
                                     <p className="font-semibold text-slate-800">Existing Planned Moves</p>
-                                    <p className="text-xs text-slate-500">Future room segments for this reservation</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">Future room segments for this reservation</p>
                                 </div>
                                 {!planPossible && (
                                     <span className="badge bg-amber-100 text-amber-700 border border-amber-200">Last-night stay</span>
@@ -1175,9 +1175,9 @@ export default function RoomMoveModal({
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {loadingMoves ? (
-                                    <div className="px-4 py-4 text-sm text-slate-500">Loading planned moves…</div>
+                                    <div className="px-4 py-4 text-sm text-[var(--text-secondary)]">Loading planned moves…</div>
                                 ) : futurePlannedMoves.length === 0 ? (
-                                    <div className="px-4 py-4 text-sm text-slate-500">No planned moves yet.</div>
+                                    <div className="px-4 py-4 text-sm text-[var(--text-secondary)]">No planned moves yet.</div>
                                 ) : (
                                     futurePlannedMoves.map((move) => {
                                         const startsToday = isDateWithinRange(today, move.start_date, move.end_date);
@@ -1185,10 +1185,10 @@ export default function RoomMoveModal({
                                             <div key={move.id} className="px-4 py-3 flex items-start justify-between gap-3">
                                                 <div className="space-y-1 text-sm">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="font-semibold text-slate-900">{move.start_date} → {move.end_date}</span>
-                                                        <span className="text-xs font-semibold text-slate-500">{formatNightCount(countNightsBetween(move.start_date, move.end_date))}</span>
-                                                        <span className="text-slate-400">•</span>
-                                                        <span className="text-slate-700">Room {move.from_room_number ?? currentRoomNumber} → Room {move.to_room_number ?? "?"}</span>
+                                                        <span className="font-semibold text-[var(--text-primary)]">{move.start_date} → {move.end_date}</span>
+                                                        <span className="text-xs font-semibold text-[var(--text-secondary)]">{formatNightCount(countNightsBetween(move.start_date, move.end_date))}</span>
+                                                        <span className="text-[var(--text-muted)]">•</span>
+                                                        <span className="text-[var(--text-table-cell)]">Room {move.from_room_number ?? currentRoomNumber} → Room {move.to_room_number ?? "?"}</span>
                                                         {move.do_not_move && (
                                                             <span className="badge bg-rose-100 text-rose-700 border border-rose-200">Do Not Move</span>
                                                         )}
@@ -1196,8 +1196,8 @@ export default function RoomMoveModal({
                                                             <span className="badge bg-emerald-100 text-emerald-700 border border-emerald-200">Effective Today</span>
                                                         )}
                                                     </div>
-                                                    <p className="text-slate-600">{move.move_reason}</p>
-                                                    <p className="text-xs text-slate-500">
+                                                    <p className="text-[var(--text-secondary)]">{move.move_reason}</p>
+                                                    <p className="text-xs text-[var(--text-secondary)]">
                                                         {policyLabel(move.pricing_policy)}{move.discount_reason ? ` · ${move.discount_reason}` : ""}
                                                     </p>
                                                     <p className="text-xs text-indigo-600">
@@ -1227,11 +1227,11 @@ export default function RoomMoveModal({
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <p className="font-semibold text-slate-800">{planEditingId ? "Edit Planned Segment" : "Add Planned Segment"}</p>
-                                    <p className="text-xs text-slate-500">Use stay-style dates: 2026-03-09 → 2026-03-10 = 1 night. First stay night is excluded, so planning starts from the next night onward.</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">Use stay-style dates: 2026-03-09 → 2026-03-10 = 1 night. First stay night is excluded, so planning starts from the next night onward.</p>
                                 </div>
                                 {planEditingId && (
                                     <button className="btn btn-secondary btn-sm" type="button" onClick={resetPlanForm} disabled={saving}>
@@ -1310,7 +1310,7 @@ export default function RoomMoveModal({
                                     <div>
                                         <label className="form-label">Target Room Number</label>
                                         {loadingPlanRooms ? (
-                                            <div className="h-10 rounded-lg bg-slate-100 animate-pulse" />
+                                            <div className="h-10 rounded-lg bg-[var(--bg-muted)] animate-pulse" />
                                         ) : planRooms.length === 0 ? (
                                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                                                 No available rooms for this plan range.
@@ -1346,15 +1346,15 @@ export default function RoomMoveModal({
                                         {planReasonInvalid && <p className="mt-1 text-xs text-rose-600">Please provide move reason.</p>}
                                     </div>
 
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                        <p className="font-semibold text-slate-700 mb-2 text-sm">Pricing Policy</p>
+                                    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+                                        <p className="font-semibold text-[var(--text-table-cell)] mb-2 text-sm">Pricing Policy</p>
                                         <div className="grid gap-2">
                                             {([
                                                 ["keep_rtc", "Keep RTC (Free Upgrade / Keep old price)"],
                                                 ["reprice_grid", "Update RTC to Rate Grid"],
                                                 ["reprice_grid_discount", "Update RTC + Discount"],
                                             ] as Array<[PricingPolicy, string]>).map(([value, label]) => (
-                                                <label key={value} className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${planPricingPolicy === value ? "border-sky-400 bg-sky-50" : "border-slate-200 bg-white"}`}>
+                                                <label key={value} className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${planPricingPolicy === value ? "border-sky-400 bg-sky-50" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
                                                     <input type="radio" className="mr-2" checked={planPricingPolicy === value} onChange={() => setPlanPricingPolicy(value)} disabled={saving} />
                                                     {label}
                                                 </label>
@@ -1436,9 +1436,9 @@ export default function RoomMoveModal({
                                     </div>
 
                                     {planDiff && planPreview && (
-                                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                                            <p className="font-semibold text-slate-700 mb-1">Planned pricing preview ({formatNightCount(planRemainingNights)})</p>
-                                            <div className="grid grid-cols-2 gap-y-1 text-slate-600">
+                                        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 text-sm">
+                                            <p className="font-semibold text-[var(--text-table-cell)] mb-1">Planned pricing preview ({formatNightCount(planRemainingNights)})</p>
+                                            <div className="grid grid-cols-2 gap-y-1 text-[var(--text-secondary)]">
                                                 <span>Current room rate/night</span>
                                                 <span className="text-right">฿{fmtMoney(planDiff.current_per_night)}</span>
                                                 <span>Target room rate/night</span>
@@ -1448,7 +1448,7 @@ export default function RoomMoveModal({
                                                 <span>Planned total after policy</span>
                                                 <span className="text-right font-semibold">฿{fmtMoney(planPreview.finalTotal)}</span>
                                                 <span>Delta vs current</span>
-                                                <span className={`text-right font-semibold ${planPreview.delta > 0 ? "text-rose-600" : planPreview.delta < 0 ? "text-emerald-600" : "text-slate-700"}`}>
+                                                <span className={`text-right font-semibold ${planPreview.delta > 0 ? "text-rose-600" : planPreview.delta < 0 ? "text-emerald-600" : "text-[var(--text-table-cell)]"}`}>
                                                     {planPreview.delta > 0 ? "+" : planPreview.delta < 0 ? "-" : ""}฿{fmtMoney(Math.abs(planPreview.delta))}
                                                 </span>
                                             </div>

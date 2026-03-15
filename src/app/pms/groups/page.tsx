@@ -130,8 +130,8 @@ export default function GroupsPage() {
             {/* Header Area */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Group Bookings</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage multiple reservations under one group entity</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Group Bookings</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Manage multiple reservations under one group entity</p>
                 </div>
                 <div className="flex gap-2 flex-wrap items-center">
                     <div className="relative min-w-[260px]">
@@ -141,7 +141,7 @@ export default function GroupsPage() {
                             value={searchQ}
                             onChange={(e) => setSearchQ(e.target.value)}
                         />
-                        <svg className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                        <svg className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                         </svg>
                     </div>
@@ -177,9 +177,9 @@ export default function GroupsPage() {
                     ))}
                 </div>
             ) : groups.length === 0 ? (
-                <div className="card p-12 text-center text-slate-500">
+                <div className="card p-12 text-center text-[var(--text-secondary)]">
                     <span className="text-4xl">👥</span>
-                    <p className="font-bold text-slate-700 mt-3">No groups found</p>
+                    <p className="font-bold text-[var(--text-table-cell)] mt-3">No groups found</p>
                     <p className="text-sm mt-1 mb-4">You have no active booking groups matching your search.</p>
                     <button
                         className="btn btn-primary"
@@ -191,7 +191,7 @@ export default function GroupsPage() {
             ) : (
                 <div className="card overflow-hidden">
                     <table className="data-table">
-                        <thead className="bg-slate-50">
+                        <thead className="bg-[var(--bg-body)]">
                             <tr>
                                 <th>Code</th>
                                 <th>Group Name</th>
@@ -222,10 +222,10 @@ export default function GroupsPage() {
                                         <div className="font-bold text-slate-800">{g.group_name}</div>
                                     </td>
                                     <td className="py-3 px-4">
-                                        <div className="text-sm font-medium text-slate-700">{g.contact_name || "—"}</div>
-                                        {g.contact_phone && <div className="text-xs text-slate-400">{g.contact_phone}</div>}
+                                        <div className="text-sm font-medium text-[var(--text-table-cell)]">{g.contact_name || "—"}</div>
+                                        {g.contact_phone && <div className="text-xs text-[var(--text-muted)]">{g.contact_phone}</div>}
                                     </td>
-                                    <td className="py-3 px-4 uppercase text-xs font-bold text-slate-500">
+                                    <td className="py-3 px-4 uppercase text-xs font-bold text-[var(--text-secondary)]">
                                         {g.source}
                                     </td>
                                     <td className="py-3 px-4 text-center">
@@ -245,7 +245,7 @@ export default function GroupsPage() {
                                             {g.status.toUpperCase()}
                                         </span>
                                     </td>
-                                    <td className="py-3 px-4 text-xs text-slate-500">
+                                    <td className="py-3 px-4 text-xs text-[var(--text-secondary)]">
                                         {new Date(g.created_at).toLocaleDateString("en-GB")}
                                     </td>
                                 </tr>
@@ -280,7 +280,7 @@ export default function GroupsPage() {
 
             {selectedGroupId && detailLoading && (
                 <div className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[2px] flex items-center justify-center">
-                    <div className="bg-white p-6 rounded-xl shadow-xl flex items-center gap-3">
+                    <div className="bg-[var(--bg-surface)] p-6 rounded-xl shadow-xl flex items-center gap-3">
                         <span className="animate-spin text-xl">⏳</span> Loading Group Data...
                     </div>
                 </div>

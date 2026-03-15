@@ -86,19 +86,19 @@ export default function PermissionsPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900">User Permissions</h1>
-        <p className="text-sm text-slate-500 mt-1">กำหนดหน้าที่แต่ละ user สามารถเข้าถึงได้</p>
+        <h1 className="text-xl font-bold text-[var(--text-primary)]">User Permissions</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">กำหนดหน้าที่แต่ละ user สามารถเข้าถึงได้</p>
       </div>
 
       {loading ? (
-        <div className="text-sm text-slate-400">กำลังโหลด...</div>
+        <div className="text-sm text-[var(--text-muted)]">กำลังโหลด...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User list */}
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-3">Users</h2>
+            <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-3">Users</h2>
             {users.length === 0 && (
-              <p className="text-sm text-slate-400">ยังไม่มี user profiles — สร้าง account ใน Supabase Auth ก่อน</p>
+              <p className="text-sm text-[var(--text-muted)]">ยังไม่มี user profiles — สร้าง account ใน Supabase Auth ก่อน</p>
             )}
             {users.map((user) => {
               const pages = user.allowed_pages ?? ["*"];
@@ -111,7 +111,7 @@ export default function PermissionsPage() {
                   className={`w-full text-left p-3.5 rounded-xl border transition-all ${
                     isSelected
                       ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--border-input)] hover:bg-[var(--bg-body)]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -119,7 +119,7 @@ export default function PermissionsPage() {
                       <p className="text-sm font-medium text-slate-800">
                         {user.full_name ?? user.email}
                       </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         {user.email} · {ROLE_LABELS[user.role ?? ""] ?? user.role ?? "No role"}
                       </p>
                     </div>
@@ -138,13 +138,13 @@ export default function PermissionsPage() {
 
           {/* Edit panel */}
           {selectedUser && (
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-800">
                     {selectedUser.full_name ?? selectedUser.email}
                   </h3>
-                  <p className="text-xs text-slate-400">แก้ไข allowed pages</p>
+                  <p className="text-xs text-[var(--text-muted)]">แก้ไข allowed pages</p>
                 </div>
                 {successMsg && (
                   <span className="text-xs text-emerald-600 font-medium">{successMsg}</span>
@@ -152,16 +152,16 @@ export default function PermissionsPage() {
               </div>
 
               {/* All access toggle */}
-              <label className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg cursor-pointer mb-4 border border-slate-200 hover:border-slate-300 transition">
+              <label className="flex items-center gap-2.5 p-3 bg-[var(--bg-body)] rounded-lg cursor-pointer mb-4 border border-[var(--border-default)] hover:border-[var(--border-input)] transition">
                 <input
                   type="checkbox"
                   checked={isAllAccess}
                   onChange={() => setEditPages(isAllAccess ? [] : ["*"])}
-                  className="rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+                  className="rounded border-[var(--border-input)] text-indigo-500 focus:ring-indigo-400"
                 />
                 <div>
                   <p className="text-sm font-medium text-slate-800">Full Access (*)</p>
-                  <p className="text-xs text-slate-400">เข้าถึงได้ทุกหน้า (Admin)</p>
+                  <p className="text-xs text-[var(--text-muted)]">เข้าถึงได้ทุกหน้า (Admin)</p>
                 </div>
               </label>
 
@@ -170,17 +170,17 @@ export default function PermissionsPage() {
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                   {Object.entries(sections).map(([section, pages]) => (
                     <div key={section}>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{section}</p>
+                      <p className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">{section}</p>
                       <div className="space-y-1">
                         {pages.map((page) => (
-                          <label key={page.path} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+                          <label key={page.path} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--bg-body)] cursor-pointer">
                             <input
                               type="checkbox"
                               checked={editPages.includes(page.path)}
                               onChange={() => togglePage(page.path)}
-                              className="rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+                              className="rounded border-[var(--border-input)] text-indigo-500 focus:ring-indigo-400"
                             />
-                            <span className="text-sm text-slate-700">{page.label}</span>
+                            <span className="text-sm text-[var(--text-table-cell)]">{page.label}</span>
                             <span className="text-xs text-slate-300 font-mono ml-auto">{page.path}</span>
                           </label>
                         ))}

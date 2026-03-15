@@ -311,12 +311,12 @@ export default function InventoryDashboardPage() {
 
   function getRoomBadgeClass(floorNumber: number | null): string {
     if (usageFloorFilter !== "all") {
-      return "border-slate-200 bg-slate-50 text-slate-700";
+      return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)]";
     }
     if (floorNumber === 1) return "border-sky-200 bg-sky-50 text-sky-700";
     if (floorNumber === 2) return "border-emerald-200 bg-emerald-50 text-emerald-700";
     if (floorNumber === 3) return "border-amber-200 bg-amber-50 text-amber-700";
-    return "border-slate-200 bg-slate-50 text-slate-700";
+    return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)]";
   }
 
   const floorDetailsMap = useMemo(() => {
@@ -346,10 +346,10 @@ export default function InventoryDashboardPage() {
           INVENTORY
         </p>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="text-2xl font-extrabold text-slate-900">Inventory Dashboard</h1>
+          <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Inventory Dashboard</h1>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
               <Input
                 type="date"
                 value={date}
@@ -376,16 +376,16 @@ export default function InventoryDashboardPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse rounded-xl bg-slate-100 h-24" />
+              <div key={i} className="animate-pulse rounded-xl bg-[var(--bg-muted)] h-24" />
             ))}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse rounded-xl bg-slate-100 h-40" />
+              <div key={i} className="animate-pulse rounded-xl bg-[var(--bg-muted)] h-40" />
             ))}
           </div>
-          <div className="animate-pulse rounded-xl bg-slate-100 h-56" />
-          <div className="animate-pulse rounded-xl bg-slate-100 h-40" />
+          <div className="animate-pulse rounded-xl bg-[var(--bg-muted)] h-56" />
+          <div className="animate-pulse rounded-xl bg-[var(--bg-muted)] h-40" />
         </div>
       )}
 
@@ -398,8 +398,8 @@ export default function InventoryDashboardPage() {
                 className={`card border-l-4 ${tile.borderColor} p-4 flex items-start justify-between`}
               >
                 <div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">{tile.label}</p>
-                  <p className="text-2xl font-extrabold text-slate-900">{tile.value}</p>
+                  <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">{tile.label}</p>
+                  <p className="text-2xl font-extrabold text-[var(--text-primary)]">{tile.value}</p>
                 </div>
                 <div className="mt-1">{tile.icon}</div>
               </div>
@@ -407,7 +407,7 @@ export default function InventoryDashboardPage() {
           </div>
 
           <div>
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Floor Stock Overview</h2>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4">Floor Stock Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[1, 2, 3].map((floorNum) => {
                 const floor = data.floor_overview.find((f) => f.floor_number === floorNum);
@@ -420,13 +420,13 @@ export default function InventoryDashboardPage() {
                 return (
                   <div key={floorNum} className="card p-4">
                     <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-slate-900">Floor {floorNum}</h3>
+                      <h3 className="text-sm font-bold text-[var(--text-primary)]">Floor {floorNum}</h3>
                       <button
                         type="button"
                         onClick={() =>
                           setExpandedFloors((prev) => ({ ...prev, [floorNum]: !Boolean(prev[floorNum]) }))
                         }
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1 rounded-md border border-[var(--border-default)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                       >
                         {isExpanded ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
                         {isExpanded ? "Hide details" : "Show details"}
@@ -434,17 +434,17 @@ export default function InventoryDashboardPage() {
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Distinct Products</span>
-                        <span className="font-bold text-slate-900">
+                        <span className="text-[var(--text-secondary)]">Distinct Products</span>
+                        <span className="font-bold text-[var(--text-primary)]">
                           {floor?.distinct_products ?? 0}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Total Units</span>
-                        <span className="font-bold text-slate-900">{floor?.total_units ?? 0}</span>
+                        <span className="text-[var(--text-secondary)]">Total Units</span>
+                        <span className="font-bold text-[var(--text-primary)]">{floor?.total_units ?? 0}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500">Dashboard Items</span>
+                        <span className="text-[var(--text-secondary)]">Dashboard Items</span>
                         <span className="font-bold text-brand-700">
                           {floorDetails.length} ({dashboardUnits} units)
                         </span>
@@ -452,9 +452,9 @@ export default function InventoryDashboardPage() {
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-3 border-t border-slate-100 pt-3">
+                      <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
                         {floorDetails.length === 0 ? (
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-[var(--text-muted)]">
                             No products selected for dashboard on this floor.
                             Select in Stock Levels using "Show on Dashboard".
                           </p>
@@ -462,18 +462,18 @@ export default function InventoryDashboardPage() {
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="border-b border-slate-100">
-                                  <th className="py-1.5 pr-2 text-left font-semibold text-slate-500">Product</th>
-                                  <th className="py-1.5 pr-2 text-right font-semibold text-slate-500">Qty</th>
-                                  <th className="py-1.5 text-left font-semibold text-slate-500">Unit</th>
+                                <tr className="border-b border-[var(--border-subtle)]">
+                                  <th className="py-1.5 pr-2 text-left font-semibold text-[var(--text-secondary)]">Product</th>
+                                  <th className="py-1.5 pr-2 text-right font-semibold text-[var(--text-secondary)]">Qty</th>
+                                  <th className="py-1.5 text-left font-semibold text-[var(--text-secondary)]">Unit</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {floorDetails.map((item) => (
                                   <tr key={`${floorNum}-${item.product_id}`} className="border-b border-slate-50">
-                                    <td className="py-1.5 pr-2 text-slate-700">{item.product_name ?? "Unknown"}</td>
-                                    <td className="py-1.5 pr-2 text-right font-semibold text-slate-900">{item.quantity}</td>
-                                    <td className="py-1.5 text-slate-500">{item.unit ?? "-"}</td>
+                                    <td className="py-1.5 pr-2 text-[var(--text-table-cell)]">{item.product_name ?? "Unknown"}</td>
+                                    <td className="py-1.5 pr-2 text-right font-semibold text-[var(--text-primary)]">{item.quantity}</td>
+                                    <td className="py-1.5 text-[var(--text-secondary)]">{item.unit ?? "-"}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -490,7 +490,7 @@ export default function InventoryDashboardPage() {
 
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <h2 className="text-lg font-bold text-slate-900">Checklist Usage by Product</h2>
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">Checklist Usage by Product</h2>
               <div className="flex items-center flex-wrap gap-1.5">
                 <button
                   type="button"
@@ -498,7 +498,7 @@ export default function InventoryDashboardPage() {
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
                     usageFloorFilter === "all"
                       ? "bg-brand-50 text-brand-700 border-brand-200"
-                      : "bg-white text-slate-500 border-slate-200"
+                      : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)]"
                   }`}
                 >
                   All Floors
@@ -511,7 +511,7 @@ export default function InventoryDashboardPage() {
                     className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
                       usageFloorFilter === floor
                         ? "bg-brand-50 text-brand-700 border-brand-200"
-                        : "bg-white text-slate-500 border-slate-200"
+                        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)]"
                     }`}
                   >
                     Floor {floor}
@@ -522,21 +522,21 @@ export default function InventoryDashboardPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <div className="card p-3">
-                <p className="text-xs text-slate-500">Products Used</p>
-                <p className="text-xl font-extrabold text-slate-900">{usageSummary.products}</p>
+                <p className="text-xs text-[var(--text-secondary)]">Products Used</p>
+                <p className="text-xl font-extrabold text-[var(--text-primary)]">{usageSummary.products}</p>
               </div>
               <div className="card p-3">
-                <p className="text-xs text-slate-500">Rooms Used</p>
-                <p className="text-xl font-extrabold text-slate-900">{usageSummary.rooms}</p>
+                <p className="text-xs text-[var(--text-secondary)]">Rooms Used</p>
+                <p className="text-xl font-extrabold text-[var(--text-primary)]">{usageSummary.rooms}</p>
               </div>
               <div className="card p-3">
-                <p className="text-xs text-slate-500">Total Units Used</p>
-                <p className="text-xl font-extrabold text-slate-900">{usageSummary.units}</p>
+                <p className="text-xs text-[var(--text-secondary)]">Total Units Used</p>
+                <p className="text-xl font-extrabold text-[var(--text-primary)]">{usageSummary.units}</p>
               </div>
             </div>
 
             {usageByCategory.length === 0 ? (
-              <div className="card p-8 text-center text-slate-400">
+              <div className="card p-8 text-center text-[var(--text-muted)]">
                 <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No checklist usage in selected filter</p>
               </div>
@@ -544,8 +544,8 @@ export default function InventoryDashboardPage() {
               <div className="space-y-4">
                 {usageByCategory.map((group) => (
                   <div key={group.category} className="card overflow-x-auto">
-                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-slate-900">{group.category}</h3>
+                    <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-[var(--text-primary)]">{group.category}</h3>
                       <Badge variant="secondary" className="text-[11px]">
                         {group.products.length} products
                       </Badge>
@@ -553,25 +553,25 @@ export default function InventoryDashboardPage() {
 
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-100">
-                          <th className="text-left py-2.5 px-4 font-semibold text-slate-600">Product</th>
-                          <th className="text-right py-2.5 px-4 font-semibold text-slate-600">Total Units</th>
-                          <th className="text-right py-2.5 px-4 font-semibold text-slate-600">Usage Count</th>
-                          <th className="text-left py-2.5 px-4 font-semibold text-slate-600">Room Breakdown</th>
+                        <tr className="border-b border-[var(--border-subtle)]">
+                          <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)]">Product</th>
+                          <th className="text-right py-2.5 px-4 font-semibold text-[var(--text-secondary)]">Total Units</th>
+                          <th className="text-right py-2.5 px-4 font-semibold text-[var(--text-secondary)]">Usage Count</th>
+                          <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)]">Room Breakdown</th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.products.map((product) => (
                           <tr
                             key={`${group.category}-${product.product_id ?? product.product_name ?? "unknown"}`}
-                            className="border-b border-slate-50 hover:bg-slate-50/70"
+                            className="border-b border-slate-50 hover:bg-[var(--bg-body)]/70"
                           >
                             <td className="py-2.5 px-4">
-                              <p className="font-semibold text-slate-900">{product.product_name ?? "Unknown Product"}</p>
-                              <p className="text-xs text-slate-400">{product.unit ?? "-"}</p>
+                              <p className="font-semibold text-[var(--text-primary)]">{product.product_name ?? "Unknown Product"}</p>
+                              <p className="text-xs text-[var(--text-muted)]">{product.unit ?? "-"}</p>
                             </td>
-                            <td className="text-right py-2.5 px-4 font-bold text-slate-900">{product.units_used}</td>
-                            <td className="text-right py-2.5 px-4 text-slate-700">{product.usage_count}</td>
+                            <td className="text-right py-2.5 px-4 font-bold text-[var(--text-primary)]">{product.units_used}</td>
+                            <td className="text-right py-2.5 px-4 text-[var(--text-table-cell)]">{product.usage_count}</td>
                             <td className="py-2.5 px-4">
                               <div className="flex flex-wrap gap-1.5">
                                 {product.rooms.slice(0, 10).map((room) => (
@@ -585,7 +585,7 @@ export default function InventoryDashboardPage() {
                                   </span>
                                 ))}
                                 {product.rooms.length > 10 && (
-                                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
+                                  <span className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
                                     +{product.rooms.length - 10} more
                                   </span>
                                 )}
@@ -603,9 +603,9 @@ export default function InventoryDashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="card p-4">
-              <h3 className="text-sm font-bold text-slate-900 mb-3">Transactions by Action</h3>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Transactions by Action</h3>
               {Object.keys(data.transactions_by_action).length === 0 ? (
-                <p className="text-sm text-slate-400">No transactions</p>
+                <p className="text-sm text-[var(--text-muted)]">No transactions</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(data.transactions_by_action).map(([action, count]) => (
@@ -618,14 +618,14 @@ export default function InventoryDashboardPage() {
             </div>
 
             <div className="card p-4">
-              <h3 className="text-sm font-bold text-slate-900 mb-3">Low Stock Items</h3>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Low Stock Items</h3>
               {data.low_stock_items.length === 0 ? (
-                <p className="text-sm text-slate-400">No low stock items</p>
+                <p className="text-sm text-[var(--text-muted)]">No low stock items</p>
               ) : (
                 <ul className="space-y-2">
                   {data.low_stock_items.slice(0, 8).map((item) => (
                     <li key={item.id} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-700 truncate mr-2">{item.product_name ?? "Unknown"}</span>
+                      <span className="text-[var(--text-table-cell)] truncate mr-2">{item.product_name ?? "Unknown"}</span>
                       <span className="font-semibold text-amber-600">
                         {item.quantity}/{item.reorder_level}
                       </span>

@@ -106,7 +106,7 @@ export default function NightAuditPage() {
             )
         }
         return (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400 border border-slate-200 font-medium">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-muted)] text-[var(--text-muted)] border border-[var(--border-default)] font-medium">
                 {index + 1}
             </div>
         )
@@ -121,17 +121,17 @@ export default function NightAuditPage() {
     ]
 
     if (isPageLoading) {
-        return <div className="p-8 flex items-center justify-center text-slate-500">Loading system status...</div>
+        return <div className="p-8 flex items-center justify-center text-[var(--text-secondary)]">Loading system status...</div>
     }
 
     return (
-        <div className="flex h-screen flex-col bg-slate-50">
-            <div className="flex-none border-b bg-white p-4 sm:p-6 shadow-sm z-10 relative">
+        <div className="flex h-screen flex-col bg-[var(--bg-body)]">
+            <div className="flex-none border-b bg-[var(--bg-surface)] p-4 sm:p-6 shadow-sm z-10 relative">
                 <div className="mx-auto max-w-4xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                         <div>
-                            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Night Audit</h1>
-                            <p className="text-sm text-slate-500 mt-1">Activating closure for: <strong className="text-slate-800">{businessDate}</strong></p>
+                            <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Night Audit</h1>
+                            <p className="text-sm text-[var(--text-secondary)] mt-1">Activating closure for: <strong className="text-slate-800">{businessDate}</strong></p>
                         </div>
                     </div>
 
@@ -148,7 +148,7 @@ export default function NightAuditPage() {
                             {(["noshow", "precheck", "preview", "confirm", "summary"] as AuditStep[]).map((s, i) => (
                                 <div key={s} className="flex flex-col items-center gap-2">
                                     {renderStepIcon(s, i)}
-                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700" : ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step) > i ? "text-slate-700" : "text-slate-400"
+                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700" : ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step) > i ? "text-[var(--text-table-cell)]" : "text-[var(--text-muted)]"
                                         }`}>
                                         {stepLabels[i]}
                                     </span>
@@ -162,10 +162,10 @@ export default function NightAuditPage() {
             <div className="flex-1 overflow-auto p-4 sm:p-6 pb-20">
                 <div className="mx-auto max-w-4xl">
                     {step === "noshow" && (
-                        <div className="rounded-xl border bg-white p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending No-Shows</h2>
-                                <p className="text-sm text-slate-500 mb-6 border-b border-slate-100 pb-4">
+                                <p className="text-sm text-[var(--text-secondary)] mb-6 border-b border-[var(--border-subtle)] pb-4">
                                     Please mark all remaining no-shows for {businessDate}. If guest requests date changes, modify reservation manually before this step.
                                 </p>
                                 {/* Lead P1-4 & P3-1: Connect component API and pass state */}
@@ -184,7 +184,7 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "precheck" && (
-                        <div className="rounded-xl border bg-white p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-800 mb-4">Pre-Check System Status</h2>
                                 <PreCheckStatus onReadyChange={setIsPreCheckReady} />
@@ -192,7 +192,7 @@ export default function NightAuditPage() {
                             <div className="flex gap-3 items-center justify-end pt-6 border-t mt-6">
                                 <button
                                     onClick={() => setStep("noshow")}
-                                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+                                    className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] focus:outline-none"
                                 >
                                     ← Back to No-Shows
                                 </button>
@@ -208,14 +208,14 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "preview" && (
-                        <div className="rounded-xl border bg-white p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-800 mb-4">Preview Audit Snapshot</h2>
                                 <AuditPreviewCards onLoad={handlePreviewLoad} />
-                                <div className="mt-8 pt-6 border-t border-slate-100">
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Staff Notes (Optional)</label>
+                                <div className="mt-8 pt-6 border-t border-[var(--border-subtle)]">
+                                    <label className="block text-sm font-semibold text-[var(--text-table-cell)] mb-2">Staff Notes (Optional)</label>
                                     <textarea
-                                        className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:ring-brand-500 focus:border-brand-500"
+                                        className="w-full rounded-lg border border-[var(--border-input)] p-3 text-sm focus:ring-brand-500 focus:border-brand-500"
                                         rows={3}
                                         value={staffNotes}
                                         onChange={e => setStaffNotes(e.target.value)}
@@ -226,7 +226,7 @@ export default function NightAuditPage() {
                             <div className="flex flex-col sm:flex-row gap-3 items-center justify-end pt-6 border-t mt-6">
                                 <button
                                     onClick={() => setStep("precheck")}
-                                    className="w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+                                    className="w-full sm:w-auto rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] focus:outline-none"
                                 >
                                     ← Back
                                 </button>
@@ -245,14 +245,14 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "confirm" && (
-                        <div className="rounded-xl border border-amber-200 bg-white p-8 shadow-sm flex flex-col items-center text-center max-w-lg mx-auto mt-6">
+                        <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)] p-8 shadow-sm flex flex-col items-center text-center max-w-lg mx-auto mt-6">
                             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4 ring-8 ring-amber-50">
                                 <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
                             </div>
-                            <h2 className="text-xl font-bold text-slate-900">Close Day {businessDate}?</h2>
-                            <p className="mt-2 text-sm text-slate-600 mb-8 px-4 leading-relaxed">
+                            <h2 className="text-xl font-bold text-[var(--text-primary)]">Close Day {businessDate}?</h2>
+                            <p className="mt-2 text-sm text-[var(--text-secondary)] mb-8 px-4 leading-relaxed">
                                 หลังจากกดยืนยัน จะไม่สามารถแก้ไขข้อมูลยอดเงิน ใบแจ้งหนี้ของวันที่ <strong className="text-slate-800">{businessDate}</strong> ได้อีก ระบบจะจัดเก็บข้อมูลลง Snapshot และเริ่มวันทำงานใหม่ทันที
                             </p>
 
@@ -266,7 +266,7 @@ export default function NightAuditPage() {
                                 <button
                                     onClick={() => setStep("preview")}
                                     disabled={runLoading}
-                                    className="flex-1 justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                    className="flex-1 justify-center rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-50"
                                 >
                                     Cancel
                                 </button>
@@ -286,7 +286,7 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "summary" && (
-                        <div className="rounded-xl border border-green-200 bg-white p-6 shadow-sm min-h-[400px] flex flex-col">
+                        <div className="rounded-xl border border-green-200 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col">
                             <div className="flex flex-col items-center text-center pb-8 border-b border-green-100 mb-8 bg-green-50/50 p-6 rounded-t-xl -mx-6 -mt-6">
                                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4 shadow-sm ring-8 ring-green-50">
                                     <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -305,7 +305,7 @@ export default function NightAuditPage() {
                             </div>
 
                             <div className="flex-1 max-w-2xl mx-auto w-full">
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 text-center">Final Snapshot Captured</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-4 text-center">Final Snapshot Captured</p>
                                 {/* Re-pass snapshot to read-only mock component, avoiding re-fetch */}
                                 {snapshot && (
                                     <div className="opacity-80 scale-95 origin-top transition-all pointer-events-none">
@@ -314,7 +314,7 @@ export default function NightAuditPage() {
                                 )}
                             </div>
 
-                            <div className="flex justify-center pt-8 mt-4 border-t border-slate-100">
+                            <div className="flex justify-center pt-8 mt-4 border-t border-[var(--border-subtle)]">
                                 <button
                                     onClick={() => router.push("/pms")}
                                     className="rounded-lg bg-slate-900 px-8 py-3 text-sm font-semibold text-white hover:bg-slate-800 shadow-xl shadow-slate-900/10 flex items-center gap-2 transition-transform hover:scale-105"

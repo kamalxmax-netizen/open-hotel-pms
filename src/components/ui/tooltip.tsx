@@ -23,7 +23,7 @@ export function TooltipContent({ className, children }: { className?: string; ch
   return (
     <div
       className={cn(
-        "pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden -translate-x-1/2 rounded-md border border-slate-200 bg-white p-2 text-sm shadow-xl group-hover:block",
+        "pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden -translate-x-1/2 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 text-sm shadow-xl group-hover:block",
         className
       )}
     >

@@ -253,9 +253,9 @@ export default function ReservationsPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Reservations</h1>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Reservations</h1>
                     {total > 0 && !loading && (
-                        <p className="text-sm text-slate-400 mt-1">{total.toLocaleString()} reservation{total !== 1 ? "s" : ""}</p>
+                        <p className="text-sm text-[var(--text-muted)] mt-1">{total.toLocaleString()} reservation{total !== 1 ? "s" : ""}</p>
                     )}
                 </div>
                 <button className="btn btn-primary" onClick={() => { setDetailMode("create"); setDetailResId(undefined); }}>+ New Booking</button>
@@ -346,13 +346,13 @@ export default function ReservationsPage() {
             <div className="card overflow-hidden">
                 {loading ? (
                     <div className="p-6 space-y-2">
-                        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
+                        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-[var(--bg-muted)]" />)}
                     </div>
                 ) : reservations.length === 0 ? (
                     <div className="p-12 text-center">
                         <p className="text-3xl mb-2">📋</p>
-                        <p className="text-slate-400 font-medium">No reservations found</p>
-                        <p className="text-slate-400 text-sm mt-1">Try adjusting your filters</p>
+                        <p className="text-[var(--text-muted)] font-medium">No reservations found</p>
+                        <p className="text-[var(--text-muted)] text-sm mt-1">Try adjusting your filters</p>
                     </div>
                 ) : (
                     <table className="data-table">
@@ -373,8 +373,8 @@ export default function ReservationsPage() {
                             {reservations.map((r) => (
                                 <tr key={r.id}>
                                     <td>
-                                        <div className="font-bold text-slate-900">Room {r.room_number}</div>
-                                        <div className="text-xs text-slate-400">{r.room_type}</div>
+                                        <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
+                                        <div className="text-xs text-[var(--text-muted)]">{r.room_type}</div>
                                     </td>
                                     <td>
                                         <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ export default function ReservationsPage() {
                                                 </Link>
                                             )}
                                         </div>
-                                        {r.phone && <div className="text-xs text-slate-400">{r.phone}</div>}
+                                        {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                     </td>
                                     <td>
                                         <span className={`badge ${SOURCE_COLOR[r.source] ?? "bg-slate-100 text-slate-600"}`}>
@@ -446,7 +446,7 @@ export default function ReservationsPage() {
                                                     >
                                                         View
                                                     </button>
-                                                    <span className="text-xs text-slate-400">{r.booking_code}</span>
+                                                    <span className="text-xs text-[var(--text-muted)]">{r.booking_code}</span>
                                                 </>
                                             )}
                                         </div>
@@ -461,7 +461,7 @@ export default function ReservationsPage() {
             {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">
+                    <span className="text-[var(--text-secondary)]">
                         Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
                     </span>
                     <div className="flex gap-1">
@@ -477,7 +477,7 @@ export default function ReservationsPage() {
                                 key={pg}
                                 className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${pg === page
                                         ? "border-brand-400 bg-brand-600 text-white"
-                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                     }`}
                                 onClick={() => { setPage(pg); load(pg); }}
                             >

@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คู่มือพนักงาน Hotel PMS — หมวด 4: การชำระเงินและ Folio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #2563eb; --brand-light: #eff6ff;
+    --pay: #0369a1; --pay-light: #e0f2fe; --pay-dark: #075985;
+    --green: #16a34a; --green-light: #f0fdf4;
+    --amber: #d97706; --amber-light: #fffbeb;
+    --red: #dc2626; --red-light: #fef2f2;
+    --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0;
+    --slate-400: #94a3b8; --slate-500: #64748b; --slate-600: #475569;
+    --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a;
+    --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family:'Sarabun','Noto Sans Thai',system-ui,sans-serif; background:var(--slate-50); color:var(--slate-800); line-height:1.7; font-size:16px; }
+  .page-wrap { display:flex; min-height:100vh; }
+
+  /* SIDEBAR */
+  .sidebar { width:256px; flex-shrink:0; background:white; border-right:1px solid var(--slate-200); position:sticky; top:0; height:100vh; overflow-y:auto; padding:20px 0; }
+  .sidebar-logo { padding:0 16px 16px; border-bottom:1px solid var(--slate-100); margin-bottom:12px; }
+  .logo-badge { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:var(--pay); color:white; font-weight:800; border-radius:8px; font-size:14px; margin-bottom:6px; }
+  .sidebar-logo h2 { font-size:13px; font-weight:700; }
+  .sidebar-logo p { font-size:11px; color:var(--slate-400); }
+  .nav-group { padding:0 10px; margin-bottom:4px; }
+  .nav-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--slate-400); padding:8px 8px 4px; display:block; }
+  .nav-a { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; text-decoration:none; color:var(--slate-600); font-size:13.5px; font-weight:500; transition:all .15s; cursor:pointer; }
+  .nav-a:hover { background:var(--pay-light); color:var(--pay); }
+  .nav-a.active { background:var(--pay-light); color:var(--pay); font-weight:600; }
+
+  /* MAIN */
+  .main { flex:1; padding:36px 44px; max-width:980px; }
+
+  /* CHAPTER HEADER */
+  .chap-header { background:linear-gradient(135deg,#0369a1,#0284c7); border-radius:var(--radius); padding:32px 36px; color:white; margin-bottom:36px; }
+  .chap-badge { display:inline-block; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:3px 12px; font-size:11px; font-weight:700; letter-spacing:.06em; margin-bottom:10px; }
+  .chap-header h1 { font-size:26px; font-weight:800; margin-bottom:6px; }
+  .chap-header p { font-size:14px; opacity:.85; }
+  .chap-meta { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .meta-pill { background:rgba(255,255,255,.15); border-radius:20px; padding:4px 12px; font-size:12px; }
+
+  /* PROGRESS */
+  .chap-progress { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:12px 16px; margin-bottom:28px; display:flex; align-items:center; gap:12px; }
+  .prog-label { font-size:12px; color:var(--slate-500); white-space:nowrap; }
+  .prog-bar { flex:1; height:5px; background:var(--slate-200); border-radius:3px; overflow:hidden; }
+  .prog-fill { height:100%; background:var(--pay); border-radius:3px; }
+  .prog-dots { display:flex; gap:5px; }
+  .prog-dot { width:26px; height:26px; border-radius:50%; border:2px solid var(--slate-200); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--slate-400); text-decoration:none; }
+  .prog-dot:hover { border-color:var(--pay); color:var(--pay); }
+  .prog-dot.done { border-color:var(--pay); background:var(--pay); color:white; }
+  .prog-dot.cur { border-color:var(--pay); background:var(--pay); color:white; box-shadow:0 0 0 3px rgba(3,105,161,.25); }
+
+  /* SECTION */
+  .section { margin-bottom:48px; }
+  .sec-title { font-size:19px; font-weight:700; margin-bottom:5px; display:flex; align-items:center; gap:10px; }
+  .sec-num { width:30px; height:30px; background:var(--pay); color:white; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; }
+  .sec-desc { color:var(--slate-500); font-size:14px; margin-bottom:18px; padding-left:40px; }
+
+  /* CARD */
+  .card { background:white; border-radius:var(--radius); border:1px solid var(--slate-200); box-shadow:var(--shadow); overflow:hidden; margin-bottom:16px; }
+  .card-hd { padding:14px 18px; border-bottom:1px solid var(--slate-100); display:flex; align-items:center; gap:8px; }
+  .card-hd h3 { font-size:14px; font-weight:700; }
+  .card-bd { padding:18px; }
+
+  /* LIVE FRAME */
+  .live-frame-wrap { position:relative; border-radius:10px; overflow:hidden; border:1px solid var(--slate-200); box-shadow:var(--shadow-lg); }
+  .live-frame-bar { background:var(--slate-800); padding:8px 14px; display:flex; align-items:center; gap:8px; }
+  .frame-dots { display:flex; gap:5px; }
+  .frame-dot { width:11px; height:11px; border-radius:50%; }
+  .fd-r{background:#ff5f57;} .fd-y{background:#ffbd2e;} .fd-g{background:#28c840;}
+  .frame-url { flex:1; background:rgba(255,255,255,.1); border-radius:5px; padding:3px 10px; font-size:11px; color:rgba(255,255,255,.7); font-family:monospace; }
+  .live-badge { background:#22c55e; color:white; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; display:flex; align-items:center; gap:4px; }
+  .live-dot { width:6px; height:6px; border-radius:50%; background:white; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+  iframe { display:block; width:100%; border:none; background:white; }
+
+  /* PAYMENT METHOD CARDS */
+  .method-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; margin-bottom:16px; }
+  .method-card { background:white; border:2px solid var(--slate-200); border-radius:10px; padding:16px; text-align:center; }
+  .method-icon { font-size:32px; margin-bottom:8px; }
+  .method-en { font-size:11px; font-weight:800; color:var(--pay); letter-spacing:.04em; }
+  .method-th { font-size:15px; font-weight:700; margin:3px 0; }
+  .method-desc { font-size:12px; color:var(--slate-500); }
+  .m-cash { border-color:#bbf7d0; background:#f0fdf4; }
+  .m-transfer { border-color:#bfdbfe; background:#eff6ff; }
+  .m-card { border-color:#ddd6fe; background:#f5f3ff; }
+  .m-other { border-color:#fde68a; background:#fffbeb; }
+
+  /* STEP LIST */
+  .step-list { list-style:none; }
+  .step-list li { display:flex; gap:12px; margin-bottom:14px; align-items:flex-start; }
+  .step-num { width:24px; height:24px; border-radius:50%; background:var(--pay); color:white; font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
+  .step-content strong { display:block; font-size:14px; color:var(--slate-800); margin-bottom:2px; }
+  .step-content p { font-size:13.5px; color:var(--slate-600); }
+
+  /* FIELD TABLE */
+  .field-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .field-table th { background:var(--slate-50); padding:9px 12px; text-align:left; font-weight:700; font-size:12px; color:var(--slate-500); border-bottom:2px solid var(--slate-200); }
+  .field-table td { padding:9px 12px; border-bottom:1px solid var(--slate-100); vertical-align:top; }
+  .field-table tr:last-child td { border-bottom:none; }
+
+  /* TIP / WARN / NOTE */
+  .tip  { background:var(--pay-light); border:1px solid #7dd3fc; border-radius:8px; padding:12px 14px; font-size:13.5px; color:var(--pay-dark); display:flex; gap:10px; margin-bottom:12px; }
+  .warn { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#92400e; display:flex; gap:10px; margin-bottom:12px; }
+  .note { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#14532d; display:flex; gap:10px; margin-bottom:12px; }
+  .danger { background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px 14px; font-size:13.5px; color:#991b1b; display:flex; gap:10px; margin-bottom:12px; }
+  .tip-icon { flex-shrink:0; margin-top:1px; }
+
+  /* FOLIO MOCK */
+  .folio-mock { background:white; border:1px solid var(--slate-200); border-radius:10px; overflow:hidden; font-size:13px; }
+  .folio-hd { background:var(--pay-light); padding:12px 16px; font-weight:700; color:var(--pay-dark); font-size:14px; border-bottom:1px solid #bae6fd; }
+  .folio-row { display:flex; justify-content:space-between; padding:8px 16px; border-bottom:1px solid var(--slate-100); }
+  .folio-row:last-child { border-bottom:none; }
+  .folio-row.total { background:var(--slate-50); font-weight:700; border-top:2px solid var(--slate-200); }
+  .folio-row.paid { background:#f0fdf4; color:#15803d; font-weight:700; }
+  .folio-row.due { background:#fef2f2; color:#dc2626; font-weight:700; font-size:14px; }
+  .folio-date { color:var(--slate-400); font-size:11px; }
+  .folio-desc { color:var(--slate-700); }
+  .folio-amt { font-weight:600; font-family:monospace; }
+
+  /* GLOSSARY */
+  .gloss-search { width:100%; padding:10px 14px; border:1px solid var(--slate-200); border-radius:8px; font-size:14px; font-family:inherit; outline:none; transition:.15s; margin-bottom:16px; }
+  .gloss-search:focus { border-color:var(--pay); box-shadow:0 0 0 3px rgba(3,105,161,.15); }
+  .gloss-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
+  .gloss-card { background:white; border:1px solid var(--slate-200); border-radius:10px; padding:13px 15px; transition:.15s; }
+  .gloss-card:hover { border-color:var(--pay); box-shadow:0 2px 8px rgba(3,105,161,.1); }
+  .gloss-en { font-size:11px; font-weight:800; color:var(--pay); letter-spacing:.04em; margin-bottom:3px; }
+  .gloss-th { font-size:15px; font-weight:700; color:var(--slate-800); margin-bottom:3px; }
+  .gloss-def { font-size:12.5px; color:var(--slate-500); line-height:1.5; }
+  .gloss-card.hidden { display:none; }
+  .gloss-tag { display:inline-block; background:var(--pay-light); color:var(--pay-dark); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; margin-top:4px; }
+
+  /* TAB */
+  .tab-bar { display:flex; gap:6px; flex-wrap:wrap; padding:12px 14px 0; background:white; border:1px solid var(--slate-200); border-bottom:none; border-radius:10px 10px 0 0; }
+  .tab-btn { padding:6px 14px; border-radius:6px 6px 0 0; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; border-bottom:none; color:var(--slate-500); background:var(--slate-50); transition:.15s; }
+  .tab-btn.active { background:var(--pay); color:white; border-color:var(--pay); }
+  .tab-btn:hover:not(.active) { background:var(--slate-100); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .tab-frame-wrap { border:1px solid var(--slate-200); border-radius:0 0 10px 10px; overflow:hidden; }
+
+  @media(max-width:768px){ .sidebar{display:none;} .main{padding:20px;} }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">PMS</div>
+    <h2>คู่มือพนักงาน</h2>
+    <p>Hotel PMS · ฉบับภาษาไทย</p>
+  </div>
+  <div class="nav-group">
+    <span class="nav-label">หมวดวิชา</span>
+    <a class="nav-a" href="manual-chapter1.html"><span>📋</span> หมวด 1 · ทำความรู้จักโปรแกรม</a>
+    <a class="nav-a" href="manual-chapter2.html"><span>📝</span> หมวด 2 · การจอง → เช็คเอาท์</a>
+    <a class="nav-a" href="manual-chapter3.html"><span>🛏️</span> หมวด 3 · งานแม่บ้าน</a>
+    <a class="nav-a active" href="#"><span>💳</span> หมวด 4 · การชำระเงิน</a>
+    <a class="nav-a" href="#" style="opacity:.4;pointer-events:none;"><span>🌙</span> หมวด 5 · Night Audit</a>
+  </div>
+  <div class="nav-group">
+    <span class="nav-label">เนื้อหาหมวด 4</span>
+    <a class="nav-a" onclick="goTo('sec1')"><span>💳</span> §1 วิธีชำระเงิน 4 ประเภท</a>
+    <a class="nav-a" onclick="goTo('sec2')"><span>📄</span> §2 Folio คืออะไร</a>
+    <a class="nav-a" onclick="goTo('sec3')"><span>💰</span> §3 รับ Deposit</a>
+    <a class="nav-a" onclick="goTo('sec4')"><span>🧾</span> §4 ชำระตอน Check-out</a>
+    <a class="nav-a" onclick="goTo('sec5')"><span>📊</span> §5 รายงาน Payment</a>
+    <a class="nav-a" onclick="goTo('sec6')"><span>📺</span> §6 หน้าจอสด</a>
+    <a class="nav-a" onclick="goTo('sec7')"><span>📚</span> §7 คำศัพท์ (40 คำ)</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <div class="chap-header">
+    <div class="chap-badge">CHAPTER 4 OF 5</div>
+    <h1>การชำระเงินและ Folio</h1>
+    <p>รับ Deposit, ชำระเงินตอน Check-out, อ่าน Folio ให้เป็น และดูรายงานรายวัน</p>
+    <div class="chap-meta">
+      <span class="meta-pill">⏱ เวลาเรียน ~25 นาที</span>
+      <span class="meta-pill">💳 Front Desk</span>
+      <span class="meta-pill">📊 Manager</span>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="chap-progress">
+    <span class="prog-label">ความคืบหน้า</span>
+    <div class="prog-bar"><div class="prog-fill" style="width:80%"></div></div>
+    <div class="prog-dots">
+      <a class="prog-dot done" href="manual-chapter1.html">1</a>
+      <a class="prog-dot done" href="manual-chapter2.html">2</a>
+      <a class="prog-dot done" href="manual-chapter3.html">3</a>
+      <span class="prog-dot cur" title="หมวด 4 (กำลังเรียน)">4</span>
+      <span class="prog-dot" title="หมวด 5">5</span>
+    </div>
+  </div>
+
+  <!-- §1 วิธีชำระเงิน -->
+  <div class="section" id="sec1">
+    <div class="sec-title"><span class="sec-num">1</span> วิธีชำระเงิน 4 ประเภท</div>
+    <div class="sec-desc">ระบบรองรับการชำระเงิน 4 แบบ — พนักงาน FO ต้องเลือกให้ถูกต้องทุกครั้งเพราะส่งผลต่อรายงาน</div>
+
+    <div class="method-grid">
+      <div class="method-card m-cash">
+        <div class="method-icon">💵</div>
+        <div class="method-en">CASH</div>
+        <div class="method-th">เงินสด</div>
+        <div class="method-desc">รับเงินสดโดยตรง นับเงินต่อหน้าแขกเสมอ ออกใบเสร็จทันที</div>
+      </div>
+      <div class="method-card m-transfer">
+        <div class="method-icon">🏦</div>
+        <div class="method-en">BANK TRANSFER</div>
+        <div class="method-th">โอนเงินผ่านธนาคาร</div>
+        <div class="method-desc">แขกโอนเข้าบัญชีโรงแรม ต้องรอ Slip ยืนยันก่อนบันทึกในระบบ</div>
+      </div>
+      <div class="method-card m-card">
+        <div class="method-icon">💳</div>
+        <div class="method-en">CREDIT CARD</div>
+        <div class="method-th">บัตรเครดิต / บัตรเดบิต</div>
+        <div class="method-desc">รูดบัตรผ่านเครื่อง EDC รอ Approved ก่อนบันทึก ติดสลิปบัตรไว้เสมอ</div>
+      </div>
+      <div class="method-card m-other">
+        <div class="method-icon">📱</div>
+        <div class="method-en">OTHER</div>
+        <div class="method-th">ประเภทอื่น</div>
+        <div class="method-desc">QR Code, Voucher, คูปอง ฯลฯ — ระบุรายละเอียดใน Note ด้วยเสมอ</div>
+      </div>
+    </div>
+
+    <div class="warn"><span class="tip-icon">⚠️</span> <strong>เลือกวิธีชำระให้ถูก!</strong> ถ้าเลือกผิดจะทำให้รายงาน Cash vs Transfer ไม่ตรง — Manager จะพบความผิดปกติตอนปิดรอบ Night Audit</div>
+    <div class="tip"><span class="tip-icon">💡</span> การโอนเงิน (Transfer) ต้องได้รับ Slip ยืนยันก่อนเสมอ — ห้ามบันทึกในระบบก่อนที่จะเห็น Slip ชัดเจน</div>
+  </div>
+
+  <!-- §2 Folio -->
+  <div class="section" id="sec2">
+    <div class="sec-title"><span class="sec-num">2</span> Folio คืออะไร และอ่านอย่างไร</div>
+    <div class="sec-desc">Folio คือใบบัญชีค่าใช้จ่ายของแขกแต่ละคน — เหมือนใบเสร็จรวมทุกรายการในการเข้าพักครั้งนั้น</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📄</span><h3>ตัวอย่าง Folio (จำลอง)</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="folio-mock">
+          <div class="folio-hd">🏨 Folio — ห้อง 318 · เพ็ญทิพย์ ขวัญทอง · BK-2026-0042</div>
+          <div class="folio-row">
+            <span class="folio-desc">🛏 ค่าห้องพัก Double Standard (1 คืน)</span>
+            <span class="folio-amt">฿900.00</span>
+          </div>
+          <div class="folio-row">
+            <span class="folio-desc">🍺 Mini Bar — น้ำดื่ม × 2</span>
+            <span class="folio-amt">฿80.00</span>
+          </div>
+          <div class="folio-row">
+            <span class="folio-desc">🧺 ค่าซักรีด</span>
+            <span class="folio-amt">฿150.00</span>
+          </div>
+          <div class="folio-row total">
+            <span>รวมทั้งสิ้น (Total)</span>
+            <span class="folio-amt">฿1,130.00</span>
+          </div>
+          <div class="folio-row paid">
+            <span>✅ ชำระแล้ว — Deposit (โอน)</span>
+            <span class="folio-amt">− ฿500.00</span>
+          </div>
+          <div class="folio-row due">
+            <span>💰 ยอดค้างชำระ (Balance Due)</span>
+            <span class="folio-amt">฿630.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>🔍</span><h3>อ่าน Folio เป็น — รู้ทุกรายการ</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th>รายการใน Folio</th><th>หมายถึงอะไร</th><th>ต้องทำอะไร</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Room Revenue</strong></td><td>ค่าห้องพักรายคืน (ราคาต่อคืน × จำนวนคืน)</td><td>ตรวจว่าตรงกับที่ตกลงไว้</td></tr>
+            <tr><td><strong>Extra Charge</strong></td><td>ค่าใช้จ่ายเพิ่มเติม เช่น มินิบาร์ ซักรีด อาหาร</td><td>ให้แขกยืนยันก่อนชำระ</td></tr>
+            <tr><td><strong>Deposit</strong></td><td>มัดจำที่รับไปแล้ว — หักออกจากยอดรวม</td><td>ตรวจว่าบันทึกถูกต้อง</td></tr>
+            <tr><td><strong>Balance Due</strong></td><td>ยอดที่ยังต้องชำระ = รวม − ชำระแล้ว</td><td>รับเงินให้ครบยอดนี้ก่อน Check-out</td></tr>
+            <tr><td><strong>Refund</strong></td><td>เงินคืนแขก เช่น Deposit เกิน หรือรายการผิด</td><td>ต้องได้รับอนุมัติ Supervisor ก่อน</td></tr>
+            <tr><td><strong>POS Revenue</strong></td><td>ค่าใช้จ่ายจาก POS เช่น ร้านอาหาร, Spa</td><td>ตรวจยอดกับแผนกนั้นถ้าแขกสงสัย</td></tr>
+          </tbody>
+        </table>
+        <div class="tip" style="margin-top:14px;"><span class="tip-icon">💡</span> เปิด Folio ได้จาก: In-House → View Details → แท็บ Folio หรือ … Options → Folio</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §3 Deposit -->
+  <div class="section" id="sec3">
+    <div class="sec-title"><span class="sec-num">3</span> การรับ Deposit (มัดจำ)</div>
+    <div class="sec-desc">Deposit คือเงินมัดจำที่แขกชำระล่วงหน้าก่อนเช็คอิน หรือตอนเช็คอิน — ป้องกันความเสี่ยงถ้าแขก No Show หรือมีค่าใช้จ่ายค้าง</div>
+
+    <div class="card">
+      <div class="card-hd"><span>💰</span><h3>ขั้นตอนรับ Deposit</h3></div>
+      <div class="card-bd">
+        <ul class="step-list">
+          <li><span class="step-num">1</span><div class="step-content"><strong>เปิดฟอร์มการจองของแขก</strong><p>ไปที่ Reservations หรือ In-House → View Details → แท็บ Deposit</p></div></li>
+          <li><span class="step-num">2</span><div class="step-content"><strong>กด + Add Deposit</strong><p>เปิดหน้าต่างเพิ่ม Deposit</p></div></li>
+          <li><span class="step-num">3</span><div class="step-content"><strong>กรอกจำนวนเงินและเลือกวิธีชำระ</strong><p>Cash / Transfer / Credit Card — ระบุให้ถูกต้องตามที่รับจริง</p></div></li>
+          <li><span class="step-num">4</span><div class="step-content"><strong>กด Save — ระบบบันทึกใน Folio ทันที</strong><p>Deposit จะปรากฏในรายการ Folio เป็น "ชำระแล้ว"</p></div></li>
+          <li><span class="step-num">5</span><div class="step-content"><strong>พิมพ์ใบรับเงินให้แขก (ถ้าต้องการ)</strong><p>กด Print Receipt จากในฟอร์ม Deposit</p></div></li>
+        </ul>
+        <div class="note"><span class="tip-icon">📌</span> Deposit ที่รับไว้จะถูกหักออกจากยอดรวมอัตโนมัติตอน Check-out — ถ้า Deposit เกินยอดค่าห้อง ต้องคืนเงินส่วนเกินให้แขก</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>❓</span><h3>Deposit vs ชำระเต็มจำนวน — ต่างกันอย่างไร</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th></th><th>Deposit (มัดจำ)</th><th>Full Payment (ชำระเต็ม)</th></tr></thead>
+          <tbody>
+            <tr><td><strong>จ่ายเมื่อไร</strong></td><td>ก่อน Check-in หรือตอน Check-in</td><td>ตอน Check-out</td></tr>
+            <tr><td><strong>จำนวน</strong></td><td>บางส่วน เช่น 50% หรือ 1 คืน</td><td>ยอดค้างชำระทั้งหมด</td></tr>
+            <tr><td><strong>วัตถุประสงค์</strong></td><td>ล็อคการจอง, ป้องกัน No Show</td><td>ปิดบัญชีการเข้าพัก</td></tr>
+            <tr><td><strong>ใน Folio</strong></td><td>แสดงเป็นรายการ "Deposit"</td><td>แสดงเป็นรายการ "Payment"</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- §4 Check-out Payment -->
+  <div class="section" id="sec4">
+    <div class="sec-title"><span class="sec-num">4</span> การรับชำระตอน Check-out</div>
+    <div class="sec-desc">ขั้นตอนปิดบัญชีแขก — ต้องทำให้ถูกต้องและครบก่อนกดยืนยัน Check-out</div>
+
+    <div class="card">
+      <div class="card-hd"><span>🧾</span><h3>ขั้นตอนรับชำระตอน Check-out</h3></div>
+      <div class="card-bd">
+        <ul class="step-list">
+          <li><span class="step-num">1</span><div class="step-content"><strong>เปิดหน้า Departures — หาชื่อแขก</strong><p>กด Check-out บนแถวของแขก</p></div></li>
+          <li><span class="step-num">2</span><div class="step-content"><strong>ตรวจ Folio กับแขกด้วยกัน</strong><p>อ่านรายการทุกรายการให้แขกฟัง — ถ้ามีรายการที่แขกไม่รู้จักให้แจ้ง Supervisor</p></div></li>
+          <li><span class="step-num">3</span><div class="step-content"><strong>แขกเลือกวิธีชำระ</strong><p>Cash / Transfer / Credit Card — เลือกให้ถูกต้อง</p></div></li>
+          <li><span class="step-num">4</span><div class="step-content"><strong>รับชำระยอด Balance Due</strong><p>ยอดนี้หัก Deposit ที่รับไปแล้วออกแล้ว</p></div></li>
+          <li><span class="step-num">5</span><div class="step-content"><strong>กด Confirm Check-out</strong><p>ระบบปิดการจอง, ห้องเปลี่ยนเป็น Dirty, ออกใบเสร็จได้</p></div></li>
+          <li><span class="step-num">6</span><div class="step-content"><strong>พิมพ์ Receipt / Invoice ให้แขก</strong><p>กด Print Invoice จากหน้า Folio หลัง Check-out</p></div></li>
+        </ul>
+
+        <div class="danger"><span class="tip-icon">🚨</span> <strong>ถ้าแขกขอให้ลบรายการออก:</strong> พนักงาน FO ไม่สามารถลบรายการใน Folio ได้เอง — ต้องแจ้ง Manager หรือ Supervisor เพื่อขอ Authorization ก่อน</div>
+        <div class="warn"><span class="tip-icon">⚠️</span> ตรวจให้แน่ใจว่า Balance Due = 0 ก่อนกด Check-out — ถ้ายังมียอดค้างระบบจะแจ้งเตือน</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="card">
+        <div class="card-hd"><span>↩️</span><h3>กรณีคืนเงิน (Refund)</h3></div>
+        <div class="card-bd">
+          <p style="font-size:13.5px;color:var(--slate-600);margin-bottom:10px;">เมื่อ Deposit มากกว่ายอดรวม หรือมีรายการผิดพลาด</p>
+          <ul class="step-list">
+            <li><span class="step-num">1</span><div class="step-content"><strong>แจ้ง Supervisor ขอ Approval</strong><p>การคืนเงินต้องได้รับอนุมัติก่อนเสมอ</p></div></li>
+            <li><span class="step-num">2</span><div class="step-content"><strong>เลือก Refund Method</strong><p>คืนด้วยวิธีเดิมที่รับมา เช่น รับ Cash คืน Cash</p></div></li>
+            <li><span class="step-num">3</span><div class="step-content"><strong>บันทึกใน Folio</strong><p>รายการ Refund จะแสดงเป็นลบใน Folio</p></div></li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span>🧾</span><h3>ใบเสร็จ vs Invoice</h3></div>
+        <div class="card-bd">
+          <table class="field-table">
+            <thead><tr><th>ชื่อ</th><th>ใช้สำหรับ</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Receipt</strong><br><span style="font-size:11px;color:var(--slate-400)">ใบรับเงิน</span></td><td>แขกทั่วไปต้องการหลักฐานชำระ</td></tr>
+              <tr><td><strong>Invoice</strong><br><span style="font-size:11px;color:var(--slate-400)">ใบแจ้งหนี้</span></td><td>บริษัทต้องการเอกสารทางบัญชี</td></tr>
+              <tr><td><strong>Folio</strong><br><span style="font-size:11px;color:var(--slate-400)">ใบรายการค่าใช้จ่าย</span></td><td>รายละเอียดทุกรายการตลอดการพัก</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §5 Payment Report -->
+  <div class="section" id="sec5">
+    <div class="sec-title"><span class="sec-num">5</span> รายงาน Payment (สำหรับ Manager)</div>
+    <div class="sec-desc">หน้า Payment Report สรุปรายรับทั้งหมด — แยกตามวิธีชำระ, ประเภทรายได้ และรายวัน</div>
+
+    <div class="card">
+      <div class="card-hd"><span>📺</span><h3>หน้าจอ Payment Report สด</h3></div>
+      <div class="card-bd" style="padding:0">
+        <div class="live-frame-wrap">
+          <div class="live-frame-bar">
+            <div class="frame-dots"><div class="frame-dot fd-r"></div><div class="frame-dot fd-y"></div><div class="frame-dot fd-g"></div></div>
+            <div class="frame-url">localhost:3000/pms/payments</div>
+            <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+          </div>
+          <iframe src="http://localhost:3000/pms/payments" height="460" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><span>🔍</span><h3>อ่านรายงาน Payment อย่างไร</h3></div>
+      <div class="card-bd">
+        <table class="field-table">
+          <thead><tr><th>ส่วนในรายงาน</th><th>บอกอะไร</th><th>ใช้ทำอะไร</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Grand Total</strong></td><td>รายรับรวมทั้งหมด ก่อนหักคืน</td><td>ตรวจยอดรวมประจำวัน/เดือน</td></tr>
+            <tr><td><strong>Net Total</strong></td><td>รายรับสุทธิ = รับ − คืน</td><td>ยอดจริงที่โรงแรมได้รับ</td></tr>
+            <tr><td><strong>By Method</strong></td><td>แยกตามวิธีชำระ: Cash, Transfer, Card, Other</td><td>ตรวจว่าเงินสดในลิ้นชักตรงกับระบบ</td></tr>
+            <tr><td><strong>By Category</strong></td><td>แยกตามประเภท: Room, Extra, POS, Deposit</td><td>วิเคราะห์รายได้แต่ละแหล่ง</td></tr>
+            <tr><td><strong>By Day</strong></td><td>รายรับแต่ละวันในช่วงที่เลือก</td><td>ดูแนวโน้มรายได้รายวัน</td></tr>
+            <tr><td><strong>Detail Tab</strong></td><td>รายการทุกรายการ แยกตามห้องและแขก</td><td>ตรวจสอบรายการที่สงสัย</td></tr>
+          </tbody>
+        </table>
+        <div class="tip" style="margin-top:12px;"><span class="tip-icon">💡</span> <strong>Preset:</strong> กดปุ่ม Today / Yesterday / Last 7D / Last 30D เพื่อดูรายงานช่วงเวลาต่างๆ ได้ทันที ไม่ต้องพิมพ์วันที่เอง</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- §6 หน้าจอสด -->
+  <div class="section" id="sec6">
+    <div class="sec-title"><span class="sec-num">6</span> หน้าจอสดที่เกี่ยวข้องกับการเงิน</div>
+    <div class="sec-desc">คลิกแท็บด้านล่างเพื่อสลับดูหน้าจอสด</div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(this,'t-pay')">📊 Payments</button>
+      <button class="tab-btn" onclick="switchTab(this,'t-dep')">🚪 Departures</button>
+      <button class="tab-btn" onclick="switchTab(this,'t-res')">📝 Reservations</button>
+    </div>
+    <div class="tab-frame-wrap">
+      <div class="tab-panel active" id="t-pay">
+        <iframe src="http://localhost:3000/pms/payments" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="t-dep">
+        <iframe src="http://localhost:3000/pms/departures" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+      <div class="tab-panel" id="t-res">
+        <iframe src="http://localhost:3000/pms/reservations" height="450" style="width:100%;border:none;display:block;" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- §7 คำศัพท์ 40 คำ -->
+  <div class="section" id="sec7">
+    <div class="sec-title"><span class="sec-num">7</span> คำศัพท์การเงิน (40 คำ)</div>
+    <div class="sec-desc">ทุกคำที่ FO ต้องรู้ — พิมพ์ค้นหาได้เลย</div>
+
+    <input class="gloss-search" type="text" placeholder="🔍 พิมพ์คำค้นหา เช่น folio, deposit, refund..." oninput="filterGloss(this.value)">
+    <div class="gloss-grid" id="glossGrid">
+
+      <!-- วิธีชำระ -->
+      <div class="gloss-card" data-kw="cash เงินสด">
+        <div class="gloss-en">CASH</div><div class="gloss-th">เงินสด</div>
+        <div class="gloss-def">การชำระด้วยธนบัตรหรือเหรียญ — นับต่อหน้าแขก ออกใบเสร็จทันที</div>
+        <span class="gloss-tag">วิธีชำระ</span>
+      </div>
+      <div class="gloss-card" data-kw="transfer โอนเงิน ธนาคาร">
+        <div class="gloss-en">BANK TRANSFER</div><div class="gloss-th">โอนเงินผ่านธนาคาร</div>
+        <div class="gloss-def">แขกโอนเงินผ่านธนาคาร — ต้องรับ Slip ก่อนบันทึกในระบบ</div>
+        <span class="gloss-tag">วิธีชำระ</span>
+      </div>
+      <div class="gloss-card" data-kw="credit card บัตรเครดิต บัตร">
+        <div class="gloss-en">CREDIT CARD</div><div class="gloss-th">บัตรเครดิต / บัตรเดบิต</div>
+        <div class="gloss-def">รูดผ่านเครื่อง EDC รอ Approved แล้วจึงบันทึก เก็บสลิปบัตรไว้เสมอ</div>
+        <span class="gloss-tag">วิธีชำระ</span>
+      </div>
+      <div class="gloss-card" data-kw="edc เครื่องรูดบัตร">
+        <div class="gloss-en">EDC MACHINE</div><div class="gloss-th">เครื่องรูดบัตร</div>
+        <div class="gloss-def">Electronic Data Capture — เครื่องรับบัตรเครดิต/เดบิต ต้องรอสัญญาณ Approved ก่อนทุกครั้ง</div>
+        <span class="gloss-tag">วิธีชำระ</span>
+      </div>
+      <div class="gloss-card" data-kw="qr code พร้อมเพย์">
+        <div class="gloss-en">QR CODE PAYMENT</div><div class="gloss-th">ชำระผ่าน QR Code</div>
+        <div class="gloss-def">แขกสแกน QR แล้วโอนเงิน — รับ Slip ยืนยันก่อน, บันทึกเป็น Other ในระบบ</div>
+        <span class="gloss-tag">วิธีชำระ</span>
+      </div>
+
+      <!-- บัญชีและเอกสาร -->
+      <div class="gloss-card" data-kw="folio ใบบัญชี รายการค่าใช้จ่าย">
+        <div class="gloss-en">FOLIO</div><div class="gloss-th">ใบบัญชีค่าใช้จ่ายแขก</div>
+        <div class="gloss-def">รายการค่าใช้จ่ายทั้งหมดของแขกในการเข้าพักครั้งนั้น — ใช้ตรวจสอบและชำระตอน Check-out</div>
+        <span class="gloss-tag">เอกสาร</span>
+      </div>
+      <div class="gloss-card" data-kw="invoice ใบแจ้งหนี้ บริษัท">
+        <div class="gloss-en">INVOICE</div><div class="gloss-th">ใบแจ้งหนี้ / ใบกำกับภาษี</div>
+        <div class="gloss-def">เอกสารทางบัญชีที่บริษัทต้องการสำหรับเบิกค่าใช้จ่าย — พิมพ์จาก Folio หลัง Check-out</div>
+        <span class="gloss-tag">เอกสาร</span>
+      </div>
+      <div class="gloss-card" data-kw="receipt ใบเสร็จ">
+        <div class="gloss-en">RECEIPT</div><div class="gloss-th">ใบเสร็จรับเงิน</div>
+        <div class="gloss-def">หลักฐานการชำระเงิน — ออกให้แขกทุกครั้งที่รับเงิน ทั้ง Deposit และ Check-out</div>
+        <span class="gloss-tag">เอกสาร</span>
+      </div>
+      <div class="gloss-card" data-kw="slip สลิป หลักฐาน">
+        <div class="gloss-en">SLIP</div><div class="gloss-th">สลิปโอน / สลิปบัตร</div>
+        <div class="gloss-def">หลักฐานการชำระเงิน — Transfer Slip หรือ Card Slip — ต้องเก็บไว้เป็นหลักฐาน</div>
+        <span class="gloss-tag">เอกสาร</span>
+      </div>
+
+      <!-- ยอดเงิน -->
+      <div class="gloss-card" data-kw="deposit มัดจำ เงินล่วงหน้า">
+        <div class="gloss-en">DEPOSIT</div><div class="gloss-th">เงินมัดจำ / จ่ายล่วงหน้า</div>
+        <div class="gloss-def">เงินที่แขกชำระก่อนหรือตอน Check-in เพื่อยืนยันการจอง — หักออกจากยอดรวมตอน Check-out</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="balance due ยอดค้าง จ่ายเพิ่ม">
+        <div class="gloss-en">BALANCE DUE</div><div class="gloss-th">ยอดค้างชำระ</div>
+        <div class="gloss-def">ยอดที่ต้องชำระเพิ่ม = รวมทั้งหมด − ชำระแล้ว — ต้องเป็น 0 ก่อน Check-out</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="total amount รวม ยอดรวม">
+        <div class="gloss-en">TOTAL AMOUNT</div><div class="gloss-th">ยอดรวมทั้งสิ้น</div>
+        <div class="gloss-def">ผลรวมของทุกรายการใน Folio ก่อนหักการชำระ</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="net total ยอดสุทธิ หลังหัก">
+        <div class="gloss-en">NET TOTAL</div><div class="gloss-th">ยอดสุทธิ</div>
+        <div class="gloss-def">รายรับจริง = รับเงิน − คืนเงิน ทั้งหมด — ตัวเลขที่โรงแรมได้รับจริง</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="refund คืนเงิน">
+        <div class="gloss-en">REFUND</div><div class="gloss-th">การคืนเงิน</div>
+        <div class="gloss-def">คืนเงินให้แขกกรณี Deposit เกิน หรือมีรายการผิดพลาด — ต้องได้รับ Approval ก่อน</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="outstanding ค้างชำระ ยังไม่ได้จ่าย">
+        <div class="gloss-en">OUTSTANDING</div><div class="gloss-th">ยอดที่ยังค้างชำระ</div>
+        <div class="gloss-def">รายการที่ยังไม่ได้รับการชำระ — ต้องติดตามหรือชำระก่อน Check-out</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+      <div class="gloss-card" data-kw="overcharge เก็บเกิน เกินจริง">
+        <div class="gloss-en">OVERCHARGE</div><div class="gloss-th">เรียกเก็บเกินจริง</div>
+        <div class="gloss-def">รายการที่เรียกเก็บผิดพลาดเกินจริง — ต้องแจ้ง Supervisor เพื่อขอลบและคืนเงิน</div>
+        <span class="gloss-tag">ยอดเงิน</span>
+      </div>
+
+      <!-- ประเภทรายได้ -->
+      <div class="gloss-card" data-kw="room revenue รายได้ห้อง">
+        <div class="gloss-en">ROOM REVENUE</div><div class="gloss-th">รายได้ค่าห้องพัก</div>
+        <div class="gloss-def">รายได้จากค่าห้องพักรายคืน — รายได้หลักของโรงแรม</div>
+        <span class="gloss-tag">ประเภทรายได้</span>
+      </div>
+      <div class="gloss-card" data-kw="extra charge ค่าใช้จ่ายพิเศษ">
+        <div class="gloss-en">EXTRA CHARGE</div><div class="gloss-th">ค่าใช้จ่ายเพิ่มเติม</div>
+        <div class="gloss-def">ค่าใช้จ่ายที่โพสต์เพิ่มใน Folio ระหว่างพัก เช่น มินิบาร์ ซักรีด เตียงเสริม</div>
+        <span class="gloss-tag">ประเภทรายได้</span>
+      </div>
+      <div class="gloss-card" data-kw="pos revenue ร้านอาหาร">
+        <div class="gloss-en">POS REVENUE</div><div class="gloss-th">รายได้จาก POS</div>
+        <div class="gloss-def">รายได้จากร้านอาหาร, Bar, Spa ที่เชื่อมกับระบบ POS ของโรงแรม</div>
+        <span class="gloss-tag">ประเภทรายได้</span>
+      </div>
+      <div class="gloss-card" data-kw="no show fee ค่าปรับ ไม่มา">
+        <div class="gloss-en">NO-SHOW FEE</div><div class="gloss-th">ค่าธรรมเนียม No Show</div>
+        <div class="gloss-def">ค่าปรับเมื่อแขกไม่มาตามกำหนดและไม่ยกเลิกล่วงหน้า — ตามนโยบายของโรงแรม</div>
+        <span class="gloss-tag">ประเภทรายได้</span>
+      </div>
+      <div class="gloss-card" data-kw="day use revenue ใช้ห้องกลางวัน">
+        <div class="gloss-en">DAY USE REVENUE</div><div class="gloss-th">รายได้จากการใช้ห้องกลางวัน</div>
+        <div class="gloss-def">รายได้จากแขกที่เช่าห้องใช้งานกลางวัน ไม่ค้างคืน — คิดราคาแบบ Day Rate</div>
+        <span class="gloss-tag">ประเภทรายได้</span>
+      </div>
+
+      <!-- ตัวชี้วัด -->
+      <div class="gloss-card" data-kw="adr average daily rate ราคาเฉลี่ย">
+        <div class="gloss-en">ADR</div><div class="gloss-th">ราคาห้องเฉลี่ยต่อวัน</div>
+        <div class="gloss-def">Average Daily Rate = รายได้ค่าห้องรวม ÷ จำนวนห้องที่ขายได้ — ตัวชี้วัดประสิทธิภาพราคา</div>
+        <span class="gloss-tag">KPI</span>
+      </div>
+      <div class="gloss-card" data-kw="revpar revenue per available room">
+        <div class="gloss-en">RevPAR</div><div class="gloss-th">รายได้ต่อห้องที่มีทั้งหมด</div>
+        <div class="gloss-def">Revenue Per Available Room = ADR × อัตราการเข้าพัก — ตัวชี้วัดสำคัญที่ Manager ดูทุกวัน</div>
+        <span class="gloss-tag">KPI</span>
+      </div>
+      <div class="gloss-card" data-kw="occupancy rate อัตราการเข้าพัก">
+        <div class="gloss-en">OCCUPANCY RATE</div><div class="gloss-th">อัตราการเข้าพัก</div>
+        <div class="gloss-def">จำนวนห้องที่ขายได้ ÷ ห้องทั้งหมด × 100 — เช่น 70% หมายถึง 7 ใน 10 ห้องมีแขก</div>
+        <span class="gloss-tag">KPI</span>
+      </div>
+
+      <!-- ทั่วไป -->
+      <div class="gloss-card" data-kw="rate plan แผนราคา">
+        <div class="gloss-en">RATE PLAN</div><div class="gloss-th">แผนราคา</div>
+        <div class="gloss-def">โครงสร้างราคาที่ใช้กับการจอง เช่น Rack Rate, Breakfast Included, Corporate, Promotion</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="rack rate ราคาเต็ม ไม่ลด">
+        <div class="gloss-en">RACK RATE</div><div class="gloss-th">ราคาเต็ม (ไม่มีส่วนลด)</div>
+        <div class="gloss-def">ราคาห้องพักมาตรฐานสูงสุดที่โรงแรมกำหนด — ราคาก่อนส่วนลดทุกประเภท</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="corporate rate บริษัท องค์กร">
+        <div class="gloss-en">CORPORATE RATE</div><div class="gloss-th">ราคาบริษัท / องค์กร</div>
+        <div class="gloss-def">ราคาพิเศษที่ตกลงกับบริษัทคู่สัญญา — มักต่ำกว่า Rack Rate</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="discount ส่วนลด">
+        <div class="gloss-en">DISCOUNT</div><div class="gloss-th">ส่วนลด</div>
+        <div class="gloss-def">การลดราคาจากราคาปกติ — ต้องได้รับอนุมัติตาม Policy ของโรงแรม</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="complimentary ฟรี ไม่คิดเงิน">
+        <div class="gloss-en">COMPLIMENTARY (COMP)</div><div class="gloss-th">ให้บริการฟรี</div>
+        <div class="gloss-def">บริการหรือห้องที่ให้แขกโดยไม่คิดเงิน — ต้องได้รับอนุมัติ Manager ก่อน</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="cashier แคชเชียร์ พนักงานเก็บเงิน">
+        <div class="gloss-en">CASHIER</div><div class="gloss-th">แคชเชียร์ / พนักงานรับเงิน</div>
+        <div class="gloss-def">พนักงานที่รับและบันทึกการชำระเงิน — ทุกรายการจะบันทึกชื่อ Cashier ไว้ในระบบ</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="float เงินสำรอง ตัวขึ้น">
+        <div class="gloss-en">FLOAT / PETTY CASH</div><div class="gloss-th">เงินสำรองประจำเคาน์เตอร์</div>
+        <div class="gloss-def">เงินสดที่ Front Desk เก็บไว้สำหรับทอนแขก — ต้องนับก่อนเปิดกะและหลังปิดกะทุกวัน</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="cash drop ส่งเงิน ฝากเงิน">
+        <div class="gloss-en">CASH DROP</div><div class="gloss-th">การฝากเงินสดเข้าตู้เซฟ</div>
+        <div class="gloss-def">เมื่อเงินสดในลิ้นชักมากเกินกำหนด ต้องนำใส่ตู้เซฟ บันทึกจำนวนเงินทุกครั้ง</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="settlement ชำระ ปิดบัญชี">
+        <div class="gloss-en">SETTLEMENT</div><div class="gloss-th">การชำระหนี้ / ปิดบัญชี</div>
+        <div class="gloss-def">การชำระยอดค้างทั้งหมดให้ครบก่อน Check-out — Settlement ผ่าน = Balance Due เป็น 0</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="authorization อนุมัติ สิทธิ์">
+        <div class="gloss-en">AUTHORIZATION</div><div class="gloss-th">การอนุมัติ</div>
+        <div class="gloss-def">การอนุญาตให้ดำเนินการพิเศษ เช่น ลบรายการ, คืนเงิน, ให้ส่วนลด — ต้องมีลายเซ็น Manager</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="city ledger บัญชีค้างจ่าย เครดิต">
+        <div class="gloss-en">CITY LEDGER</div><div class="gloss-th">บัญชีเครดิตบริษัท</div>
+        <div class="gloss-def">บัญชีที่บริษัทคู่สัญญาค้างชำระ จ่ายทีหลัง — ต้องผ่านการอนุมัติล่วงหน้า</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+      <div class="gloss-card" data-kw="voucher คูปอง บัตรกำนัล">
+        <div class="gloss-en">VOUCHER</div><div class="gloss-th">คูปองหรือบัตรกำนัล</div>
+        <div class="gloss-def">เอกสารแทนเงินสด เช่น บัตรของขวัญ, คูปองส่วนลด — บันทึกเป็น Other ในระบบ</div>
+        <span class="gloss-tag">ทั่วไป</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINISH BANNER -->
+  <div style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border-radius:12px;padding:28px 32px;color:white;text-align:center;margin-bottom:40px;">
+    <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+    <div style="font-size:20px;font-weight:800;margin-bottom:8px;">เรียนจบหมวด 1–4 แล้ว!</div>
+    <div style="font-size:14px;opacity:.85;margin-bottom:16px;">เหลืออีก 1 หมวด — Night Audit ปิดรอบประจำวัน</div>
+    <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
+      <a href="manual-chapter1.html" style="background:rgba(255,255,255,.2);color:white;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;text-decoration:none;">📋 ทบทวนหมวด 1</a>
+      <a href="manual-chapter2.html" style="background:rgba(255,255,255,.2);color:white;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;text-decoration:none;">📝 ทบทวนหมวด 2</a>
+      <a href="manual-chapter3.html" style="background:rgba(255,255,255,.2);color:white;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;text-decoration:none;">🛏️ ทบทวนหมวด 3</a>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+function goTo(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+function switchTab(btn, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(panelId)?.classList.add('active');
+}
+function filterGloss(q) {
+  const term = q.toLowerCase().trim();
+  document.querySelectorAll('.gloss-card').forEach(card => {
+    const kw = (card.getAttribute('data-kw') || '').toLowerCase();
+    const text = card.textContent.toLowerCase();
+    card.classList.toggle('hidden', term !== '' && !kw.includes(term) && !text.includes(term));
+  });
+}
+const sections = ['sec1','sec2','sec3','sec4','sec5','sec6','sec7'];
+window.addEventListener('scroll', () => {
+  let active = '';
+  for (const id of sections) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 140) active = id;
+  }
+  document.querySelectorAll('.nav-a[onclick]').forEach(a => {
+    a.classList.toggle('active', a.getAttribute('onclick')?.includes(active) && active !== '');
+  });
+}, { passive:true });
+</script>
+</body>
+</html>

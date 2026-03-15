@@ -54,7 +54,7 @@ const FLOW_LABELS: Record<FulfillmentMode, string> = {
 };
 
 const FLOW_BADGE_CLASS: Record<FulfillmentMode, string> = {
-    standard: "bg-slate-100 text-slate-700",
+    standard: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]",
     daily_prepare: "bg-indigo-100 text-indigo-700",
 };
 
@@ -263,7 +263,7 @@ export default function ProductsPage() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">
                         Inventory
                     </p>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
                         Products
                     </h1>
                 </div>
@@ -311,7 +311,7 @@ export default function ProductsPage() {
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                         showActiveOnly
                             ? "border-brand-300 bg-brand-50 text-brand-700"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
                     {showActiveOnly ? (
@@ -346,14 +346,14 @@ export default function ProductsPage() {
                     ))}
                 </div>
             ) : filteredProducts.length === 0 ? (
-                <div className="text-center py-16 bg-slate-50 border-2 border-dashed rounded-xl">
+                <div className="text-center py-16 bg-[var(--bg-body)] border-2 border-dashed rounded-xl">
                     <PackageIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                     {products.length === 0 ? (
                         <>
-                            <h3 className="text-lg font-medium text-slate-700">
+                            <h3 className="text-lg font-medium text-[var(--text-table-cell)]">
                                 No products yet
                             </h3>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-sm text-[var(--text-secondary)] mt-1">
                                 Add your first product to get started.
                             </p>
                             <Button
@@ -366,10 +366,10 @@ export default function ProductsPage() {
                         </>
                     ) : (
                         <>
-                            <h3 className="text-lg font-medium text-slate-700">
+                            <h3 className="text-lg font-medium text-[var(--text-table-cell)]">
                                 No products match your search
                             </h3>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-sm text-[var(--text-secondary)] mt-1">
                                 Try adjusting your filters or search query.
                             </p>
                         </>
@@ -381,29 +381,29 @@ export default function ProductsPage() {
                     <div className="hidden md:block card overflow-hidden">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-slate-100 bg-slate-50/60">
-                                    <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-body)]/60">
+                                    <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Name
                                     </th>
-                                    <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         SKU
                                     </th>
-                                    <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Category
                                     </th>
-                                    <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Flow
                                     </th>
-                                    <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Unit
                                     </th>
-                                    <th className="text-right px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-right px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Sale Price
                                     </th>
-                                    <th className="text-center px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-center px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Status
                                     </th>
-                                    <th className="text-right px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                                    <th className="text-right px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Actions
                                     </th>
                                 </tr>
@@ -412,14 +412,14 @@ export default function ProductsPage() {
                                 {filteredProducts.map((product) => (
                                     <tr
                                         key={product.id}
-                                        className={`hover:bg-slate-50/80 transition-colors ${
+                                        className={`hover:bg-[var(--bg-body)]/80 transition-colors ${
                                             !product.is_active ? "opacity-50" : ""
                                         }`}
                                     >
-                                        <td className="px-4 py-3 font-medium text-slate-900">
+                                        <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                                             {product.name}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500">
+                                        <td className="px-4 py-3 text-[var(--text-secondary)]">
                                             {product.sku || "\u2014"}
                                         </td>
                                         <td className="px-4 py-3">
@@ -440,10 +440,10 @@ export default function ProductsPage() {
                                                 {FLOW_LABELS[product.fulfillment_mode ?? "standard"]}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500">
+                                        <td className="px-4 py-3 text-[var(--text-secondary)]">
                                             {product.unit}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-medium text-slate-700">
+                                        <td className="px-4 py-3 text-right font-medium text-[var(--text-table-cell)]">
                                             {formatPrice(product.sale_price)}
                                         </td>
                                         <td className="px-4 py-3 text-center">
@@ -468,7 +468,7 @@ export default function ProductsPage() {
                                                     onClick={() =>
                                                         openEditDialog(product)
                                                     }
-                                                    className="h-8 text-xs text-slate-500 hover:text-brand-600"
+                                                    className="h-8 text-xs text-[var(--text-secondary)] hover:text-brand-600"
                                                 >
                                                     <EditIcon className="w-3.5 h-3.5 mr-1" />
                                                     Edit
@@ -506,7 +506,7 @@ export default function ProductsPage() {
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="text-sm font-bold text-slate-900">
+                                            <h3 className="text-sm font-bold text-[var(--text-primary)]">
                                                 {product.name}
                                             </h3>
                                             <span
@@ -543,13 +543,13 @@ export default function ProductsPage() {
                                             </Badge>
                                         </div>
                                         {product.sku && (
-                                            <p className="text-xs text-slate-400 mt-0.5">
+                                            <p className="text-xs text-[var(--text-muted)] mt-0.5">
                                                 SKU: {product.sku}
                                             </p>
                                         )}
-                                        <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                                        <div className="flex items-center gap-3 mt-1.5 text-xs text-[var(--text-secondary)]">
                                             <span>Unit: {product.unit}</span>
-                                            <span className="font-medium text-slate-700">
+                                            <span className="font-medium text-[var(--text-table-cell)]">
                                                 {formatPrice(product.sale_price)}
                                             </span>
                                         </div>
@@ -561,7 +561,7 @@ export default function ProductsPage() {
                                             onClick={() =>
                                                 openEditDialog(product)
                                             }
-                                            className="h-8 w-8 p-0 text-slate-400 hover:text-brand-600"
+                                            className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-brand-600"
                                         >
                                             <EditIcon className="w-3.5 h-3.5" />
                                         </Button>
@@ -608,7 +608,7 @@ export default function ProductsPage() {
                     <div className="space-y-4 mt-2">
                         {/* Name */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 Name <span className="text-red-500">*</span>
                             </label>
                             <Input
@@ -622,7 +622,7 @@ export default function ProductsPage() {
 
                         {/* SKU */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 SKU
                             </label>
                             <Input
@@ -636,7 +636,7 @@ export default function ProductsPage() {
 
                         {/* Category */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 Category
                             </label>
                             <Select
@@ -663,7 +663,7 @@ export default function ProductsPage() {
 
                         {/* Fulfillment Flow */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 Fulfillment Flow
                             </label>
                             <Select
@@ -691,7 +691,7 @@ export default function ProductsPage() {
 
                         {/* Unit */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 Unit
                             </label>
                             <Input
@@ -705,7 +705,7 @@ export default function ProductsPage() {
 
                         {/* Sale Price */}
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
                                 Sale Price (THB)
                             </label>
                             <Input

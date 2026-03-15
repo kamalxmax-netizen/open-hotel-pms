@@ -209,7 +209,7 @@ export function ReservationFolioModal({
         onClose={onClose}
         footer={
           <div className="flex w-full items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[var(--text-secondary)]">
               Full folio ledger for this reservation
             </div>
             <div className="flex items-center gap-2">
@@ -227,14 +227,14 @@ export function ReservationFolioModal({
         )}
 
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-2">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Reservation</div>
-                <div className="text-2xl font-semibold text-slate-900">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Reservation</div>
+                <div className="text-2xl font-semibold text-[var(--text-primary)]">
                   {folio?.reservation.guest_name || "Guest"}
                 </div>
-                <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                <div className="flex flex-wrap gap-3 text-sm text-[var(--text-secondary)]">
                   <span>{folio?.reservation.booking_code || "—"}</span>
                   <span>Room {folio?.reservation.room_number || "—"}</span>
                   <span className="capitalize">{folio?.reservation.status || "—"}</span>
@@ -250,7 +250,7 @@ export function ReservationFolioModal({
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                       filter === item.key
                         ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                     }`}
                     onClick={() => setFilter(item.key)}
                   >
@@ -262,9 +262,9 @@ export function ReservationFolioModal({
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Room Charges</div>
-              <div className="mt-4 text-2xl font-semibold text-slate-900">฿{formatMoney(folio?.summary.room_charges_total ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Room Charges</div>
+              <div className="mt-4 text-2xl font-semibold text-[var(--text-primary)]">฿{formatMoney(folio?.summary.room_charges_total ?? 0)}</div>
             </div>
             <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-700">Discount</div>
@@ -293,11 +293,11 @@ export function ReservationFolioModal({
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm">
+              <div className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Unified Ledger</div>
-                  <div className="text-xs text-slate-500">Charges, payments, refunds, and deposits in one view</div>
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">Unified Ledger</div>
+                  <div className="text-xs text-[var(--text-secondary)]">Charges, payments, refunds, and deposits in one view</div>
                 </div>
                 <button
                   type="button"
@@ -321,7 +321,7 @@ export function ReservationFolioModal({
                     <col className="w-[16%]" />
                     <col className="w-[7%]" />
                   </colgroup>
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  <thead className="bg-[var(--bg-body)] text-left text-xs font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                     <tr>
                       <th className="px-4 py-3">Date/Time</th>
                       <th className="px-4 py-3">Type</th>
@@ -335,7 +335,7 @@ export function ReservationFolioModal({
                   <tbody>
                     {visibleLedger.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                        <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-secondary)]">
                           No folio rows for this filter.
                         </td>
                       </tr>
@@ -343,12 +343,12 @@ export function ReservationFolioModal({
                       visibleLedger.map((row) => (
                         <tr
                           key={row.id}
-                          className={`border-t border-slate-100 align-top ${row.is_record_only ? "opacity-60 italic" : ""}`}
+                          className={`border-t border-[var(--border-subtle)] align-top ${row.is_record_only ? "opacity-60 italic" : ""}`}
                         >
-                          <td className="px-4 py-3 font-medium text-slate-700">{formatLedgerDateTime(row.occurred_at)}</td>
+                          <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{formatLedgerDateTime(row.occurred_at)}</td>
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-slate-900">{getRowTypeLabel(row)}</div>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <div className="font-semibold text-[var(--text-primary)]">{getRowTypeLabel(row)}</div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
                               <span>{row.label}</span>
                               {row.is_record_only ? (
                                 <span
@@ -360,19 +360,19 @@ export function ReservationFolioModal({
                               ) : null}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-700">{getMethodLabel(row.method)}</td>
+                          <td className="px-4 py-3 text-[var(--text-table-cell)]">{getMethodLabel(row.method)}</td>
                           <td className={`whitespace-nowrap px-4 py-3 font-mono font-semibold ${getAmountTone(row)}`}>
                             {getAmountPrefix(row)}฿{formatMoney(row.amount)}
                           </td>
-                          <td className="px-4 py-3 text-slate-600">
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">
                             {row.template_name || row.revenue_category || "—"}
                           </td>
-                          <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                          <td className="max-w-[260px] px-4 py-3 text-[var(--text-secondary)]">
                             <div className="truncate" title={row.note || ""}>
                               {row.note || "—"}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-500">{row.cashier_name || "—"}</td>
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">{row.cashier_name || "—"}</td>
                         </tr>
                       ))
                     )}
@@ -382,8 +382,8 @@ export function ReservationFolioModal({
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                   <WalletCards className="h-4 w-4 text-indigo-600" />
                   Action Rail
                 </div>
@@ -493,35 +493,35 @@ export function ReservationFolioModal({
                 </div>
               )}
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Landmark className="h-4 w-4 text-slate-600" />
+              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Landmark className="h-4 w-4 text-[var(--text-secondary)]" />
                   Quick Snapshot
                 </div>
-                <div className="space-y-2 text-sm text-slate-600">
+                <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                   <div className="flex justify-between gap-3">
                     <span>Grand Total</span>
-                    <span className="font-semibold text-slate-900">฿{formatMoney(folio?.summary.grand_total ?? totalPrice)}</span>
+                    <span className="font-semibold text-[var(--text-primary)]">฿{formatMoney(folio?.summary.grand_total ?? totalPrice)}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Deposit Held</span>
-                    <span className="font-semibold text-slate-900">฿{formatMoney(folio?.summary.deposit_held ?? depositAmount)}</span>
+                    <span className="font-semibold text-[var(--text-primary)]">฿{formatMoney(folio?.summary.deposit_held ?? depositAmount)}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Outstanding</span>
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-semibold text-[var(--text-primary)]">
                       ฿{formatMoney(fromSatang(billingData?.outstandingSatang ?? toSatang(folio?.summary.outstanding_balance ?? 0)))}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <FileClock className="h-4 w-4 text-slate-600" />
+              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <FileClock className="h-4 w-4 text-[var(--text-secondary)]" />
                   Notes
                 </div>
-                <p className="text-sm leading-6 text-slate-600">
+                <p className="text-sm leading-6 text-[var(--text-secondary)]">
                   This full folio view is the detailed financial workspace for the reservation. Inline booking folio can be reduced later after this view is validated.
                 </p>
               </div>

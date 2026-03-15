@@ -221,7 +221,7 @@ export default function PosOrderHistoryPage() {
                     Point of Sale
                 </p>
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900">Order History</h1>
+                    <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Order History</h1>
                     <Button
                         variant="outline"
                         size="sm"
@@ -239,7 +239,7 @@ export default function PosOrderHistoryPage() {
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Date */}
                     <div className="flex items-center gap-2">
-                        <CalendarIcon className="w-4 h-4 text-slate-400" />
+                        <CalendarIcon className="w-4 h-4 text-[var(--text-muted)]" />
                         <Input
                             type="date"
                             value={dateFilter}
@@ -252,7 +252,7 @@ export default function PosOrderHistoryPage() {
                     <select
                         value={orderTypeFilter}
                         onChange={(e) => setOrderTypeFilter(e.target.value as "" | "walkin" | "guest_charge")}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-table-cell)] focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                         <option value="">All Types</option>
                         <option value="walkin">Walk-in</option>
@@ -263,7 +263,7 @@ export default function PosOrderHistoryPage() {
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as "" | "completed" | "voided")}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-table-cell)] focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                         <option value="">All Statuses</option>
                         <option value="completed">Completed</option>
@@ -284,13 +284,13 @@ export default function PosOrderHistoryPage() {
                 ) : (
                     <>
                         <div className="card p-4 border-l-4 border-l-slate-400">
-                            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-1">
                                 Total Orders
                             </p>
-                            <p className="text-2xl font-extrabold text-slate-900">{totalOrders}</p>
+                            <p className="text-2xl font-extrabold text-[var(--text-primary)]">{totalOrders}</p>
                         </div>
                         <div className="card p-4 border-l-4 border-l-brand-600">
-                            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-1">
                                 Total Revenue
                             </p>
                             <p className="text-2xl font-extrabold text-brand-600">
@@ -298,7 +298,7 @@ export default function PosOrderHistoryPage() {
                             </p>
                         </div>
                         <div className="card p-4 border-l-4 border-l-red-500">
-                            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-1">
                                 Voided
                             </p>
                             <p className="text-2xl font-extrabold text-red-500">{voidedCount}</p>
@@ -312,26 +312,26 @@ export default function PosOrderHistoryPage() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-slate-200 bg-slate-50">
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            <tr className="border-b border-[var(--border-default)] bg-[var(--bg-body)]">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Order#
                                 </th>
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Date/Time
                                 </th>
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Type
                                 </th>
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Guest
                                 </th>
-                                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Total
                                 </th>
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Payment
                                 </th>
-                                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                     Status
                                 </th>
                                 <th className="px-4 py-3" />
@@ -340,17 +340,17 @@ export default function PosOrderHistoryPage() {
                         <tbody>
                             {isLoading ? (
                                 Array.from({ length: 8 }).map((_, i) => (
-                                    <tr key={i} className="border-b border-slate-100">
+                                    <tr key={i} className="border-b border-[var(--border-subtle)]">
                                         {Array.from({ length: 8 }).map((_, j) => (
                                             <td key={j} className="px-4 py-3">
-                                                <div className="h-4 w-20 rounded bg-slate-100 animate-pulse" />
+                                                <div className="h-4 w-20 rounded bg-[var(--bg-muted)] animate-pulse" />
                                             </td>
                                         ))}
                                     </tr>
                                 ))
                             ) : orders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                                    <td colSpan={8} className="text-center py-12 text-[var(--text-muted)]">
                                         <ClipboardListIcon className="w-12 h-12 mx-auto mb-2 opacity-40" />
                                         <p className="text-sm">No orders found for this date</p>
                                     </td>
@@ -378,8 +378,8 @@ export default function PosOrderHistoryPage() {
 
                 {/* Pagination */}
                 {!isLoading && totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-                        <p className="text-xs text-slate-500">
+                    <div className="flex items-center justify-between border-t border-[var(--border-default)] px-4 py-3">
+                        <p className="text-xs text-[var(--text-secondary)]">
                             Showing {page * PAGE_SIZE + 1}
                             {" - "}
                             {Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount} orders
@@ -393,7 +393,7 @@ export default function PosOrderHistoryPage() {
                             >
                                 <ChevronLeftIcon className="w-4 h-4" />
                             </Button>
-                            <span className="text-sm font-medium text-slate-700 px-2">
+                            <span className="text-sm font-medium text-[var(--text-table-cell)] px-2">
                                 {page + 1} / {totalPages}
                             </span>
                             <Button
@@ -416,16 +416,16 @@ export default function PosOrderHistoryPage() {
                         <DialogTitle>Void Order</DialogTitle>
                     </DialogHeader>
                     <div className="py-4">
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-[var(--text-secondary)]">
                             Are you sure you want to void order{" "}
-                            <span className="font-bold text-slate-900">
+                            <span className="font-bold text-[var(--text-primary)]">
                                 #{voidingOrder?.order_number}
                             </span>
                             ?
                         </p>
-                        <p className="text-sm text-slate-500 mt-2">
+                        <p className="text-sm text-[var(--text-secondary)] mt-2">
                             Total:{" "}
-                            <span className="font-semibold text-slate-700">
+                            <span className="font-semibold text-[var(--text-table-cell)]">
                                 {fmtAmount(voidingOrder?.total ?? 0)} THB
                             </span>
                         </p>
@@ -498,14 +498,14 @@ function OrderRow({
         <>
             <tr
                 onClick={onToggle}
-                className={`border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50 ${
+                className={`border-b border-[var(--border-subtle)] cursor-pointer transition-colors hover:bg-[var(--bg-body)] ${
                     isExpanded ? "bg-brand-50/50" : ""
                 }`}
             >
-                <td className="px-4 py-3 font-semibold text-slate-900">
+                <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">
                     #{order.order_number}
                 </td>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-[var(--text-secondary)]">
                     {fmtDateTime(order.created_at)}
                 </td>
                 <td className="px-4 py-3">
@@ -513,13 +513,13 @@ function OrderRow({
                         {order.order_type === "walkin" ? "Walk-in" : "Room Deposit"}
                     </Badge>
                 </td>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-[var(--text-secondary)]">
                     {order.guest_name || "-"}
                 </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-900 tabular-nums">
+                <td className="px-4 py-3 text-right font-semibold text-[var(--text-primary)] tabular-nums">
                     {fmtAmount(order.total)}
                 </td>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-[var(--text-secondary)]">
                     {paymentLabel}
                 </td>
                 <td className="px-4 py-3">
@@ -530,7 +530,7 @@ function OrderRow({
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                 : order.status === "voided"
                                   ? "border-red-200 bg-red-50 text-red-700"
-                                  : "border-slate-200 bg-slate-50 text-slate-600"
+                                  : "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-secondary)]"
                         }
                     >
                         {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
@@ -550,9 +550,9 @@ function OrderRow({
                             </Button>
                         )}
                         {isExpanded ? (
-                            <ChevronUpIcon className="w-4 h-4 text-slate-400" />
+                            <ChevronUpIcon className="w-4 h-4 text-[var(--text-muted)]" />
                         ) : (
-                            <ChevronDownIcon className="w-4 h-4 text-slate-400" />
+                            <ChevronDownIcon className="w-4 h-4 text-[var(--text-muted)]" />
                         )}
                     </div>
                 </td>
@@ -560,34 +560,34 @@ function OrderRow({
 
             {/* Expanded Detail Row */}
             {isExpanded && (
-                <tr className="bg-slate-50/80">
+                <tr className="bg-[var(--bg-body)]/80">
                     <td colSpan={8} className="px-4 py-4">
                         <div className="ml-4">
-                            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-2">
                                 Order Items
                             </p>
                             {isLoadingItems ? (
                                 <div className="space-y-2">
                                     {Array.from({ length: 3 }).map((_, i) => (
-                                        <div key={i} className="h-8 rounded bg-slate-100 animate-pulse" />
+                                        <div key={i} className="h-8 rounded bg-[var(--bg-muted)] animate-pulse" />
                                     ))}
                                 </div>
                             ) : orderItems.length === 0 ? (
-                                <p className="text-sm text-slate-400">No items found</p>
+                                <p className="text-sm text-[var(--text-muted)]">No items found</p>
                             ) : (
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b border-slate-200">
-                                            <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                        <tr className="border-b border-[var(--border-default)]">
+                                            <th className="text-left py-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                                 Product
                                             </th>
-                                            <th className="text-right py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                            <th className="text-right py-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                                 Qty
                                             </th>
-                                            <th className="text-right py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                            <th className="text-right py-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                                 Unit Price
                                             </th>
-                                            <th className="text-right py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                            <th className="text-right py-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
                                                 Line Total
                                             </th>
                                         </tr>
@@ -596,28 +596,28 @@ function OrderRow({
                                         {orderItems.map((item) => (
                                             <tr
                                                 key={item.id}
-                                                className="border-b border-slate-100"
+                                                className="border-b border-[var(--border-subtle)]"
                                             >
-                                                <td className="py-2 text-slate-900 font-medium">
+                                                <td className="py-2 text-[var(--text-primary)] font-medium">
                                                     {item.product_name}
                                                 </td>
-                                                <td className="py-2 text-right text-slate-600 tabular-nums">
+                                                <td className="py-2 text-right text-[var(--text-secondary)] tabular-nums">
                                                     {item.quantity}
                                                 </td>
-                                                <td className="py-2 text-right text-slate-600 tabular-nums">
+                                                <td className="py-2 text-right text-[var(--text-secondary)] tabular-nums">
                                                     {fmtAmount(item.unit_price)}
                                                 </td>
-                                                <td className="py-2 text-right font-semibold text-slate-900 tabular-nums">
+                                                <td className="py-2 text-right font-semibold text-[var(--text-primary)] tabular-nums">
                                                     {fmtAmount(item.line_total)}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                     <tfoot>
-                                        <tr className="border-t-2 border-slate-200">
+                                        <tr className="border-t-2 border-[var(--border-default)]">
                                             <td
                                                 colSpan={3}
-                                                className="py-2 text-right text-xs font-bold text-slate-500 uppercase"
+                                                className="py-2 text-right text-xs font-bold text-[var(--text-secondary)] uppercase"
                                             >
                                                 Order Total
                                             </td>
@@ -635,23 +635,23 @@ function OrderRow({
                                 </table>
                             )}
                             {folioPayments.length > 0 && (
-                                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
-                                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
+                                <div className="mt-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                                    <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-2">
                                         Settlement Detail
                                     </p>
                                     <div className="space-y-2">
                                         {folioPayments.map((row) => (
-                                            <div key={row.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2">
+                                            <div key={row.id} className="flex items-start justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-3 py-2">
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-slate-900">
+                                                    <p className="text-sm font-semibold text-[var(--text-primary)]">
                                                         {row.note || (row.tx_type === "refund" ? "Refund" : "Payment")}
                                                     </p>
-                                                    <p className="text-xs text-slate-500">
+                                                    <p className="text-xs text-[var(--text-secondary)]">
                                                         {(row.method || "-").replace("credit_card", "card")} · {row.tx_type}
                                                         {row.is_record_only ? " · record only" : ""}
                                                     </p>
                                                 </div>
-                                                <p className={`text-sm font-bold tabular-nums ${row.tx_type === "refund" ? "text-red-600" : "text-slate-900"}`}>
+                                                <p className={`text-sm font-bold tabular-nums ${row.tx_type === "refund" ? "text-red-600" : "text-[var(--text-primary)]"}`}>
                                                     {row.tx_type === "refund" ? "-" : "+"}{fmtAmount(row.amount)}
                                                 </p>
                                             </div>
@@ -660,7 +660,7 @@ function OrderRow({
                                 </div>
                             )}
                             {order.note && (
-                                <p className="text-xs text-slate-500 mt-3">
+                                <p className="text-xs text-[var(--text-secondary)] mt-3">
                                     <span className="font-semibold">Note:</span> {order.note}
                                 </p>
                             )}

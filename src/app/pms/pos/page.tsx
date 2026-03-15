@@ -379,53 +379,53 @@ export default function PosTerminalPage() {
                     <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
                         <CheckIcon className="w-8 h-8 text-emerald-600" />
                     </div>
-                    <h2 className="text-2xl font-extrabold text-slate-900 mb-1 text-center">Sale Complete!</h2>
-                    <p className="text-sm text-slate-500 mb-4 text-center">Order #{completedSale.order.order_number}</p>
-                    <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                    <h2 className="text-2xl font-extrabold text-[var(--text-primary)] mb-1 text-center">Sale Complete!</h2>
+                    <p className="text-sm text-[var(--text-secondary)] mb-4 text-center">Order #{completedSale.order.order_number}</p>
+                    <div className="bg-[var(--bg-body)] rounded-xl p-4 mb-4">
                         <div className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-500">Type</span>
+                            <span className="text-[var(--text-secondary)]">Type</span>
                             <Badge variant={completedSale.order.order_type === "walkin" ? "default" : "secondary"}>
                                 {completedSale.order.order_type === "walkin" ? "Walk-in" : "Room Deposit"}
                             </Badge>
                         </div>
                         {completedSale.order.guest_name && (
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">Guest</span>
+                                <span className="text-[var(--text-secondary)]">Guest</span>
                                 <span className="font-medium">{completedSale.order.guest_name}</span>
                             </div>
                         )}
                         {completedSale.room_number && (
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">Room</span>
+                                <span className="text-[var(--text-secondary)]">Room</span>
                                 <span className="font-medium">{completedSale.room_number}</span>
                             </div>
                         )}
                         {completedSale.payment_summary && (
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">Payment</span>
+                                <span className="text-[var(--text-secondary)]">Payment</span>
                                 <span className="font-medium">{completedSale.payment_summary}</span>
                             </div>
                         )}
                         <div className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-500">Subtotal</span>
+                            <span className="text-[var(--text-secondary)]">Subtotal</span>
                             <span className="font-semibold">{completedSale.order.subtotal.toLocaleString("th-TH", { minimumFractionDigits: 2 })} THB</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Total</span>
+                            <span className="text-[var(--text-secondary)]">Total</span>
                             <span className="text-lg font-extrabold text-brand-600">{completedSale.order.total.toLocaleString("th-TH", { minimumFractionDigits: 2 })} THB</span>
                         </div>
                     </div>
 
-                    <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
-                        <div className="bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="border border-[var(--border-default)] rounded-xl overflow-hidden mb-4">
+                        <div className="bg-[var(--bg-body)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                             Sold Items
                         </div>
                         <div className="divide-y divide-slate-100">
                             {completedSale.items.map((item) => (
                                 <div key={item.product_id} className="px-4 py-3 flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <p className="text-sm font-semibold text-slate-900 truncate">{item.product_name}</p>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{item.product_name}</p>
+                                        <p className="text-xs text-[var(--text-secondary)]">
                                             {item.quantity} x {item.unit_price.toLocaleString("th-TH", { minimumFractionDigits: 2 })} THB
                                         </p>
                                     </div>
@@ -438,8 +438,8 @@ export default function PosTerminalPage() {
                     </div>
 
                     {completedSale.order.note && (
-                        <p className="text-sm text-slate-600 mb-4">
-                            <span className="font-semibold text-slate-700">Note:</span> {completedSale.order.note}
+                        <p className="text-sm text-[var(--text-secondary)] mb-4">
+                            <span className="font-semibold text-[var(--text-table-cell)]">Note:</span> {completedSale.order.note}
                         </p>
                     )}
 
@@ -457,7 +457,7 @@ export default function PosTerminalPage() {
             <div className="mb-6">
                 <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Point of Sale</p>
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900">New Sale</h1>
+                    <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">New Sale</h1>
                     <Button variant="outline" size="sm" onClick={fetchProducts} disabled={isLoading}>
                         <RefreshCwIcon className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : ""}`} />
                         Refresh
@@ -472,7 +472,7 @@ export default function PosTerminalPage() {
                     className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
                         orderType === "walkin"
                             ? "border-brand-600 bg-brand-50 text-brand-700"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
                     <BanknoteIcon className="w-4 h-4 inline mr-1.5" />
@@ -483,7 +483,7 @@ export default function PosTerminalPage() {
                     className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
                         orderType === "guest_charge"
                             ? "border-brand-600 bg-brand-50 text-brand-700"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
                     <UserIcon className="w-4 h-4 inline mr-1.5" />
@@ -509,11 +509,11 @@ export default function PosTerminalPage() {
                         {isLoading ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 {Array.from({ length: 8 }).map((_, i) => (
-                                    <div key={i} className="animate-pulse rounded-xl bg-slate-100 h-28" />
+                                    <div key={i} className="animate-pulse rounded-xl bg-[var(--bg-muted)] h-28" />
                                 ))}
                             </div>
                         ) : filteredProducts.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400">
+                            <div className="text-center py-12 text-[var(--text-muted)]">
                                 <ShoppingCartIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                                 <p className="text-sm">No products found</p>
                             </div>
@@ -528,7 +528,7 @@ export default function PosTerminalPage() {
                                             className={`relative text-left rounded-xl border-2 p-3 transition-all hover:shadow-md ${
                                                 inCart
                                                     ? "border-brand-500 bg-brand-50"
-                                                    : "border-slate-200 bg-white hover:border-brand-300"
+                                                    : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-brand-300"
                                             }`}
                                         >
                                             {inCart && (
@@ -536,13 +536,13 @@ export default function PosTerminalPage() {
                                                     {inCart.quantity}
                                                 </span>
                                             )}
-                                            <p className="text-sm font-semibold text-slate-900 truncate">{product.name}</p>
-                                            {product.sku && <p className="text-[10px] text-slate-400 mt-0.5">{product.sku}</p>}
+                                            <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{product.name}</p>
+                                            {product.sku && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{product.sku}</p>}
                                             <p className="text-lg font-extrabold text-brand-600 mt-2">
                                                 {(product.sale_price ?? 0).toLocaleString("th-TH")}
-                                                <span className="text-xs font-normal text-slate-400 ml-0.5">THB</span>
+                                                <span className="text-xs font-normal text-[var(--text-muted)] ml-0.5">THB</span>
                                             </p>
-                                            <p className="text-[10px] text-slate-400 mt-0.5">per {product.unit}</p>
+                                            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">per {product.unit}</p>
                                         </button>
                                     );
                                 })}
@@ -555,7 +555,7 @@ export default function PosTerminalPage() {
                 <div className="lg:col-span-2">
                     <div className="card p-4 lg:sticky lg:top-4">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
                                 <ShoppingCartIcon className="w-5 h-5" />
                                 Cart
                                 {cart.length > 0 && (
@@ -563,7 +563,7 @@ export default function PosTerminalPage() {
                                 )}
                             </h2>
                             {cart.length > 0 && (
-                                <Button variant="ghost" size="sm" onClick={clearCart} className="text-slate-400 hover:text-red-500">
+                                <Button variant="ghost" size="sm" onClick={clearCart} className="text-[var(--text-muted)] hover:text-red-500">
                                     <Trash2Icon className="w-4 h-4" />
                                 </Button>
                             )}
@@ -571,31 +571,31 @@ export default function PosTerminalPage() {
 
                         {/* Cart Items */}
                         {cart.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400">
+                            <div className="text-center py-8 text-[var(--text-muted)]">
                                 <ShoppingCartIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                 <p className="text-sm">Add products to cart</p>
                             </div>
                         ) : (
                             <div className="space-y-2 mb-4 max-h-[40vh] overflow-y-auto">
                                 {cart.map((item) => (
-                                    <div key={item.product_id} className="flex items-center justify-between bg-slate-50 rounded-lg p-2.5">
+                                    <div key={item.product_id} className="flex items-center justify-between bg-[var(--bg-body)] rounded-lg p-2.5">
                                         <div className="flex-1 min-w-0 mr-2">
-                                            <p className="text-sm font-medium text-slate-900 truncate">{item.product_name}</p>
-                                            <p className="text-xs text-slate-400">
+                                            <p className="text-sm font-medium text-[var(--text-primary)] truncate">{item.product_name}</p>
+                                            <p className="text-xs text-[var(--text-muted)]">
                                                 {item.unit_price.toLocaleString("th-TH")} x {item.quantity} = {(item.unit_price * item.quantity).toLocaleString("th-TH")}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 onClick={() => updateQuantity(item.product_id, -1)}
-                                                className="w-7 h-7 flex items-center justify-center rounded-md bg-white border border-slate-200 text-slate-500 hover:bg-slate-100"
+                                                className="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
                                             >
                                                 <MinusIcon className="w-3.5 h-3.5" />
                                             </button>
                                             <span className="w-7 text-center text-sm font-semibold">{item.quantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(item.product_id, 1)}
-                                                className="w-7 h-7 flex items-center justify-center rounded-md bg-white border border-slate-200 text-slate-500 hover:bg-slate-100"
+                                                className="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
                                             >
                                                 <PlusIcon className="w-3.5 h-3.5" />
                                             </button>
@@ -613,12 +613,12 @@ export default function PosTerminalPage() {
 
                         {/* Totals */}
                         {cart.length > 0 && (
-                            <div className="border-t border-slate-200 pt-3 mb-4">
-                                <div className="flex justify-between text-sm text-slate-500 mb-1">
+                            <div className="border-t border-[var(--border-default)] pt-3 mb-4">
+                                <div className="flex justify-between text-sm text-[var(--text-secondary)] mb-1">
                                     <span>Subtotal</span>
                                     <span>{subtotal.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                <div className="flex justify-between text-lg font-extrabold text-slate-900">
+                                <div className="flex justify-between text-lg font-extrabold text-[var(--text-primary)]">
                                     <span>Total</span>
                                     <span className="text-brand-600">{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })} THB</span>
                                 </div>
@@ -638,7 +638,7 @@ export default function PosTerminalPage() {
                         {/* Payment Method (Walk-in) */}
                         {orderType === "walkin" && cart.length > 0 && (
                             <div className="mb-4">
-                                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Payment Method</p>
+                                <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Payment Method</p>
                                 <div className="grid grid-cols-3 gap-2">
                                     {([
                                         { value: "cash", label: "Cash", icon: BanknoteIcon },
@@ -651,7 +651,7 @@ export default function PosTerminalPage() {
                                             className={`py-2 px-2 rounded-lg text-xs font-semibold border-2 transition-colors flex items-center justify-center gap-1 ${
                                                 paymentMethod === value
                                                     ? "border-brand-600 bg-brand-50 text-brand-700"
-                                                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                                    : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                                             }`}
                                         >
                                             <Icon className="w-3.5 h-3.5" />
@@ -665,7 +665,7 @@ export default function PosTerminalPage() {
                         {/* Guest Search (Guest Charge) */}
                         {orderType === "guest_charge" && cart.length > 0 && (
                             <div className="mb-4">
-                                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Paid by Deposit</p>
+                                <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Paid by Deposit</p>
                                 {selectedReservation ? (
                                     <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                                         <div className="flex items-center justify-between">
@@ -716,7 +716,7 @@ export default function PosTerminalPage() {
                                                     </div>
                                                 </div>
                                                 <div className="mt-3">
-                                                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Pay Remaining With</p>
+                                                    <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Pay Remaining With</p>
                                                     <div className="grid grid-cols-3 gap-2">
                                                         {([
                                                             { value: "cash", label: "Cash", icon: BanknoteIcon },
@@ -729,7 +729,7 @@ export default function PosTerminalPage() {
                                                                 className={`py-2 px-2 rounded-lg text-xs font-semibold border-2 transition-colors flex items-center justify-center gap-1 ${
                                                                     paymentMethod === value
                                                                         ? "border-brand-600 bg-brand-50 text-brand-700"
-                                                                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                                                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                                                                 }`}
                                                             >
                                                                 <Icon className="w-3.5 h-3.5" />
@@ -750,21 +750,21 @@ export default function PosTerminalPage() {
                                                 onChange={(e) => setGuestSearch(e.target.value)}
                                             />
                                             {isSearchingGuests && (
-                                                <RefreshCwIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                                                <RefreshCwIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] animate-spin" />
                                             )}
                                         </div>
                                         {reservations.length > 0 && (
-                                            <div className="mt-2 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                                            <div className="mt-2 border border-[var(--border-default)] rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto">
                                                 {reservations.map((r) => (
                                                     <button
                                                         key={r.id}
                                                         onClick={() => { setSelectedReservation(r); setReservations([]); }}
                                                         className="w-full text-left px-3 py-2 hover:bg-brand-50 transition-colors"
                                                     >
-                                                        <p className="text-sm font-medium text-slate-900">
+                                                        <p className="text-sm font-medium text-[var(--text-primary)]">
                                                             Room {r.room_label || r.room_number} — {r.guest_name}
                                                         </p>
-                                                        <p className="text-xs text-slate-400">
+                                                        <p className="text-xs text-[var(--text-muted)]">
                                                             {r.check_in} → {r.check_out}
                                                         </p>
                                                         <p className="text-xs font-medium text-emerald-700 mt-1">
@@ -775,7 +775,7 @@ export default function PosTerminalPage() {
                                             </div>
                                         )}
                                         {guestSearch.length >= 1 && !isSearchingGuests && reservations.length === 0 && (
-                                            <p className="text-xs text-slate-400 mt-2 text-center">No in-house guests found</p>
+                                            <p className="text-xs text-[var(--text-muted)] mt-2 text-center">No in-house guests found</p>
                                         )}
                                     </>
                                 )}
@@ -805,7 +805,7 @@ export default function PosTerminalPage() {
                                     )}
                                 </Button>
                                 {orderType === "guest_charge" && roomDepositHint && (
-                                    <p className={`mt-2 text-xs ${depositHeld > 0 ? "text-slate-500" : "text-amber-700"}`}>
+                                    <p className={`mt-2 text-xs ${depositHeld > 0 ? "text-[var(--text-secondary)]" : "text-amber-700"}`}>
                                         {roomDepositHint}
                                     </p>
                                 )}

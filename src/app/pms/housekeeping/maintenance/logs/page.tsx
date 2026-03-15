@@ -130,29 +130,29 @@ export default function MaintenanceLogsPage() {
             {/* Header */}
             <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-red-600">Maintenance</p>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Maintenance History</h1>
-                <p className="text-sm text-slate-500 mt-0.5">Log of all completed maintenance tasks</p>
+                <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Maintenance History</h1>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5">Log of all completed maintenance tasks</p>
             </div>
 
             {/* Filter Panel */}
-            <div className="bg-white border rounded-xl p-4 shadow-sm">
+            <div className="bg-[var(--bg-surface)] border rounded-xl p-4 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                     <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label>
+                        <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">From Date</label>
                         <div className="relative">
-                            <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                            <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
                             <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="pl-8 h-9 text-sm" />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label>
+                        <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">To Date</label>
                         <div className="relative">
-                            <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                            <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
                             <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="pl-8 h-9 text-sm" />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Room</label>
+                        <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">Room</label>
                         <Select value={filterRoom} onValueChange={setFilterRoom}>
                             <SelectTrigger className="h-9 text-sm">
                                 <SelectValue placeholder="All Rooms" />
@@ -164,7 +164,7 @@ export default function MaintenanceLogsPage() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Task</label>
+                        <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">Task</label>
                         <Select value={filterTask} onValueChange={setFilterTask}>
                             <SelectTrigger className="h-9 text-sm">
                                 <SelectValue placeholder="All Tasks" />
@@ -180,7 +180,7 @@ export default function MaintenanceLogsPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => { setDateFrom(""); setDateTo(""); setFilterRoom("all"); setFilterTask("all"); }}
-                            className="h-9 text-xs text-slate-500"
+                            className="h-9 text-xs text-[var(--text-secondary)]"
                         >
                             Clear
                         </Button>
@@ -189,7 +189,7 @@ export default function MaintenanceLogsPage() {
             </div>
 
             {/* Summary Bar */}
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                 <span>
                     Showing {paginatedLogs.length} of {totalFiltered} records
                     {(dateFrom || dateTo || filterRoom !== "all" || filterTask !== "all") && " (filtered)"}
@@ -208,10 +208,10 @@ export default function MaintenanceLogsPage() {
             </div>
 
             {/* Table */}
-            <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-[var(--bg-surface)] border rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-[11px] text-slate-500 font-bold uppercase tracking-wider border-b">
+                        <thead className="bg-[var(--bg-body)] text-[11px] text-[var(--text-secondary)] font-bold uppercase tracking-wider border-b">
                             <tr>
                                 <th className="px-4 py-3">Date / Time</th>
                                 <th className="px-4 py-3">Room</th>
@@ -224,22 +224,22 @@ export default function MaintenanceLogsPage() {
                         <tbody className="divide-y divide-slate-100">
                             {paginatedLogs.length > 0 ? paginatedLogs.map((log, idx) => (
                                 <tr key={log.id} className={`hover:bg-slate-50/80 transition-colors ${idx % 2 === 1 ? "bg-slate-50/40" : ""}`}>
-                                    <td className="px-4 py-3 whitespace-nowrap text-slate-600 text-xs">
+                                    <td className="px-4 py-3 whitespace-nowrap text-[var(--text-secondary)] text-xs">
                                         {formatThaiDateTime(log.performed_at)}
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="font-bold text-slate-800">{log.room_number || '-'}</span>
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-slate-700">{log.task_name || '-'}</td>
+                                    <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{log.task_name || '-'}</td>
                                     <td className="px-4 py-3 text-center">
                                         <span className={`inline-flex items-center justify-center border px-2 py-0.5 rounded-full text-xs font-bold min-w-[3rem] ${getStayCountColor(log.stay_count_at_time ?? 0)}`}>
                                             {log.stay_count_at_time ?? '-'}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-slate-500">{log.performed_by || 'System'}</td>
+                                    <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{log.performed_by || 'System'}</td>
                                     <td className="px-4 py-3">
                                         {log.notes ? (
-                                            <span className="flex items-start gap-1.5 text-xs text-slate-600">
+                                            <span className="flex items-start gap-1.5 text-xs text-[var(--text-secondary)]">
                                                 <MessageSquareIcon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
                                                 <span className="line-clamp-2">{log.notes}</span>
                                             </span>
@@ -252,8 +252,8 @@ export default function MaintenanceLogsPage() {
                                 <tr>
                                     <td colSpan={6} className="px-4 py-16 text-center">
                                         <HistoryIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                                        <p className="text-slate-500 font-medium">No maintenance history found</p>
-                                        <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or date range.</p>
+                                        <p className="text-[var(--text-secondary)] font-medium">No maintenance history found</p>
+                                        <p className="text-xs text-[var(--text-muted)] mt-1">Try adjusting your filters or date range.</p>
                                     </td>
                                 </tr>
                             )}
@@ -275,7 +275,7 @@ export default function MaintenanceLogsPage() {
                     <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-8 text-xs">
                         <ChevronLeftIcon className="w-4 h-4 mr-1" /> Prev
                     </Button>
-                    <span className="text-xs font-medium text-slate-500 px-3">Page {page} of {totalPages}</span>
+                    <span className="text-xs font-medium text-[var(--text-secondary)] px-3">Page {page} of {totalPages}</span>
                     <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="h-8 text-xs">
                         Next <ChevronRightIcon className="w-4 h-4 ml-1" />
                     </Button>

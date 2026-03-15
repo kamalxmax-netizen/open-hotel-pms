@@ -213,8 +213,8 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Revenue</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Payment Report</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Payment Report</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
             Summary and detail folio by reservation room mapping.
           </p>
         </div>
@@ -232,7 +232,7 @@ export default function PaymentsPage() {
               className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
                 presetIndex === idx
                   ? "border-brand-400 bg-brand-600 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
               }`}
             >
               {preset.label}
@@ -240,7 +240,7 @@ export default function PaymentsPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">From</span>
+          <span className="text-xs text-[var(--text-secondary)]">From</span>
           <input
             className="form-input py-1 text-sm w-36"
             type="date"
@@ -252,7 +252,7 @@ export default function PaymentsPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">To</span>
+          <span className="text-xs text-[var(--text-secondary)]">To</span>
           <input
             className="form-input py-1 text-sm w-36"
             type="date"
@@ -264,10 +264,10 @@ export default function PaymentsPage() {
           />
         </div>
 
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 ml-auto">
+        <div className="flex gap-1 rounded-lg bg-[var(--bg-muted)] p-1 ml-auto">
           <button
             className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
-              view === "summary" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+              view === "summary" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
             }`}
             onClick={() => setView("summary")}
           >
@@ -275,7 +275,7 @@ export default function PaymentsPage() {
           </button>
           <button
             className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
-              view === "detail" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+              view === "detail" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)]"
             }`}
             onClick={() => setView("detail")}
           >
@@ -290,29 +290,29 @@ export default function PaymentsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Total Inflow</p>
-              <p className="text-2xl font-bold text-slate-900">{fmtMoney(summaryData?.summary.grand_total ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Total Inflow</p>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{fmtMoney(summaryData?.summary.grand_total ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Refunds</p>
+              <p className="text-xs text-[var(--text-secondary)]">Refunds</p>
               <p className="text-2xl font-bold text-rose-600">{fmtMoney(summaryData?.summary.grand_refunds ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Net</p>
+              <p className="text-xs text-[var(--text-secondary)]">Net</p>
               <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summaryData?.summary.net_total ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-500">Transactions</p>
-              <p className="text-2xl font-bold text-slate-900">{summaryData?.summary.tx_count ?? 0}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Transactions</p>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{summaryData?.summary.tx_count ?? 0}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="card p-4 overflow-x-auto">
-              <h2 className="text-sm font-bold text-slate-700 mb-3">By Payment Method</h2>
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">By Payment Method</h2>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100">
+                  <tr className="border-b border-[var(--border-subtle)]">
                     <th className="text-left py-2">Method</th>
                     <th className="text-right py-2">Payment</th>
                     <th className="text-right py-2">Deposit</th>
@@ -335,10 +335,10 @@ export default function PaymentsPage() {
             </div>
 
             <div className="card p-4 overflow-x-auto">
-              <h2 className="text-sm font-bold text-slate-700 mb-3">By Revenue Category</h2>
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">By Revenue Category</h2>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100">
+                  <tr className="border-b border-[var(--border-subtle)]">
                     <th className="text-left py-2">Category</th>
                     <th className="text-right py-2">Inflow</th>
                     <th className="text-right py-2">Refund</th>
@@ -360,10 +360,10 @@ export default function PaymentsPage() {
           </div>
 
           <div className="card p-4 overflow-x-auto">
-            <h2 className="text-sm font-bold text-slate-700 mb-3">Daily Summary</h2>
+            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Daily Summary</h2>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-[var(--border-subtle)]">
                   <th className="text-left py-2">Date</th>
                   <th className="text-right py-2">Cash</th>
                   <th className="text-right py-2">Transfer</th>
@@ -389,7 +389,7 @@ export default function PaymentsPage() {
                 ))}
                 {(summaryData?.by_day ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-500">
+                    <td colSpan={8} className="py-8 text-center text-[var(--text-secondary)]">
                       No payment rows in selected dates.
                     </td>
                   </tr>
@@ -419,28 +419,28 @@ export default function PaymentsPage() {
           {(detailData?.reservations ?? []).map((reservation) => (
             <div key={reservation.reservation_id} className="card p-4">
               <div
-                className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition-colors ${reservation.reservation_id ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition-colors ${reservation.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]" : ""}`}
                 onClick={() => openReservation(reservation.reservation_id)}
               >
                 <div>
-                  <p className="text-sm font-bold text-slate-900">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
                     Room {reservation.room_number ?? "-"} · {reservation.guest_name ?? "Unknown Guest"}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-[var(--text-secondary)]">
                     Booking: {reservation.booking_code ?? "-"} · Reservation: {reservation.reservation_id}
                   </p>
                 </div>
                 <div className="text-right text-xs">
-                  <p className="text-slate-500">Inflow: {fmtMoney(reservation.totals.inflow)}</p>
-                  <p className="text-slate-500">Refund: {fmtMoney(reservation.totals.refunds)}</p>
-                  <p className="font-semibold text-slate-900">Net: {fmtMoney(reservation.totals.net)}</p>
+                  <p className="text-[var(--text-secondary)]">Inflow: {fmtMoney(reservation.totals.inflow)}</p>
+                  <p className="text-[var(--text-secondary)]">Refund: {fmtMoney(reservation.totals.refunds)}</p>
+                  <p className="font-semibold text-[var(--text-primary)]">Net: {fmtMoney(reservation.totals.net)}</p>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100">
+                    <tr className="border-b border-[var(--border-subtle)]">
                       <th className="text-left py-2">Time</th>
                       <th className="text-left py-2">Category</th>
                       <th className="text-left py-2">Method</th>
@@ -473,7 +473,7 @@ export default function PaymentsPage() {
           ))}
 
           {(detailData?.reservations ?? []).length === 0 && (
-            <div className="card p-8 text-center text-slate-500">No folio details in selected dates.</div>
+            <div className="card p-8 text-center text-[var(--text-secondary)]">No folio details in selected dates.</div>
           )}
         </div>
       )}

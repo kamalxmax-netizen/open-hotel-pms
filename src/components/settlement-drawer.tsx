@@ -178,18 +178,18 @@ export function SettlementDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm sm:p-0">
-      <div className="w-full sm:w-[480px] bg-slate-50 shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="w-full sm:w-[480px] bg-[var(--bg-body)] shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+        <div className="flex items-center justify-between px-6 py-4 border-b bg-[var(--bg-surface)]">
           <div>
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Navigation className="w-5 h-5 text-emerald-600" />
               Settlement & Checkout
             </h2>
-            <p className="text-xs text-slate-500 font-medium">Reservation #{reservationId.substring(0, 8)}</p>
+            <p className="text-xs text-[var(--text-secondary)] font-medium">Reservation #{reservationId.substring(0, 8)}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition">
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-slate-600 p-2 rounded-full hover:bg-[var(--bg-surface-hover)] transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -198,8 +198,8 @@ export function SettlementDrawer({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {loading ? (
-            <div className="flex items-center justify-center p-8 space-x-2 text-slate-500">
-              <div className="w-4 h-4 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
+            <div className="flex items-center justify-center p-8 space-x-2 text-[var(--text-secondary)]">
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--border-input)] border-t-slate-600 animate-spin" />
               <span className="text-sm font-medium">Validating checkout status...</span>
             </div>
           ) : (
@@ -214,7 +214,7 @@ export function SettlementDrawer({
               {/* Warnings / Pre-Checkout Data */}
               {preData?.warnings && preData.warnings.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Validation</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-2">Validation</h3>
                   {preData.warnings.map((w, i) => (
                     <div
                       key={i}
@@ -235,15 +235,15 @@ export function SettlementDrawer({
 
               {/* Financial Summary */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Summary</h3>
-                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-2">Summary</h3>
+                <div className="bg-[var(--bg-surface)] border rounded-xl overflow-hidden shadow-sm">
                   <div className="p-4 space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600 font-medium">Total Charges</span>
+                      <span className="text-[var(--text-secondary)] font-medium">Total Charges</span>
                       <span className="font-mono text-slate-800 font-semibold">฿ {formatMoney(fromSatang(billingData?.totalChargesSatang ?? 0))}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-600 font-medium">Total Credits</span>
+                      <span className="text-[var(--text-secondary)] font-medium">Total Credits</span>
                       <span className="font-mono text-slate-800 font-semibold">฿ {formatMoney(fromSatang(billingData?.totalCreditsSatang ?? 0))}</span>
                     </div>
                     <div className="border-t pt-3 flex justify-between items-center">
@@ -259,7 +259,7 @@ export function SettlementDrawer({
               {/* Deposit Action */}
               {depositAmount > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Deposit Action</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Deposit Action</h3>
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-indigo-900">Deposit Held</span>
@@ -273,7 +273,7 @@ export function SettlementDrawer({
                         className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition flex flex-col items-center justify-center gap-1 ${
                           depositAction === "refund"
                             ? "border-amber-400 bg-amber-100/50 text-amber-900 shadow-sm"
-                            : "border-indigo-200 bg-white text-indigo-600 hover:bg-white/60"
+                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-white/60"
                         }`}
                       >
                          Refund to Guest
@@ -285,7 +285,7 @@ export function SettlementDrawer({
                         className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition flex flex-col items-center justify-center gap-1 ${
                           depositAction === "apply"
                             ? "border-indigo-500 bg-indigo-100/50 text-indigo-900 shadow-sm"
-                            : "border-indigo-200 bg-white text-indigo-600 hover:bg-white/60"
+                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-white/60"
                         }`}
                       >
                          Apply to Balance
@@ -314,7 +314,7 @@ export function SettlementDrawer({
 
               {/* Settlement Payment Form */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Final Settlement</h3>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Final Settlement</h3>
                 
                 {finalBalanceSatang <= 0 ? (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center space-y-2">
@@ -323,13 +323,13 @@ export function SettlementDrawer({
                      <p className="text-sm text-emerald-700">No additional payment required from guest.</p>
                      
                      {leftoverDepositSatang > 0 && depositAction === "apply" && (
-                       <div className="mt-4 inline-block bg-white border border-amber-200 px-3 py-2 rounded-lg text-xs font-semibold text-amber-800">
+                       <div className="mt-4 inline-block bg-[var(--bg-surface)] border border-amber-200 px-3 py-2 rounded-lg text-xs font-semibold text-amber-800">
                          * Remaining deposit (฿{formatMoney(fromSatang(leftoverDepositSatang))}) will be refunded.
                        </div>
                      )}
                   </div>
                 ) : (
-                  <div className="rounded-xl border bg-white p-5 shadow-sm space-y-5">
+                  <div className="rounded-xl border bg-[var(--bg-surface)] p-5 shadow-sm space-y-5">
                     
                     <div>
                       <div className="flex justify-between items-center mb-2">
@@ -338,7 +338,7 @@ export function SettlementDrawer({
                       </div>
                       
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 font-bold text-slate-400">฿</span>
+                        <span className="absolute left-3 top-2.5 font-bold text-[var(--text-muted)]">฿</span>
                         <input
                           type="number"
                           min="0"
@@ -362,7 +362,7 @@ export function SettlementDrawer({
                             className={`rounded-lg border py-2 text-xs font-semibold transition ${
                               paymentMethod === m.value
                                 ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm"
-                                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                             }`}
                           >
                             {m.label}
@@ -403,7 +403,7 @@ export function SettlementDrawer({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t bg-slate-50 flex gap-3">
+        <div className="p-4 border-t bg-[var(--bg-body)] flex gap-3">
           <button
             type="button"
             className="btn btn-secondary flex-1 py-3 text-sm font-semibold"

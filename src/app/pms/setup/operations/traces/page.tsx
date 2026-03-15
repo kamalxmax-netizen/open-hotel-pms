@@ -133,8 +133,8 @@ export default function TraceTemplatesSetupPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Operations Setup</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Trace Templates</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage quick text templates used in the reservation trace workflow.</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Trace Templates</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Manage quick text templates used in the reservation trace workflow.</p>
         </div>
         <button className="btn btn-primary" onClick={startCreate}>+ New Trace Template</button>
       </div>
@@ -152,7 +152,7 @@ export default function TraceTemplatesSetupPage() {
 
       {showForm && (
         <form onSubmit={saveForm} className="rounded-2xl border border-brand-200 bg-brand-50 p-5 space-y-4">
-          <h2 className="text-base font-bold text-slate-900">{editing ? "Edit Trace Template" : "New Trace Template"}</h2>
+          <h2 className="text-base font-bold text-[var(--text-primary)]">{editing ? "Edit Trace Template" : "New Trace Template"}</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="form-label">Name</label>
@@ -188,7 +188,7 @@ export default function TraceTemplatesSetupPage() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-11 rounded-lg bg-slate-100 animate-pulse" />)}</div>
+          <div className="p-6 space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-11 rounded-lg bg-[var(--bg-muted)] animate-pulse" />)}</div>
         ) : (
           <table className="data-table">
             <thead>
@@ -205,7 +205,7 @@ export default function TraceTemplatesSetupPage() {
                 <tr key={item.id}>
                   <td className="font-semibold text-slate-800">{item.name}</td>
                   <td>{item.dept}</td>
-                  <td className="text-sm text-slate-600">{item.template_text}</td>
+                  <td className="text-sm text-[var(--text-secondary)]">{item.template_text}</td>
                   <td>{item.is_active ? "Active" : "Inactive"}</td>
                   <td>
                     <div className="flex gap-2">

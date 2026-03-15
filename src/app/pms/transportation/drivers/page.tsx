@@ -34,7 +34,7 @@ function Stars({ avg }: { avg: number }) {
             {"★".repeat(Math.floor(avg))}
             {avg - Math.floor(avg) >= 0.5 ? "½" : ""}
             {"☆".repeat(5 - Math.ceil(avg))}
-            <span className="text-slate-400 ml-1 text-xs">({avg.toFixed(1)})</span>
+            <span className="text-[var(--text-muted)] ml-1 text-xs">({avg.toFixed(1)})</span>
         </span>
     );
 }
@@ -87,8 +87,8 @@ function DriverModal({
 
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-                <h2 className="text-lg font-bold text-slate-900 mb-5">{initial ? "Edit Driver" : "Add Driver"}</h2>
+            <form onSubmit={handleSubmit} className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-[var(--text-primary)] mb-5">{initial ? "Edit Driver" : "Add Driver"}</h2>
                 {error && <p className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
                 <div className="space-y-4">
@@ -107,7 +107,7 @@ function DriverModal({
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
+                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] transition-colors">Cancel</button>
                     <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-60">
                         {saving ? "Saving…" : "Save"}
                     </button>
@@ -169,8 +169,8 @@ function VehicleModal({
 
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-                <h2 className="text-lg font-bold text-slate-900 mb-5">{initial ? "Edit Vehicle" : "Add Vehicle"}</h2>
+            <form onSubmit={handleSubmit} className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-[var(--text-primary)] mb-5">{initial ? "Edit Vehicle" : "Add Vehicle"}</h2>
                 {error && <p className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
                 <div className="space-y-4">
@@ -183,9 +183,9 @@ function VehicleModal({
                         invalid={showValidation && !form.plate_number.trim()}
                     />
                     <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Type *</label>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Type *</label>
                         <select value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                             aria-invalid={showValidation && !form.vehicle_type.trim()}
                         >
@@ -195,9 +195,9 @@ function VehicleModal({
                     <Field label="Capacity (pax)" value={form.capacity} onChange={v => setForm(f => ({ ...f, capacity: v }))} placeholder="4" type="number" />
                     <Field label="Color" value={form.color} onChange={v => setForm(f => ({ ...f, color: v }))} placeholder="e.g. White" />
                     <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Default Driver</label>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Default Driver</label>
                         <select value={form.default_driver_id} onChange={e => setForm(f => ({ ...f, default_driver_id: e.target.value }))}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            className="w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             <option value="">— None —</option>
                             {drivers.filter(d => d.is_active).map(d => <option key={d.id} value={d.id}>{d.name}{d.phone ? ` (${d.phone})` : ""}</option>)}
                         </select>
@@ -206,7 +206,7 @@ function VehicleModal({
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
+                    <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] transition-colors">Cancel</button>
                     <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-60">
                         {saving ? "Saving…" : "Save"}
                     </button>
@@ -221,10 +221,10 @@ function Field({ label, value, onChange, placeholder, type = "text", textarea = 
     label: string; value: string; onChange: (v: string) => void;
     placeholder?: string; type?: string; textarea?: boolean; required?: boolean; invalid?: boolean;
 }) {
-    const cls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    const cls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     return (
         <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">{label}</label>
             {textarea
                 ? <textarea rows={3} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cls} required={required} aria-invalid={invalid} />
                 : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cls} required={required} aria-invalid={invalid} />
@@ -237,10 +237,10 @@ function Field({ label, value, onChange, placeholder, type = "text", textarea = 
 function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCancel}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
                 <p className="text-slate-800 mb-6">{message}</p>
                 <div className="flex gap-3">
-                    <button onClick={onCancel} className="flex-1 px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button onClick={onCancel} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">Cancel</button>
                     <button onClick={onConfirm} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700">Deactivate</button>
                 </div>
             </div>
@@ -325,11 +325,11 @@ export default function DriversVehiclesPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Drivers & Vehicles</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage drivers and vehicle fleet</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Drivers & Vehicles</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">Manage drivers and vehicle fleet</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer">
                         <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} className="rounded" />
                         Show inactive
                     </label>
@@ -341,10 +341,10 @@ export default function DriversVehiclesPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-slate-100 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 mb-6 bg-[var(--bg-muted)] rounded-xl p-1 w-fit">
                 {(["drivers", "vehicles"] as Tab[]).map(t => (
                     <button key={t} onClick={() => setTab(t)}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"}`}>
                         {t === "drivers" ? `🚗 Drivers (${activeDrivers.length})` : `🚐 Vehicles (${activeVehicles.length})`}
                     </button>
                 ))}
@@ -354,7 +354,7 @@ export default function DriversVehiclesPage() {
             {tab === "drivers" && (
                 <div className="mb-4">
                     <input type="text" placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)}
-                        className="px-4 py-2 border border-slate-300 rounded-xl text-sm w-72 focus:ring-2 focus:ring-blue-500" />
+                        className="px-4 py-2 border border-[var(--border-input)] rounded-xl text-sm w-72 focus:ring-2 focus:ring-blue-500" />
                 </div>
             )}
 
@@ -364,31 +364,31 @@ export default function DriversVehiclesPage() {
                 </div>
             ) : tab === "drivers" ? (
                 /* ── Drivers table ── */
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Name</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Phone</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Company</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">License</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Rating</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Trips</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Status</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Actions</th>
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Name</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Phone</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Company</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">License</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Rating</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Trips</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Status</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {drivers.length === 0 ? (
-                                <tr><td colSpan={8} className="px-4 py-14 text-center text-slate-400">
+                                <tr><td colSpan={8} className="px-4 py-14 text-center text-[var(--text-muted)]">
                                     No drivers found. <button className="text-blue-600" onClick={() => setDriverModal({ open: true })}>Add the first driver →</button>
                                 </td></tr>
                             ) : drivers.map(d => (
-                                <tr key={d.id} className={`border-b border-slate-100 transition-colors ${d.is_active ? "hover:bg-slate-50" : "opacity-50 bg-slate-50"}`}>
-                                    <td className="px-4 py-3 font-medium text-slate-900">{d.name}</td>
-                                    <td className="px-4 py-3 font-mono text-slate-600">{d.phone ?? "—"}</td>
-                                    <td className="px-4 py-3 text-slate-600">{d.company ?? "—"}</td>
-                                    <td className="px-4 py-3 text-slate-600">{d.license_type ?? "—"}</td>
+                                <tr key={d.id} className={`border-b border-[var(--border-subtle)] transition-colors ${d.is_active ? "hover:bg-[var(--bg-body)]" : "opacity-50 bg-[var(--bg-body)]"}`}>
+                                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{d.name}</td>
+                                    <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{d.phone ?? "—"}</td>
+                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{d.company ?? "—"}</td>
+                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{d.license_type ?? "—"}</td>
                                     <td className="px-4 py-3 text-center">{d.rating_avg > 0 ? <Stars avg={d.rating_avg} /> : <span className="text-slate-300 text-xs">No ratings</span>}</td>
                                     <td className="px-4 py-3 text-center font-mono">{d.total_trips}</td>
                                     <td className="px-4 py-3 text-center">
@@ -399,7 +399,7 @@ export default function DriversVehiclesPage() {
                                     <td className="px-4 py-3 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button onClick={() => setDriverModal({ open: true, editing: d })}
-                                                className="px-3 py-1 text-xs border border-slate-300 rounded-lg hover:bg-slate-50">Edit</button>
+                                                className="px-3 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">Edit</button>
                                             {d.is_active && (
                                                 <button onClick={() => setConfirmDeactivate({ type: "driver", id: d.id, name: d.name })}
                                                     className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Deactivate</button>
@@ -413,33 +413,33 @@ export default function DriversVehiclesPage() {
                 </div>
             ) : (
                 /* ── Vehicles table ── */
-                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Plate</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Type</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Capacity</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Color</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-600">Default Driver</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Status</th>
-                                <th className="px-4 py-3 text-center font-semibold text-slate-600">Actions</th>
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Plate</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Type</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Capacity</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Color</th>
+                                <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Default Driver</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Status</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[var(--text-secondary)]">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {vehicles.length === 0 ? (
-                                <tr><td colSpan={7} className="px-4 py-14 text-center text-slate-400">
+                                <tr><td colSpan={7} className="px-4 py-14 text-center text-[var(--text-muted)]">
                                     No vehicles found. <button className="text-blue-600" onClick={() => setVehicleModal({ open: true })}>Add the first vehicle →</button>
                                 </td></tr>
                             ) : vehicles.map(v => (
-                                <tr key={v.id} className={`border-b border-slate-100 transition-colors ${v.is_active ? "hover:bg-slate-50" : "opacity-50 bg-slate-50"}`}>
-                                    <td className="px-4 py-3 font-mono font-semibold text-slate-900">{v.plate_number}</td>
+                                <tr key={v.id} className={`border-b border-[var(--border-subtle)] transition-colors ${v.is_active ? "hover:bg-[var(--bg-body)]" : "opacity-50 bg-[var(--bg-body)]"}`}>
+                                    <td className="px-4 py-3 font-mono font-semibold text-[var(--text-primary)]">{v.plate_number}</td>
                                     <td className="px-4 py-3">
                                         <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">{v.vehicle_type}</span>
                                     </td>
                                     <td className="px-4 py-3 text-center">{v.capacity} pax</td>
-                                    <td className="px-4 py-3 text-slate-600">{v.color ?? "—"}</td>
-                                    <td className="px-4 py-3 text-slate-600">{(v as any).default_driver_name ?? <span className="text-slate-300 italic">None</span>}</td>
+                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{v.color ?? "—"}</td>
+                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{(v as any).default_driver_name ?? <span className="text-slate-300 italic">None</span>}</td>
                                     <td className="px-4 py-3 text-center">
                                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${v.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                                             {v.is_active ? "Active" : "Inactive"}
@@ -448,7 +448,7 @@ export default function DriversVehiclesPage() {
                                     <td className="px-4 py-3 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button onClick={() => setVehicleModal({ open: true, editing: v })}
-                                                className="px-3 py-1 text-xs border border-slate-300 rounded-lg hover:bg-slate-50">Edit</button>
+                                                className="px-3 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">Edit</button>
                                             {v.is_active && (
                                                 <button onClick={() => setConfirmDeactivate({ type: "vehicle", id: v.id, name: v.plate_number })}
                                                     className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Deactivate</button>

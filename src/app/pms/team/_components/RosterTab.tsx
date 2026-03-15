@@ -104,11 +104,11 @@ export function RosterTab() {
             </div>
 
             {loading ? (
-                <Card className="p-8 text-center text-slate-500">Loading roster...</Card>
+                <Card className="p-8 text-center text-[var(--text-secondary)]">Loading roster...</Card>
             ) : shifts.length === 0 ? (
-                <Card className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 border-dashed bg-slate-50 border-2">
+                <Card className="p-12 text-center text-[var(--text-secondary)] flex flex-col items-center gap-3 border-dashed bg-[var(--bg-body)] border-2">
                     <p className="text-4xl mb-2">📋</p>
-                    <h3 className="font-semibold text-slate-700">No shifts scheduled</h3>
+                    <h3 className="font-semibold text-[var(--text-table-cell)]">No shifts scheduled</h3>
                     <p className="text-sm max-w-sm">
                         There are no shifts scheduled for today. Use the Assign Shift button to create one.
                     </p>
@@ -121,10 +121,10 @@ export function RosterTab() {
                                 <div>
                                     <h3 className="font-bold text-slate-800">{shift.staff?.display_name || "Unknown Staff"}</h3>
                                     <div className="flex gap-2 items-center mt-1">
-                                        <Badge variant="outline" className="text-[10px] bg-slate-50">
+                                        <Badge variant="outline" className="text-[10px] bg-[var(--bg-body)]">
                                             {shift.staff?.department?.code || "N/A"}
                                         </Badge>
-                                        <span className="text-xs font-mono text-slate-500">{shift.staff?.employee_code}</span>
+                                        <span className="text-xs font-mono text-[var(--text-secondary)]">{shift.staff?.employee_code}</span>
                                     </div>
                                 </div>
                                 <Badge variant={
@@ -136,14 +136,14 @@ export function RosterTab() {
                                 </Badge>
                             </div>
 
-                            <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-md border flex flex-col gap-1">
+                            <div className="text-xs text-[var(--text-secondary)] bg-[var(--bg-body)] p-2 rounded-md border flex flex-col gap-1">
                                 <div className="flex justify-between">
                                     <span>Clock In:</span>
-                                    <span className="font-medium text-slate-700">{shift.started_at ? new Date(shift.started_at).toLocaleTimeString() : "--:--"}</span>
+                                    <span className="font-medium text-[var(--text-table-cell)]">{shift.started_at ? new Date(shift.started_at).toLocaleTimeString() : "--:--"}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span>Clock Out:</span>
-                                    <span className="font-medium text-slate-700">{shift.ended_at ? new Date(shift.ended_at).toLocaleTimeString() : "--:--"}</span>
+                                    <span className="font-medium text-[var(--text-table-cell)]">{shift.ended_at ? new Date(shift.ended_at).toLocaleTimeString() : "--:--"}</span>
                                 </div>
                             </div>
 

@@ -150,7 +150,7 @@ export default function FloorGroup({
 
   return (
     <div className="space-y-3">
-      <h3 className="font-bold text-slate-700 flex items-center gap-2">
+      <h3 className="font-bold text-[var(--text-table-cell)] flex items-center gap-2">
         <span className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-xs">F{floor}</span>
         Floor {floor}
       </h3>
@@ -203,7 +203,7 @@ export default function FloorGroup({
               <div className={`flex items-start justify-between ${isCleanedAndWaiting ? "mt-2" : ""}`}>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-slate-900 tracking-tight">{room.room_number}</span>
+                    <span className="text-xl font-bold text-[var(--text-primary)] tracking-tight">{room.room_number}</span>
                     {hkAlertCount > 0 && (
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
@@ -245,7 +245,7 @@ export default function FloorGroup({
                     )}
                     <MaidChip maidName={room.assigned_maid_name || room.plan_assigned_maid} priority={room.plan_priority} />
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium tracking-wide mt-0.5">{room.room_type_code}</p>
+                  <p className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide mt-0.5">{room.room_type_code}</p>
                 </div>
                 <span className={`badge text-[10px] shrink-0 ${cfg.badge}`}>
                   {cfg.emoji} {cfg.label}
@@ -326,11 +326,11 @@ export default function FloorGroup({
                   {expandedMaintenanceByRoomId[room.room_id] && (
                     <div className="space-y-1 rounded border border-indigo-100 bg-white/80 p-2">
                       {room.maintenance_assignments.map((item) => (
-                        <div key={item.assignment_id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1">
+                        <div key={item.assignment_id} className="rounded border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1">
                           <p className="font-semibold text-slate-800">
                             {item.task_name}
                             {!!item.estimated_minutes && (
-                              <span className="ml-1 font-medium text-slate-500">({item.estimated_minutes} min)</span>
+                              <span className="ml-1 font-medium text-[var(--text-secondary)]">({item.estimated_minutes} min)</span>
                             )}
                           </p>
                           {item.checklist_items && item.checklist_items.length > 0 ? (
@@ -345,7 +345,7 @@ export default function FloorGroup({
                               ))}
                             </div>
                           ) : (
-                            <p className="text-[10px] text-slate-500">No checklist items defined.</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">No checklist items defined.</p>
                           )}
                         </div>
                       ))}
@@ -355,9 +355,9 @@ export default function FloorGroup({
               )}
 
               {(room.started_at || room.finished_at || room.elapsed_ms > 0) && (
-                <div className="text-[10px] text-slate-500 space-y-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <div className="text-[10px] text-[var(--text-secondary)] space-y-1 bg-[var(--bg-body)] p-2 rounded-lg border border-[var(--border-subtle)]">
                   {room.elapsed_ms > 0 && (
-                    <div className="flex justify-between items-center font-mono font-bold text-slate-700">
+                    <div className="flex justify-between items-center font-mono font-bold text-[var(--text-table-cell)]">
                       <span>Elapsed:</span>
                       <span>{Math.floor(room.elapsed_ms / 60000)} mins</span>
                     </div>
@@ -367,7 +367,7 @@ export default function FloorGroup({
                 </div>
               )}
 
-              <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-100">
+              <div className="pt-2 flex flex-wrap gap-2 border-t border-[var(--border-subtle)]">
                 {!isCleanedAndWaiting &&
                   nextStatuses.length > 0 &&
                   nextStatuses.map((nextStatus) => {
@@ -398,13 +398,13 @@ export default function FloorGroup({
                   <button
                     disabled={isCheckoutLocked}
                     onClick={() => onAssignClick(room)}
-                    className="w-full rounded-lg bg-white border border-slate-300 text-slate-700 text-[10px] font-bold py-2 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full rounded-lg bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-table-cell)] text-[10px] font-bold py-2 hover:bg-[var(--bg-body)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCheckoutLocked ? "Checkout Pending" : "Assign Maid"}
                   </button>
                 )}
                 {(room.hk_status === "in_progress" || room.hk_status === "paused") && (
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] font-semibold text-slate-500">
+                  <div className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
                     Assignment locked after start
                   </div>
                 )}

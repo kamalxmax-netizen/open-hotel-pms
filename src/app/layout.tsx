@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "@/styles/print.css";
 import AppShell from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "Hotel PMS",
-  description: "Unified PMS + Housekeeping platform",
+  title: "OpenHotel PMS",
+  description: "OpenHotel — Internal Staff Portal",
   icons: {
     icon: "/icon.svg",
   },
@@ -15,9 +16,20 @@ export default function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            if (localStorage.getItem('theme') === 'dark') {
+              document.documentElement.classList.add('dark');
+            }
+          } catch(e) {}
+        `}} />
+      </head>
       <body>
-        <AppShell>{children}</AppShell>
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1016,8 +1016,8 @@ export default function HousekeepingPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Housekeeping Dashboard</p>
-          <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Room & Maid Management</h1>
-          <p className="text-sm text-slate-500 mt-1">{todayLabel}</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Room & Maid Management</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{todayLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1030,7 +1030,7 @@ export default function HousekeepingPage() {
           </button>
           <input
             type="date"
-            className="form-input py-1 text-sm bg-white"
+            className="form-input py-1 text-sm bg-[var(--bg-surface)]"
             value={date}
             disabled={hasDraftChanges || savingDraft}
             onChange={(e) => setDate(e.target.value)}
@@ -1053,12 +1053,12 @@ export default function HousekeepingPage() {
           { label: "Cleaning Now", value: summary.cleaning, color: "border-sky-300 bg-sky-50", text: "text-sky-700" },
           { label: "Pending Approval", value: rooms.filter(r => String(r.hk_status) === "cleaned" && !r.is_no_service).length, color: "border-amber-300 bg-amber-50", text: "text-amber-700" },
           { label: "Clean ✓", value: summary.clean, color: "border-emerald-300 bg-emerald-50", text: "text-emerald-700" },
-          { label: "No Service", value: summary.no_service, color: "border-slate-300 bg-slate-50", text: "text-slate-600" },
+          { label: "No Service", value: summary.no_service, color: "border-[var(--border-input)] bg-[var(--bg-body)]", text: "text-[var(--text-secondary)]" },
           { label: "Extra Tasks", value: extraTaskPending.length, color: "border-rose-300 bg-rose-50", text: "text-rose-700" }
         ].map((t) => (
           <div key={t.label} className={`card border-l-4 p-4 ${t.color}`}>
             <p className={`text-2xl font-extrabold ${t.text}`}>{t.value}</p>
-            <p className="text-[11px] font-bold text-slate-500 mt-1 tracking-wide uppercase">{t.label}</p>
+            <p className="text-[11px] font-bold text-[var(--text-secondary)] mt-1 tracking-wide uppercase">{t.label}</p>
           </div>
         ))}
       </div>
@@ -1116,7 +1116,7 @@ export default function HousekeepingPage() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
 	            <div>
 	              <h3 className="text-sm font-bold text-slate-800">Dirty &amp; Task Pool</h3>
-	              <p className="text-xs text-slate-500 mt-1">
+	              <p className="text-xs text-[var(--text-secondary)] mt-1">
 	                Drag dirty room or pending extra task to a maid lane. Drag assigned timeline bar back here to return room to pool.
 	              </p>
 	            </div>
@@ -1128,7 +1128,7 @@ export default function HousekeepingPage() {
             className={`mt-3 min-h-10 rounded-xl border border-dashed p-3 transition ${
               showPoolDragHint
                 ? "border-rose-400 bg-rose-100/60"
-                : "border-slate-200 bg-white"
+                : "border-[var(--border-default)] bg-[var(--bg-surface)]"
             }`}
           >
             <div
@@ -1141,7 +1141,7 @@ export default function HousekeepingPage() {
 	            </div>
 	            <div className="flex flex-wrap gap-2">
 	            {dirtyRoomPool.length === 0 && extraTaskPool.length === 0 ? (
-	              <span className="text-xs text-slate-500">No dirty rooms / pending extra tasks right now.</span>
+	              <span className="text-xs text-[var(--text-secondary)]">No dirty rooms / pending extra tasks right now.</span>
 	            ) : (
 	              <>
 		              {dirtyRoomPool.map((room) => {
@@ -1239,9 +1239,9 @@ export default function HousekeepingPage() {
 	      )}
 
       {(filter === "all" || filter === "dirty" || filter === "in_progress" || filter === "due_out" || filter === "back_to_back" || filter === "in_house") && (
-        <div className={`card p-3 border ${hasDraftChanges ? "border-amber-300 bg-amber-50/60" : "border-slate-200 bg-white"}`}>
+        <div className={`card p-3 border ${hasDraftChanges ? "border-amber-300 bg-amber-50/60" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-xs font-semibold text-slate-700">
+            <p className="text-xs font-semibold text-[var(--text-table-cell)]">
               {hasDraftChanges
                 ? `${totalDraftChangeCount} unsaved assignment change${totalDraftChangeCount > 1 ? "s" : ""}`
                 : "No unsaved assignment changes"}
@@ -1251,7 +1251,7 @@ export default function HousekeepingPage() {
                 type="button"
                 onClick={discardDraftAssignments}
                 disabled={!hasDraftChanges || savingDraft}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-50"
               >
                 Discard
               </button>
@@ -1269,7 +1269,7 @@ export default function HousekeepingPage() {
       )}
 
       {/* Filter pills */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2">
          <div className="flex flex-wrap gap-2">
           {FILTER_TABS.map((f) => {
              let count = 0;
@@ -1290,7 +1290,7 @@ export default function HousekeepingPage() {
                  onClick={() => setFilter(f.key)}
                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${filter === f.key
                      ? "border-brand-500 bg-brand-600 text-white"
-                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                     : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                  }`}
                >
                  {f.label}
@@ -1305,8 +1305,8 @@ export default function HousekeepingPage() {
 
       {/* Room cards grouped by floor */}
       {filter === "extra_tasks" ? (
-        <div className="card p-8 text-center bg-slate-50 border-dashed">
-          <p className="text-slate-600 font-semibold">Extra Task view is focused on Timeline and Task Pool.</p>
+        <div className="card p-8 text-center bg-[var(--bg-body)] border-dashed">
+          <p className="text-[var(--text-secondary)] font-semibold">Extra Task view is focused on Timeline and Task Pool.</p>
         </div>
       ) : loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -1315,9 +1315,9 @@ export default function HousekeepingPage() {
           ))}
         </div>
       ) : sortedFloors.length === 0 ? (
-        <div className="card p-12 text-center bg-slate-50 border-dashed">
+        <div className="card p-12 text-center bg-[var(--bg-body)] border-dashed">
           <p className="text-3xl mb-2">🎉</p>
-          <p className="text-slate-500 font-bold">No rooms found in this view.</p>
+          <p className="text-[var(--text-secondary)] font-bold">No rooms found in this view.</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -1356,7 +1356,7 @@ export default function HousekeepingPage() {
           onClose={closeDueModal}
           footer={
             <div className="flex items-center justify-between w-full">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[var(--text-secondary)]">
                 Selected: {selectedDueTasks.length} task{selectedDueTasks.length !== 1 ? "s" : ""} ·{" "}
                 {selectedDueTasks.reduce((sum, task) => sum + Number(task.estimated_minutes ?? 0), 0)} min
               </p>
@@ -1365,7 +1365,7 @@ export default function HousekeepingPage() {
                   type="button"
                   onClick={closeDueModal}
                   disabled={assigningDueTasks}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-50"
                 >
                   Close
                 </button>
@@ -1384,11 +1384,11 @@ export default function HousekeepingPage() {
           {loadingDueTasks ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, idx) => (
-                <div key={idx} className="h-11 animate-pulse rounded-lg bg-slate-100" />
+                <div key={idx} className="h-11 animate-pulse rounded-lg bg-[var(--bg-muted)]" />
               ))}
             </div>
           ) : dueTasks.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+            <div className="rounded-lg border border-dashed border-[var(--border-input)] bg-[var(--bg-body)] px-4 py-6 text-center text-sm text-[var(--text-secondary)]">
               No overdue maintenance tasks found for current dirty rooms.
             </div>
           ) : (
@@ -1404,19 +1404,19 @@ export default function HousekeepingPage() {
                         ? "border-emerald-200 bg-emerald-50"
                         : isChecked
                           ? "border-indigo-300 bg-indigo-50"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
+                          : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:bg-[var(--bg-body)]"
                     }`}
                   >
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-1 h-4 w-4 rounded border-[var(--border-input)] text-indigo-600 focus:ring-indigo-500"
                       disabled={task.already_assigned || assigningDueTasks}
                       checked={task.already_assigned ? true : isChecked}
                       onChange={(event) => toggleDueTaskSelection(task, event.target.checked)}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900">Room {task.room_number}</span>
+                        <span className="text-xs font-bold text-[var(--text-primary)]">Room {task.room_number}</span>
                         <span className="text-[11px] rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
                           {task.estimated_minutes} min
                         </span>
@@ -1429,9 +1429,9 @@ export default function HousekeepingPage() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm font-semibold text-slate-700">{task.task_name}</p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--text-table-cell)]">{task.task_name}</p>
                       {task.checklist_items && task.checklist_items.length > 0 && (
-                        <p className="mt-1 text-xs text-slate-500 truncate">
+                        <p className="mt-1 text-xs text-[var(--text-secondary)] truncate">
                           {task.checklist_items.join(" • ")}
                         </p>
                       )}

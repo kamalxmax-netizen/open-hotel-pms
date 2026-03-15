@@ -118,7 +118,7 @@ function getStatusClass(block: TimelineBlock) {
     if (block.status === "in_progress") return "bg-amber-200 border-amber-400 text-amber-900";
     if (block.status === "paused") return "bg-amber-100 border-amber-300 text-amber-900";
     if (block.status === "done") return "bg-emerald-100 border-emerald-300 text-emerald-900";
-    return "bg-slate-100 border-slate-300 text-slate-700";
+    return "bg-[var(--bg-muted)] border-[var(--border-input)] text-[var(--text-table-cell)]";
   }
   if (block.source === "planned" && block.status === "no_service") return "bg-sky-100 border-sky-300 text-sky-800 border-dashed";
   if (block.source === "planned") return "bg-rose-100 border-rose-300 text-rose-800 border-dashed";
@@ -126,7 +126,7 @@ function getStatusClass(block: TimelineBlock) {
   if (block.status === "paused") return "bg-amber-100 border-amber-300 text-amber-900";
   if (block.status === "cleaned" || block.status === "approved") return "bg-emerald-100 border-emerald-300 text-emerald-900";
   if (block.status === "no_service") return "bg-sky-100 border-sky-300 text-sky-800";
-  return "bg-slate-100 border-slate-300 text-slate-700";
+  return "bg-[var(--bg-muted)] border-[var(--border-input)] text-[var(--text-table-cell)]";
 }
 
 function buildBlockTooltip(block: TimelineBlock) {
@@ -592,11 +592,11 @@ export default function TimelineView({
   }, [maids, rooms, extraTasks]);
 
   return (
-    <div className="bg-white border text-sm border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+    <div className="bg-[var(--bg-surface)] border text-sm border-[var(--border-default)] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+      <div className="px-4 py-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] flex items-center justify-between">
         <h3 className="font-bold text-slate-800">Timeline View ({timeRangeLabel})</h3>
         {selectedIsToday && isClientTimeReady && (
-          <span className="text-xs font-semibold text-slate-500">
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">
             Now: {new Date(tickNowMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
@@ -604,13 +604,13 @@ export default function TimelineView({
 
       <div ref={timelineScrollRef} className="overflow-x-auto p-4 hide-scrollbar">
         <div className="min-w-[1800px] relative">
-          <div className="flex border-b border-slate-100 pb-2 mb-4">
+          <div className="flex border-b border-[var(--border-subtle)] pb-2 mb-4">
             <div className="w-24 shrink-0" />
             <div className="relative" style={{ width: TRACK_WIDTH_PX }}>
               {workHours.map((hour) => (
                 <div
                   key={hour}
-                  className="absolute top-0 text-xs font-semibold text-slate-400 -translate-x-1/2"
+                  className="absolute top-0 text-xs font-semibold text-[var(--text-muted)] -translate-x-1/2"
                   style={{ left: (hour - WORK_START_HOUR) * 60 * MIN_TO_PX }}
                 >
                   {hour.toString().padStart(2, "0")}:00
@@ -620,7 +620,7 @@ export default function TimelineView({
           </div>
 
           {Object.entries(maidTasks).length === 0 && (extraTasks ?? []).filter((t) => t.status !== "cancelled" && t.assigned_maid !== "POOL").length === 0 && (
-            <div className="text-center py-6 text-slate-500 text-sm">No tasks assigned yet.</div>
+            <div className="text-center py-6 text-[var(--text-secondary)] text-sm">No tasks assigned yet.</div>
           )}
 
           {lanes.map((lane) => {
@@ -800,10 +800,10 @@ export default function TimelineView({
 
             return (
               <div key={lane.key} className="flex items-center mb-4">
-                <div className="w-24 shrink-0 font-bold text-slate-700 text-xs">{lane.label}</div>
+                <div className="w-24 shrink-0 font-bold text-[var(--text-table-cell)] text-xs">{lane.label}</div>
 
                 <div
-                  className="relative h-10 rounded-lg border border-slate-200 bg-slate-50/70 overflow-hidden"
+                  className="relative h-10 rounded-lg border border-[var(--border-default)] bg-slate-50/70 overflow-hidden"
                   style={{ width: TRACK_WIDTH_PX }}
                   onDragOver={(e) => {
                     if (!onAssignDrop) return;

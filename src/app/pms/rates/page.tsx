@@ -74,7 +74,7 @@ function PriceCell({
     }
 
     const baseClass = `h-full w-full flex items-center justify-center text-xs font-semibold transition cursor-pointer
-    ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/60" : "bg-white"}
+    ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/60" : "bg-[var(--bg-surface)]"}
     ${price === null ? "text-slate-300" : "text-slate-800"}
     hover:bg-brand-100`;
 
@@ -82,7 +82,7 @@ function PriceCell({
 
     if (editing) {
         return (
-            <div className={`h-full w-full flex items-center justify-center ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50" : "bg-white"}`}>
+            <div className={`h-full w-full flex items-center justify-center ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50" : "bg-[var(--bg-surface)]"}`}>
                 <input
                     ref={inputRef}
                     className="w-full text-center text-xs font-bold border-0 outline-none bg-transparent text-brand-700"
@@ -183,7 +183,7 @@ function BulkUpdateModal({
                             ))}
                         </select>
                         {selectedType && (
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
                                 Rooms: {selectedType.rooms.map((r) => r.room_number).join(", ")}
                             </p>
                         )}
@@ -213,7 +213,7 @@ function BulkUpdateModal({
                                     className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition
                     ${weekdays.includes(i)
                                             ? (i === 0 || i === 6 ? "border-rose-500 bg-rose-500 text-white" : "border-brand-500 bg-brand-600 text-white")
-                                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                         }
                   `}
                                 >
@@ -222,7 +222,7 @@ function BulkUpdateModal({
                             ))}
                         </div>
                         {weekdays.length > 0 && (
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
                                 Selected: {weekdays.map((d) => WEEKDAY_LABELS[d]).join(", ")}
                             </p>
                         )}
@@ -232,7 +232,7 @@ function BulkUpdateModal({
                     <div>
                         <label className="form-label">Price (THB/night) *</label>
                         <div className="relative">
-                            <span className="absolute left-3 top-2.5 text-sm text-slate-400">฿</span>
+                            <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                             <input
                                 required
                                 type="number"
@@ -348,8 +348,8 @@ export default function RatesPage() {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Revenue</p>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Daily Rate Grid</h1>
-                    {monthLabel && <p className="text-sm text-slate-400 mt-0.5">{monthLabel}</p>}
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Daily Rate Grid</h1>
+                    {monthLabel && <p className="text-sm text-[var(--text-muted)] mt-0.5">{monthLabel}</p>}
                 </div>
                 <div className="flex gap-2">
                     <button className="btn btn-secondary btn-sm" onClick={load}>↻ Refresh</button>
@@ -367,19 +367,19 @@ export default function RatesPage() {
                     <button className="btn btn-secondary btn-sm" onClick={() => setStartDate(addDays(startDate, 7))}>7D ›</button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">Start</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">Start</label>
                     <input type="date" className="form-input py-1 text-sm w-36" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-500">Span</label>
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">Span</label>
                     {[14, 30, 60, 90].map((n) => (
                         <button key={n} onClick={() => setSpanDays(n)}
-                            className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${spanDays === n ? "border-brand-400 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${spanDays === n ? "border-brand-400 bg-brand-600 text-white" : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                 }`}
                         >{n}D</button>
                     ))}
                 </div>
-                <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+                <div className="ml-auto flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                     <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-rose-200 inline-block" />Weekend</span>
                     <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-brand-100 inline-block" />Today</span>
                     <span className="text-slate-300">Click cell to edit rate</span>
@@ -392,21 +392,21 @@ export default function RatesPage() {
             <div className="card overflow-hidden">
                 <div className="flex">
                     {/* Frozen label column */}
-                    <div className="flex-shrink-0 border-r border-slate-200 z-10" style={{ width: LABEL_W }}>
+                    <div className="flex-shrink-0 border-r border-[var(--border-default)] z-10" style={{ width: LABEL_W }}>
                         {/* Header spacer */}
-                        <div className="border-b border-slate-200 bg-slate-50" style={{ height: ROW_H }}>
-                            <div className="h-full flex items-center px-3 text-[10px] font-bold uppercase text-slate-400">Room</div>
+                        <div className="border-b border-[var(--border-default)] bg-[var(--bg-body)]" style={{ height: ROW_H }}>
+                            <div className="h-full flex items-center px-3 text-[10px] font-bold uppercase text-[var(--text-muted)]">Room</div>
                         </div>
                         {loading
                             ? Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="border-b border-slate-100 flex items-center px-3" style={{ height: ROW_H }}>
+                                <div key={i} className="border-b border-[var(--border-subtle)] flex items-center px-3" style={{ height: ROW_H }}>
                                     <div className="h-3 w-16 rounded bg-slate-200 animate-pulse" />
                                 </div>
                             ))
                             : (data?.room_types ?? []).flatMap((rt) => [
                                 // Room type header
                                 <div key={`th-${rt.type_id}`}
-                                    className="border-b border-slate-200 bg-slate-800 flex items-center px-3"
+                                    className="border-b border-[var(--border-default)] bg-slate-800 flex items-center px-3"
                                     style={{ height: ROW_H }}
                                 >
                                     <span className="text-[10px] font-bold text-white">{rt.type_name}</span>
@@ -414,7 +414,7 @@ export default function RatesPage() {
                                 // Individual room rows
                                 ...rt.rooms.map((room) => (
                                     <div key={room.room_id}
-                                        className="border-b border-slate-100 flex items-center px-3 bg-white"
+                                        className="border-b border-[var(--border-subtle)] flex items-center px-3 bg-[var(--bg-surface)]"
                                         style={{ height: ROW_H }}
                                     >
                                         <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
@@ -428,18 +428,18 @@ export default function RatesPage() {
                     <div ref={scrollRef} className="overflow-x-auto flex-1">
                         <div style={{ width: totalW, minWidth: totalW }}>
                             {/* Date header */}
-                            <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-10" style={{ height: ROW_H }}>
+                            <div className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] sticky top-0 z-10" style={{ height: ROW_H }}>
                                 {days.map((day) => {
                                     const { d, dow, isWeekend } = dayLabel(day);
                                     const isToday = day === todayDate;
                                     return (
                                         <div key={day}
-                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-slate-200 text-center select-none
+                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none
                         ${isToday ? "bg-brand-100" : isWeekend ? "bg-rose-50" : ""}`}
                                             style={{ width: COL_W }}
                                         >
-                                            <span className={`text-[9px] font-bold ${isWeekend ? "text-rose-500" : "text-slate-400"}`}>{dow}</span>
-                                            <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : isWeekend ? "text-rose-600" : "text-slate-700"}`}>{d}</span>
+                                            <span className={`text-[9px] font-bold ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
+                                            <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : isWeekend ? "text-rose-600" : "text-[var(--text-table-cell)]"}`}>{d}</span>
                                         </div>
                                     );
                                 })}
@@ -448,15 +448,15 @@ export default function RatesPage() {
                             {/* Data rows */}
                             {loading
                                 ? Array.from({ length: 6 }).map((_, i) => (
-                                    <div key={i} className="flex border-b border-slate-100" style={{ height: ROW_H }}>
+                                    <div key={i} className="flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                         {Array.from({ length: Math.min(days.length, 10) }).map((_, j) => (
-                                            <div key={j} className="flex-shrink-0 border-r border-slate-100 animate-pulse bg-slate-100 m-0.5 rounded" style={{ width: COL_W - 2 }} />
+                                            <div key={j} className="flex-shrink-0 border-r border-[var(--border-subtle)] animate-pulse bg-[var(--bg-muted)] m-0.5 rounded" style={{ width: COL_W - 2 }} />
                                         ))}
                                     </div>
                                 ))
                                 : (data?.room_types ?? []).flatMap((rt) => [
                                     // Room type header row — shows avg per day
-                                    <div key={`th-${rt.type_id}`} className="flex border-b border-slate-200 bg-slate-800" style={{ height: ROW_H }}>
+                                    <div key={`th-${rt.type_id}`} className="flex border-b border-[var(--border-default)] bg-slate-800" style={{ height: ROW_H }}>
                                         {days.map((day) => {
                                             const isWeekend = dayLabel(day).isWeekend;
                                             const isToday = day === todayDate;
@@ -477,12 +477,12 @@ export default function RatesPage() {
 
                                     // Individual room rows
                                     ...rt.rooms.map((room) => (
-                                        <div key={room.room_id} className="flex border-b border-slate-100" style={{ height: ROW_H }}>
+                                        <div key={room.room_id} className="flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                             {days.map((day) => {
                                                 const { isWeekend } = dayLabel(day);
                                                 const isToday = day === todayDate;
                                                 return (
-                                                    <div key={day} className="flex-shrink-0 border-r border-slate-100" style={{ width: COL_W, height: ROW_H }}>
+                                                    <div key={day} className="flex-shrink-0 border-r border-[var(--border-subtle)]" style={{ width: COL_W, height: ROW_H }}>
                                                         <PriceCell
                                                             price={room.rates[day]}
                                                             weekend={isWeekend}
@@ -502,10 +502,10 @@ export default function RatesPage() {
 
                 {/* Footer summary */}
                 {data && !loading && (
-                    <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 flex gap-6 text-xs text-slate-500">
+                    <div className="border-t border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-2 flex gap-6 text-xs text-[var(--text-secondary)]">
                         <span>{data.room_types.reduce((a, rt) => a + rt.rooms.length, 0)} rooms</span>
                         <span>{data.days.length} days ({startDate} → {endDate})</span>
-                        <span className="ml-auto text-slate-400 italic">Click any price cell to edit individually</span>
+                        <span className="ml-auto text-[var(--text-muted)] italic">Click any price cell to edit individually</span>
                     </div>
                 )}
             </div>

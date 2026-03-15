@@ -45,7 +45,7 @@ export function DialogContent({
       onClick={() => onOpenChange?.(false)}
     >
       <div
-        className={cn("w-full max-w-lg rounded-xl bg-white p-6 shadow-xl", className)}
+        className={cn("w-full max-w-lg rounded-xl bg-[var(--bg-surface)] p-6 shadow-xl", className)}
         onClick={(event) => event.stopPropagation()}
       >
         {children}
@@ -63,7 +63,7 @@ export function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHe
 }
 
 export function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("mt-1 text-sm text-slate-500", className)} {...props} />;
+  return <p className={cn("mt-1 text-sm text-[var(--text-secondary)]", className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
