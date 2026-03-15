@@ -115,34 +115,56 @@ export function computeFeeSummary(
   payments: FeePaymentRow[]
 ): FeeSummary {
   const roomChargesSatang = toSatang(totalPrice);
-  const depositSatang = toSatang(depositHeld);
+  const fallbackDepositSatang = toSatang(depositHeld);
 
   let allCreditsSatang = 0;
   let extraChargesSatang = 0;
+  let heldDepositFromLedgerSatang = 0;
+  let sawDepositLedgerRows = false;
 
   for (const payment of payments) {
     const amountSatang = toSatang(payment.amount);
     const revenueCategory = String(payment.revenue_category ?? "");
     const txType = payment.tx_type;
     const note = String(payment.note ?? "").toLowerCase();
+    const isRecordOnly = payment.is_record_only === true;
+
+    const isDepositLedgerRefund =
+      txType === "refund" &&
+      (
+        revenueCategory === "deposit" ||
+        (note.includes("deposit") && note.includes("refund")) ||
+        note.includes("paid by deposit")
+      );
+    const isDepositLedgerInflow = txType === "deposit";
+
+    if (!isRecordOnly) {
+      if (isDepositLedgerInflow) {
+        heldDepositFromLedgerSatang += amountSatang;
+        sawDepositLedgerRows = true;
+      } else if (isDepositLedgerRefund) {
+        heldDepositFromLedgerSatang -= amountSatang;
+        sawDepositLedgerRows = true;
+      }
+    }
+
     const isDepositCategory =
-      revenueCategory === "deposit" ||
-      (txType === "refund" &&
-        (revenueCategory === "room_revenue" || revenueCategory === "") &&
-        note.includes("deposit") &&
-        note.includes("refund"));
+      revenueCategory === "deposit" || isDepositLedgerRefund;
 
     if (revenueCategory === "extra_charge") {
       if (txType === "payment") extraChargesSatang += amountSatang;
       if (txType === "refund") extraChargesSatang -= amountSatang;
     }
 
-    if (payment.is_record_only) continue;
+    if (isRecordOnly) continue;
     if (txType === "deposit" || isDepositCategory) continue;
     if (txType === "payment") allCreditsSatang += amountSatang;
     if (txType === "refund") allCreditsSatang -= amountSatang;
   }
 
+  const depositSatang = sawDepositLedgerRows
+    ? Math.max(0, heldDepositFromLedgerSatang)
+    : fallbackDepositSatang;
   const grandTotalSatang = roomChargesSatang + extraChargesSatang;
   const balanceSatang = grandTotalSatang - allCreditsSatang;
 

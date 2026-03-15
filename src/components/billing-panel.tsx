@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { resolveCheckoutRevenueCategory } from "@/lib/checkout-balance";
+import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 
 interface Payment {
   id: string;
@@ -206,42 +207,43 @@ export function BillingPanel({
 
   // Deposits Held (Phase 26A: keep it separate for now)
   const depositTransactions = payments.filter((p) => {
+    if (p.is_record_only) return false;
     const note = String(p.note ?? "").toLowerCase();
     const category = String(p.revenue_category ?? "").toLowerCase();
     return p.tx_type === "deposit"
-      || (p.tx_type === "refund" && (category === "deposit" || note.includes("deposit refund")));
+      || (
+        p.tx_type === "refund"
+        && (category === "deposit" || note.includes("deposit refund") || note.includes("paid by deposit"))
+      );
   });
-  const depositNetSatang = payments.reduce((sum, p) => {
-      const note = String(p.note ?? "").toLowerCase();
-      const category = String(p.revenue_category ?? "").toLowerCase();
-      const amount = toSatang(p.amount);
-      if (p.tx_type === "deposit") return sum + amount;
-      if (p.tx_type === "refund" && (category === "deposit" || note.includes("deposit refund"))) {
-          return sum - amount;
-      }
-      return sum;
-  }, 0);
-  const depositLines = Array.from(
-    payments.reduce((map, p) => {
-      const note = String(p.note ?? "").toLowerCase();
-      const category = String(p.revenue_category ?? "").toLowerCase();
-      const isDepositRefund =
-        p.tx_type === "refund" && (category === "deposit" || note.includes("deposit refund"));
-      if (p.tx_type !== "deposit" && !isDepositRefund) return map;
-      const methodKey = String(p.method || "cash");
-      const current = map.get(methodKey) ?? { method: methodKey, amountSatang: 0, note: p.note ?? "" };
-      current.amountSatang += p.tx_type === "deposit" ? toSatang(p.amount) : -toSatang(p.amount);
-      if (!current.note && p.note) current.note = p.note;
-      map.set(methodKey, current);
-      return map;
-    }, new Map<string, { method: string; amountSatang: number; note: string }>())
-  )
-    .map(([, line]) => ({
-      method: line.method,
-      note: line.note,
-      amount: fromSatang(line.amountSatang),
-    }))
-    .filter((line) => line.amount > 0);
+  const depositNetSatang = toSatang(
+    computeHeldDepositFromRows(
+      payments.filter((p) => !p.is_record_only).map((p) => ({
+        tx_type: p.tx_type,
+        revenue_category: p.revenue_category,
+        amount: p.amount,
+        note: p.note,
+      }))
+    )
+  );
+  const depositSourceRows = payments.filter((p) => !p.is_record_only && p.tx_type === "deposit");
+  const depositSourceMethods = Array.from(
+    new Set(
+      depositSourceRows
+        .map((p) => String(p.method || "").toLowerCase())
+        .filter((m) => m.length > 0)
+    )
+  );
+  const depositSourceNote =
+    depositSourceRows.find((p) => typeof p.note === "string" && p.note.trim().length > 0)?.note ?? "";
+  const depositHeldAmount = fromSatang(Math.max(0, depositNetSatang));
+  const depositLines = depositTransactions.length > 0
+    ? [{
+        method: depositSourceMethods.length === 1 ? depositSourceMethods[0] : "mixed",
+        note: depositSourceNote,
+        amount: depositHeldAmount,
+      }]
+    : [];
 
   // Total Charges = Room - Discount + Extra
   const totalChargesSatang =

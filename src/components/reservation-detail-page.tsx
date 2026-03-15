@@ -1392,6 +1392,12 @@ export default function ReservationDetailPage({
                         }
                         setNightlyRates(arr);
                     }
+
+                    // Reconcile payment/deposit state from folio ledger after loading reservation snapshot.
+                    // This prevents stale reservations.deposit_amount from persisting in the booking panel.
+                    setTimeout(() => {
+                        void fetchPaymentsAndCharges();
+                    }, 0);
                 }
             })
             .catch(() => { })
@@ -2171,6 +2177,11 @@ export default function ReservationDetailPage({
         }
         await fetchDepositTransactions();
     }, [reservationId, mode, fetchDepositTransactions]);
+
+    useEffect(() => {
+        if (!reservationId || mode === "create") return;
+        void fetchPaymentsAndCharges();
+    }, [reservationId, mode, fetchPaymentsAndCharges]);
 
     const handleClearDeposit = useCallback(async () => {
         if (!reservationId || depositSaving || (depositAmount <= 0 && !depositGeneralNote.trim())) return;

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
+import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { mapEffectiveReservationAlert } from "@/lib/reservation-alerts";
 import { NextRequest, NextResponse } from "next/server";
@@ -49,7 +50,6 @@ export async function GET(
         }
 
         const totalPriceSatang = toSatang(reservation.total_price);
-        const depositAmountSatang = toSatang(reservation.deposit_amount);
         const bangkokHour = getBangkokHour();
         const isAfterHardLimit = bangkokHour > 16;
 
@@ -64,6 +64,7 @@ export async function GET(
             totalRefundedSatang,
             netPaidSatang
         } = computeCheckoutNetPaidSatang(payments ?? []);
+        const depositAmountSatang = toSatang(computeHeldDepositFromRows(payments ?? []));
         const extraChargeNetSatang = computeExtraChargeNetSatang(payments ?? []);
         const balanceDueSatang = totalPriceSatang + extraChargeNetSatang - netPaidSatang;
 
