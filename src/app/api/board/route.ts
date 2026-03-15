@@ -66,6 +66,7 @@ function mapHousekeepingToBoardStatus(status: HousekeepingStatus): BoardRoomStat
 }
 
 export async function GET(request: NextRequest) {
+  const t0 = performance.now();
   const requestedDate = request.nextUrl.searchParams.get("date");
   if (requestedDate && !isValidDateString(requestedDate)) {
     return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD." }, { status: 400 });
@@ -73,83 +74,82 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient();
   const date = await getBusinessDate(supabase, requestedDate);
+  const tDate = performance.now();
 
-  const { data: roomsData, error: roomsError } = await supabase
-    .from("rooms")
-    .select("id, room_number, is_sellable, closure_reason, wing, is_dayuse, room_types(name_en)")
-    .eq("is_visible_on_board", true)
-    .eq("is_dayuse", false)
-    .order("floor_number", { ascending: true, nullsFirst: false })
-    .order("wing", { ascending: true, nullsFirst: false })
-    .order("sort_order", { ascending: true, nullsFirst: false });
+  // ── Wave 1: All independent queries in parallel ─────────────────────────
+  const tW1Start = performance.now();
+  const hkSelectBase = "room_id, status, assigned_maid_name, started_at, finished_at, approved_at, is_no_service";
+  const [
+    roomsResult,
+    reservationNightsResult,
+    departuresTodayResult,
+    effectivePlannedMovesResult,
+    housekeepingResult,
+    roomBlocksResult,
+  ] = await Promise.all([
+    supabase
+      .from("rooms")
+      .select("id, room_number, is_sellable, closure_reason, wing, is_dayuse, room_types(name_en)")
+      .eq("is_visible_on_board", true)
+      .eq("is_dayuse", false)
+      .order("floor_number", { ascending: true, nullsFirst: false })
+      .order("wing", { ascending: true, nullsFirst: false })
+      .order("sort_order", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("reservation_nights")
+      .select(`room_id, reservations!reservation_nights_reservation_id_fkey(id, status, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source)`)
+      .eq("stay_date", date)
+      .is("cancelled_at", null),
+    supabase
+      .from("reservations")
+      .select(`id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source, reservation_nights(room_id, stay_date, cancelled_at)`)
+      .eq("status", "active")
+      .eq("checkout_date", date),
+    supabase
+      .from("reservation_room_plans")
+      .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id")
+      .eq("status", "planned")
+      .lte("start_date", date)
+      .gt("end_date", date),
+    supabase
+      .from("housekeeping_tasks")
+      .select(`${hkSelectBase}, no_service_note`)
+      .eq("stay_date", date),
+    supabase
+      .from("room_blocks")
+      .select("room_id, block_type, reason")
+      .lte("start_date", date)
+      .gte("end_date", date),
+  ]);
 
+  const tW1End = performance.now();
 
-  if (roomsError) {
-    return NextResponse.json({ error: roomsError.message }, { status: 500 });
+  // Check wave 1 errors
+  if (roomsResult.error) return NextResponse.json({ error: roomsResult.error.message }, { status: 500 });
+  if (reservationNightsResult.error) return NextResponse.json({ error: reservationNightsResult.error.message }, { status: 500 });
+  if (departuresTodayResult.error) return NextResponse.json({ error: departuresTodayResult.error.message }, { status: 500 });
+  if (effectivePlannedMovesResult.error) return NextResponse.json({ error: effectivePlannedMovesResult.error.message }, { status: 500 });
+  if (housekeepingResult.error) {
+    const message = String(housekeepingResult.error.message ?? "").toLowerCase();
+    if (message.includes("no_service_note")) {
+      return NextResponse.json({ error: "DB migration required: apply 20260303_phase11_hk_no_service_note.sql before using board API." }, { status: 500 });
+    }
+    return NextResponse.json({ error: housekeepingResult.error.message }, { status: 500 });
   }
 
-  const { data: reservationNights, error: reservationError } = await supabase
-    .from("reservation_nights")
-    .select(`
-      room_id,
-      reservations!reservation_nights_reservation_id_fkey(
-        id,
-        status,
-        guest_profile_id,
-        guest_name,
-        booking_code,
-        specials,
-        note,
-        booking_group_id,
-        checkin_date,
-        checkout_date,
-        source
-      )
-    `)
-    .eq("stay_date", date)
-    .is("cancelled_at", null);
+  const roomsData = roomsResult.data;
+  const reservationNights = reservationNightsResult.data;
+  const departuresToday = departuresTodayResult.data;
+  const effectivePlannedMoves = effectivePlannedMovesResult.data;
+  const housekeepingTasksRaw = housekeepingResult.data;
+  const housekeepingTasks = (housekeepingTasksRaw ?? []) as unknown as HousekeepingTaskRow[];
 
-  if (reservationError) {
-    return NextResponse.json({ error: reservationError.message }, { status: 500 });
-  }
+  const blocksByRoomId = new Map<string, { type: string; reason: string }>();
+  (roomBlocksResult.data || []).forEach((b) => {
+    if (b.room_id) blocksByRoomId.set(b.room_id, { type: b.block_type, reason: b.reason });
+  });
 
-  const { data: departuresToday, error: departuresError } = await supabase
-    .from("reservations")
-    .select(`
-      id,
-      guest_profile_id,
-      guest_name,
-      booking_code,
-      specials,
-      note,
-      booking_group_id,
-      checkin_date,
-      checkout_date,
-      source,
-      reservation_nights(
-        room_id,
-        stay_date,
-        cancelled_at
-      )
-    `)
-    .eq("status", "active")
-    .eq("checkout_date", date);
-
-  if (departuresError) {
-    return NextResponse.json({ error: departuresError.message }, { status: 500 });
-  }
-
-  const { data: effectivePlannedMoves, error: effectivePlannedMovesError } = await supabase
-    .from("reservation_room_plans")
-    .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id")
-    .eq("status", "planned")
-    .lte("start_date", date)
-    .gt("end_date", date);
-
-  if (effectivePlannedMovesError) {
-    return NextResponse.json({ error: effectivePlannedMovesError.message }, { status: 500 });
-  }
-
+  // ── Wave 1 post-processing: compute inputs for Wave 2 ──────────────────
   const groupIds = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
     const reservationRef = Array.isArray(night?.reservations)
@@ -166,101 +166,64 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
-  if (groupIds.size > 0) {
-    const { data: groups, error: groupError } = await supabase
-      .from("booking_groups")
-      .select("id, group_code, group_name")
-      .in("id", Array.from(groupIds));
-
-    if (groupError) {
-      return NextResponse.json({ error: groupError.message }, { status: 500 });
-    }
-
-    (groups ?? []).forEach((g: any) => {
-      groupMetaById.set(String(g.id), {
-        group_code: g.group_code ?? null,
-        group_name: g.group_name ?? null
-      });
-    });
-  }
-
+  // Compute remaining inputs for Wave 2 (pure JS, no DB)
   const effectivePlanReservationIds = Array.from(
     new Set((effectivePlannedMoves ?? []).map((row: any) => row?.reservation_id ? String(row.reservation_id) : "").filter(Boolean))
   );
-  let effectivePlanReservationsRaw: any[] = [];
-  if (effectivePlanReservationIds.length > 0) {
-    const { data: plannedReservations, error: plannedReservationError } = await supabase
-      .from("reservations")
-      .select("id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source")
-      .in("id", effectivePlanReservationIds)
-      .eq("status", "active");
-
-    if (plannedReservationError) {
-      return NextResponse.json({ error: plannedReservationError.message }, { status: 500 });
-    }
-
-    (plannedReservations ?? []).forEach((reservation: any) => {
-      if (reservation?.booking_group_id) {
-        groupIds.add(String(reservation.booking_group_id));
-      }
-    });
-    effectivePlanReservationsRaw = plannedReservations ?? [];
-
-    if (groupIds.size > 0) {
-      const missingGroupIds = Array.from(groupIds).filter((groupId) => !groupMetaById.has(groupId));
-      if (missingGroupIds.length > 0) {
-        const { data: extraGroups, error: extraGroupError } = await supabase
-          .from("booking_groups")
-          .select("id, group_code, group_name")
-          .in("id", missingGroupIds);
-        if (extraGroupError) {
-          return NextResponse.json({ error: extraGroupError.message }, { status: 500 });
-        }
-        (extraGroups ?? []).forEach((g: any) => {
-          groupMetaById.set(String(g.id), {
-            group_code: g.group_code ?? null,
-            group_name: g.group_name ?? null,
-          });
-        });
-      }
-    }
-
-  }
-
   const reservationIdsForCheckin = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
-    const reservationRef = Array.isArray(night?.reservations)
-      ? night.reservations[0]
-      : night?.reservations;
+    const reservationRef = Array.isArray(night?.reservations) ? night.reservations[0] : night?.reservations;
     if (!reservationRef || reservationRef.status !== "active") return;
-    if (reservationRef?.id) {
-      reservationIdsForCheckin.add(String(reservationRef.id));
-    }
+    if (reservationRef?.id) reservationIdsForCheckin.add(String(reservationRef.id));
   });
   (departuresToday ?? []).forEach((reservation: any) => {
-    if (reservation?.id) {
-      reservationIdsForCheckin.add(String(reservation.id));
-    }
+    if (reservation?.id) reservationIdsForCheckin.add(String(reservation.id));
   });
 
-  const checkedInReservationSet = new Set<string>();
-  if (reservationIdsForCheckin.size > 0) {
-    const { data: checkedInLogs, error: checkedInLogError } = await supabase
-      .from("audit_logs")
-      .select("entity_id")
-      .eq("entity_type", "reservation")
-      .eq("action", "checked_in")
-      .in("entity_id", Array.from(reservationIdsForCheckin));
+  // ── Wave 2: Dependent queries in parallel ───────────────────────────────
+  const tW2Start = performance.now();
+  const [groupsResult, plannedReservationsResult, checkedInLogsResult] = await Promise.all([
+    groupIds.size > 0
+      ? supabase.from("booking_groups").select("id, group_code, group_name").in("id", Array.from(groupIds))
+      : Promise.resolve({ data: [] as { id: string; group_code: string | null; group_name: string | null }[], error: null }),
+    effectivePlanReservationIds.length > 0
+      ? supabase.from("reservations").select("id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source").in("id", effectivePlanReservationIds).eq("status", "active")
+      : Promise.resolve({ data: [] as any[], error: null }),
+    reservationIdsForCheckin.size > 0
+      ? supabase.from("audit_logs").select("entity_id").eq("entity_type", "reservation").eq("action", "checked_in").in("entity_id", Array.from(reservationIdsForCheckin))
+      : Promise.resolve({ data: [] as { entity_id: string }[], error: null }),
+  ]);
 
-    if (checkedInLogError) {
-      return NextResponse.json({ error: checkedInLogError.message }, { status: 500 });
-    }
+  const tW2End = performance.now();
 
-    (checkedInLogs ?? []).forEach((log: any) => {
-      checkedInReservationSet.add(String(log.entity_id));
+  if (groupsResult.error) return NextResponse.json({ error: groupsResult.error.message }, { status: 500 });
+  if (plannedReservationsResult.error) return NextResponse.json({ error: plannedReservationsResult.error.message }, { status: 500 });
+  if (checkedInLogsResult.error) return NextResponse.json({ error: checkedInLogsResult.error.message }, { status: 500 });
+
+  const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
+  (groupsResult.data ?? []).forEach((g: any) => {
+    groupMetaById.set(String(g.id), { group_code: g.group_code ?? null, group_name: g.group_name ?? null });
+  });
+
+  const effectivePlanReservationsRaw: any[] = plannedReservationsResult.data ?? [];
+  // Check for extra group IDs from planned reservations (rarely needed)
+  effectivePlanReservationsRaw.forEach((reservation: any) => {
+    if (reservation?.booking_group_id) groupIds.add(String(reservation.booking_group_id));
+  });
+  const missingGroupIds = Array.from(groupIds).filter((id) => !groupMetaById.has(id));
+  if (missingGroupIds.length > 0) {
+    const { data: extraGroups, error: extraGroupError } = await supabase
+      .from("booking_groups").select("id, group_code, group_name").in("id", missingGroupIds);
+    if (extraGroupError) return NextResponse.json({ error: extraGroupError.message }, { status: 500 });
+    (extraGroups ?? []).forEach((g: any) => {
+      groupMetaById.set(String(g.id), { group_code: g.group_code ?? null, group_name: g.group_name ?? null });
     });
   }
+
+  const checkedInReservationSet = new Set<string>();
+  (checkedInLogsResult.data ?? []).forEach((log: any) => {
+    checkedInReservationSet.add(String(log.entity_id));
+  });
 
   const effectivePlanReservationsById = new Map<string, GuestSummary>();
   effectivePlanReservationsRaw.forEach((reservation: any) => {
@@ -301,39 +264,6 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  const hkSelectBase =
-    "room_id, status, assigned_maid_name, started_at, finished_at, approved_at, is_no_service";
-  let { data: housekeepingTasksRaw, error: housekeepingError } = await supabase
-    .from("housekeeping_tasks")
-    .select(`${hkSelectBase}, no_service_note`)
-    .eq("stay_date", date);
-
-  if (housekeepingError) {
-    const message = String(housekeepingError.message ?? "").toLowerCase();
-    if (message.includes("no_service_note")) {
-      return NextResponse.json(
-        {
-          error:
-            "DB migration required: apply 20260303_phase11_hk_no_service_note.sql before using board API.",
-        },
-        { status: 500 }
-      );
-    }
-    return NextResponse.json({ error: housekeepingError.message }, { status: 500 });
-  }
-  const housekeepingTasks = (housekeepingTasksRaw ?? []) as unknown as HousekeepingTaskRow[];
-
-  // Fetch Room Blocks (now using room_id UUID)
-  const { data: roomBlocks } = await supabase
-    .from("room_blocks")
-    .select("room_id, block_type, reason")
-    .lte("start_date", date)
-    .gte("end_date", date);
-
-  const blocksByRoomId = new Map<string, { type: string, reason: string }>();
-  (roomBlocks || []).forEach(b => {
-    if (b.room_id) blocksByRoomId.set(b.room_id, { type: b.block_type, reason: b.reason });
-  });
 
   const occupiedGuestByRoomId = new Map<string, GuestSummary>();
   const arrivalGuestByRoomId = new Map<string, GuestSummary>();
@@ -423,42 +353,52 @@ export async function GET(request: NextRequest) {
   plannedMoveSourceGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
   plannedMoveTargetGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
 
-  const loyaltyByReservationId = await buildReservationLoyaltyMap(
-    supabase,
-    Array.from(reservationIdSet),
-    reservationProfileSeed
-  );
+  // ── Wave 3: loyalty + alerts + roomMoveLogs in parallel ────────────────
+  const tW3Start = performance.now();
+  const reservationIdsArr = Array.from(reservationIdSet);
+  const [loyaltyByReservationId, alertsResult, roomMoveLogsResult] = await Promise.all([
+    buildReservationLoyaltyMap(supabase, reservationIdsArr, reservationProfileSeed),
+    reservationIdSet.size > 0
+      ? supabase
+          .from("reservation_alerts")
+          .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
+          .in("reservation_id", reservationIdsArr)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    reservationIdSet.size > 0
+      ? supabase
+          .from("audit_logs")
+          .select("entity_id, created_at, before_json, after_json")
+          .eq("entity_type", "reservation")
+          .eq("action", "room_moved")
+          .in("entity_id", reservationIdsArr)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
 
+  const tW3End = performance.now();
+
+  if (alertsResult.error) return NextResponse.json({ error: alertsResult.error.message }, { status: 500 });
+  if (roomMoveLogsResult.error) return NextResponse.json({ error: roomMoveLogsResult.error.message }, { status: 500 });
+
+  // Process alerts
   const alertSummaryByReservationId = new Map<string, {
     count: number;
     firstMessage: string | null;
     highestSeverity: "info" | "warning" | "critical" | null;
   }>();
-  if (reservationIdSet.size > 0) {
-    const { data: reservationAlerts, error: reservationAlertsError } = await supabase
-      .from("reservation_alerts")
-      .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
-      .in("reservation_id", Array.from(reservationIdSet));
-
-    if (reservationAlertsError) {
-      return NextResponse.json({ error: reservationAlertsError.message }, { status: 500 });
-    }
-
+  if ((alertsResult.data ?? []).length > 0) {
+    const reservationAlerts = alertsResult.data ?? [];
     const legacyCodes = Array.from(
-      new Set((reservationAlerts ?? []).filter((row: any) => !row?.alert_template_id && row?.alert_code).map((row: any) => normalizeAlertCodeKey(row.alert_code)).filter(Boolean))
+      new Set(reservationAlerts.filter((row: any) => !row?.alert_template_id && row?.alert_code).map((row: any) => normalizeAlertCodeKey(row.alert_code)).filter(Boolean))
     );
     let templateMap = new Map<string, any>();
     if (legacyCodes.length > 0) {
       const { data: templates, error: templateError } = await supabase
         .from("alert_templates")
         .select("id, code, name, description, category, display_surfaces, severity, icon");
-      if (templateError) {
-        return NextResponse.json({ error: templateError.message }, { status: 500 });
-      }
+      if (templateError) return NextResponse.json({ error: templateError.message }, { status: 500 });
       templateMap = new Map((templates ?? []).map((template: any) => [normalizeAlertCodeKey(template.code), template]));
     }
-    const resolvedRows = attachTemplateFallback(reservationAlerts ?? [], templateMap);
-
+    const resolvedRows = attachTemplateFallback(reservationAlerts, templateMap);
     const grouped = new Map<string, any[]>();
     for (const row of resolvedRows) {
       const reservationId = String((row as any)?.reservation_id ?? "");
@@ -466,19 +406,15 @@ export async function GET(request: NextRequest) {
       if (!grouped.has(reservationId)) grouped.set(reservationId, []);
       grouped.get(reservationId)?.push(row);
     }
-
     grouped.forEach((rows, reservationId) => {
-      const alerts = rows
-        .map((row) => mapEffectiveReservationAlert(row))
-        .filter((alert) => !alert.is_dismissed);
+      const alerts = rows.map((row) => mapEffectiveReservationAlert(row)).filter((alert) => !alert.is_dismissed);
       const visibleAlerts = filterAlertsForSurface(alerts, "room_diary");
       const summary = summarizeAlerts(visibleAlerts);
-      if (summary.count > 0) {
-        alertSummaryByReservationId.set(reservationId, summary);
-      }
+      if (summary.count > 0) alertSummaryByReservationId.set(reservationId, summary);
     });
   }
 
+  // Process room move logs
   const roomMoveByReservation = new Map<string, {
     move_date: string;
     moved_at: string;
@@ -486,46 +422,23 @@ export async function GET(request: NextRequest) {
     to_room_number: string;
     reason: string;
   }>();
-
-  if (reservationIdSet.size > 0) {
-    const reservationIds = Array.from(reservationIdSet);
-    const { data: roomMoveLogs, error: roomMoveError } = await supabase
-      .from("audit_logs")
-      .select("entity_id, created_at, before_json, after_json")
-      .eq("entity_type", "reservation")
-      .eq("action", "room_moved")
-      .in("entity_id", reservationIds);
-
-    if (roomMoveError) {
-      return NextResponse.json({ error: roomMoveError.message }, { status: 500 });
-    }
-
-    for (const log of roomMoveLogs ?? []) {
-      const reservationId = String(log.entity_id);
-      const movedAt = String(log.created_at ?? "");
-      const before = parseJsonRecord(log.before_json);
-      const after = parseJsonRecord(log.after_json);
-      const moveDate = String(after.move_date ?? (movedAt ? movedAt.slice(0, 10) : ""));
-      if (!moveDate || moveDate > date) continue;
-
-      const incoming = {
-        move_date: moveDate,
-        moved_at: movedAt,
-        from_room_number: String(before.room_number ?? "unknown"),
-        to_room_number: String(after.room_number ?? "unknown"),
-        reason: typeof after.reason === "string" ? after.reason : ""
-      };
-      const existing = roomMoveByReservation.get(reservationId);
-      if (!existing) {
-        roomMoveByReservation.set(reservationId, incoming);
-        continue;
-      }
-      if (
-        incoming.move_date > existing.move_date ||
-        (incoming.move_date === existing.move_date && incoming.moved_at > existing.moved_at)
-      ) {
-        roomMoveByReservation.set(reservationId, incoming);
-      }
+  for (const log of roomMoveLogsResult.data ?? []) {
+    const reservationId = String(log.entity_id);
+    const movedAt = String(log.created_at ?? "");
+    const before = parseJsonRecord(log.before_json);
+    const after = parseJsonRecord(log.after_json);
+    const moveDate = String(after.move_date ?? (movedAt ? movedAt.slice(0, 10) : ""));
+    if (!moveDate || moveDate > date) continue;
+    const incoming = {
+      move_date: moveDate,
+      moved_at: movedAt,
+      from_room_number: String(before.room_number ?? "unknown"),
+      to_room_number: String(after.room_number ?? "unknown"),
+      reason: typeof after.reason === "string" ? after.reason : ""
+    };
+    const existing = roomMoveByReservation.get(reservationId);
+    if (!existing || incoming.move_date > existing.move_date || (incoming.move_date === existing.move_date && incoming.moved_at > existing.moved_at)) {
+      roomMoveByReservation.set(reservationId, incoming);
     }
   }
 
@@ -771,12 +684,23 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  const tTotal = performance.now();
+  const timing = {
+    businessDate: Math.round(tDate - t0),
+    wave1: Math.round(tW1End - tW1Start),
+    wave2: Math.round(tW2End - tW2Start),
+    wave3: Math.round(tW3End - tW3Start),
+    total: Math.round(tTotal - t0),
+  };
+  console.log(`[Board API] timing ms | date:${timing.businessDate} w1:${timing.wave1} w2:${timing.wave2} w3:${timing.wave3} total:${timing.total}`);
+
   return NextResponse.json(
     {
       success: true,
       date,
       counts,
-      rooms
+      rooms,
+      _timing: timing,
     },
     { status: 200 }
   );
