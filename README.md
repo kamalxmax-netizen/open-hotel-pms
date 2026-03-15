@@ -132,3 +132,5 @@ If running SQL manually, follow the migration order in the folder names.
 - never expose `SUPABASE_SERVICE_ROLE_KEY` to browser code
 - rotate any leaked legacy keys before production use
 - keep RLS enabled in every environment
+
+<!-- touch for deploy -->
