@@ -140,6 +140,7 @@ async function autoCarryForwardOpenHousekeepingTasks(
         {
           room_id: prev.room_id,
           stay_date: targetDate,
+          task_seq: 1,
           status: carryStatus,
           assigned_maid_name: prev.assigned_maid_name ?? null,
           is_no_service: prev.is_no_service ?? false,
@@ -149,7 +150,7 @@ async function autoCarryForwardOpenHousekeepingTasks(
           finished_at: null,
           approved_at: null,
         },
-        { onConflict: "room_id,stay_date", ignoreDuplicates: true }
+        { onConflict: "room_id,stay_date,task_seq", ignoreDuplicates: true }
       );
     if (carryError) throw new Error(carryError.message);
 

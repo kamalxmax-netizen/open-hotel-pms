@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 
 const pushDirtySchema = z.object({
   room_id: z.string().uuid(),
@@ -21,57 +22,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const { room_id, stay_date, trigger_source, requested_by } = parsed.data;
+    const { room_id, stay_date, trigger_source } = parsed.data;
     const supabase = createServerSupabaseClient();
 
-    // Upsert housekeeping_tasks with status 'dirty'
-    const { data: task, error: upsertError } = await supabase
-      .from("housekeeping_tasks")
-      .upsert(
-        {
-          room_id,
-          stay_date,
-          status: "dirty",
-          is_no_service: false,
-          no_service_note: null,
-          no_service_marked_at: null,
-          no_service_marked_by: null,
-          started_at: null,
-          finished_at: null,
-          approved_at: null,
-          accumulated_ms: 0,
-        },
-        { onConflict: "room_id,stay_date" }
-      )
-      .select("id")
-      .single();
+    // Smart dirty: preserves completed tasks by inserting a new task_seq row
+    const result = await markRoomDirtyTask(supabase, {
+      roomId: room_id,
+      stayDate: stay_date,
+      logNote: `trigger: ${trigger_source}`,
+    });
 
-    if (upsertError) {
-      return NextResponse.json(
-        { error: upsertError.message },
-        { status: 500 }
-      );
-    }
-
-    const task_id = task.id;
-
-    // Insert housekeeping_logs entry
-    const { error: logError } = await supabase
-      .from("housekeeping_logs")
-      .insert({
-        task_id,
-        status: "dirty",
-        note: `trigger: ${trigger_source}`,
-      });
-
-    if (logError) {
-      return NextResponse.json(
-        { error: logError.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true, task_id });
+    return NextResponse.json({ success: true, task_id: result.task_id, task_seq: result.task_seq });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

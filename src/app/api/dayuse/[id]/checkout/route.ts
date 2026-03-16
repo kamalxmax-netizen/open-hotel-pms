@@ -98,6 +98,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
           {
             room_id: roomId,
             stay_date: businessDate,
+            task_seq: 1,
             status: "dirty",
             is_no_service: false,
             no_service_note: null,
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
             approved_at: null,
             accumulated_ms: 0,
           },
-          { onConflict: "room_id,stay_date" }
+          { onConflict: "room_id,stay_date,task_seq" }
         );
       if (housekeepingError) {
         return NextResponse.json({ success: false, error: housekeepingError.message }, { status: 500 });

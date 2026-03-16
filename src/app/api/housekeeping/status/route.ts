@@ -138,6 +138,7 @@ async function autoCarryForwardOpenHousekeepingTasks(
                 {
                     room_id: prev.room_id,
                     stay_date: targetDate,
+                    task_seq: 1,
                     status: carryStatus,
                     assigned_maid_name: prev.assigned_maid_name ?? null,
                     is_no_service: prev.is_no_service ?? false,
@@ -147,7 +148,7 @@ async function autoCarryForwardOpenHousekeepingTasks(
                     finished_at: null,
                     approved_at: null,
                 },
-                { onConflict: "room_id,stay_date", ignoreDuplicates: true }
+                { onConflict: "room_id,stay_date,task_seq", ignoreDuplicates: true }
             );
         if (carryError) throw new Error(carryError.message);
 
@@ -169,6 +170,8 @@ async function autoCarryForwardOpenHousekeepingTasks(
             .select("id")
             .eq("room_id", prev.room_id)
             .eq("stay_date", targetDate)
+            .order("task_seq", { ascending: false })
+            .limit(1)
             .maybeSingle();
         if (todayTaskError) throw new Error(todayTaskError.message);
         if (todayTask?.id) {
@@ -360,7 +363,8 @@ export async function GET(request: NextRequest) {
             .from("housekeeping_tasks")
             .select(`${hkSelectBase}, no_service_note`)
             .eq("stay_date", dateParam)
-            .in("room_id", roomIds);
+            .in("room_id", roomIds)
+            .order("task_seq", { ascending: true }); // ascending so highest seq wins in hkByRoomId map
         if (hkError) {
             const message = String(hkError.message ?? "").toLowerCase();
             if (
@@ -1275,6 +1279,7 @@ export async function POST(request: NextRequest) {
             const upsertBasePayload = {
                 room_id,
                 stay_date: date,
+                task_seq: 1,
                 status: "dirty",
                 is_no_service: markAsNoService,
                 started_at: null,
@@ -1292,7 +1297,7 @@ export async function POST(request: NextRequest) {
                         no_service_marked_at: markAsNoService ? nowIso : null,
                         no_service_marked_by: markAsNoService ? "Front Desk" : null,
                     },
-                    { onConflict: "room_id,stay_date" }
+                    { onConflict: "room_id,stay_date,task_seq" }
                 )
                 .select("id")
                 .maybeSingle();
@@ -1462,6 +1467,7 @@ export async function POST(request: NextRequest) {
                 ? {
                     room_id,
                     stay_date: date,
+                    task_seq: 1,
                     status: new_status,
                     is_no_service: false,
                     no_service_note: null,
@@ -1475,12 +1481,13 @@ export async function POST(request: NextRequest) {
                 : {
                     room_id,
                     stay_date: date,
+                    task_seq: 1,
                     status: new_status,
                 };
 
         const { error } = await supabase
             .from("housekeeping_tasks")
-            .upsert(statusPayload, { onConflict: "room_id,stay_date" });
+            .upsert(statusPayload, { onConflict: "room_id,stay_date,task_seq" });
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ success: true });

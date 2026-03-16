@@ -6,6 +6,7 @@ import {
   DiscountType,
 } from "@/lib/planned-room-moves";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -374,14 +375,15 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
   if (insertError) throw new RoomMoveError(insertError.message ?? "Failed to insert moved nights.", 500);
 
   if (markOldRoomDirty && oldRoomId && stayDates.includes(today)) {
-    // Hotfix: room can become dirty again in the same day after a completed task.
-    // Reset runtime fields so maid app can pick it up as a fresh dirty task.
+    // Resolve assigned maid from existing task or daily_plans
     let resolvedAssignedMaid: string | null = null;
     const { data: existingHkTask } = await supabase
       .from("housekeeping_tasks")
       .select("assigned_maid_name")
       .eq("room_id", oldRoomId)
       .eq("stay_date", today)
+      .order("task_seq", { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (existingHkTask?.assigned_maid_name) {
       resolvedAssignedMaid = String(existingHkTask.assigned_maid_name);
@@ -397,35 +399,17 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       resolvedAssignedMaid = String(plannedMaid.assigned_maid);
     }
 
-    const { data: dirtyTask, error: dirtyTaskError } = await supabase
-      .from("housekeeping_tasks")
-      .upsert(
-        {
-          room_id: oldRoomId,
-          stay_date: today,
-          status: "dirty",
-          assigned_maid_name: resolvedAssignedMaid,
-          is_no_service: false,
-          started_at: null,
-          finished_at: null,
-          approved_at: null,
-          accumulated_ms: 0,
-        },
-        { onConflict: "room_id,stay_date" }
-      )
-      .select("id")
-      .maybeSingle();
-    if (dirtyTaskError) {
-      throw new RoomMoveError(dirtyTaskError.message ?? "Failed to mark previous room as dirty.", 500);
-    }
+    // Smart dirty: preserves completed tasks — inserts new task_seq row if previous is done
+    const dirtyResult = await markRoomDirtyTask(supabase, {
+      roomId: oldRoomId,
+      stayDate: today,
+      assignedMaidName: resolvedAssignedMaid,
+      logNote: "Marked dirty again after room move",
+    }).catch((err) => {
+      throw new RoomMoveError(String(err?.message ?? err ?? "Failed to mark previous room as dirty."), 500);
+    });
 
-    if (dirtyTask?.id) {
-      await supabase.from("housekeeping_logs").insert({
-        task_id: String(dirtyTask.id),
-        status: "dirty",
-        note: "Marked dirty again after room move",
-      });
-    }
+    void dirtyResult; // task_id + task_seq available if needed for future use
   }
 
   const { data: allActiveNights, error: allActiveNightsError } = await supabase

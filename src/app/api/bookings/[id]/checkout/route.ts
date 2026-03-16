@@ -429,6 +429,7 @@ export async function POST(
                 {
                     room_id: night.room_id,
                     stay_date: localDate,
+                    task_seq: 1,
                     status: "dirty",
                     is_no_service: false,
                     no_service_note: null,
@@ -439,7 +440,7 @@ export async function POST(
                     approved_at: null,
                     accumulated_ms: 0,
                 },
-                { onConflict: "room_id,stay_date" }
+                { onConflict: "room_id,stay_date,task_seq" }
             );
         }
 
