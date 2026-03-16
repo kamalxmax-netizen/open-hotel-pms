@@ -60,6 +60,14 @@ export type HkRoom = {
   }>;
   elapsed_ms: number;
   remaining_ms: number;
+  /** Completed tasks from earlier task_seq on the same day (re-clean scenario) */
+  hk_prior_tasks?: Array<{
+    task_id: string;
+    status: string;
+    finished_at: string | null;
+    approved_at: string | null;
+    assigned_maid_name: string | null;
+  }>;
   maintenance_minutes_total: number;
   maintenance_assignments: Array<{
     assignment_id: string;
@@ -241,6 +249,14 @@ export default function FloorGroup({
                             </span>
                           ))}
                         </span>
+                      </span>
+                    )}
+                    {(room.hk_prior_tasks?.length ?? 0) > 0 && (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400"
+                        title={`Cleaned ${room.hk_prior_tasks!.length}x earlier today — re-clean after room move`}
+                      >
+                        🔁 {room.hk_prior_tasks!.length > 1 ? `${room.hk_prior_tasks!.length}x` : "Re-clean"}
                       </span>
                     )}
                     <MaidChip maidName={room.assigned_maid_name || room.plan_assigned_maid} priority={room.plan_priority} />

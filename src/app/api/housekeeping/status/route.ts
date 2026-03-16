@@ -384,8 +384,18 @@ export async function GET(request: NextRequest) {
         }
         const hkRows = (hkRowsRaw ?? []) as unknown as HkTaskRow[];
 
+        // hkByRoomId keeps the LATEST (highest task_seq) task per room — the active actionable task.
+        // hkPriorByRoomId collects all EARLIER completed tasks for the same room today.
         const hkByRoomId = new Map<string, HkTaskRow>();
+        const hkPriorByRoomId = new Map<string, HkTaskRow[]>();
         for (const row of hkRows) {
+            const existing = hkByRoomId.get(row.room_id);
+            if (existing) {
+                // existing is now superseded → move it to prior list
+                const priors = hkPriorByRoomId.get(row.room_id) ?? [];
+                priors.push(existing);
+                hkPriorByRoomId.set(row.room_id, priors);
+            }
             hkByRoomId.set(row.room_id, row);
         }
 
@@ -1147,6 +1157,13 @@ export async function GET(request: NextRequest) {
                 elapsed_ms: elapsedMs,
                 remaining_ms: remainingMs,
                 hk_logs: task?.id ? (logsByTaskId.get(String(task.id)) ?? []) : [],
+                hk_prior_tasks: (hkPriorByRoomId.get(room.id) ?? []).map((pt) => ({
+                    task_id: pt.id,
+                    status: pt.status,
+                    finished_at: pt.finished_at ?? null,
+                    approved_at: pt.approved_at ?? null,
+                    assigned_maid_name: pt.assigned_maid_name ?? null,
+                })),
             };
         });
 

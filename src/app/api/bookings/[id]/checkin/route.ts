@@ -38,6 +38,8 @@ async function ensureHousekeepingReadyForCheckin(
         .select("id, status")
         .eq("room_id", roomId)
         .eq("stay_date", stayDate)
+        .order("task_seq", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
     if (hkTaskError && hkTaskError.code !== "PGRST116") {

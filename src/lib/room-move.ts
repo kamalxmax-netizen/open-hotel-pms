@@ -399,11 +399,13 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       resolvedAssignedMaid = String(plannedMaid.assigned_maid);
     }
 
-    // Smart dirty: preserves completed tasks — inserts new task_seq row if previous is done
+    // Smart dirty: preserves completed tasks — inserts new task_seq row if previous is done.
+    // assignedMaidName intentionally null: unplanned re-clean should go to Pool, not inherit previous maid.
+    void resolvedAssignedMaid;
     const dirtyResult = await markRoomDirtyTask(supabase, {
       roomId: oldRoomId,
       stayDate: today,
-      assignedMaidName: resolvedAssignedMaid,
+      assignedMaidName: null,
       logNote: "Marked dirty again after room move",
     }).catch((err) => {
       throw new RoomMoveError(String(err?.message ?? err ?? "Failed to mark previous room as dirty."), 500);
