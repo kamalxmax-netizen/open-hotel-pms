@@ -421,7 +421,7 @@
             </div>
             <div class="frame-url" id="split-frame-url">openhotel.example/pms/board</div>
           </div>
-          <iframe id="split-iframe" src="http://openhotel.example/pms/board" style="height: 750px; width: 100%; border: none;"></iframe>
+          <iframe id="split-iframe" src="/pms/board" style="height: 750px; width: 100%; border: none;"></iframe>
           <div class="frame-caption">กดที่การ์ดทางซ้ายเพื่อเปลี่ยนหน้าจอและ Hi-light ตำแหน่ง</div>
         </div>
       </div>
@@ -553,7 +553,7 @@
             </div>
             <div class="frame-url" id="screen-url">openhotel.example/pms/board — Room Diary — แผนที่ห้องพัก</div>
           </div>
-          <iframe id="screen-iframe" src="http://openhotel.example/pms/board" title="Screen" loading="lazy"></iframe>
+          <iframe id="screen-iframe" src="/pms/board" title="Screen" loading="lazy"></iframe>
           <div class="frame-caption" id="screen-caption">📸 Room Diary — แสดงสถานะห้องทุกห้องแยกชั้น คลิกห้องเพื่อดูรายละเอียดหรือ Assign ห้อง</div>
         </div>
       </div>
@@ -713,7 +713,7 @@ function selectModule(el) {
   const frameUrl = document.getElementById('split-frame-url');
   const path = el.dataset.url;
   
-  iframe.src = 'http://openhotel.example' + path;
+  iframe.src = '' + path;
   frameUrl.textContent = 'openhotel.example' + path;
 
   // 3. Smooth scroll to the top of the section (optional but helpful)
@@ -752,7 +752,7 @@ const captions = {
 function showScreen(page, label, btn) {
   document.querySelectorAll('.screen-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('screen-iframe').src = 'http://openhotel.example/pms/' + page;
+  document.getElementById('screen-iframe').src = '/pms/' + page;
   document.getElementById('screen-url').textContent = 'openhotel.example/pms/' + page + ' — ' + label;
   document.getElementById('screen-caption').textContent = captions[page] || '';
 }
