@@ -605,7 +605,6 @@ export default function ReservationDetailPage({
         setBypassPolicy(true);
         setLoading(false);
         setError("");
-        setShowCheckoutOutstandingPopup(false);
         if (mode === "checkout") {
             if (
                 payload?.payment_method === "cash"
@@ -617,12 +616,20 @@ export default function ReservationDetailPage({
             if (payload?.note?.trim()) {
                 setPaymentNote((current) => (String(current || "").trim().length > 0 ? current : payload.note.trim()));
             }
-            // Pre-fill required amount after policy decision so FO can submit immediately.
-            const requiredWithPolicySatang = toSatang(preCheckoutBalance);
-            const requiredWithPolicy = fromSatang(requiredWithPolicySatang);
-            setPaymentAmount(requiredWithPolicy > 0 ? toMoneyInput(requiredWithPolicy) : "");
+            // GUARD: if room balance is still unpaid, force FO to manually enter payment.
+            // Do NOT pre-fill — FO must consciously type the amount to confirm collection.
+            // Re-open the outstanding popup so the balance reminder stays visible.
+            const hasOutstandingBalance = toSatang(preCheckoutBalance) > 0;
+            if (hasOutstandingBalance) {
+                setPaymentAmount("");
+                setShowCheckoutOutstandingPopup(true);
+            } else {
+                setShowCheckoutOutstandingPopup(false);
+                setPaymentAmount("");
+            }
             return;
         }
+        setShowCheckoutOutstandingPopup(false);
         setTimeout(() => {
             formRef.current?.requestSubmit();
         }, 0);
