@@ -117,8 +117,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "Loyal",
       tierEmoji: "🔹",
       tierBadgeClass: "border-amber-200 bg-amber-100 text-amber-700",
-      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-sky-300 bg-sky-50/95",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70 dark:bg-sky-900/40 dark:[&>td]:bg-sky-900/30 dark:hover:bg-sky-900/50 dark:hover:[&>td]:bg-sky-900/50",
+      hoverPanelClass: "border-sky-300 bg-sky-50/95 dark:border-sky-700 dark:bg-sky-950/95",
     };
   }
 
@@ -131,8 +131,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "VIP",
       tierEmoji: "🔶",
       tierBadgeClass: "border-violet-200 bg-violet-100 text-violet-700",
-      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-sky-300 bg-sky-50/95",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70 dark:bg-sky-900/40 dark:[&>td]:bg-sky-900/30 dark:hover:bg-sky-900/50 dark:hover:[&>td]:bg-sky-900/50",
+      hoverPanelClass: "border-sky-300 bg-sky-50/95 dark:border-sky-700 dark:bg-sky-950/95",
     };
   }
 
@@ -145,8 +145,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "VIP+",
       tierEmoji: "💠",
       tierBadgeClass: "border-yellow-300 bg-yellow-100 text-yellow-800",
-      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-rose-300 bg-rose-50/95",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70 dark:bg-sky-900/40 dark:[&>td]:bg-sky-900/30 dark:hover:bg-sky-900/50 dark:hover:[&>td]:bg-sky-900/50",
+      hoverPanelClass: "border-rose-300 bg-rose-50/95 dark:border-rose-700 dark:bg-rose-950/95",
     };
   }
 
@@ -159,8 +159,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: null,
       tierEmoji: null,
       tierBadgeClass: "",
-      rowClass: "bg-lime-200/70 [&>td]:bg-lime-100/70 hover:bg-lime-100/70 hover:[&>td]:bg--100/70",
-      hoverPanelClass: "border-lime-400 bg-lime-100/95",
+      rowClass: "bg-lime-200/70 [&>td]:bg-lime-100/70 hover:bg-lime-100/70 hover:[&>td]:bg-lime-100/70 dark:bg-lime-900/30 dark:[&>td]:bg-lime-900/20 dark:hover:bg-lime-900/40 dark:hover:[&>td]:bg-lime-900/40",
+      hoverPanelClass: "border-lime-400 bg-lime-100/95 dark:border-lime-700 dark:bg-lime-950/95",
     };
   }
 
@@ -173,6 +173,6 @@ export function resolveGuestLoyaltyVisual(
     tierEmoji: null,
     tierBadgeClass: "",
     rowClass: "",
-    hoverPanelClass: "border-slate-200 bg-white",
+    hoverPanelClass: "border-[var(--border-default)] bg-[var(--bg-surface)]",
   };
 }

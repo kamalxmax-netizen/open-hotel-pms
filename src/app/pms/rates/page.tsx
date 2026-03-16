@@ -74,15 +74,15 @@ function PriceCell({
     }
 
     const baseClass = `h-full w-full flex items-center justify-center text-xs font-semibold transition cursor-pointer
-    ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/60" : "bg-[var(--bg-surface)]"}
+    ${isToday ? "bg-brand-50 dark:bg-brand-900/40" : weekend ? "bg-rose-50/60 dark:bg-rose-950/20" : "bg-[var(--bg-surface)]"}
     ${price === null ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}
-    hover:bg-brand-100`;
+    hover:bg-brand-100 dark:hover:bg-brand-900/30`;
 
     if (saving) return <div className={baseClass}><span className="animate-spin text-brand-500">↻</span></div>;
 
     if (editing) {
         return (
-            <div className={`h-full w-full flex items-center justify-center ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50" : "bg-[var(--bg-surface)]"}`}>
+            <div className={`h-full w-full flex items-center justify-center ${isToday ? "bg-brand-50 dark:bg-brand-900/40" : weekend ? "bg-rose-50 dark:bg-rose-950/20" : "bg-[var(--bg-surface)]"}`}>
                 <input
                     ref={inputRef}
                     className="w-full text-center text-xs font-bold border-0 outline-none bg-transparent text-brand-700"
@@ -380,8 +380,8 @@ export default function RatesPage() {
                     ))}
                 </div>
                 <div className="ml-auto flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                    <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-rose-200 inline-block" />Weekend</span>
-                    <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-brand-100 inline-block" />Today</span>
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-rose-200 dark:bg-rose-800 inline-block" />Weekend</span>
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-brand-100 dark:bg-brand-800 inline-block" />Today</span>
                     <span className="text-[var(--text-muted)]">Click cell to edit rate</span>
                 </div>
             </div>
@@ -435,7 +435,7 @@ export default function RatesPage() {
                                     return (
                                         <div key={day}
                                             className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none
-                        ${isToday ? "bg-brand-100" : isWeekend ? "bg-rose-50" : ""}`}
+                        ${isToday ? "bg-brand-100 dark:bg-brand-900/40" : isWeekend ? "bg-rose-50 dark:bg-rose-950/20" : ""}`}
                                             style={{ width: COL_W }}
                                         >
                                             <span className={`text-[9px] font-bold ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
@@ -466,7 +466,7 @@ export default function RatesPage() {
                                             return (
                                                 <div key={day}
                                                     className={`flex-shrink-0 border-r border-slate-700 flex items-center justify-center text-[11px] font-bold
-                              ${isToday ? "bg-brand-900/40" : isWeekend ? "bg-rose-900/20" : ""}`}
+                              ${isToday ? "bg-brand-900/40 dark:bg-brand-800/40" : isWeekend ? "bg-rose-900/20 dark:bg-rose-900/30" : ""}`}
                                                     style={{ width: COL_W }}
                                                 >
                                                     <span className="text-[var(--text-muted)]">{avg !== null ? `฿${avg.toLocaleString("th-TH")}` : "—"}</span>

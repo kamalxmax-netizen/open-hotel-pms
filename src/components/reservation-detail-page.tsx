@@ -2994,9 +2994,9 @@ export default function ReservationDetailPage({
                 footer={
                     <div className="flex w-full justify-between items-center gap-2">
                         <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded ${mode === "checkout" ? "bg-rose-100 text-rose-700"
-                                : mode === "checkin" ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-indigo-100 text-indigo-700"
+                            <span className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded ${mode === "checkout" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400"
+                                : mode === "checkin" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+                                    : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400"
                                 }`}>{mode}</span>
                             {readonlyClosedReservation && (
                                 <span className="rounded bg-[var(--bg-muted)] px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
@@ -3008,7 +3008,7 @@ export default function ReservationDetailPage({
                                     {reservationStatus === "no_show" && (
                                         <button
                                             type="button"
-                                            className="btn btn-secondary btn-sm text-amber-700 border-amber-200 hover:bg-amber-50"
+                                            className="btn btn-secondary btn-sm text-amber-700 border-amber-200 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-950/40"
                                             onClick={() => setShowReverseNoShowDialog(true)}
                                             disabled={reverseNoShowLoading}
                                         >
@@ -3087,10 +3087,10 @@ export default function ReservationDetailPage({
                                 const severity = String(alert.severity ?? "info");
                                 const tone =
                                     severity === "critical"
-                                        ? "border-rose-200 bg-rose-50 text-rose-800"
+                                        ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                                         : severity === "warning"
-                                            ? "border-amber-200 bg-amber-50 text-amber-800"
-                                            : "border-sky-200 bg-sky-50 text-sky-800";
+                                            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                                            : "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300";
                                 return (
                                     <div
                                         key={String(alert.id)}
@@ -3151,7 +3151,7 @@ export default function ReservationDetailPage({
                                                 <span className="text-[var(--text-muted)] font-mono text-xs">#{reservationId.slice(0, 8).toUpperCase()}</span>
                                             </div>
                                             {rooms.find(r => r.id === roomId) && (
-                                                <span className="font-bold text-indigo-700 text-xs bg-indigo-50 px-2 py-0.5 rounded">
+                                                <span className="font-bold text-indigo-700 dark:text-indigo-400 text-xs bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
                                                     Room {rooms.find(r => r.id === roomId)?.room_number}
                                                 </span>
                                             )}
@@ -3198,11 +3198,11 @@ export default function ReservationDetailPage({
                                                 {roomTypes.map(rt => <option key={rt.id} value={rt.id}>{rt.name_en}</option>)}
                                             </select>
                                             {showChargeRoomTypeChoice && (
-                                                <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-2 space-y-1.5">
-                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                                                <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 px-2.5 py-2 space-y-1.5">
+                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
                                                         Room Type to Charge
                                                     </p>
-                                                    <label className="flex items-start gap-2 text-xs text-indigo-900">
+                                                    <label className="flex items-start gap-2 text-xs text-indigo-900 dark:text-indigo-300">
                                                         <input
                                                             type="radio"
                                                             name="charge-room-type-mode"
@@ -3436,7 +3436,7 @@ export default function ReservationDetailPage({
                                                         </button>
                                                     )}
                                                     {profileLinking && (
-                                                        <span className="rounded px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold">
+                                                        <span className="rounded px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-semibold">
                                                             Linking profile...
                                                         </span>
                                                     )}
@@ -3501,7 +3501,7 @@ export default function ReservationDetailPage({
                                                                 <button
                                                                     key={`${member.id}-${member.guest_profile_id || member.display_order}`}
                                                                     type="button"
-                                                                    className="rounded-full border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                                                    className="rounded-full border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400"
                                                                     onClick={() => { void openPartyMemberModal(member); }}
                                                                 >
                                                                     {memberName || "Guest"}
@@ -3534,7 +3534,7 @@ export default function ReservationDetailPage({
                                                                 <button
                                                                     key={profile.id}
                                                                     type="button"
-                                                                    className="w-full border-b border-[var(--border-subtle)] px-2 py-2 text-left text-xs hover:bg-indigo-50 last:border-b-0"
+                                                                    className="w-full border-b border-[var(--border-subtle)] px-2 py-2 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 last:border-b-0"
                                                                     onClick={() => {
                                                                         void selectProfileById(String(profile.id), {
                                                                             first_name: profile.first_name,
@@ -3566,12 +3566,12 @@ export default function ReservationDetailPage({
                                         >
                                             <div className="space-y-3">
                                                 {(mode === "checkin" || mode === "inhouse") && (
-                                                    <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
+                                                    <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 px-3 py-2">
                                                         <div>
-                                                            <p className="text-xs font-semibold text-indigo-800">
+                                                            <p className="text-xs font-semibold text-indigo-800 dark:text-indigo-300">
                                                                 Thai ID / Passport OCR
                                                             </p>
-                                                            <p className="text-[11px] text-indigo-700">
+                                                            <p className="text-[11px] text-indigo-700 dark:text-indigo-400">
                                                                 Please check again before filling the check-in form.
                                                             </p>
                                                         </div>
@@ -3933,21 +3933,21 @@ export default function ReservationDetailPage({
                                     )}
 
                                     {roomMoveHistory.length > 0 && (
-                                        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 mb-2">
+                                        <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 p-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-2">
                                                 Room Move History
                                             </p>
                                             <div className="space-y-1.5">
                                                 {roomMoveHistory.map((move, index) => (
                                                     <div
                                                         key={`${move.moved_at || move.move_date}-${index}`}
-                                                        className="rounded-md border border-indigo-100 bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs text-indigo-900"
+                                                        className="rounded-md border border-indigo-100 dark:border-indigo-800/50 bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs text-indigo-900 dark:text-indigo-300"
                                                     >
                                                         <p className="font-semibold">
                                                             {move.move_date || "Unknown date"}: Room {move.from_room_number} {"->"} Room {move.to_room_number}
                                                         </p>
                                                         {move.reason && (
-                                                            <p className="text-indigo-700 mt-0.5">Reason: {move.reason}</p>
+                                                            <p className="text-indigo-700 dark:text-indigo-400 mt-0.5">Reason: {move.reason}</p>
                                                         )}
                                                     </div>
                                                 ))}
@@ -3983,16 +3983,16 @@ export default function ReservationDetailPage({
                                                 disabled={isReadonly}
                                             />
                                             {ratePlanEligibilityWarning && (
-                                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                                                     {ratePlanEligibilityWarning}
                                                 </div>
                                             )}
                                         </>
                                     )}
                                     {(mode === "create" || mode === "edit" || mode === "checkin" || mode === "inhouse") && source === "ota" && (
-                                        <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
-                                            <p className="text-[11px] font-bold uppercase tracking-widest text-orange-700">Rate Plan</p>
-                                            <p className="text-sm font-semibold text-orange-800">OTA Manual Price (per night)</p>
+                                        <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/40 px-3 py-2">
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-orange-700 dark:text-orange-400">Rate Plan</p>
+                                            <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">OTA Manual Price (per night)</p>
                                         </div>
                                     )}
                                     {mode !== "create" && mode !== "edit" && mode !== "checkin" && mode !== "inhouse" && (
@@ -4016,12 +4016,12 @@ export default function ReservationDetailPage({
                                     )}
 
                                     {dayUseAmountOnlyMode && (
-                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
-                                            <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-800">
+                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 p-3 space-y-2">
+                                            <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-800 dark:text-emerald-300">
                                                 Day Use Extend
                                             </h4>
                                             <div>
-                                                <label className="form-label text-emerald-900">Extension Amount (THB)</label>
+                                                <label className="form-label text-emerald-900 dark:text-emerald-300">Extension Amount (THB)</label>
                                                 <input
                                                     type="number"
                                                     min="0"
@@ -4090,10 +4090,10 @@ export default function ReservationDetailPage({
                                                 <div
                                                     key={i}
                                                     className={`rounded-lg border px-3 py-2 text-sm ${w.severity === "error"
-                                                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                                                        ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
                                                         : w.severity === "warning"
-                                                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                                                            : "border-sky-200 bg-sky-50 text-sky-700"
+                                                            ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                                                            : "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-400"
                                                         }`}
                                                 >
                                                     <span className="font-semibold mr-1">
@@ -4288,7 +4288,7 @@ export default function ReservationDetailPage({
                                         key={`party-modal-${member.id}`}
                                         type="button"
                                         className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isSelected
-                                            ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                                            ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400"
                                             : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                             }`}
                                         onClick={() => { void openPartyMemberModal(member); }}
@@ -4300,7 +4300,7 @@ export default function ReservationDetailPage({
                         </div>
 
                         {partyDraftError && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                                 {partyDraftError}
                             </div>
                         )}
@@ -4599,7 +4599,7 @@ export default function ReservationDetailPage({
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 text-sm text-[var(--text-secondary)]">
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300 px-3 py-2">
                             Reservation will return to active status. If no-show fee exists, the system will refund it automatically.
                         </div>
                         <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-xs text-[var(--text-secondary)]">

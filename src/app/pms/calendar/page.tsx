@@ -699,7 +699,7 @@ function CalendarPageInner() {
             )}
 
             {error && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+                <div className="rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 px-4 py-3 text-sm text-rose-700">{error}</div>
             )}
 
             {!error && data?.unassigned && data.unassigned.length > 0 && (
@@ -775,7 +775,7 @@ function CalendarPageInner() {
                                             {dayUseRooms.map((room) => (
                                                 <div
                                                     key={room.room_id}
-                                                    className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-rose-50/20"
+                                                    className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-rose-50/20 dark:bg-rose-900/10"
                                                     style={{ height: ROW_H }}
                                                 >
                                                     <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
@@ -804,7 +804,7 @@ function CalendarPageInner() {
                                     return (
                                         <div
                                             key={day}
-                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/40" : ""
+                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${isToday ? "bg-brand-50 dark:bg-brand-900/40" : weekend ? "bg-rose-50/40 dark:bg-rose-900/20" : ""
                                                 }`}
                                             style={{ width: COL_W }}
                                         >
@@ -837,7 +837,7 @@ function CalendarPageInner() {
                                                     <div
                                                         key={day}
                                                         className={`flex-shrink-0 border-r border-[var(--border-subtle)] cursor-pointer transition-colors ${
-                                                            day === today ? "bg-brand-50/30" : isWeekend(day) ? "bg-rose-50/20" : "hover:bg-[var(--bg-body)]"
+                                                            day === today ? "bg-brand-50/30 dark:bg-brand-900/30" : isWeekend(day) ? "bg-rose-50/20 dark:bg-rose-900/15" : "hover:bg-[var(--bg-body)]"
                                                         } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                         style={{ width: COL_W, height: ROW_H }}
                                                         onClick={() => {
@@ -981,7 +981,7 @@ function CalendarPageInner() {
                                             {dayUseRooms.map((room) => {
                                                 const roomBlocks = getBlocksForRoom(room);
                                                 return (
-                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-50/20 transition-colors" style={{ height: ROW_H }}>
+                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-50/20 dark:bg-rose-900/10 dark:hover:bg-rose-900/15 transition-colors" style={{ height: ROW_H }}>
                                                         {days.map((day) => {
                                                             const hasRes = room.reservations.some((r) => r.nights.includes(day));
                                                             return (

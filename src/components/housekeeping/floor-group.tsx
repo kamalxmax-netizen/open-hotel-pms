@@ -75,43 +75,43 @@ const STATUS_CONFIG: Record<HkStatus, { label: string; badge: string; pill: stri
   available: {
     label: "Available",
     badge: "status-available",
-    pill: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:opacity-80",
+    pill: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:opacity-80 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400",
     emoji: "✓",
   },
   dirty: {
     label: "Dirty",
     badge: "status-dirty",
-    pill: "border-rose-200 bg-rose-50 text-rose-700 hover:opacity-80",
+    pill: "border-rose-200 bg-rose-50 text-rose-700 hover:opacity-80 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400",
     emoji: "🧹",
   },
   in_progress: {
     label: "Cleaning",
-    badge: "bg-amber-100 text-amber-700 border border-amber-200",
-    pill: "border-amber-200 bg-amber-50 text-amber-700 hover:opacity-80",
+    badge: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+    pill: "border-amber-200 bg-amber-50 text-amber-700 hover:opacity-80 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
     emoji: "🔄",
   },
   paused: {
     label: "Paused",
-    badge: "bg-amber-100 text-amber-700",
-    pill: "border-amber-200 bg-amber-50 text-amber-700 hover:opacity-80",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+    pill: "border-amber-200 bg-amber-50 text-amber-700 hover:opacity-80 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
     emoji: "⏸",
   },
   cleaned: {
     label: "⏳ Wait Appr.",
-    badge: "bg-amber-100 text-amber-700",
-    pill: "border-amber-300 bg-amber-100 text-amber-800 hover:opacity-80",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+    pill: "border-amber-300 bg-amber-100 text-amber-800 hover:opacity-80 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
     emoji: "✅",
   },
   approved: {
     label: "Clean ✓",
     badge: "status-approved",
-    pill: "border-emerald-300 bg-emerald-100 text-emerald-800 hover:opacity-80",
+    pill: "border-emerald-300 bg-emerald-100 text-emerald-800 hover:opacity-80 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
     emoji: "✅",
   },
   no_service: {
     label: "No Service",
-    badge: "bg-sky-100 text-sky-700 border border-sky-300",
-    pill: "border-sky-300 bg-sky-50 text-sky-700 hover:opacity-80",
+    badge: "bg-sky-100 text-sky-700 border border-sky-300 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800",
+    pill: "border-sky-300 bg-sky-50 text-sky-700 hover:opacity-80 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-400",
     emoji: "🚫",
   },
   closed: {
@@ -178,13 +178,13 @@ export default function FloorGroup({
               : [];
           const occupancyChip =
             room.diary_state === "back_to_back"
-              ? { label: "↕ Back-to-back", className: "bg-indigo-100 text-indigo-700 border border-indigo-200" }
+              ? { label: "↕ Back-to-back", className: "bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800" }
               : room.diary_state === "due_out"
-                ? { label: "↑ Due out", className: "bg-rose-100 text-rose-700 border border-rose-200" }
+                ? { label: "↑ Due out", className: "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800" }
                 : room.diary_state === "due_in"
-                  ? { label: "↓ Due in", className: "bg-sky-100 text-sky-700 border border-sky-200" }
+                  ? { label: "↓ Due in", className: "bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800" }
                   : room.diary_state === "inhouse"
-                    ? { label: "● In-house", className: "bg-amber-100 text-amber-700 border border-amber-200" }
+                    ? { label: "● In-house", className: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800" }
                     : null;
 
           return (
@@ -208,10 +208,10 @@ export default function FloorGroup({
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
                           room.hk_alert_severity === "critical"
-                            ? "border-rose-200 bg-rose-100 text-rose-700"
+                            ? "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
                             : room.hk_alert_severity === "warning"
-                              ? "border-amber-200 bg-amber-100 text-amber-700"
-                              : "border-sky-200 bg-sky-100 text-sky-700"
+                              ? "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                              : "border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-400"
                         }`}
                         title={room.hk_first_alert_message ?? "Housekeeping alert"}
                       >
@@ -220,7 +220,7 @@ export default function FloorGroup({
                     )}
                     {hkTraceItems.length > 0 && (
                       <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border border-amber-200 bg-amber-100 text-amber-700"
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
                         title={hkTraceItems[0]?.text ?? "Housekeeping trace"}
                       >
                         🟠 {hkTraceItems.length}
@@ -230,7 +230,7 @@ export default function FloorGroup({
                       <span className="relative inline-flex group">
                         <span
                           tabIndex={0}
-                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 outline-none"
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800 outline-none"
                         >
                           📦 HK Collect {hkCollectCount}
                         </span>
@@ -273,16 +273,16 @@ export default function FloorGroup({
               )}
 
               {hkTraceItems.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-[11px] font-bold text-amber-800">HK Trace</p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2">
+                  <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300">HK Trace</p>
                   <div className="mt-1 space-y-1">
                     {hkTraceItems.slice(0, 3).map((trace) => (
-                      <p key={trace.id} className="text-[11px] text-amber-700">
+                      <p key={trace.id} className="text-[11px] text-amber-700 dark:text-amber-400">
                         • {trace.text}
                       </p>
                     ))}
                     {hkTraceItems.length > 3 && (
-                      <p className="text-[10px] font-semibold text-amber-700">
+                      <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
                         +{hkTraceItems.length - 3} more
                       </p>
                     )}
@@ -291,24 +291,24 @@ export default function FloorGroup({
               )}
 
               {room.is_no_service && room.no_service_note && (
-                <div className="text-[11px] text-sky-800 bg-sky-50 rounded-md px-2 py-1.5 border border-sky-200">
+                <div className="text-[11px] text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 rounded-md px-2 py-1.5 border border-sky-200 dark:border-sky-800">
                   <span className="font-semibold">NS Note:</span> {room.no_service_note}
                 </div>
               )}
 
               {isCheckoutLocked && (
-                <div className="text-[11px] text-rose-700 bg-rose-50 rounded-md px-2 py-1.5 border border-rose-200">
+                <div className="text-[11px] text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 rounded-md px-2 py-1.5 border border-rose-200 dark:border-rose-800">
                   Checkout not completed. Room is locked from HK pool until guest checks out.
                 </div>
               )}
 
               {room.maintenance_assignments.length > 0 && (
-                <div className="text-[10px] text-indigo-700 space-y-1 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+                <div className="text-[10px] text-indigo-700 dark:text-indigo-400 space-y-1 bg-indigo-50 dark:bg-indigo-950/40 p-2 rounded-lg border border-indigo-100 dark:border-indigo-800">
                   <div className="flex justify-between items-center font-semibold">
                     <span>🔧 Maintenance Due: {room.maintenance_assignments.length}</span>
                     <span>+{room.maintenance_minutes_total} min</span>
                   </div>
-                  <p className="truncate text-indigo-600">
+                  <p className="truncate text-indigo-600 dark:text-indigo-400">
                     {room.maintenance_assignments.map((item) => item.task_name).join(" • ")}
                   </p>
                   <button
@@ -338,7 +338,7 @@ export default function FloorGroup({
                               {item.checklist_items.map((checkItem, idx) => (
                                 <span
                                   key={`${item.assignment_id}-${checkItem}-${idx}`}
-                                  className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700"
+                                  className="rounded border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 px-1.5 py-0.5 text-[10px] text-indigo-700 dark:text-indigo-400"
                                 >
                                   {checkItem}
                                 </span>

@@ -165,7 +165,7 @@ export default function DuplicatesPage() {
                 </div>
             </div>
 
-            {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+            {error && <div className="rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
             {loading ? (
                 <div className="space-y-3">
@@ -201,7 +201,7 @@ export default function DuplicatesPage() {
                         const b = pair.profile_b_data;
                         const isLoading = actionLoading === pair.id;
                         const scorePct = Math.min(pair.score, 100);
-                        const scoreColor = pair.score >= 70 ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50";
+                        const scoreColor = pair.score >= 70 ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40" : "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40";
 
                         return (
                             <div key={pair.id} className="card p-4">
@@ -259,7 +259,7 @@ export default function DuplicatesPage() {
                                         <button
                                             disabled={isLoading}
                                             onClick={() => handleAction(pair.id, "do_not_merge")}
-                                            className="btn btn-sm text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-50"
+                                            className="btn btn-sm text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100 dark:text-rose-400 dark:border-rose-800 dark:bg-rose-950/40 dark:hover:bg-rose-950/60 disabled:opacity-50"
                                         >
                                             🚫 Do Not Merge
                                         </button>
@@ -285,9 +285,9 @@ function ProfileCard({ profile, label }: { profile: ProfileData | null; label: s
             <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">{label}</span>
                 {profile.profile_status && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${profile.profile_status === "verified" ? "bg-emerald-100 text-emerald-700"
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${profile.profile_status === "verified" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                         : profile.profile_status === "merged" ? "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
-                            : "bg-amber-100 text-amber-700"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
                         }`}>{profile.profile_status}</span>
                 )}
             </div>

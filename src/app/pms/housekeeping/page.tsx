@@ -1049,12 +1049,12 @@ export default function HousekeepingPage() {
       {/* Summary tiles */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[
-          { label: "Dirty/Assigned", value: summary.dirty, color: "border-rose-300 bg-rose-50", text: "text-rose-700" },
-          { label: "Cleaning Now", value: summary.cleaning, color: "border-sky-300 bg-sky-50", text: "text-sky-700" },
-          { label: "Pending Approval", value: rooms.filter(r => String(r.hk_status) === "cleaned" && !r.is_no_service).length, color: "border-amber-300 bg-amber-50", text: "text-amber-700" },
-          { label: "Clean ✓", value: summary.clean, color: "border-emerald-300 bg-emerald-50", text: "text-emerald-700" },
+          { label: "Dirty/Assigned", value: summary.dirty, color: "border-rose-300 bg-rose-50 dark:bg-rose-950/40 dark:border-rose-800", text: "text-rose-700 dark:text-rose-400" },
+          { label: "Cleaning Now", value: summary.cleaning, color: "border-sky-300 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-800", text: "text-sky-700 dark:text-sky-400" },
+          { label: "Pending Approval", value: rooms.filter(r => String(r.hk_status) === "cleaned" && !r.is_no_service).length, color: "border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800", text: "text-amber-700 dark:text-amber-400" },
+          { label: "Clean ✓", value: summary.clean, color: "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-800", text: "text-emerald-700 dark:text-emerald-400" },
           { label: "No Service", value: summary.no_service, color: "border-[var(--border-input)] bg-[var(--bg-body)]", text: "text-[var(--text-secondary)]" },
-          { label: "Extra Tasks", value: extraTaskPending.length, color: "border-rose-300 bg-rose-50", text: "text-rose-700" }
+          { label: "Extra Tasks", value: extraTaskPending.length, color: "border-rose-300 bg-rose-50 dark:bg-rose-950/40 dark:border-rose-800", text: "text-rose-700 dark:text-rose-400" }
         ].map((t) => (
           <div key={t.label} className={`card border-l-4 p-4 ${t.color}`}>
             <p className={`text-2xl font-extrabold ${t.text}`}>{t.value}</p>
@@ -1064,7 +1064,7 @@ export default function HousekeepingPage() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/40 dark:border-rose-800 px-4 py-3 text-sm text-rose-700 dark:text-rose-400">{error}</div>
       )}
 
       {/* Timeline (only show if all or when managing tasks) */}
@@ -1149,8 +1149,8 @@ export default function HousekeepingPage() {
 		                const isAssigning = savingDraft;
                     const hkCollectCount = Math.max(Number(room.hk_collect_count ?? 0), 0);
 	                  const chipClass = room.is_no_service
-	                    ? "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200"
-	                    : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100";
+	                    ? "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950/60"
+	                    : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60";
 	                return (
 	                  <button
                     key={room.room_id}
@@ -1401,9 +1401,9 @@ export default function HousekeepingPage() {
                     key={key}
                     className={`flex items-start gap-3 rounded-lg border px-3 py-2 transition ${
                       task.already_assigned
-                        ? "border-emerald-200 bg-emerald-50"
+                        ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
                         : isChecked
-                          ? "border-indigo-300 bg-indigo-50"
+                          ? "border-indigo-300 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40"
                           : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:bg-[var(--bg-body)]"
                     }`}
                   >

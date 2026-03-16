@@ -148,18 +148,18 @@ function ColumnHeaders() {
             <tr>
                 <th rowSpan={2} className={`px-4 py-2 border-b border-[var(--border-default)] ${B} w-48`}>Room / Guest</th>
                 <th rowSpan={2} className={`px-4 py-2 border-b border-[var(--border-default)] ${B} text-right w-24`}>Net Total</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-emerald-50 text-emerald-700`}>Cash</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-sky-50 text-sky-700`}>Transfer</th>
-                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-violet-50 text-violet-700`}>Card / Other</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400`}>Cash</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400`}>Transfer</th>
+                <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400`}>Card / Other</th>
                 <th rowSpan={2} className="px-4 py-2 border-b border-[var(--border-default)] w-56">Notes</th>
             </tr>
             <tr>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-emerald-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-emerald-50/60`}>Deposit</th>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-sky-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-sky-50/60`}>Deposit</th>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-violet-50/60`}>Payment</th>
-                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-violet-50/60`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-emerald-50/60 dark:bg-emerald-950/20`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-emerald-50/60 dark:bg-emerald-950/20`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-sky-50/60 dark:bg-sky-950/20`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-sky-50/60 dark:bg-sky-950/20`}>Deposit</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${Bi} text-center font-semibold bg-violet-50/60 dark:bg-violet-950/20`}>Payment</th>
+                <th className={`px-2 py-1 border-b border-[var(--border-default)] ${B} text-center font-semibold bg-violet-50/60 dark:bg-violet-950/20`}>Deposit</th>
             </tr>
         </thead>
     );
@@ -249,7 +249,7 @@ export default function PaymentDailyPage() {
                 </div>
             </div>
 
-            {error && <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200">{error}</div>}
+            {error && <div className="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 p-4 rounded-lg border border-rose-200 dark:border-rose-800">{error}</div>}
 
             {/* Controls */}
             <div className="card p-3 flex flex-wrap items-center gap-6">
@@ -392,7 +392,7 @@ export default function PaymentDailyPage() {
                                                                 <PaymentCells m={tr.methods} />
                                                                 <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                                     {tr.notes.map((n, i) => (
-                                                                        <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
+                                                                        <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
                                                                     ))}
                                                                 </td>
                                                             </tr>
@@ -444,7 +444,7 @@ export default function PaymentDailyPage() {
                                                         <PaymentCells m={tr.methods} />
                                                         <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                             {tr.notes.map((n, i) => (
-                                                                <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
+                                                                <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
                                                             ))}
                                                         </td>
                                                     </tr>
@@ -460,7 +460,7 @@ export default function PaymentDailyPage() {
                                         return (
                                             <>
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-1.5 bg-rose-50/50 font-bold text-rose-800 text-xs border-b border-rose-200 border-t border-[var(--border-default)]">
+                                                    <td colSpan={9} className="px-4 py-1.5 bg-rose-50/50 dark:bg-rose-950/30 font-bold text-rose-800 dark:text-rose-300 text-xs border-b border-rose-200 dark:border-rose-800 border-t border-[var(--border-default)]">
                                                         DAY USE
                                                     </td>
                                                 </tr>
@@ -475,7 +475,7 @@ export default function PaymentDailyPage() {
                                                         </td>
                                                         <PaymentCells m={tr.methods} />
                                                         <td className="px-3 py-2 text-xs">
-                                                            {tr.notes.map((n, i) => <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5">{n}</span>)}
+                                                            {tr.notes.map((n, i) => <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5">{n}</span>)}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -492,7 +492,7 @@ export default function PaymentDailyPage() {
                                         return (
                                             <>
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-1.5 bg-amber-50/50 font-bold text-amber-800 text-xs border-b border-amber-200 border-t border-[var(--border-default)]">
+                                                    <td colSpan={9} className="px-4 py-1.5 bg-amber-50/50 dark:bg-amber-950/30 font-bold text-amber-800 dark:text-amber-300 text-xs border-b border-amber-200 dark:border-amber-800 border-t border-[var(--border-default)]">
                                                         POS / F&B
                                                     </td>
                                                 </tr>
@@ -605,17 +605,17 @@ export default function PaymentDailyPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left whitespace-nowrap border-collapse">
                                 <PaymentTableColGroup />
-                                <tfoot className="bg-emerald-50 border-t-2 border-emerald-200">
+                                <tfoot className="bg-emerald-50 dark:bg-emerald-950/30 border-t-2 border-emerald-200 dark:border-emerald-800">
                                     <tr className="font-bold text-sm">
-                                        <td className={`px-4 py-4 ${B} text-emerald-900 uppercase tracking-wider w-48`}>Grand Total</td>
-                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 w-24`}>{fmtMoney(data.grand_total.grand_net)}</td>
+                                        <td className={`px-4 py-4 ${B} text-emerald-900 dark:text-emerald-300 uppercase tracking-wider w-48`}>Grand Total</td>
+                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24`}>{fmtMoney(data.grand_total.grand_net)}</td>
                                         <MoneyCell v={data.grand_total.cash.payment} border={Bi} />
                                         <MoneyCell v={data.grand_total.cash.deposit} border={B} />
                                         <MoneyCell v={data.grand_total.transfer.payment} border={Bi} />
                                         <MoneyCell v={data.grand_total.transfer.deposit} border={B} />
                                         <MoneyCell v={data.grand_total.credit_card.payment + data.grand_total.other.payment} border={Bi} />
                                         <MoneyCell v={data.grand_total.credit_card.deposit + data.grand_total.other.deposit} border={B} />
-                                        <td className="px-4 py-4 text-emerald-700 text-xs uppercase tracking-wider text-center w-56">รวมทุกยอด</td>
+                                        <td className="px-4 py-4 text-emerald-700 dark:text-emerald-400 text-xs uppercase tracking-wider text-center w-56">รวมทุกยอด</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -646,9 +646,9 @@ export default function PaymentDailyPage() {
                                     <span className="text-[var(--text-secondary)] text-sm">Non-cash Deposit Offset</span>
                                     <span className="text-rose-600 font-semibold text-sm">-{fmtMoney(data.reconciliation.non_cash_deposit_offset ?? 0)}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 mt-3 bg-emerald-50 rounded-lg px-3 -mx-1 border border-emerald-200">
-                                    <span className="text-emerald-900 font-bold uppercase tracking-wider text-sm">Net Cash</span>
-                                    <span className="text-emerald-700 font-black text-lg">{fmtMoney(data.reconciliation.net_cash)}</span>
+                                <div className="flex justify-between items-center py-2 mt-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg px-3 -mx-1 border border-emerald-200 dark:border-emerald-800">
+                                    <span className="text-emerald-900 dark:text-emerald-300 font-bold uppercase tracking-wider text-sm">Net Cash</span>
+                                    <span className="text-emerald-700 dark:text-emerald-300 font-black text-lg">{fmtMoney(data.reconciliation.net_cash)}</span>
                                 </div>
                                 <p className="text-[10px] text-[var(--text-muted)] text-center mt-2 uppercase tracking-widest font-bold">ยอดในลิ้นชัก</p>
                             </div>

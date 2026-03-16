@@ -104,7 +104,7 @@ export default function GuestMatchDropdown({
     return (
         <div
             ref={wrapperRef}
-            className={`absolute z-50 mt-2 w-full max-h-80 overflow-y-auto rounded-2xl border border-stone-200 bg-stone-50/80 shadow-xl backdrop-blur-sm ${className}`}
+            className={`absolute z-50 mt-2 w-full max-h-80 overflow-y-auto rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]/95 shadow-xl backdrop-blur-sm ${className}`}
         >
             {loading && (
                 <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-[var(--text-muted)]">
@@ -192,7 +192,7 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
             ? "bg-emerald-500"
             : match.score >= 30
                 ? "bg-amber-500"
-                : "bg-slate-500";
+                : "bg-[var(--text-muted)]";
 
     return (
         <button

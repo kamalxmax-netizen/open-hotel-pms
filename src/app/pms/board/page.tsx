@@ -93,27 +93,27 @@ const STATUS_STYLE: Record<
     { card: string; badge: string; label: string }
 > = {
     available: {
-        card: "border-emerald-200 bg-emerald-50 hover:border-emerald-400",
+        card: "border-emerald-200 bg-emerald-50 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40 dark:hover:border-emerald-600",
         badge: "status-available",
         label: "Available"
     },
     reserved: {
-        card: "border-amber-300 bg-amber-50 hover:border-amber-500",
+        card: "border-amber-300 bg-amber-50 hover:border-amber-500 dark:border-amber-800 dark:bg-amber-950/40 dark:hover:border-amber-600",
         badge: "status-reserved",
         label: "Reserved"
     },
     dirty: {
-        card: "border-rose-300 bg-rose-50 hover:border-rose-500",
+        card: "border-rose-300 bg-rose-50 hover:border-rose-500 dark:border-rose-800 dark:bg-rose-950/40 dark:hover:border-rose-600",
         badge: "status-dirty",
         label: "Dirty"
     },
     cleaning: {
-        card: "border-sky-300 bg-sky-50 hover:border-sky-500",
+        card: "border-sky-300 bg-sky-50 hover:border-sky-500 dark:border-sky-800 dark:bg-sky-950/40 dark:hover:border-sky-600",
         badge: "status-cleaning",
         label: "Cleaning"
     },
     approved: {
-        card: "border-green-300 bg-green-50 hover:border-green-400",
+        card: "border-green-300 bg-green-50 hover:border-green-400 dark:border-green-800 dark:bg-green-950/40 dark:hover:border-green-600",
         badge: "status-approved",
         label: "Clean ✓"
     },
@@ -123,12 +123,12 @@ const STATUS_STYLE: Record<
         label: "Renovation"
     },
     ooo: {
-        card: "border-rose-400 bg-rose-100 ring-1 ring-rose-500",
+        card: "border-rose-400 bg-rose-100 ring-1 ring-rose-500 dark:border-rose-700 dark:bg-rose-950/50 dark:ring-rose-800",
         badge: "bg-rose-600 text-white",
         label: "OOO (Blocked)"
     },
     oos: {
-        card: "border-amber-400 bg-amber-50 ring-1 ring-amber-300",
+        card: "border-amber-400 bg-amber-50 ring-1 ring-amber-300 dark:border-amber-700 dark:bg-amber-950/40 dark:ring-amber-800",
         badge: "bg-amber-500 text-white",
         label: "OOS (Service)"
     }

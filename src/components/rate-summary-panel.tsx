@@ -90,7 +90,7 @@ export default function RateSummaryPanel({
                     <h4 className="font-bold text-[var(--text-table-cell)] uppercase tracking-widest text-[11px] flex items-center gap-2">
                         Rate Breakdown
                         {source === "ota" && (
-                            <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px]">
+                            <span className="bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-400 px-1.5 py-0.5 rounded text-[9px]">
                                 OTA
                             </span>
                         )}
@@ -115,7 +115,7 @@ export default function RateSummaryPanel({
                                 return (
                                     <div
                                         key={idx}
-                                        className={`flex items-center justify-between px-2 py-1.5 rounded-md ${isWeekend ? "bg-amber-50 text-amber-900" : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
+                                        className={`flex items-center justify-between px-2 py-1.5 rounded-md ${isWeekend ? "bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-300" : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
@@ -135,7 +135,7 @@ export default function RateSummaryPanel({
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
-                                                        className="w-full rounded-md border border-orange-200 bg-orange-50 pl-5 pr-2 py-1 text-right text-xs font-mono text-orange-900 focus:border-orange-300 focus:outline-none"
+                                                        className="w-full rounded-md border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 pl-5 pr-2 py-1 text-right text-xs font-mono text-orange-900 dark:text-orange-300 focus:border-orange-300 dark:focus:border-orange-700 focus:outline-none"
                                                         value={nr.rate}
                                                         onChange={(e) => {
                                                             const next = Number(e.target.value);

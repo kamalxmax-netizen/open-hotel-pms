@@ -85,6 +85,7 @@ const NAV_ITEMS = [
     {
         section: "Admin",
         items: [
+            { href: "/pms/training", label: "Training", icon: BookOpenIcon },
             { href: "/pms/night-audit", label: "Night Audit", icon: MoonIcon },
             { href: "/pms/settings", label: "Settings", icon: SettingsIcon },
             { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
@@ -413,6 +414,13 @@ function LogoutIcon() {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
             <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+        </svg>
+    );
+}
+function BookOpenIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
         </svg>
     );
 }

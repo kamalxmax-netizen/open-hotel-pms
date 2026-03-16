@@ -471,7 +471,7 @@ export default function PosTerminalPage() {
                     onClick={() => { setOrderType("walkin"); setSelectedReservation(null); setGuestSearch(""); }}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
                         orderType === "walkin"
-                            ? "border-brand-600 bg-brand-50 text-brand-700"
+                            ? "border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
                             : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
@@ -482,7 +482,7 @@ export default function PosTerminalPage() {
                     onClick={() => setOrderType("guest_charge")}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
                         orderType === "guest_charge"
-                            ? "border-brand-600 bg-brand-50 text-brand-700"
+                            ? "border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
                             : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
@@ -527,7 +527,7 @@ export default function PosTerminalPage() {
                                             onClick={() => addToCart(product)}
                                             className={`relative text-left rounded-xl border-2 p-3 transition-all hover:shadow-md ${
                                                 inCart
-                                                    ? "border-brand-500 bg-brand-50"
+                                                    ? "border-brand-500 bg-brand-50 dark:bg-brand-900/40"
                                                     : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-brand-300"
                                             }`}
                                         >
@@ -667,13 +667,13 @@ export default function PosTerminalPage() {
                             <div className="mb-4">
                                 <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Paid by Deposit</p>
                                 {selectedReservation ? (
-                                    <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                                    <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 p-3">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm font-semibold text-emerald-900">
+                                                <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-300">
                                                     Room {selectedReservation.room_label || selectedReservation.room_number} — {selectedReservation.guest_name}
                                                 </p>
-                                                <p className="text-xs text-emerald-600">
+                                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                                                     {selectedReservation.check_in} → {selectedReservation.check_out}
                                                 </p>
                                             </div>
@@ -686,8 +686,8 @@ export default function PosTerminalPage() {
                                         </div>
                                         <div className="rounded-lg border border-emerald-200 bg-[var(--bg-surface)]/90 px-3 py-2">
                                             <div className="flex items-center justify-between text-sm">
-                                                <span className="font-semibold text-emerald-900">Deposit Held</span>
-                                                <span className="font-bold text-emerald-700">
+                                                <span className="font-semibold text-emerald-900 dark:text-emerald-300">Deposit Held</span>
+                                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
                                                     {depositHeld.toLocaleString("th-TH", { minimumFractionDigits: 2 })} THB
                                                 </span>
                                             </div>
@@ -759,7 +759,7 @@ export default function PosTerminalPage() {
                                                     <button
                                                         key={r.id}
                                                         onClick={() => { setSelectedReservation(r); setReservations([]); }}
-                                                        className="w-full text-left px-3 py-2 hover:bg-brand-50 transition-colors"
+                                                        className="w-full text-left px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
                                                     >
                                                         <p className="text-sm font-medium text-[var(--text-primary)]">
                                                             Room {r.room_label || r.room_number} — {r.guest_name}

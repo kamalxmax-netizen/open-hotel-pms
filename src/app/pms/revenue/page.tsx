@@ -99,10 +99,10 @@ const SOURCE_COLOR: Record<string, string> = {
 };
 
 const SOURCE_LIGHT: Record<string, string> = {
-    walkin: "bg-sky-50 text-sky-700 border-sky-200",
-    ota: "bg-violet-50 text-violet-700 border-violet-200",
-    direct: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    agent: "bg-amber-50 text-amber-700 border-amber-200"
+    walkin: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
+    ota: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
+    direct: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+    agent: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
 };
 
 /* ─── KPI Tile ───────────────────────────────────────── */
@@ -341,11 +341,11 @@ export default function RevenuePage() {
                                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                                                 const isToday = day.date === t;
                                                 return (
-                                                    <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50" : isWeekend ? "bg-rose-50/40" : ""}`}>
+                                                    <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50 dark:bg-brand-950/30" : isWeekend ? "bg-rose-50/40 dark:bg-rose-950/20" : ""}`}>
                                                         <td className="py-2 pr-3">
                                                             <span className={`text-xs font-semibold mr-1.5 ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
                                                             <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-[var(--text-table-cell)]"}`}>{day.date}</span>
-                                                            {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 px-1 py-0.5 font-bold">TODAY</span>}
+                                                            {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400 px-1 py-0.5 font-bold">TODAY</span>}
                                                         </td>
                                                         <td className="py-2 text-right font-semibold text-[var(--text-primary)]">
                                                             {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-[var(--text-muted)]">—</span>}
@@ -413,32 +413,32 @@ export default function RevenuePage() {
                     <div className="card p-4 border-l-4 border-l-amber-400">
                         <div className="flex items-center gap-2 mb-3">
                             <h2 className="text-sm font-bold text-[var(--text-table-cell)]">Transfer Revenue Reference</h2>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold uppercase">Separate</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 rounded font-bold uppercase">Separate</span>
                         </div>
                         <p className="text-xs text-[var(--text-muted)] mb-3">
                             Transfer revenue is tracked separately and not included in Hotel Revenue totals above.
                         </p>
                         {transferRef ? (
                             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                                <div className="bg-amber-50 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-amber-600 uppercase">Gross Sell</p>
-                                    <p className="text-lg font-bold text-amber-800">{fmtMoney(transferRef.kpis.gross_sell)}</p>
+                                <div className="bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3">
+                                    <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase">Gross Sell</p>
+                                    <p className="text-lg font-bold text-amber-800 dark:text-amber-300">{fmtMoney(transferRef.kpis.gross_sell)}</p>
                                 </div>
                                 <div className="bg-[var(--bg-body)] rounded-lg p-3">
                                     <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase">Cost</p>
                                     <p className="text-lg font-bold text-[var(--text-table-cell)]">{fmtMoney(transferRef.kpis.total_cost)}</p>
                                 </div>
-                                <div className="bg-emerald-50 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-emerald-600 uppercase">Margin</p>
-                                    <p className="text-lg font-bold text-emerald-700">{fmtMoney(transferRef.kpis.gross_margin)}</p>
+                                <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-3">
+                                    <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Margin</p>
+                                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{fmtMoney(transferRef.kpis.gross_margin)}</p>
                                 </div>
-                                <div className="bg-violet-50 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-violet-600 uppercase">Commission</p>
-                                    <p className="text-lg font-bold text-violet-700">{fmtMoney(transferRef.kpis.commission_payable)}</p>
+                                <div className="bg-violet-50 dark:bg-violet-950/40 rounded-lg p-3">
+                                    <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase">Commission</p>
+                                    <p className="text-lg font-bold text-violet-700 dark:text-violet-300">{fmtMoney(transferRef.kpis.commission_payable)}</p>
                                 </div>
-                                <div className="bg-blue-50 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-blue-600 uppercase">Net Margin</p>
-                                    <p className="text-lg font-bold text-blue-700">{fmtMoney(transferRef.kpis.net_margin)}</p>
+                                <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-3">
+                                    <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase">Net Margin</p>
+                                    <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{fmtMoney(transferRef.kpis.net_margin)}</p>
                                 </div>
                             </div>
                         ) : (
@@ -453,31 +453,31 @@ export default function RevenuePage() {
                 <div className="card p-4">
                     <div className="flex items-center gap-2 mb-4">
                         <h2 className="text-sm font-bold text-[var(--text-table-cell)]">Transfer Revenue Detail</h2>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold uppercase">Not in Hotel Revenue</span>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 rounded font-bold uppercase">Not in Hotel Revenue</span>
                     </div>
 
                     {/* Transfer KPIs */}
                     {transferRef && (
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
-                            <div className="bg-amber-50 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-amber-600 uppercase">Gross Sell</p>
-                                <p className="text-lg font-bold text-amber-800">{fmtMoney(transferRef.kpis.gross_sell)}</p>
+                            <div className="bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3">
+                                <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase">Gross Sell</p>
+                                <p className="text-lg font-bold text-amber-800 dark:text-amber-300">{fmtMoney(transferRef.kpis.gross_sell)}</p>
                             </div>
                             <div className="bg-[var(--bg-body)] rounded-lg p-3">
                                 <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase">Cost</p>
                                 <p className="text-lg font-bold text-[var(--text-table-cell)]">{fmtMoney(transferRef.kpis.total_cost)}</p>
                             </div>
-                            <div className="bg-emerald-50 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-emerald-600 uppercase">Margin</p>
-                                <p className="text-lg font-bold text-emerald-700">{fmtMoney(transferRef.kpis.gross_margin)}</p>
+                            <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-3">
+                                <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Margin</p>
+                                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{fmtMoney(transferRef.kpis.gross_margin)}</p>
                             </div>
-                            <div className="bg-violet-50 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-violet-600 uppercase">Commission</p>
-                                <p className="text-lg font-bold text-violet-700">{fmtMoney(transferRef.kpis.commission_payable)}</p>
+                            <div className="bg-violet-50 dark:bg-violet-950/40 rounded-lg p-3">
+                                <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase">Commission</p>
+                                <p className="text-lg font-bold text-violet-700 dark:text-violet-300">{fmtMoney(transferRef.kpis.commission_payable)}</p>
                             </div>
-                            <div className="bg-blue-50 rounded-lg p-3">
-                                <p className="text-[10px] font-semibold text-blue-600 uppercase">Net Margin</p>
-                                <p className="text-lg font-bold text-blue-700">{fmtMoney(transferRef.kpis.net_margin)}</p>
+                            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-3">
+                                <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase">Net Margin</p>
+                                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{fmtMoney(transferRef.kpis.net_margin)}</p>
                             </div>
                         </div>
                     )}
