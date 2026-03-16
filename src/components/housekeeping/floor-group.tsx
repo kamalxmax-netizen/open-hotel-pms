@@ -68,6 +68,8 @@ export type HkRoom = {
     approved_at: string | null;
     assigned_maid_name: string | null;
   }>;
+  /** True when this entry represents a prior (already completed) task, not the active one */
+  is_prior_task?: boolean;
   maintenance_minutes_total: number;
   maintenance_assignments: Array<{
     assignment_id: string;
@@ -165,10 +167,11 @@ export default function FloorGroup({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {rooms.map((room) => {
+          const isPrior = !!room.is_prior_task;
           const isNoService = room.is_no_service;
-          const isCleanedAndWaiting = String(room.hk_status) === "cleaned" && !isNoService;
+          const isCleanedAndWaiting = String(room.hk_status) === "cleaned" && !isNoService && !isPrior;
           const cfg = isNoService ? STATUS_CONFIG.no_service : (STATUS_CONFIG[room.hk_status] ?? STATUS_CONFIG.available);
-          const nextStatuses = NEXT_STATUS[room.hk_status] ?? [];
+          const nextStatuses = isPrior ? [] : (NEXT_STATUS[room.hk_status] ?? []);
           const isUpdating = updatingRoomId === room.room_id;
           const isCheckoutLocked =
             (room.diary_state === "due_out" || room.diary_state === "back_to_back") && !room.is_checkout_dirty_today;
@@ -197,18 +200,25 @@ export default function FloorGroup({
 
           return (
             <div
-              key={room.room_id}
+              key={isPrior ? `${room.room_id}-prior-${room.hk_task_id}` : room.room_id}
               className={`card p-4 space-y-3 relative overflow-hidden transition-all ${
+                isPrior ? "opacity-60 border-dashed" : ""
+              } ${
                 isCleanedAndWaiting ? "ring-2 ring-amber-400 bg-amber-50/30" : ""
               }`}
             >
+              {isPrior && (
+                <div className="absolute top-0 inset-x-0 bg-emerald-500 text-white text-[10px] font-bold text-center py-0.5 uppercase tracking-wider">
+                  ✅ Completed Earlier
+                </div>
+              )}
               {isCleanedAndWaiting && (
                 <div className="absolute top-0 inset-x-0 bg-amber-400 text-amber-900 text-[10px] font-bold text-center py-0.5 uppercase tracking-wider">
                   Waiting Approval
                 </div>
               )}
 
-              <div className={`flex items-start justify-between ${isCleanedAndWaiting ? "mt-2" : ""}`}>
+              <div className={`flex items-start justify-between ${isCleanedAndWaiting || isPrior ? "mt-2" : ""}`}>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xl font-bold text-[var(--text-primary)] tracking-tight">{room.room_number}</span>
@@ -251,7 +261,7 @@ export default function FloorGroup({
                         </span>
                       </span>
                     )}
-                    {(room.hk_prior_tasks?.length ?? 0) > 0 && (
+                    {!isPrior && (room.hk_prior_tasks?.length ?? 0) > 0 && (
                       <span
                         className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400"
                         title={`Cleaned ${room.hk_prior_tasks!.length}x earlier today — re-clean after room move`}
@@ -383,48 +393,56 @@ export default function FloorGroup({
                 </div>
               )}
 
-              <div className="pt-2 flex flex-wrap gap-2 border-t border-[var(--border-subtle)]">
-                {!isCleanedAndWaiting &&
-                  nextStatuses.length > 0 &&
-                  nextStatuses.map((nextStatus) => {
-                    const nextCfg = STATUS_CONFIG[nextStatus];
-                    return (
-                      <button
-                        key={nextStatus}
-                        disabled={isUpdating}
-                        onClick={() => onUpdateStatus(room, nextStatus)}
-                        className={`flex-1 rounded-lg border text-[10px] font-bold py-2 transition ${nextCfg.pill}`}
-                      >
-                        {isUpdating ? "…" : `Mark ${nextCfg.label}`}
-                      </button>
-                    );
-                  })}
-
-                {isCleanedAndWaiting && (
-                  <button
-                    disabled={isUpdating}
-                    onClick={() => onApprove(room)}
-                    className="w-full rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold py-2 transition-colors shadow-sm"
-                  >
-                    {isUpdating ? "..." : "✓ Approve Clean"}
-                  </button>
-                )}
-
-                {room.hk_status === "dirty" && (
-                  <button
-                    disabled={isCheckoutLocked}
-                    onClick={() => onAssignClick(room)}
-                    className="w-full rounded-lg bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-table-cell)] text-[10px] font-bold py-2 hover:bg-[var(--bg-body)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCheckoutLocked ? "Checkout Pending" : "Assign Maid"}
-                  </button>
-                )}
-                {(room.hk_status === "in_progress" || room.hk_status === "paused") && (
-                  <div className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                    Assignment locked after start
+              {isPrior ? (
+                <div className="pt-2 border-t border-[var(--border-subtle)]">
+                  <div className="text-[10px] text-[var(--text-muted)] italic text-center">
+                    History record — no actions available
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="pt-2 flex flex-wrap gap-2 border-t border-[var(--border-subtle)]">
+                  {!isCleanedAndWaiting &&
+                    nextStatuses.length > 0 &&
+                    nextStatuses.map((nextStatus) => {
+                      const nextCfg = STATUS_CONFIG[nextStatus];
+                      return (
+                        <button
+                          key={nextStatus}
+                          disabled={isUpdating}
+                          onClick={() => onUpdateStatus(room, nextStatus)}
+                          className={`flex-1 rounded-lg border text-[10px] font-bold py-2 transition ${nextCfg.pill}`}
+                        >
+                          {isUpdating ? "…" : `Mark ${nextCfg.label}`}
+                        </button>
+                      );
+                    })}
+
+                  {isCleanedAndWaiting && (
+                    <button
+                      disabled={isUpdating}
+                      onClick={() => onApprove(room)}
+                      className="w-full rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold py-2 transition-colors shadow-sm"
+                    >
+                      {isUpdating ? "..." : "✓ Approve Clean"}
+                    </button>
+                  )}
+
+                  {room.hk_status === "dirty" && (
+                    <button
+                      disabled={isCheckoutLocked}
+                      onClick={() => onAssignClick(room)}
+                      className="w-full rounded-lg bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-table-cell)] text-[10px] font-bold py-2 hover:bg-[var(--bg-body)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCheckoutLocked ? "Checkout Pending" : "Assign Maid"}
+                    </button>
+                  )}
+                  {(room.hk_status === "in_progress" || room.hk_status === "paused") && (
+                    <div className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-2 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                      Assignment locked after start
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

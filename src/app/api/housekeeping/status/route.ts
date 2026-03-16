@@ -1167,13 +1167,40 @@ export async function GET(request: NextRequest) {
             };
         });
 
-        // Summary counts
+        // Append prior completed task entries so they show as separate cards in the dashboard.
+        // Each prior task generates a full room entry with its own HK state, flagged with is_prior_task.
+        for (const room of (rooms ?? [])) {
+            const priors = hkPriorByRoomId.get(room.id) ?? [];
+            if (priors.length === 0) continue;
+            const mainEntry = data.find((d) => d.room_id === room.id);
+            if (!mainEntry) continue;
+            for (const pt of priors) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (data as any[]).push({
+                    ...mainEntry,
+                    hk_task_id: pt.id,
+                    hk_status: pt.status as typeof mainEntry.hk_status,
+                    started_at: pt.started_at ?? null,
+                    finished_at: pt.finished_at ?? null,
+                    approved_at: pt.approved_at ?? null,
+                    accumulated_ms: pt.accumulated_ms ?? 0,
+                    is_no_service: pt.is_no_service ?? false,
+                    assigned_maid_name: pt.assigned_maid_name ?? null,
+                    hk_logs: logsByTaskId.get(String(pt.id)) ?? [],
+                    hk_prior_tasks: [],
+                    is_prior_task: true,
+                });
+            }
+        }
+
+        // Summary counts — exclude prior task entries to avoid inflating numbers
+        const primaryRooms = data.filter((r) => !(r as any).is_prior_task);
         const summary = {
-            dirty: data.filter((r) => r.hk_status === "dirty" || r.hk_status === "in_progress" || r.hk_status === "paused").length,
-            cleaning: data.filter((r) => r.hk_status === "in_progress").length,
-            clean: data.filter((r) => r.hk_status === "approved").length,
-            available: data.filter((r) => r.hk_status === "available").length,
-            no_service: data.filter((r) => r.is_no_service).length,
+            dirty: primaryRooms.filter((r) => r.hk_status === "dirty" || r.hk_status === "in_progress" || r.hk_status === "paused").length,
+            cleaning: primaryRooms.filter((r) => r.hk_status === "in_progress").length,
+            clean: primaryRooms.filter((r) => r.hk_status === "approved").length,
+            available: primaryRooms.filter((r) => r.hk_status === "available").length,
+            no_service: primaryRooms.filter((r) => r.is_no_service).length,
         };
 
         return NextResponse.json({ success: true, date: dateParam, summary, rooms: data });
