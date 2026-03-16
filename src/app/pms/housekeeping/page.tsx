@@ -1115,7 +1115,7 @@ export default function HousekeepingPage() {
 	        >
           <div className="flex items-center justify-between gap-3 flex-wrap">
 	            <div>
-	              <h3 className="text-sm font-bold text-slate-800">Dirty &amp; Task Pool</h3>
+	              <h3 className="text-sm font-bold text-[var(--text-primary)]">Dirty &amp; Task Pool</h3>
 	              <p className="text-xs text-[var(--text-secondary)] mt-1">
 	                Drag dirty room or pending extra task to a maid lane. Drag assigned timeline bar back here to return room to pool.
 	              </p>
@@ -1294,7 +1294,7 @@ export default function HousekeepingPage() {
                  }`}
                >
                  {f.label}
-                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${filter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${filter === f.key ? 'bg-[var(--bg-surface)]/20 text-white' : 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]'}`}>
                    {count}
                  </span>
                </button>
@@ -1311,7 +1311,7 @@ export default function HousekeepingPage() {
       ) : loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-200" />
+            <div key={i} className="h-32 animate-pulse rounded-2xl bg-[var(--bg-muted)]" />
           ))}
         </div>
       ) : sortedFloors.length === 0 ? (
@@ -1417,7 +1417,7 @@ export default function HousekeepingPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-[var(--text-primary)]">Room {task.room_number}</span>
-                        <span className="text-[11px] rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                        <span className="text-[11px] rounded-full bg-[var(--bg-surface-hover)] px-2 py-0.5 font-semibold text-[var(--text-secondary)]">
                           {task.estimated_minutes} min
                         </span>
                         <span className="text-[11px] rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">

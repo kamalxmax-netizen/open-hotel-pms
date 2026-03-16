@@ -8,7 +8,7 @@ export default function NewNotePage() {
                 <Link href="/pms/logbook">
                     <Button variant="outline" size="sm" className="shadow-sm">← Back to Board</Button>
                 </Link>
-                <h1 className="text-xl font-bold text-slate-800">Create New Note</h1>
+                <h1 className="text-xl font-bold text-[var(--text-primary)]">Create New Note</h1>
             </div>
 
             <div className="bg-[var(--bg-surface)] p-6 rounded-2xl border shadow-sm text-center text-[var(--text-secondary)] flex flex-col items-center gap-3 py-24">

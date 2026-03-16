@@ -51,11 +51,11 @@ export default function AssignmentModal({
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
             <div className="w-full max-w-sm bg-[var(--bg-surface)] rounded-2xl shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-body)]">
-                    <h3 className="font-bold text-slate-800">Assign Maid - Room {room.room_number}</h3>
+                    <h3 className="font-bold text-[var(--text-primary)]">Assign Maid - Room {room.room_number}</h3>
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-slate-200 transition-colors"
+                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
                     >
                         <X size={20} />
                     </button>

@@ -184,7 +184,7 @@ export default function FeeTemplatesPage() {
                             <th className="px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-[var(--border-subtle)]">
                         {loading ? (
                             <tr>
                                 <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
@@ -203,7 +203,7 @@ export default function FeeTemplatesPage() {
                                     <td className="px-4 py-3 font-mono font-semibold text-[var(--text-table-cell)]">{t.code}</td>
                                     <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{t.name}</td>
                                     <td className="px-4 py-3">
-                                        <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                                        <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]">
                                             {t.category}
                                         </span>
                                     </td>
@@ -214,7 +214,7 @@ export default function FeeTemplatesPage() {
                                         {t.is_active ? (
                                             <span className="text-emerald-600 text-[10px] font-bold bg-emerald-100 px-2 py-0.5 rounded">ACTIVE</span>
                                         ) : (
-                                            <span className="text-[var(--text-muted)] text-[10px] font-bold bg-slate-200 px-2 py-0.5 rounded">INACTIVE</span>
+                                            <span className="text-[var(--text-muted)] text-[10px] font-bold bg-[var(--bg-muted)] px-2 py-0.5 rounded">INACTIVE</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-center">

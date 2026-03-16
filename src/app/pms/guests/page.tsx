@@ -445,11 +445,11 @@ export default function GuestsPage() {
         {canSearch ? (
           <div className="border-b border-[var(--border-default)] bg-[var(--bg-body)] px-5 py-3 text-sm text-[var(--text-secondary)]">
             Matched: <span className="font-semibold text-[var(--text-primary)]">{response.summary.matched}</span>
-            <span className="mx-3 text-slate-300">·</span>
+            <span className="mx-3 text-[var(--text-muted)]">·</span>
             Verified: <span className="font-semibold text-[var(--text-primary)]">{response.summary.verified}</span>
-            <span className="mx-3 text-slate-300">·</span>
+            <span className="mx-3 text-[var(--text-muted)]">·</span>
             Draft: <span className="font-semibold text-[var(--text-primary)]">{response.summary.draft}</span>
-            <span className="mx-3 text-slate-300">·</span>
+            <span className="mx-3 text-[var(--text-muted)]">·</span>
             VIP: <span className="font-semibold text-[var(--text-primary)]">{response.summary.vip}</span>
           </div>
         ) : null}
@@ -504,7 +504,7 @@ export default function GuestsPage() {
                               </div>
                             </td>
                             <td>
-                              <div className="text-sm text-slate-800">{profile.phone || "—"}</div>
+                              <div className="text-sm text-[var(--text-primary)]">{profile.phone || "—"}</div>
                               <div className="mt-1 text-xs text-[var(--text-muted)]">{profile.email || "—"}</div>
                             </td>
                             <td>
@@ -521,7 +521,7 @@ export default function GuestsPage() {
                             <td>
                               <span className={`badge text-xs ${vipMeta.tone}`}>{vipMeta.label}</span>
                             </td>
-                            <td className="text-center font-semibold text-slate-800">{profile.stay_count}</td>
+                            <td className="text-center font-semibold text-[var(--text-primary)]">{profile.stay_count}</td>
                             <td className="text-sm text-[var(--text-table-cell)]">{formatLastStay(profile.last_stay_date)}</td>
                           </tr>
                         );

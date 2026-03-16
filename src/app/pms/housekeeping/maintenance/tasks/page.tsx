@@ -153,7 +153,7 @@ export default function MaintenanceTasksPage() {
             {/* Task List */}
             {isLoading ? (
                 <div className="space-y-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-200" />)}
+                    {[1, 2, 3].map(i => <div key={i} className="h-28 animate-pulse rounded-xl bg-[var(--bg-muted)]" />)}
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -173,7 +173,7 @@ export default function MaintenanceTasksPage() {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <h3 className="text-base font-bold text-[var(--text-primary)]">{task.name}</h3>
                                             {!task.is_active && (
-                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-[var(--text-muted)] px-2 py-0.5 rounded-full">Inactive</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-[var(--bg-muted)] text-[var(--text-muted)] px-2 py-0.5 rounded-full">Inactive</span>
                                             )}
                                             {task.sync_to_housekeeper && (
                                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -205,7 +205,7 @@ export default function MaintenanceTasksPage() {
                                             Warning: {task.warning_count} stays
                                         </span>
                                     )}
-                                    <span className="text-slate-300">|</span>
+                                    <span className="text-[var(--text-muted)]">|</span>
                                     {task.applicable_room_types ? (
                                         <div className="flex flex-wrap gap-1">
                                             {task.applicable_room_types.map(code => (
@@ -252,7 +252,7 @@ export default function MaintenanceTasksPage() {
 
                     {tasks.length === 0 && (
                         <div className="text-center py-16 bg-[var(--bg-body)] border-2 border-dashed rounded-xl">
-                            <LayersIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                            <LayersIcon className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
                             <h3 className="text-lg font-medium text-[var(--text-secondary)]">No maintenance tasks yet</h3>
                             <p className="text-sm text-[var(--text-muted)] mt-1">Create tasks like AC cleaning or pipe flushing.</p>
                             <Button className="mt-4 h-9 bg-red-600 hover:bg-red-700" onClick={() => { setSelectedTask(null); setModalOpen(true); }}>

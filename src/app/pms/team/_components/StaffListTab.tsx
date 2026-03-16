@@ -395,9 +395,9 @@ export function StaffListTab() {
             )}
             <div className="flex justify-between items-center mt-2">
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-800">Staff Members</h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                        HK Lane enabled: <span className="font-semibold text-slate-700">{laneCount}</span>
+                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">Staff Members</h2>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                        HK Lane enabled: <span className="font-semibold text-[var(--text-secondary)]">{laneCount}</span>
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -425,10 +425,10 @@ export function StaffListTab() {
                         <Card key={staff.id} className="p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
                             <div className="flex justify-between items-start gap-2">
                                 <div>
-                                    <h3 className="font-bold text-slate-800 text-base">
-                                        {staff.display_name} {staff.nickname && <span className="text-slate-500 font-normal">({staff.nickname})</span>}
+                                    <h3 className="font-bold text-[var(--text-primary)] text-base">
+                                        {staff.display_name} {staff.nickname && <span className="text-[var(--text-muted)] font-normal">({staff.nickname})</span>}
                                     </h3>
-                                    <p className="text-xs text-slate-500 font-mono mt-0.5">{staff.employee_code}</p>
+                                    <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">{staff.employee_code}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
                                     {staff.department ? (
@@ -436,7 +436,7 @@ export function StaffListTab() {
                                             {staff.department.code}
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider rounded-sm text-slate-400">
+                                        <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider rounded-sm text-[var(--text-muted)]">
                                             N/A
                                         </Badge>
                                     )}
@@ -445,7 +445,7 @@ export function StaffListTab() {
                                             HK Lane #{staff.hk_lane_order}
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline" className="text-[10px] rounded-sm text-slate-400">
+                                        <Badge variant="outline" className="text-[10px] rounded-sm text-[var(--text-muted)]">
                                             Not in lane
                                         </Badge>
                                     )}
@@ -462,7 +462,7 @@ export function StaffListTab() {
                                 </div>
                             </div>
 
-                            <div className="mt-auto pt-3 border-t border-slate-100 flex flex-col gap-2">
+                            <div className="mt-auto pt-3 border-t border-[var(--border-subtle)] flex flex-col gap-2">
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -509,15 +509,15 @@ export function StaffListTab() {
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
                     <Card className="w-full max-w-lg p-5 space-y-4">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900">Create Manual Lane</h3>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Create Manual Lane</h3>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
                                 Add lane-only name for Housekeeping timeline (no login account, no LINE bind).
                             </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Display Name</span>
+                                <span className="text-[var(--text-secondary)]">Display Name</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={createDraft.display_name}
@@ -530,7 +530,7 @@ export function StaffListTab() {
                                 )}
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Nickname</span>
+                                <span className="text-[var(--text-secondary)]">Nickname</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={createDraft.nickname}
@@ -538,9 +538,9 @@ export function StaffListTab() {
                                 />
                             </label>
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">Department</span>
+                                <span className="text-[var(--text-secondary)]">Department</span>
                                 <select
-                                    className="h-9 rounded-md border px-3 text-sm bg-white"
+                                    className="h-9 rounded-md border px-3 text-sm bg-[var(--bg-surface)]"
                                     value={createDraft.department_code}
                                     onChange={(e) => setCreateDraft((prev) => ({ ...prev, department_code: e.target.value }))}
                                 >
@@ -557,7 +557,7 @@ export function StaffListTab() {
                                     checked={createDraft.is_active}
                                     onChange={(e) => setCreateDraft((prev) => ({ ...prev, is_active: e.target.checked }))}
                                 />
-                                <span className="text-slate-700">Active lane</span>
+                                <span className="text-[var(--text-secondary)]">Active lane</span>
                             </label>
                             <label className="text-sm flex items-center gap-2 md:col-span-2">
                                 <input
@@ -565,10 +565,10 @@ export function StaffListTab() {
                                     checked={createDraft.hk_lane_enabled}
                                     onChange={(e) => setCreateDraft((prev) => ({ ...prev, hk_lane_enabled: e.target.checked }))}
                                 />
-                                <span className="text-slate-700">Allow to be HK lane</span>
+                                <span className="text-[var(--text-secondary)]">Allow to be HK lane</span>
                             </label>
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">HK Lane Order (1-999)</span>
+                                <span className="text-[var(--text-secondary)]">HK Lane Order (1-999)</span>
                                 <input
                                     type="number"
                                     min={1}
@@ -608,15 +608,15 @@ export function StaffListTab() {
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
                     <Card className="w-full max-w-xl p-5 space-y-4">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900">Invite Staff Account</h3>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Invite Staff Account</h3>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
                                 Creates Auth user + Profile + Staff. Use this for real staff login and LINE bind.
                             </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">Email</span>
+                                <span className="text-[var(--text-secondary)]">Email</span>
                                 <input
                                     type="email"
                                     className="h-9 rounded-md border px-3 text-sm"
@@ -631,7 +631,7 @@ export function StaffListTab() {
                                 )}
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Display Name</span>
+                                <span className="text-[var(--text-secondary)]">Display Name</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={inviteDraft.display_name}
@@ -644,7 +644,7 @@ export function StaffListTab() {
                                 )}
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Nickname</span>
+                                <span className="text-[var(--text-secondary)]">Nickname</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={inviteDraft.nickname}
@@ -652,9 +652,9 @@ export function StaffListTab() {
                                 />
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Role</span>
+                                <span className="text-[var(--text-secondary)]">Role</span>
                                 <select
-                                    className="h-9 rounded-md border px-3 text-sm bg-white"
+                                    className="h-9 rounded-md border px-3 text-sm bg-[var(--bg-surface)]"
                                     value={inviteDraft.role}
                                     onChange={(e) => {
                                         const role = e.target.value as InviteStaffDraft["role"]
@@ -670,9 +670,9 @@ export function StaffListTab() {
                                 </select>
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Department</span>
+                                <span className="text-[var(--text-secondary)]">Department</span>
                                 <select
-                                    className="h-9 rounded-md border px-3 text-sm bg-white"
+                                    className="h-9 rounded-md border px-3 text-sm bg-[var(--bg-surface)]"
                                     value={inviteDraft.department_code}
                                     onChange={(e) => setInviteDraft((prev) => ({ ...prev, department_code: e.target.value }))}
                                 >
@@ -689,7 +689,7 @@ export function StaffListTab() {
                                     checked={inviteDraft.is_active}
                                     onChange={(e) => setInviteDraft((prev) => ({ ...prev, is_active: e.target.checked }))}
                                 />
-                                <span className="text-slate-700">Active staff</span>
+                                <span className="text-[var(--text-secondary)]">Active staff</span>
                             </label>
                             <label className="text-sm flex items-center gap-2 md:col-span-2">
                                 <input
@@ -697,10 +697,10 @@ export function StaffListTab() {
                                     checked={inviteDraft.hk_lane_enabled}
                                     onChange={(e) => setInviteDraft((prev) => ({ ...prev, hk_lane_enabled: e.target.checked }))}
                                 />
-                                <span className="text-slate-700">Allow to be HK lane</span>
+                                <span className="text-[var(--text-secondary)]">Allow to be HK lane</span>
                             </label>
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">HK Lane Order (1-999)</span>
+                                <span className="text-[var(--text-secondary)]">HK Lane Order (1-999)</span>
                                 <input
                                     type="number"
                                     min={1}
@@ -740,15 +740,15 @@ export function StaffListTab() {
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
                     <Card className="w-full max-w-lg p-5 space-y-4">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900">Edit Staff</h3>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Edit Staff</h3>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
                                 Name updates will sync HK Daily Plans, HK Tasks, and Extra Tasks automatically.
                             </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Display Name</span>
+                                <span className="text-[var(--text-secondary)]">Display Name</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={editDraft.display_name}
@@ -761,7 +761,7 @@ export function StaffListTab() {
                                 )}
                             </label>
                             <label className="text-sm flex flex-col gap-1">
-                                <span className="text-slate-600">Nickname</span>
+                                <span className="text-[var(--text-secondary)]">Nickname</span>
                                 <input
                                     className="h-9 rounded-md border px-3 text-sm"
                                     value={editDraft.nickname}
@@ -769,9 +769,9 @@ export function StaffListTab() {
                                 />
                             </label>
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">Department</span>
+                                <span className="text-[var(--text-secondary)]">Department</span>
                                 <select
-                                    className="h-9 rounded-md border px-3 text-sm bg-white"
+                                    className="h-9 rounded-md border px-3 text-sm bg-[var(--bg-surface)]"
                                     value={editDraft.department_id}
                                     onChange={(e) => setEditDraft((prev) => prev ? { ...prev, department_id: e.target.value } : prev)}
                                 >
@@ -789,7 +789,7 @@ export function StaffListTab() {
                                     checked={editDraft.is_active}
                                     onChange={(e) => setEditDraft((prev) => prev ? { ...prev, is_active: e.target.checked } : prev)}
                                 />
-                                <span className="text-slate-700">Active staff</span>
+                                <span className="text-[var(--text-secondary)]">Active staff</span>
                             </label>
                             <label className="text-sm flex items-center gap-2 md:col-span-2">
                                 <input
@@ -797,10 +797,10 @@ export function StaffListTab() {
                                     checked={editDraft.hk_lane_enabled}
                                     onChange={(e) => setEditDraft((prev) => prev ? { ...prev, hk_lane_enabled: e.target.checked } : prev)}
                                 />
-                                <span className="text-slate-700">Allow to be HK lane</span>
+                                <span className="text-[var(--text-secondary)]">Allow to be HK lane</span>
                             </label>
                             <label className="text-sm flex flex-col gap-1 md:col-span-2">
-                                <span className="text-slate-600">HK Lane Order (1-999)</span>
+                                <span className="text-[var(--text-secondary)]">HK Lane Order (1-999)</span>
                                 <input
                                     type="number"
                                     min={1}

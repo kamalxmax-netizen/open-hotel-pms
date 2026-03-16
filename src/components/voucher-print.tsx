@@ -41,7 +41,7 @@ export default function VoucherPrint({ transferId, onClose }: VoucherPrintProps)
 
     if (!voucher) {
         return (
-            <div className="p-8 text-center text-slate-500">
+            <div className="p-8 text-center text-[var(--text-muted)]">
                 <p>Voucher not found</p>
                 {onClose && <button onClick={onClose} className="mt-4 text-blue-600">Close</button>}
             </div>
@@ -59,68 +59,68 @@ export default function VoucherPrint({ transferId, onClose }: VoucherPrintProps)
                     🖨️ Print Voucher
                 </button>
                 {onClose && (
-                    <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50">
+                    <button onClick={onClose} className="px-4 py-2 border border-[var(--border-input)] rounded-lg text-sm hover:bg-[var(--bg-body)]">
                         Close
                     </button>
                 )}
             </div>
 
             {/* Printable voucher */}
-            <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-[600px] mx-auto print:border-black print:rounded-none print:shadow-none">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-8 max-w-[600px] mx-auto print:border-black print:rounded-none print:shadow-none">
                 {/* Header */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-                    <h1 className="text-xl font-bold text-slate-900 tracking-wide">TRANSFER VOUCHER</h1>
+                    <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-wide">TRANSFER VOUCHER</h1>
                     <p className="text-lg font-mono font-bold text-blue-700 mt-1">{voucher.voucher_number}</p>
                 </div>
 
                 {/* Guest */}
                 <div className="mb-6">
-                    <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Guest Name</h2>
-                    <p className="text-lg font-bold text-slate-900">{voucher.guest_name}</p>
+                    <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Guest Name</h2>
+                    <p className="text-lg font-bold text-[var(--text-primary)]">{voucher.guest_name}</p>
                 </div>
 
                 {/* Route info */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     {voucher.route_description && (
                         <div className="col-span-2">
-                            <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Route</h2>
-                            <p className="font-medium text-slate-800">{voucher.route_description}</p>
+                            <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Route</h2>
+                            <p className="font-medium text-[var(--text-primary)]">{voucher.route_description}</p>
                         </div>
                     )}
                     {voucher.departure_time && (
                         <div>
-                            <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Departure Time</h2>
-                            <p className="font-mono font-bold text-lg text-slate-900">{voucher.departure_time}</p>
+                            <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Departure Time</h2>
+                            <p className="font-mono font-bold text-lg text-[var(--text-primary)]">{voucher.departure_time}</p>
                         </div>
                     )}
                     {voucher.pier_name && (
                         <div>
-                            <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Pier</h2>
-                            <p className="font-medium text-slate-800">{voucher.pier_name}</p>
+                            <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Pier</h2>
+                            <p className="font-medium text-[var(--text-primary)]">{voucher.pier_name}</p>
                         </div>
                     )}
                     {voucher.boat_company_name && (
                         <div>
-                            <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Boat Company</h2>
+                            <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Boat Company</h2>
                             <p className="font-medium text-blue-700">{voucher.boat_company_name}</p>
                         </div>
                     )}
                 </div>
 
                 {/* Pickup info */}
-                <div className="bg-slate-50 rounded-lg p-4 mb-6 print:bg-white print:border print:border-slate-300">
-                    <h2 className="text-xs text-slate-500 uppercase font-semibold mb-3">Pickup Details</h2>
+                <div className="bg-[var(--bg-body)] rounded-lg p-4 mb-6 print:bg-[var(--bg-surface)] print:border print:border-[var(--border-input)]">
+                    <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-3">Pickup Details</h2>
                     <div className="grid grid-cols-2 gap-3">
                         {voucher.pickup_time && (
                             <div>
-                                <p className="text-xs text-slate-400">Time</p>
+                                <p className="text-xs text-[var(--text-muted)]">Time</p>
                                 <p className="font-mono font-bold text-lg">{voucher.pickup_time}</p>
                             </div>
                         )}
                         {voucher.pickup_location && (
                             <div>
-                                <p className="text-xs text-slate-400">Location</p>
-                                <p className="font-medium text-slate-800">{voucher.pickup_location}</p>
+                                <p className="text-xs text-[var(--text-muted)]">Location</p>
+                                <p className="font-medium text-[var(--text-primary)]">{voucher.pickup_location}</p>
                             </div>
                         )}
                     </div>
@@ -129,11 +129,11 @@ export default function VoucherPrint({ transferId, onClose }: VoucherPrintProps)
                 {/* Driver info */}
                 {voucher.driver_name && (
                     <div className="mb-6">
-                        <h2 className="text-xs text-slate-500 uppercase font-semibold mb-2">Driver</h2>
+                        <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-2">Driver</h2>
                         <div className="flex items-center gap-4">
                             <div>
-                                <p className="font-medium text-slate-900">{voucher.driver_name}</p>
-                                {voucher.driver_phone && <p className="text-sm text-slate-500">{voucher.driver_phone}</p>}
+                                <p className="font-medium text-[var(--text-primary)]">{voucher.driver_name}</p>
+                                {voucher.driver_phone && <p className="text-sm text-[var(--text-muted)]">{voucher.driver_phone}</p>}
                             </div>
                             {voucher.vehicle_info && (
                                 <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
@@ -146,16 +146,16 @@ export default function VoucherPrint({ transferId, onClose }: VoucherPrintProps)
 
                 {/* Special instructions */}
                 {voucher.special_instructions && (
-                    <div className="border-t border-slate-200 pt-4 mb-4">
-                        <h2 className="text-xs text-slate-500 uppercase font-semibold mb-1">Special Instructions</h2>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{voucher.special_instructions}</p>
+                    <div className="border-t border-[var(--border-default)] pt-4 mb-4">
+                        <h2 className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Special Instructions</h2>
+                        <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">{voucher.special_instructions}</p>
                     </div>
                 )}
 
                 {/* Footer */}
                 <div className="border-t-2 border-slate-800 pt-4 mt-6 text-center">
-                    <p className="text-xs text-slate-400">Hotel PMS — Transportation Module</p>
-                    <p className="text-[10px] text-slate-300 mt-1">Printed {new Date().toLocaleString("en-GB", { timeZone: "Asia/Bangkok" })}</p>
+                    <p className="text-xs text-[var(--text-muted)]">Hotel PMS — Transportation Module</p>
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">Printed {new Date().toLocaleString("en-GB", { timeZone: "Asia/Bangkok" })}</p>
                 </div>
             </div>
         </div>

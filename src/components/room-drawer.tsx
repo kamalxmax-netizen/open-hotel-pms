@@ -110,7 +110,7 @@ const TRANSFER_STATUS_BADGE: Record<string, string> = {
     in_progress: "bg-green-100 text-green-700 border border-green-200",
     completed: "bg-emerald-100 text-emerald-700 border border-emerald-200",
     cancelled: "bg-rose-100 text-rose-700 border border-rose-200",
-    no_show: "bg-slate-100 text-slate-600 border border-slate-200",
+    no_show: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-default)]",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -620,12 +620,12 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 <div className="drawer-header">
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-slate-900">Room {room.room_number}</span>
+                            <span className="text-lg font-bold text-[var(--text-primary)]">Room {room.room_number}</span>
                             <span className={`badge ${STATUS_BADGE[room.status] ?? "status-closed"}`}>
                                 {STATUS_LABEL[room.status] ?? room.status}
                             </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">{room.room_type}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{room.room_type}</p>
                     </div>
                     <button className="btn-icon btn-ghost" onClick={onClose} aria-label="Close">
                         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -644,10 +644,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
 
                     {/* Renovation / Closed */}
                     {!room.sellable && (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                            <p className="text-sm font-semibold text-slate-500">🚧 Room under Renovation</p>
+                        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 text-center">
+                            <p className="text-sm font-semibold text-[var(--text-muted)]">🚧 Room under Renovation</p>
                             {room.closure_reason && (
-                                <p className="text-xs text-slate-400 mt-1">{room.closure_reason}</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">{room.closure_reason}</p>
                             )}
                         </div>
                     )}
@@ -655,15 +655,15 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     {/* Current Reservation */}
                     {room.sellable && (
                         <div>
-                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
                                 Current Reservation
                             </h3>
                             {res ? (
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-3">
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
-                                            <p className="text-base font-bold text-slate-900">{res.guest_name}</p>
-                                            {res.phone && <p className="text-xs text-slate-500">{res.phone}</p>}
+                                            <p className="text-base font-bold text-[var(--text-primary)]">{res.guest_name}</p>
+                                            {res.phone && <p className="text-xs text-[var(--text-muted)]">{res.phone}</p>}
                                         </div>
                                         <span className="badge bg-amber-100 text-amber-700 shrink-0">
                                             {SOURCE_LABEL[res.source] ?? res.source}
@@ -671,33 +671,33 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                                            <p className="text-[10px] text-slate-400 font-semibold uppercase">Check-in</p>
-                                            <p className="font-semibold text-slate-800">{res.checkin_date}</p>
+                                        <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
+                                            <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-in</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{res.checkin_date}</p>
                                         </div>
-                                        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
-                                            <p className="text-[10px] text-slate-400 font-semibold uppercase">Check-out</p>
-                                            <p className="font-semibold text-slate-800">{res.checkout_date}</p>
+                                        <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
+                                            <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-out</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{res.checkout_date}</p>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-                                        <div className="text-sm text-slate-600">
-                                            <span className="font-semibold text-slate-900">฿{fmt(res.total_price)}</span>
-                                            <span className="text-slate-400"> · {nights} night{nights !== 1 ? "s" : ""}</span>
+                                    <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
+                                        <div className="text-sm text-[var(--text-secondary)]">
+                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(res.total_price)}</span>
+                                            <span className="text-[var(--text-muted)]"> · {nights} night{nights !== 1 ? "s" : ""}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xs text-slate-400">{res.booking_code}</span>
+                                            <span className="text-xs text-[var(--text-muted)]">{res.booking_code}</span>
                                         </div>
                                     </div>
 
-                                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 space-y-1">
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-slate-500">Deposit Held</span>
+                                            <span className="text-[var(--text-muted)]">Deposit Held</span>
                                             <span className="font-semibold text-amber-700">฿{fmt(depositHeld)}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-slate-500">Room Balance Due</span>
+                                            <span className="text-[var(--text-muted)]">Room Balance Due</span>
                                             <span className={`font-semibold ${balanceDue > 0 ? "text-rose-700" : "text-emerald-700"}`}>
                                                 {balanceDue > 0
                                                     ? `฿${fmt(balanceDue)}`
@@ -706,7 +706,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                         : "฿0.00"}
                                             </span>
                                         </div>
-                                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                        <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
                                             <span>Paid / Refunded</span>
                                             <span>
                                                 {folioLoading
@@ -717,14 +717,14 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     </div>
 
                                     {room.is_dayuse && res.dayuse_expires_at && (
-                                        <div className="rounded-lg border border-[#fecdd3] bg-[#fff1f2] px-3 py-2 flex items-center justify-between">
-                                            <span className="text-xs font-semibold text-[#e11d48] uppercase tracking-widest pl-1">Remaining Time</span>
-                                            <DayUseTimer expiresAt={res.dayuse_expires_at} className="bg-white shadow-sm" />
+                                        <div className="rounded-lg border border-[var(--dayuse-border)] bg-[var(--dayuse-bg)] px-3 py-2 flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-[var(--dayuse-text)] uppercase tracking-widest pl-1">Remaining Time</span>
+                                            <DayUseTimer expiresAt={res.dayuse_expires_at} className="bg-[var(--bg-surface)] shadow-sm" />
                                         </div>
                                     )}
 
                                     {res.note && (
-                                        <p className="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                        <p className="text-xs text-[var(--text-muted)] bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                                             📝 {res.note}
                                         </p>
                                     )}
@@ -732,7 +732,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     {(alertsLoading || inlineAlerts.length > 0) && (
                                         <div className="space-y-2">
                                             {alertsLoading && inlineAlerts.length === 0 ? (
-                                                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-400">
+                                                <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-muted)]">
                                                     Loading alerts...
                                                 </div>
                                             ) : (
@@ -788,7 +788,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
 
                                     {/* Actions */}
-                                    <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100 mt-2">
+                                    <div className="flex flex-wrap gap-2 pt-1 border-t border-[var(--border-subtle)] mt-2">
                                         <>
                                             {canCheckIn && (
                                                 <button
@@ -810,7 +810,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 </button>
                                             )}
                                             <button
-                                                className="btn btn-secondary btn-sm flex items-center gap-1 bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                className="btn btn-secondary btn-sm flex items-center gap-1 bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                                 onClick={() => {
                                                     if (!canManageDeposit) return;
                                                     setShowDepositModal(true);
@@ -926,7 +926,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
                                     {!canCheckOut && !room.is_dayuse && (
                                         <div className="space-y-1">
-                                            <p className="text-[11px] text-slate-400">
+                                            <p className="text-[11px] text-[var(--text-muted)]">
                                                 Check-out is available when this room becomes Due Out / Back-to-Back.
                                             </p>
                                             {plannedMoveCount > 0 && (
@@ -938,8 +938,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
                                 </div>
                             ) : (
-                                <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
-                                    <p className="text-sm text-slate-400 mb-3">Room is available</p>
+                                <div className="rounded-xl border-2 border-dashed border-[var(--border-default)] bg-[var(--bg-surface)] p-6 text-center">
+                                    <p className="text-sm text-[var(--text-muted)] mb-3">Room is available</p>
                                     {room.is_dayuse ? (
                                         <button
                                             className="btn btn-primary btn-sm bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 hover:border-emerald-700"
@@ -972,7 +972,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     {/* Transfer Alert */}
                     {room.sellable && room.transfer_pickup_at && (
                         <div>
-                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
                                 Transfer Alert
                             </h3>
                             <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 space-y-2">
@@ -980,11 +980,11 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg leading-none">{room.transfer_type_icon ?? "🚗"}</span>
                                         <div>
-                                            <p className="text-sm font-semibold text-slate-900">
+                                            <p className="text-sm font-semibold text-[var(--text-primary)]">
                                                 Pickup {fmtBangkokDateTime(room.transfer_pickup_at)}
                                             </p>
                                             {room.transfer_status && (
-                                                <span className={`badge ${TRANSFER_STATUS_BADGE[room.transfer_status] ?? "bg-slate-100 text-slate-600 border border-slate-200"}`}>
+                                                <span className={`badge ${TRANSFER_STATUS_BADGE[room.transfer_status] ?? "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-default)]"}`}>
                                                     {TRANSFER_STATUS_LABEL[room.transfer_status] ?? room.transfer_status}
                                                 </span>
                                             )}
@@ -993,7 +993,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     {canControlTransferAlert && (
                                         <div className="flex items-center gap-2">
                                             <span
-                                                className={`text-xs font-semibold ${transferAlertEnabled ? "text-emerald-700" : "text-slate-600"}`}
+                                                className={`text-xs font-semibold ${transferAlertEnabled ? "text-emerald-700" : "text-[var(--text-secondary)]"}`}
                                             >
                                                 Alert {transferAlertEnabled ? "ON" : "OFF"}
                                             </span>
@@ -1001,7 +1001,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 type="button"
                                                 role="switch"
                                                 aria-checked={transferAlertEnabled}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${transferAlertEnabled ? "bg-emerald-500" : "bg-slate-300"} ${transferAlertToggleLoading || !transferAlertToggleReady ? "opacity-60" : ""}`}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${transferAlertEnabled ? "bg-emerald-500" : "bg-[var(--bg-muted)]"} ${transferAlertToggleLoading || !transferAlertToggleReady ? "opacity-60" : ""}`}
                                                 onClick={handleToggleTransferAlert}
                                                 disabled={transferAlertToggleLoading}
                                                 title={
@@ -1011,14 +1011,14 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 }
                                             >
                                                 <span
-                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${transferAlertEnabled ? "translate-x-5" : "translate-x-1"}`}
+                                                    className={`inline-block h-5 w-5 transform rounded-full bg-[var(--bg-surface)] transition ${transferAlertEnabled ? "translate-x-5" : "translate-x-1"}`}
                                                 />
                                             </button>
                                         </div>
                                     )}
                                 </div>
                                 {room.transfer_guest_note && (
-                                    <div className="rounded-md border border-sky-200 bg-white px-3 py-2 text-xs text-sky-800">
+                                    <div className="rounded-md border border-sky-200 bg-[var(--bg-surface)] px-3 py-2 text-xs text-sky-800">
                                         <p className="font-semibold">Guest Note</p>
                                         <p className="mt-1 whitespace-pre-wrap">{room.transfer_guest_note}</p>
                                     </div>
@@ -1036,36 +1036,36 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     {/* Housekeeping Status */}
                     {room.sellable && (
                         <div>
-                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
                                 Housekeeping
                             </h3>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className={`badge ${room.hk_status ? (HOUSEKEEPING_BADGE[room.hk_status] ?? "status-closed") : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
+                                        <span className={`badge ${room.hk_status ? (HOUSEKEEPING_BADGE[room.hk_status] ?? "status-closed") : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] border border-[var(--border-default)]"}`}>
                                             {room.hk_status ? (HOUSEKEEPING_LABEL[room.hk_status] ?? room.hk_status) : "No HK Task"}
                                         </span>
                                         {room.hk_is_no_service ? (
                                             <span className="badge bg-sky-100 text-sky-700 border border-sky-300">No Service</span>
                                         ) : null}
                                     </div>
-                                    <span className="text-xs text-slate-400">
+                                    <span className="text-xs text-[var(--text-muted)]">
                                         {room.hk_assigned_maid ? `Maid: ${room.hk_assigned_maid}` : "Unassigned"}
                                     </span>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-2 text-[11px]">
-                                    <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
-                                        <p className="text-[10px] uppercase text-slate-400 font-semibold">Started</p>
-                                        <p className="font-medium text-slate-700">{fmtBangkokDateTime(room.hk_started_at)}</p>
+                                    <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
+                                        <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Started</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_started_at)}</p>
                                     </div>
-                                    <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
-                                        <p className="text-[10px] uppercase text-slate-400 font-semibold">Cleaned</p>
-                                        <p className="font-medium text-slate-700">{fmtBangkokDateTime(room.hk_finished_at)}</p>
+                                    <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
+                                        <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Cleaned</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_finished_at)}</p>
                                     </div>
-                                    <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
-                                        <p className="text-[10px] uppercase text-slate-400 font-semibold">Approved</p>
-                                        <p className="font-medium text-slate-700">{fmtBangkokDateTime(room.hk_approved_at)}</p>
+                                    <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
+                                        <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Approved</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_approved_at)}</p>
                                     </div>
                                 </div>
 
@@ -1077,8 +1077,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                 )}
 
                                 {canInHouseActions && (
-                                    <div className="space-y-2 border-t border-slate-200 pt-2">
-                                        <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
+                                    <div className="space-y-2 border-t border-[var(--border-default)] pt-2">
+                                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)] font-semibold">
                                             In-house Controls
                                         </p>
                                         <div className="flex flex-wrap gap-2">
@@ -1100,14 +1100,14 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                             </button>
                                         </div>
                                         {showNoServiceBox && (
-                                            <div className="rounded-md border border-slate-200 bg-white p-2 space-y-2">
-                                                <label className="text-[11px] font-semibold text-slate-700 block">
+                                            <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 space-y-2">
+                                                <label className="text-[11px] font-semibold text-[var(--text-secondary)] block">
                                                     Note for maid (optional)
                                                 </label>
                                                 <textarea
                                                     value={noServiceNoteInput}
                                                     onChange={(e) => setNoServiceNoteInput(e.target.value)}
-                                                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+                                                    className="w-full rounded-md border border-[var(--border-default)] px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-500"
                                                     rows={3}
                                                     placeholder="e.g. Water only, no full cleaning"
                                                     disabled={hkActionLoading !== null}

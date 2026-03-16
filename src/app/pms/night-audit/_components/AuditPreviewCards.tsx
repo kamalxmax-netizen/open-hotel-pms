@@ -62,7 +62,7 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
     <div className="grid gap-4 md:grid-cols-2">
       {/* Revenue Card */}
       <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Revenue (Accrual)</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Revenue (Accrual)</h3>
         <div className="mb-4">
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Total Room Revenue</p>
           <p className="text-2xl font-black text-brand-700">{formatB(snapshot.total_revenue)}</p>
@@ -85,7 +85,7 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
 
       {/* Cash/Payments Card */}
       <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Payments Received (Cash)</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Payments Received (Cash)</h3>
         <div className="mb-4">
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Total Payments</p>
           <p className="text-2xl font-black text-[var(--text-primary)]">{formatB(snapshot.payment_total)}</p>
@@ -114,19 +114,19 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
       <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm md:col-span-2 flex flex-wrap gap-4 justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">POS Revenue</p>
-          <p className="text-lg font-bold text-slate-800">{formatB(snapshot.pos_revenue)}</p>
+          <p className="text-lg font-bold text-[var(--text-primary)]">{formatB(snapshot.pos_revenue)}</p>
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Transfer Margin</p>
-          <p className="text-lg font-bold text-slate-800">{formatB(snapshot.transfer_margin)} <span className="text-xs font-normal text-[var(--text-secondary)]">(Rev: {formatB(snapshot.transfer_revenue)})</span></p>
+          <p className="text-lg font-bold text-[var(--text-primary)]">{formatB(snapshot.transfer_margin)} <span className="text-xs font-normal text-[var(--text-secondary)]">(Rev: {formatB(snapshot.transfer_revenue)})</span></p>
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Tips Recorded</p>
-          <p className="text-lg font-bold text-slate-800">{formatB(snapshot.tip_total)}</p>
+          <p className="text-lg font-bold text-[var(--text-primary)]">{formatB(snapshot.tip_total)}</p>
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">No-Show Fees</p>
-          <p className="text-lg font-bold text-slate-800">{formatB(snapshot.no_show_fee_total)} <span className="text-xs font-normal text-[var(--text-secondary)]">({snapshot.no_show_count} bookings)</span></p>
+          <p className="text-lg font-bold text-[var(--text-primary)]">{formatB(snapshot.no_show_fee_total)} <span className="text-xs font-normal text-[var(--text-secondary)]">({snapshot.no_show_count} bookings)</span></p>
         </div>
       </div>
     </div>

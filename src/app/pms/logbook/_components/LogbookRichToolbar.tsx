@@ -109,7 +109,7 @@ export function LogbookRichToolbar({
           ))}
         </div>
 
-        <div className="mx-1 h-4 w-px bg-slate-200" />
+        <div className="mx-1 h-4 w-px bg-[var(--bg-muted)]" />
 
         <Button
           variant="outline"

@@ -298,7 +298,7 @@ export function BillingPanel({
     <div className="bg-[var(--bg-surface)] border rounded-xl overflow-hidden shadow-sm flex flex-col">
       {/* HEADER */}
       <div className="bg-[var(--bg-body)] px-5 py-4 border-b flex justify-between items-center">
-        <h3 className="font-bold text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
+        <h3 className="font-bold text-[var(--text-primary)] uppercase tracking-widest text-sm flex items-center gap-2">
            <span className="text-lg">💳</span> Guest Folio
         </h3>
         <div className="text-right">

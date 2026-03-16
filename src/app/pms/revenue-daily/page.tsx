@@ -232,7 +232,7 @@ export default function RevenueDailyPage() {
                                     <th className="px-4 py-3 w-full">Guest</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-[var(--border-subtle)]">
                                 {floors.map(floor => {
                                     const floorRooms = filteredRooms.filter(r => r.floor_number === floor);
                                     const floorRevenue = floorRooms.reduce((acc, r) => acc + (r.nightly_price || 0), 0);
@@ -254,7 +254,7 @@ export default function RevenueDailyPage() {
                                                         {r.is_occupied && <span className="ml-2 inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" title="Occupied" />}
                                                     </td>
                                                     <td className="px-4 py-3 text-right font-semibold">
-                                                        {!r.is_occupied ? "—" : (r.nightly_price === 0 ? <span className="text-xs bg-slate-200 text-[var(--text-table-cell)] px-2 py-0.5 rounded-full uppercase tracking-wider">Comp</span> : fmtMoney(r.nightly_price))}
+                                                        {!r.is_occupied ? "—" : (r.nightly_price === 0 ? <span className="text-xs bg-[var(--bg-muted)] text-[var(--text-table-cell)] px-2 py-0.5 rounded-full uppercase tracking-wider">Comp</span> : fmtMoney(r.nightly_price))}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {r.is_occupied && r.source ? (
@@ -270,7 +270,7 @@ export default function RevenueDailyPage() {
                                                     <td className="px-4 py-3">
                                                         {r.is_occupied ? (
                                                             <div className="flex items-center gap-2">
-                                                                <span className="font-semibold text-slate-800">{r.guest_name || "Unknown"}</span>
+                                                                <span className="font-semibold text-[var(--text-primary)]">{r.guest_name || "Unknown"}</span>
                                                                 {r.booking_code && <span className="text-xs text-[var(--text-muted)]">({r.booking_code})</span>}
                                                             </div>
                                                         ) : null}
@@ -301,7 +301,7 @@ export default function RevenueDailyPage() {
                                                     <td className="px-4 py-3 text-right font-semibold">{fmtMoney(du.revenue)}</td>
                                                     <td className="px-4 py-3 text-[var(--text-secondary)]">—</td>
                                                     <td className="px-4 py-3 text-[var(--text-secondary)]">{du.sessions} sess</td>
-                                                    <td className="px-4 py-3 font-semibold text-slate-800 text-sm">Day Use Daily Revenue</td>
+                                                    <td className="px-4 py-3 font-semibold text-[var(--text-primary)] text-sm">Day Use Daily Revenue</td>
                                                 </tr>
                                             ))}
                                             <tr className="bg-rose-50/30 text-xs text-rose-600/70">
@@ -333,7 +333,7 @@ export default function RevenueDailyPage() {
                             </tbody>
                             <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                 <tr>
-                                    <td className="px-4 py-4 font-black text-slate-800 text-lg uppercase tracking-wider">
+                                    <td className="px-4 py-4 font-black text-[var(--text-primary)] text-lg uppercase tracking-wider">
                                         Total
                                     </td>
                                     <td className="px-4 py-4 text-right font-black text-brand-700 text-xl">

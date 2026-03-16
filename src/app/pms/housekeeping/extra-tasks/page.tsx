@@ -254,7 +254,7 @@ export default function ExtraTasksPage() {
 
             {isLoading ? (
                 <div className="space-y-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-200" />)}
+                    {[1, 2, 3].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-[var(--bg-muted)]" />)}
                 </div>
             ) : (
                 <>
@@ -271,7 +271,7 @@ export default function ExtraTasksPage() {
                     <div className="space-y-4 mt-2">
                         {groupedAssignments.every(([, tasks]) => tasks.length === 0) ? (
                             <div className="text-center py-12 bg-[var(--bg-body)] rounded-xl border-2 border-dashed">
-                                <ListChecksIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                <ListChecksIcon className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-2" />
                                 <p className="text-[var(--text-muted)] font-medium">No extra tasks for this date.</p>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">Click the button above to create one.</p>
                             </div>
@@ -299,7 +299,7 @@ export default function ExtraTasksPage() {
                                             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
                                                 <div className="flex items-center gap-2.5">
                                                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                        isPool ? "bg-slate-200 text-[var(--text-secondary)]" : "bg-sky-100 text-sky-700"
+                                                        isPool ? "bg-[var(--bg-muted)] text-[var(--text-secondary)]" : "bg-sky-100 text-sky-700"
                                                     }`}>
                                                         {isPool ? "P" : maidName.charAt(0)}
                                                     </span>

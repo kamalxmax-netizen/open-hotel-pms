@@ -131,13 +131,13 @@ export default function NightAuditPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                         <div>
                             <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Night Audit</h1>
-                            <p className="text-sm text-[var(--text-secondary)] mt-1">Activating closure for: <strong className="text-slate-800">{businessDate}</strong></p>
+                            <p className="text-sm text-[var(--text-secondary)] mt-1">Activating closure for: <strong className="text-[var(--text-primary)]">{businessDate}</strong></p>
                         </div>
                     </div>
 
                     {/* Progress Bar */}
                     <div className="relative">
-                        <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-200 -z-10 hidden sm:block">
+                        <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--bg-muted)] -z-10 hidden sm:block">
                             <div
                                 className="h-full bg-brand-600 transition-all duration-300"
                                 style={{ width: `${(Math.max(0, ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step)) / 4) * 100}%` }}
@@ -164,7 +164,7 @@ export default function NightAuditPage() {
                     {step === "noshow" && (
                         <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending No-Shows</h2>
+                                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Pending No-Shows</h2>
                                 <p className="text-sm text-[var(--text-secondary)] mb-6 border-b border-[var(--border-subtle)] pb-4">
                                     Please mark all remaining no-shows for {businessDate}. If guest requests date changes, modify reservation manually before this step.
                                 </p>
@@ -175,7 +175,7 @@ export default function NightAuditPage() {
                                 <button
                                     onClick={() => setStep("precheck")}
                                     disabled={hasPendingNoShows} // Lead P3-1 fix
-                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${hasPendingNoShows ? "bg-slate-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
+                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${hasPendingNoShows ? "bg-[var(--bg-muted)] cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
                                 >
                                     Proceed to Pre-Check →
                                 </button>
@@ -186,7 +186,7 @@ export default function NightAuditPage() {
                     {step === "precheck" && (
                         <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-800 mb-4">Pre-Check System Status</h2>
+                                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Pre-Check System Status</h2>
                                 <PreCheckStatus onReadyChange={setIsPreCheckReady} />
                             </div>
                             <div className="flex gap-3 items-center justify-end pt-6 border-t mt-6">
@@ -199,7 +199,7 @@ export default function NightAuditPage() {
                                 <button
                                     onClick={() => setStep("preview")}
                                     disabled={!isPreCheckReady}
-                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${!isPreCheckReady ? "bg-slate-300 cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
+                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${!isPreCheckReady ? "bg-[var(--bg-muted)] cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
                                 >
                                     Proceed to Preview →
                                 </button>
@@ -210,7 +210,7 @@ export default function NightAuditPage() {
                     {step === "preview" && (
                         <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-800 mb-4">Preview Audit Snapshot</h2>
+                                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Preview Audit Snapshot</h2>
                                 <AuditPreviewCards onLoad={handlePreviewLoad} />
                                 <div className="mt-8 pt-6 border-t border-[var(--border-subtle)]">
                                     <label className="block text-sm font-semibold text-[var(--text-table-cell)] mb-2">Staff Notes (Optional)</label>
@@ -233,7 +233,7 @@ export default function NightAuditPage() {
                                 <button
                                     onClick={() => setStep("confirm")}
                                     disabled={!snapshot}
-                                    className={`w-full sm:w-auto rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 shadow-sm transition-colors ${!snapshot ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+                                    className={`w-full sm:w-auto rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 shadow-sm transition-colors ${!snapshot ? "bg-[var(--bg-muted)] text-[var(--text-muted)] cursor-not-allowed" : "bg-slate-900 text-white hover:bg-slate-800"}`}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -253,7 +253,7 @@ export default function NightAuditPage() {
                             </div>
                             <h2 className="text-xl font-bold text-[var(--text-primary)]">Close Day {businessDate}?</h2>
                             <p className="mt-2 text-sm text-[var(--text-secondary)] mb-8 px-4 leading-relaxed">
-                                หลังจากกดยืนยัน จะไม่สามารถแก้ไขข้อมูลยอดเงิน ใบแจ้งหนี้ของวันที่ <strong className="text-slate-800">{businessDate}</strong> ได้อีก ระบบจะจัดเก็บข้อมูลลง Snapshot และเริ่มวันทำงานใหม่ทันที
+                                หลังจากกดยืนยัน จะไม่สามารถแก้ไขข้อมูลยอดเงิน ใบแจ้งหนี้ของวันที่ <strong className="text-[var(--text-primary)]">{businessDate}</strong> ได้อีก ระบบจะจัดเก็บข้อมูลลง Snapshot และเริ่มวันทำงานใหม่ทันที
                             </p>
 
                             {runError && (
@@ -297,7 +297,7 @@ export default function NightAuditPage() {
                                 <p className="mt-2 text-sm font-medium text-green-700">
                                     Closed date: {businessDate}
                                 </p>
-                                <div className="mt-3 px-4 py-2 bg-white rounded-lg border border-green-200 shadow-sm inline-block">
+                                <div className="mt-3 px-4 py-2 bg-[var(--bg-surface)] rounded-lg border border-green-200 shadow-sm inline-block">
                                     <p className="text-sm font-medium text-green-800 flex items-center gap-2">
                                         ✨ New business date: <strong className="text-base">{nextBusinessDate || "Tomorrow"}</strong>
                                     </p>

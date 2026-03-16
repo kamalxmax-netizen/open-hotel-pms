@@ -244,7 +244,7 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
                             setInputValue("")
                             resetTransient()
                         }}
-                        className={`text-[10px] px-2 py-1 rounded capitalize ${activeTab === tab ? "bg-brand-100 text-brand-700 font-bold" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                        className={`text-[10px] px-2 py-1 rounded capitalize ${activeTab === tab ? "bg-brand-100 text-brand-700 font-bold" : "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"}`}
                     >
                         {tab}
                     </button>
@@ -272,7 +272,7 @@ export function LogbookLinkPicker({ onAddLink, onAddMention, disabled, align = "
                         onClick={() => setRoomLinkMode("static")}
                         className={`rounded px-2 py-1 text-[11px] font-semibold ${
                             roomLinkMode === "static"
-                                ? "bg-slate-200 text-slate-800"
+                                ? "bg-[var(--bg-muted)] text-[var(--text-primary)]"
                                 : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                         }`}
                     >

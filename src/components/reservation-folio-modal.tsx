@@ -287,7 +287,7 @@ export function ReservationFolioModal({
               <div className="mt-4 text-2xl font-semibold text-indigo-800">฿{formatMoney(folio?.summary.deposit_held ?? 0)}</div>
             </div>
             <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-slate-900 bg-slate-900 p-4 text-white">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">Outstanding</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">Outstanding</div>
               <div className="mt-4 text-2xl font-semibold">฿{formatMoney(folio?.summary.outstanding_balance ?? 0)}</div>
             </div>
           </div>
@@ -352,7 +352,7 @@ export function ReservationFolioModal({
                               <span>{row.label}</span>
                               {row.is_record_only ? (
                                 <span
-                                  className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"
+                                  className="rounded-full bg-[var(--bg-surface-hover)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]"
                                   title="This transaction was settled in POS. Shown for reference only."
                                 >
                                   Record Only

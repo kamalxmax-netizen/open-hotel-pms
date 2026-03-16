@@ -470,7 +470,7 @@ export default function InventoryDashboardPage() {
                               </thead>
                               <tbody>
                                 {floorDetails.map((item) => (
-                                  <tr key={`${floorNum}-${item.product_id}`} className="border-b border-slate-50">
+                                  <tr key={`${floorNum}-${item.product_id}`} className="border-b border-[var(--border-subtle)]">
                                     <td className="py-1.5 pr-2 text-[var(--text-table-cell)]">{item.product_name ?? "Unknown"}</td>
                                     <td className="py-1.5 pr-2 text-right font-semibold text-[var(--text-primary)]">{item.quantity}</td>
                                     <td className="py-1.5 text-[var(--text-secondary)]">{item.unit ?? "-"}</td>
@@ -564,7 +564,7 @@ export default function InventoryDashboardPage() {
                         {group.products.map((product) => (
                           <tr
                             key={`${group.category}-${product.product_id ?? product.product_name ?? "unknown"}`}
-                            className="border-b border-slate-50 hover:bg-[var(--bg-body)]/70"
+                            className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)]/70"
                           >
                             <td className="py-2.5 px-4">
                               <p className="font-semibold text-[var(--text-primary)]">{product.product_name ?? "Unknown Product"}</p>

@@ -594,7 +594,7 @@ export default function TimelineView({
   return (
     <div className="bg-[var(--bg-surface)] border text-sm border-[var(--border-default)] rounded-2xl shadow-sm overflow-hidden flex flex-col">
       <div className="px-4 py-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] flex items-center justify-between">
-        <h3 className="font-bold text-slate-800">Timeline View ({timeRangeLabel})</h3>
+        <h3 className="font-bold text-[var(--text-primary)]">Timeline View ({timeRangeLabel})</h3>
         {selectedIsToday && isClientTimeReady && (
           <span className="text-xs font-semibold text-[var(--text-secondary)]">
             Now: {new Date(tickNowMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
@@ -803,7 +803,7 @@ export default function TimelineView({
                 <div className="w-24 shrink-0 font-bold text-[var(--text-table-cell)] text-xs">{lane.label}</div>
 
                 <div
-                  className="relative h-10 rounded-lg border border-[var(--border-default)] bg-slate-50/70 overflow-hidden"
+                  className="relative h-10 rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)]/70 overflow-hidden"
                   style={{ width: TRACK_WIDTH_PX }}
                   onDragOver={(e) => {
                     if (!onAssignDrop) return;
@@ -847,7 +847,7 @@ export default function TimelineView({
                   {workHours.slice(1, -1).map((hour) => (
                     <div
                       key={`${lane.key}-grid-${hour}`}
-                      className="absolute top-0 bottom-0 border-l border-slate-200/70"
+                      className="absolute top-0 bottom-0 border-l border-[var(--border-default)]/70"
                       style={{ left: (hour - WORK_START_HOUR) * 60 * MIN_TO_PX }}
                     />
                   ))}
@@ -863,7 +863,7 @@ export default function TimelineView({
                   {gaps.map((gap) => (
                     <div
                       key={gap.key}
-                      className="absolute top-1 bottom-1 rounded-md border border-dashed border-slate-300/70 z-0 opacity-35 hover:opacity-80 transition"
+                      className="absolute top-1 bottom-1 rounded-md border border-dashed border-[var(--border-input)]/70 z-0 opacity-35 hover:opacity-80 transition"
                       style={{
                         left: gap.leftPx,
                         width: gap.widthPx,

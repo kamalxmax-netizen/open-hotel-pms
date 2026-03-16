@@ -571,7 +571,7 @@ export default function FoPreparePage() {
                       <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepare Qty</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--border-subtle)]">
                     {suggestions.map((row) => {
                       const key = prepareKey(row);
                       return (
@@ -727,7 +727,7 @@ export default function FoPreparePage() {
                           <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Line Note</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-[var(--border-subtle)]">
                         {batchDetail.items.map((row) => (
                           <tr key={row.id}>
                             <td className="px-4 py-2.5 font-medium text-[var(--text-table-cell)]">Floor {row.floor_number}</td>
@@ -737,7 +737,7 @@ export default function FoPreparePage() {
                             </td>
                             <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.prepared_qty}</td>
                             <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.used_qty}</td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-slate-800">
+                            <td className="px-4 py-2.5 text-right font-semibold text-[var(--text-primary)]">
                               {row.suggested_remaining}
                             </td>
                             <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.floor_current_qty}</td>

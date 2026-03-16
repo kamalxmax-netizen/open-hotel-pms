@@ -524,7 +524,7 @@ function RoomCard({
 
                     {/* Detail mode: guest name */}
                     {viewMode === "detail" && isReserved && room.guest_name && (
-                        <p className="text-[10px] font-semibold text-slate-800 mt-1 truncate leading-tight">
+                        <p className="text-[10px] font-semibold text-[var(--text-primary)] mt-1 truncate leading-tight">
                             {room.guest_name}
                         </p>
                     )}
@@ -637,7 +637,7 @@ function RoomCard({
                     </div>
                     {isReserved && (
                         <div className="mt-1.5 space-y-0.5">
-                            {room.guest_name && <p className="text-xs font-semibold text-slate-800">{room.guest_name}</p>}
+                            {room.guest_name && <p className="text-xs font-semibold text-[var(--text-primary)]">{room.guest_name}</p>}
                             {room.booking_code && <p className="text-[10px] text-[var(--text-secondary)] font-mono">{room.booking_code}</p>}
                             {room.guest_checkin_date && (
                                 <p className="text-[10px] text-[var(--text-muted)]">
@@ -1304,7 +1304,7 @@ export default function BoardPage() {
             {loading && (
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
                     {Array.from({ length: 24 }).map((_, i) => (
-                        <div key={i} className="h-[100px] animate-pulse rounded-xl bg-slate-200" />
+                        <div key={i} className="h-[100px] animate-pulse rounded-xl bg-[var(--bg-muted)]" />
                     ))}
                 </div>
             )}
@@ -1457,7 +1457,7 @@ export default function BoardPage() {
                         className="w-full bg-[var(--bg-surface)] rounded-t-2xl p-5 pb-8 shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="w-8 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
+                        <div className="w-8 h-1 bg-[var(--bg-muted)] rounded-full mx-auto mb-4" />
                         {(() => {
                             const r = mobileSheet;
                             const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.closed;
@@ -1484,7 +1484,7 @@ export default function BoardPage() {
                                     </div>
                                     {r.status === "reserved" && (
                                         <div className="space-y-1 mb-4">
-                                            {r.guest_name && <p className="text-sm font-semibold text-slate-800">{r.guest_name}</p>}
+                                            {r.guest_name && <p className="text-sm font-semibold text-[var(--text-primary)]">{r.guest_name}</p>}
                                             {r.booking_code && <p className="text-xs font-mono text-[var(--text-secondary)]">{r.booking_code}</p>}
                                             {r.guest_checkin_date && (
                                                 <p className="text-xs text-[var(--text-muted)]">

@@ -235,7 +235,7 @@ export default function TransactionsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {filteredTx.map(tx => {
-                                    const actionInfo = ACTION_LABELS[tx.action] ?? { label: tx.action, color: "bg-slate-100 text-slate-600" };
+                                    const actionInfo = ACTION_LABELS[tx.action] ?? { label: tx.action, color: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" };
                                     const isNegative = tx.quantity_change < 0;
                                     return (
                                         <tr key={tx.id} className="hover:bg-[var(--bg-body)] transition-colors">

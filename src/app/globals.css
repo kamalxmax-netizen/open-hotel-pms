@@ -23,6 +23,15 @@
   --text-table-cell: #334155;
   --overlay-bg: rgba(15, 23, 42, 0.4);
   --modal-overlay-bg: rgba(15, 23, 42, 0.5);
+
+  /* ─── Day-Use semantic colors ─── */
+  --dayuse-text: #e11d48;
+  --dayuse-text-secondary: #be123c;
+  --dayuse-bg: #fff1f2;
+  --dayuse-border: #fecdd3;
+
+  /* ─── Toggle switch ─── */
+  --toggle-off: #cbd5e1;
 }
 
 html.dark {
@@ -42,6 +51,13 @@ html.dark {
   --text-table-cell: #c0c8d4;
   --overlay-bg: rgba(0, 0, 0, 0.6);
   --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+
+  --dayuse-text: #fb7185;
+  --dayuse-text-secondary: #f43f5e;
+  --dayuse-bg: rgba(159, 18, 57, 0.15);
+  --dayuse-border: rgba(159, 18, 57, 0.3);
+
+  --toggle-off: #3a4450;
 }
 
 body {
@@ -234,7 +250,8 @@ html.dark .form-input:disabled {
 .form-input[aria-invalid="true"],
 .form-select[aria-invalid="true"],
 .form-textarea[aria-invalid="true"] {
-  @apply !border-rose-300 !bg-rose-100 text-slate-900 placeholder:text-slate-400;
+  @apply !border-rose-300 !bg-rose-100;
+  color: var(--text-primary);
 }
 .form-input:user-invalid:focus,
 .form-select:user-invalid:focus,
@@ -251,7 +268,18 @@ textarea:user-invalid,
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"])[aria-invalid="true"],
 select[aria-invalid="true"],
 textarea[aria-invalid="true"] {
-  @apply !border-rose-300 !bg-rose-100 text-slate-900 placeholder:text-slate-400;
+  @apply !border-rose-300 !bg-rose-100;
+  color: var(--text-primary);
+}
+
+/* Dark mode validation styles */
+html.dark .form-input:user-invalid,
+html.dark .form-select:user-invalid,
+html.dark .form-textarea:user-invalid,
+html.dark .form-input[aria-invalid="true"],
+html.dark .form-select[aria-invalid="true"],
+html.dark .form-textarea[aria-invalid="true"] {
+  @apply !border-rose-700 !bg-rose-950/40;
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):user-invalid:focus,
 select:user-invalid:focus,

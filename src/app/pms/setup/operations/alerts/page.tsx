@@ -281,7 +281,7 @@ export default function AlertTemplatesSetupPage() {
                 <tr key={item.id}>
                   <td className="font-mono font-semibold">{item.code}</td>
                   <td>
-                    <div className="font-semibold text-slate-800">{item.name}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{item.name}</div>
                     {item.description && <div className="text-xs text-[var(--text-secondary)]">{item.description}</div>}
                   </td>
                   <td className="capitalize">{item.category}</td>

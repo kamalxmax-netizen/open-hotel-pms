@@ -1166,14 +1166,14 @@ export default function RoomMoveModal({
                         <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
                             <div className="border-b border-[var(--border-default)] px-4 py-3 flex items-center justify-between gap-3">
                                 <div>
-                                    <p className="font-semibold text-slate-800">Existing Planned Moves</p>
+                                    <p className="font-semibold text-[var(--text-primary)]">Existing Planned Moves</p>
                                     <p className="text-xs text-[var(--text-secondary)]">Future room segments for this reservation</p>
                                 </div>
                                 {!planPossible && (
                                     <span className="badge bg-amber-100 text-amber-700 border border-amber-200">Last-night stay</span>
                                 )}
                             </div>
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y divide-[var(--border-subtle)]">
                                 {loadingMoves ? (
                                     <div className="px-4 py-4 text-sm text-[var(--text-secondary)]">Loading planned moves…</div>
                                 ) : futurePlannedMoves.length === 0 ? (
@@ -1230,7 +1230,7 @@ export default function RoomMoveModal({
                         <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
-                                    <p className="font-semibold text-slate-800">{planEditingId ? "Edit Planned Segment" : "Add Planned Segment"}</p>
+                                    <p className="font-semibold text-[var(--text-primary)]">{planEditingId ? "Edit Planned Segment" : "Add Planned Segment"}</p>
                                     <p className="text-xs text-[var(--text-secondary)]">Use stay-style dates: 2026-03-09 → 2026-03-10 = 1 night. First stay night is excluded, so planning starts from the next night onward.</p>
                                 </div>
                                 {planEditingId && (

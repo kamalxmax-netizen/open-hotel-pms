@@ -118,7 +118,7 @@ const B = "border-r border-[var(--border-default)]";
 const Bi = "border-r border-[var(--border-subtle)]";
 
 function MoneyCell({ v, negativeRed = false, border = "" }: { v: number; negativeRed?: boolean; border?: string }) {
-    if (v === 0) return <td className={`px-2 py-2.5 text-right text-slate-300 ${border}`}>-</td>;
+    if (v === 0) return <td className={`px-2 py-2.5 text-right text-[var(--text-muted)] ${border}`}>-</td>;
     const isNeg = v < 0;
     return (
         <td className={`px-2 py-2.5 text-right font-medium ${isNeg && negativeRed ? "text-rose-600" : "text-[var(--text-table-cell)]"} ${border}`}>
@@ -309,7 +309,7 @@ export default function PaymentDailyPage() {
                     {/* ═══ TODAY'S ROOMS ═══ */}
                     <div className="card overflow-hidden text-sm">
                         <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
-                            <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Today&apos;s Rooms</span>
+                            <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Today&apos;s Rooms</span>
                             <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดชำระสำหรับห้องวันนี้</span>
                         </div>
 
@@ -376,7 +376,7 @@ export default function PaymentDailyPage() {
                                                                 )}
                                                             >
                                                                 <td className={`px-4 py-2 ${B} leading-tight`}>
-                                                                    <span className="font-bold text-slate-800 inline-flex items-center gap-1.5">
+                                                                    <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
                                                                         {tr.room_number}
                                                                         {badge && (
                                                                             <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>
@@ -428,7 +428,7 @@ export default function PaymentDailyPage() {
                                                         )}
                                                     >
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
-                                                            <span className="font-bold text-slate-800 inline-flex items-center gap-1.5">
+                                                            <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
                                                                 NO ROOM
                                                                 {badge && (
                                                                     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>
@@ -467,7 +467,7 @@ export default function PaymentDailyPage() {
                                                 {duRooms.map(tr => (
                                                     <tr key={`du-${tr.room_number}`} className="hover:bg-[var(--bg-body)]/50 transition-colors border-b border-[var(--border-subtle)]">
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
-                                                            <span className="font-bold text-slate-800 block">{tr.room_number}</span>
+                                                            <span className="font-bold text-[var(--text-primary)] block">{tr.room_number}</span>
                                                             <span className="text-xs text-[var(--text-secondary)] block">Day Use</span>
                                                         </td>
                                                         <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
@@ -497,7 +497,7 @@ export default function PaymentDailyPage() {
                                                     </td>
                                                 </tr>
                                                 <tr className="hover:bg-[var(--bg-body)]/50 transition-colors border-b border-[var(--border-subtle)]">
-                                                    <td className={`px-4 py-2.5 ${B} font-bold text-slate-800`}>
+                                                    <td className={`px-4 py-2.5 ${B} font-bold text-[var(--text-primary)]`}>
                                                         POS Direct Sales
                                                     </td>
                                                     <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>
@@ -519,7 +519,7 @@ export default function PaymentDailyPage() {
                                 {/* Today Subtotal */}
                                 <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                     <tr className="font-bold text-sm">
-                                        <td className={`px-4 py-3 ${B} text-slate-800 uppercase`}>Today Subtotal</td>
+                                        <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Today Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.today_subtotal.grand_net)}</td>
                                         <MoneyCell v={data.today_subtotal.cash.payment} border={Bi} />
                                         <MoneyCell v={data.today_subtotal.cash.deposit} border={B} />
@@ -537,7 +537,7 @@ export default function PaymentDailyPage() {
                     {/* ═══ ADVANCE PAYMENTS ═══ */}
                     <div className="card overflow-hidden text-sm">
                         <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
-                            <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Advance Payments</span>
+                            <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Advance Payments</span>
                             <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดรับล่วงหน้า Booking/Reservation อนาคต</span>
                         </div>
 
@@ -558,9 +558,9 @@ export default function PaymentDailyPage() {
                                         >
                                             <td className={`px-4 py-2 ${B} leading-tight`}>
                                                 <div className="flex justify-between items-center mb-0.5">
-                                                    <span className="font-bold text-slate-800">{adv.booking_code}</span>
+                                                    <span className="font-bold text-[var(--text-primary)]">{adv.booking_code}</span>
                                                     {adv.room_number ? (
-                                                        <span className="text-[10px] bg-slate-200 text-[var(--text-table-cell)] px-1.5 py-0.5 rounded font-bold">RM {adv.room_number}</span>
+                                                        <span className="text-[10px] bg-[var(--bg-muted)] text-[var(--text-table-cell)] px-1.5 py-0.5 rounded font-bold">RM {adv.room_number}</span>
                                                     ) : (
                                                         <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">no room</span>
                                                     )}
@@ -585,7 +585,7 @@ export default function PaymentDailyPage() {
                                 {/* Advance Subtotal */}
                                 <tfoot className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)]">
                                     <tr className="font-bold text-sm">
-                                        <td className={`px-4 py-3 ${B} text-slate-800 uppercase`}>Advance Subtotal</td>
+                                        <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Advance Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.advance_subtotal.grand_net)}</td>
                                         <MoneyCell v={data.advance_subtotal.cash.payment} border={Bi} />
                                         <MoneyCell v={data.advance_subtotal.cash.deposit} border={B} />
@@ -626,17 +626,17 @@ export default function PaymentDailyPage() {
                     <div className="card overflow-hidden">
                         <div className="p-5 flex flex-col md:flex-row gap-6 items-start justify-between">
                             <div>
-                                <h3 className="font-bold text-slate-800 mb-1 text-sm uppercase tracking-wider">Cash Reconciliation</h3>
+                                <h3 className="font-bold text-[var(--text-primary)] mb-1 text-sm uppercase tracking-wider">Cash Reconciliation</h3>
                                 <p className="text-[var(--text-secondary)] text-xs max-w-sm">ยอดเงินสดที่ควรมีในลิ้นชักสำหรับวันนี้</p>
                             </div>
                             <div className="bg-[var(--bg-body)] rounded-lg border border-[var(--border-default)] p-4 min-w-[280px]">
                                 <div className="flex justify-between items-center py-1.5">
                                     <span className="text-[var(--text-secondary)] text-sm">Cash Payments</span>
-                                    <span className="text-slate-800 font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_payments)}</span>
+                                    <span className="text-[var(--text-primary)] font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_payments)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-1.5 border-b border-[var(--border-default)] pb-3">
                                     <span className="text-[var(--text-secondary)] text-sm">Cash Deposits</span>
-                                    <span className="text-slate-800 font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_deposits)}</span>
+                                    <span className="text-[var(--text-primary)] font-semibold text-sm">+{fmtMoney(data.reconciliation.cash_deposits)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-1.5 pt-3">
                                     <span className="text-[var(--text-secondary)] text-sm">Cash Refunds</span>
@@ -658,7 +658,7 @@ export default function PaymentDailyPage() {
                     {showDepositRefunds && (
                         <div className="card overflow-hidden text-sm">
                             <div className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
-                                <span className="font-bold text-slate-800 uppercase tracking-wider text-sm">Deposit Refunds (Info Only)</span>
+                                <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Deposit Refunds (Info Only)</span>
                                 <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ไม่กระทบ subtotal / grand total / net cash</span>
                             </div>
                             <div className="overflow-x-auto">

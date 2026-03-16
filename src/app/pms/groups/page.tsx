@@ -173,7 +173,7 @@ export default function GroupsPage() {
             {loading ? (
                 <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-200" />
+                        <div key={i} className="h-16 animate-pulse rounded-xl bg-[var(--bg-muted)]" />
                     ))}
                 </div>
             ) : groups.length === 0 ? (
@@ -203,7 +203,7 @@ export default function GroupsPage() {
                                 <th>Created</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-[var(--border-subtle)]">
                             {groups.map((g) => (
                                 <tr
                                     key={g.id}
@@ -219,7 +219,7 @@ export default function GroupsPage() {
                                         </span>
                                     </td>
                                     <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-800">{g.group_name}</div>
+                                        <div className="font-bold text-[var(--text-primary)]">{g.group_name}</div>
                                     </td>
                                     <td className="py-3 px-4">
                                         <div className="text-sm font-medium text-[var(--text-table-cell)]">{g.contact_name || "—"}</div>
@@ -229,18 +229,18 @@ export default function GroupsPage() {
                                         {g.source}
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${g.reservations_count > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500"
+                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${g.reservations_count > 0 ? "bg-indigo-100 text-indigo-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"
                                             }`}>
                                             {g.reservations_count}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <div className="font-bold text-slate-800">฿{(g.total_price || 0).toLocaleString()}</div>
+                                        <div className="font-bold text-[var(--text-primary)]">฿{(g.total_price || 0).toLocaleString()}</div>
                                     </td>
                                     <td className="py-3 px-4">
                                         <span className={`badge ${g.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
                                             g.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                                'bg-slate-100 text-slate-600'
+                                                'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]'
                                             }`}>
                                             {g.status.toUpperCase()}
                                         </span>
@@ -279,7 +279,7 @@ export default function GroupsPage() {
             )}
 
             {selectedGroupId && detailLoading && (
-                <div className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[2px] flex items-center justify-center">
+                <div className="fixed inset-0 z-40 bg-[var(--overlay-bg)] backdrop-blur-[2px] flex items-center justify-center">
                     <div className="bg-[var(--bg-surface)] p-6 rounded-xl shadow-xl flex items-center gap-3">
                         <span className="animate-spin text-xl">⏳</span> Loading Group Data...
                     </div>

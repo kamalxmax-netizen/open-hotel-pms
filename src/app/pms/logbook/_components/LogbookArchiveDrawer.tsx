@@ -40,7 +40,7 @@ export function LogbookArchiveDrawer({
 
   return (
     <div className="fixed inset-0 z-[90]">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-[var(--overlay-bg)]" onClick={onClose} />
       <div className="absolute right-0 top-0 h-full w-full max-w-[440px] border-l border-[var(--border-default)] bg-[var(--bg-surface)] shadow-2xl">
         <div className="flex h-full flex-col">
           <div className="border-b border-[var(--border-default)] px-4 py-4">
@@ -96,7 +96,7 @@ export function LogbookArchiveDrawer({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                          <span className="rounded-full bg-[var(--bg-surface-hover)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                             {note.note_type}
                           </span>
                           {note.remind_at ? (

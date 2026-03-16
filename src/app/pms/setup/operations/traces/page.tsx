@@ -203,7 +203,7 @@ export default function TraceTemplatesSetupPage() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id}>
-                  <td className="font-semibold text-slate-800">{item.name}</td>
+                  <td className="font-semibold text-[var(--text-primary)]">{item.name}</td>
                   <td>{item.dept}</td>
                   <td className="text-sm text-[var(--text-secondary)]">{item.template_text}</td>
                   <td>{item.is_active ? "Active" : "Inactive"}</td>

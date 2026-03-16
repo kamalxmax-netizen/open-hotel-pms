@@ -20,14 +20,14 @@ export function Switch({ checked = false, onCheckedChange, disabled, className }
       disabled={disabled}
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full transition disabled:opacity-50",
-        checked ? "bg-brand-600" : "bg-slate-300",
+        checked ? "bg-brand-600" : "bg-[var(--bg-muted)]",
         className
       )}
       onClick={() => onCheckedChange?.(!checked)}
     >
       <span
         className={cn(
-          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
+          "inline-block h-5 w-5 transform rounded-full bg-[var(--bg-surface)] shadow transition",
           checked ? "translate-x-5" : "translate-x-0.5"
         )}
       />

@@ -37,7 +37,7 @@ type Reservation = {
 const STATUS_STYLE: Record<ResStatus, string> = {
     active: "bg-emerald-100 text-emerald-700",
     cancelled: "bg-rose-100 text-rose-600",
-    checked_out: "bg-slate-100 text-slate-500",
+    checked_out: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]",
     no_show: "bg-amber-100 text-amber-700"
 };
 const STATUS_LABEL: Record<ResStatus, string> = {
@@ -378,7 +378,7 @@ export default function ReservationsPage() {
                                     </td>
                                     <td>
                                         <div className="flex items-center gap-2">
-                                            <div className="font-semibold text-slate-800">{r.guest_name}</div>
+                                            <div className="font-semibold text-[var(--text-primary)]">{r.guest_name}</div>
                                             {r.booking_group_id && (
                                                 <Link
                                                     href={`/pms/groups?group_id=${r.booking_group_id}`}
@@ -392,7 +392,7 @@ export default function ReservationsPage() {
                                         {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                     </td>
                                     <td>
-                                        <span className={`badge ${SOURCE_COLOR[r.source] ?? "bg-slate-100 text-slate-600"}`}>
+                                        <span className={`badge ${SOURCE_COLOR[r.source] ?? "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]"}`}>
                                             {SOURCE_LABEL[r.source] ?? r.source}
                                         </span>
                                     </td>
@@ -412,7 +412,7 @@ export default function ReservationsPage() {
                                     </td>
                                     <td className="text-sm text-center font-medium">{r.nights}</td>
                                     <td>
-                                        <span className="font-semibold text-slate-800">฿{fmt(r.total_price)}</span>
+                                        <span className="font-semibold text-[var(--text-primary)]">฿{fmt(r.total_price)}</span>
                                     </td>
                                     <td>
                                         <span className={`badge ${STATUS_STYLE[r.status]}`}>

@@ -536,10 +536,10 @@ export default function AccountingPage() {
               </thead>
               <tbody>
                 {(report?.transfers ?? []).map((row) => (
-                  <tr key={row.transfer_id} className="border-b border-slate-50">
+                  <tr key={row.transfer_id} className="border-b border-[var(--border-subtle)]">
                     <td className="py-2">{row.date}</td>
                     <td className="py-2">
-                      <p className="font-medium text-slate-800">{row.guest_name}</p>
+                      <p className="font-medium text-[var(--text-primary)]">{row.guest_name}</p>
                       <p className="text-xs text-[var(--text-muted)]">{row.booking_code ?? "-"}</p>
                     </td>
                     <td className="py-2">{row.room_number ?? "-"}</td>
@@ -580,7 +580,7 @@ export default function AccountingPage() {
             </thead>
             <tbody>
               {commissions.map((row) => (
-                <tr key={row.id} className="border-b border-slate-50">
+                <tr key={row.id} className="border-b border-[var(--border-subtle)]">
                   <td className="py-2">{formatDateTime(row.created_at)}</td>
                   <td className="py-2 text-xs">{row.transfer_id}</td>
                   <td className="py-2">{row.staff_name}</td>
@@ -671,7 +671,7 @@ export default function AccountingPage() {
               </thead>
               <tbody>
                 {transferTxRows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-50">
+                  <tr key={row.id} className="border-b border-[var(--border-subtle)]">
                     <td className="py-2">
                       <p>{row.transaction_date}</p>
                       <p className="text-xs text-[var(--text-muted)]">{formatDateTime(row.created_at)}</p>
@@ -803,7 +803,7 @@ export default function AccountingPage() {
               </thead>
               <tbody>
                 {tips.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-50">
+                  <tr key={row.id} className="border-b border-[var(--border-subtle)]">
                     <td className="py-2">{formatDateTime(row.created_at)}</td>
                     <td className="py-2 capitalize">{row.tip_type.replace("_", " ")}</td>
                     <td className="py-2">{row.assigned_to ?? "-"}</td>

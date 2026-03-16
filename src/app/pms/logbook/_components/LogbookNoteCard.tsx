@@ -725,7 +725,7 @@ export function LogbookNoteCard({
                         ? "bg-purple-200 text-purple-800"
                         : link.link_type === "stock"
                           ? "bg-blue-200 text-blue-800"
-                          : "bg-slate-200 text-[var(--text-primary)]"
+                          : "bg-[var(--bg-muted)] text-[var(--text-primary)]"
                   }`}
                   onClick={() => void openLink(link)}
                 >

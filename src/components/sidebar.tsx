@@ -186,7 +186,7 @@ export default function Sidebar() {
                     <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
                     <button
                         onClick={() => setTheme(isDark ? "light" : "dark")}
-                        className="p-1 rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="p-1 rounded-md transition-colors hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800"
                         style={{ color: "var(--text-muted)" }}
                         title={isDark ? "Light mode" : "Dark mode"}
                     >
@@ -195,7 +195,7 @@ export default function Sidebar() {
                 </div>
                 <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                 >
                     <LogoutIcon />
                     ออกจากระบบ

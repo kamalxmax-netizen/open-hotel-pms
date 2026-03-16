@@ -803,7 +803,7 @@ export default function LogbookPage() {
     <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#f8f9fa]">
       <div className="z-50 flex flex-none items-center justify-between gap-4 overflow-x-auto border-b bg-[var(--bg-surface)] p-3 shadow-sm sm:p-4">
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <h1 className="text-lg font-bold text-slate-800 sm:text-xl">Logbook</h1>
+          <h1 className="text-lg font-bold text-[var(--text-primary)] sm:text-xl">Logbook</h1>
           <LogbookFilterBar filterType={filterType} setFilterType={setFilterType} />
         </div>
 
@@ -841,7 +841,7 @@ export default function LogbookPage() {
         ) : notes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="max-w-md rounded-lg border bg-[var(--bg-surface)] p-5 text-center shadow-sm">
-              <p className="text-sm font-semibold text-slate-800">No notes yet</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">No notes yet</p>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Start with your first post-it note. You can drag, resize, link, mention, archive, and restore.
               </p>

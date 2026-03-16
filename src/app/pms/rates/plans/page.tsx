@@ -165,7 +165,7 @@ export default function RatePlansPage() {
                     <span className="font-bold text-[var(--text-primary)]">{plan.code}</span>
                   </td>
                   <td>
-                    <div className="font-semibold text-slate-800">{plan.name_en}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{plan.name_en}</div>
                     {plan.name_th && <div className="text-xs text-[var(--text-muted)]">{plan.name_th}</div>}
                   </td>
                   <td>
@@ -178,7 +178,7 @@ export default function RatePlansPage() {
                     {plan.access_summary?.label ?? "Public"}
                   </td>
                   <td>
-                    <span className={`badge ${plan.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                    <span className={`badge ${plan.is_active ? "bg-emerald-100 text-emerald-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"}`}>
                       {plan.is_active ? "Active" : "Inactive"}
                     </span>
                   </td>

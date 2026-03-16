@@ -124,9 +124,9 @@ export default function DayUseExtendModal({
       }
     >
       <form id="dayuse-extend-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-lg border border-[#fecdd3] bg-[#fff1f2] px-3 py-2 text-sm">
+        <div className="rounded-lg border border-[var(--dayuse-border)] bg-[var(--dayuse-bg)] px-3 py-2 text-sm">
           <div className="font-semibold text-[var(--text-primary)]">{guestName || "Day Use Guest"}</div>
-          <div className="text-xs text-[#be123c]">Room {roomNumber}</div>
+          <div className="text-xs text-[var(--dayuse-text-secondary)]">Room {roomNumber}</div>
         </div>
 
         {error && (

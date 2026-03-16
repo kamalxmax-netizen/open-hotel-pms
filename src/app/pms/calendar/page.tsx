@@ -285,11 +285,11 @@ function ReservationDetail({
                     <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-in</p>
-                            <p className="font-bold text-slate-800">{res.checkin_date}</p>
+                            <p className="font-bold text-[var(--text-primary)]">{res.checkin_date}</p>
                         </div>
                         <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-out</p>
-                            <p className="font-bold text-slate-800">{res.checkout_date}</p>
+                            <p className="font-bold text-[var(--text-primary)]">{res.checkout_date}</p>
                         </div>
                     </div>
 
@@ -716,7 +716,7 @@ function CalendarPageInner() {
                     <div className="flex flex-col gap-1.5 ml-4">
                         {data.unassigned.map(res => (
                             <div key={res.reservation_id} className="flex items-center gap-3 bg-[var(--bg-surface)] px-3 py-1.5 rounded border border-amber-100 shadow-sm text-sm">
-                                <span className="font-bold text-slate-800">{res.guest_name}</span>
+                                <span className="font-bold text-[var(--text-primary)]">{res.guest_name}</span>
                                 <span className="text-[var(--text-muted)]">·</span>
                                 <span className="text-brand-600 font-semibold">{res.room_type}</span>
                                 <span className="text-[var(--text-muted)]">·</span>
@@ -748,7 +748,7 @@ function CalendarPageInner() {
                         {loading
                             ? Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="flex items-center px-3 border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
-                                    <div className="h-3 w-20 rounded bg-slate-200 animate-pulse" />
+                                    <div className="h-3 w-20 rounded bg-[var(--bg-muted)] animate-pulse" />
                                 </div>
                             ))
                             : (
@@ -759,7 +759,7 @@ function CalendarPageInner() {
                                             className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]"
                                             style={{ height: ROW_H }}
                                         >
-                                            <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
+                                            <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
                                             <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
                                             {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
                                         </div>
@@ -767,7 +767,7 @@ function CalendarPageInner() {
                                     {dayUseRooms.length > 0 && (
                                         <>
                                             <div
-                                                className="flex items-center px-3 border-b border-t border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[#e11d48]"
+                                                className="flex items-center px-3 border-b border-t border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--dayuse-text)]"
                                                 style={{ height: ROW_H }}
                                             >
                                                 Day Use
@@ -778,8 +778,8 @@ function CalendarPageInner() {
                                                     className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-rose-50/20"
                                                     style={{ height: ROW_H }}
                                                 >
-                                                    <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
-                                                    <span className="text-[9px] text-[#e11d48] font-bold uppercase truncate">Day Use</span>
+                                                    <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
+                                                    <span className="text-[9px] text-[var(--dayuse-text)] font-bold uppercase truncate">Day Use</span>
                                                     {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
                                                 </div>
                                             ))}
@@ -838,7 +838,7 @@ function CalendarPageInner() {
                                                         key={day}
                                                         className={`flex-shrink-0 border-r border-[var(--border-subtle)] cursor-pointer transition-colors ${
                                                             day === today ? "bg-brand-50/30" : isWeekend(day) ? "bg-rose-50/20" : "hover:bg-[var(--bg-body)]"
-                                                        } ${!room.is_sellable ? "bg-slate-100/60" : ""}`}
+                                                        } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                         style={{ width: COL_W, height: ROW_H }}
                                                         onClick={() => {
                                                             if (!room.is_sellable) return;
@@ -920,7 +920,7 @@ function CalendarPageInner() {
 
                                                 {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight }) => {
                                                     const isCheckedOut = res.status === "checked_out";
-                                                    const sc = isCheckedOut ? { bar: "bg-slate-300", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
+                                                    const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                     const groupId = res.booking_group_id ? String(res.booking_group_id) : null;
                                                     const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && groupId === hoverGroupId;
                                                     const shouldFadeGroup = focusReservationId
@@ -951,7 +951,7 @@ function CalendarPageInner() {
                                                                 <span className="flex items-center gap-1">
                                                                     {isCheckedOut && <span className="opacity-80">✓</span>}
                                                                     {res.guest_name}
-                                                                    {isCheckedOut && width > 120 && <span className="ml-1 text-[9px] bg-white/30 rounded px-1">CO</span>}
+                                                                    {isCheckedOut && width > 120 && <span className="ml-1 text-[9px] bg-[var(--bg-surface)]/30 rounded px-1">CO</span>}
                                                                 </span>
                                                             ) : null}
                                                             {(res.alert_count ?? 0) > 0 && (
@@ -976,7 +976,7 @@ function CalendarPageInner() {
                                     {dayUseRooms.length > 0 && (
                                         <>
                                             <div className="flex border-b border-t border-[var(--border-default)] bg-[var(--bg-body)]" style={{ height: ROW_H }}>
-                                                <div className="px-2 flex items-center text-[10px] font-bold uppercase tracking-wide text-[#e11d48]">Day Use</div>
+                                                <div className="px-2 flex items-center text-[10px] font-bold uppercase tracking-wide text-[var(--dayuse-text)]">Day Use</div>
                                             </div>
                                             {dayUseRooms.map((room) => {
                                                 const roomBlocks = getBlocksForRoom(room);
@@ -987,7 +987,7 @@ function CalendarPageInner() {
                                                             return (
                                                                 <div
                                                                     key={day}
-                                                                    className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-slate-100/60" : ""}`}
+                                                                    className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                                     style={{ width: COL_W, height: ROW_H }}
                                                                     title="Use Room Diary board for Day Use actions"
                                                                 >

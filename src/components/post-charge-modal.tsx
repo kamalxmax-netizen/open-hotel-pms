@@ -194,7 +194,7 @@ export function PostChargeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-0">
       <div className="w-full max-w-md bg-[var(--bg-surface)] rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-4 py-3 border-b bg-[var(--bg-body)]">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
             Post Extra Charge
           </h2>
           <button

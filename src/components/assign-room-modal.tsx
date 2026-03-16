@@ -193,7 +193,7 @@ export default function AssignRoomModal({
                 <div className="bg-[var(--bg-body)] border border-[var(--border-default)] rounded-xl p-4 flex flex-col gap-2">
                     <div className="flex justify-between items-start gap-4">
                         <div>
-                            <h3 className="font-bold text-slate-800 text-lg">{guestName}</h3>
+                            <h3 className="font-bold text-[var(--text-primary)] text-lg">{guestName}</h3>
                             <p className="text-sm text-brand-600 font-semibold">{roomTypeName}</p>
                             {isSwapMode && currentRoomNumber && (
                                 <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -255,7 +255,7 @@ export default function AssignRoomModal({
                                 >
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-lg text-slate-800">Room {room.room_number}</span>
+                                            <span className="font-bold text-lg text-[var(--text-primary)]">Room {room.room_number}</span>
                                             {room.score > 0 && (
                                                 <span className="badge bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
                                                     Match {Math.round((room.score / (preferences.length || 1)) * 100)}%

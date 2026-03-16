@@ -18,7 +18,7 @@ export function LogbookFilterBar({ filterType, setFilterType }: LogbookFilterBar
     ]
 
     return (
-        <div className="flex bg-slate-100 p-1 rounded-lg">
+        <div className="flex bg-[var(--bg-surface-hover)] p-1 rounded-lg">
             {tabs.map(tab => (
                 <button
                     key={tab.value}

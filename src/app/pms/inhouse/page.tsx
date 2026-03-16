@@ -228,7 +228,7 @@ export default function InHousePage() {
             {loading && (
                 <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-200" />
+                        <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--bg-muted)]" />
                     ))}
                 </div>
             )}
@@ -277,7 +277,7 @@ export default function InHousePage() {
                                     </td>
                                     <td>
                                         <div className="flex items-center gap-2">
-                                            <div className="font-semibold text-slate-800">{r.guest_name}</div>
+                                            <div className="font-semibold text-[var(--text-primary)]">{r.guest_name}</div>
                                             {r.booking_group_id && (
                                                 <Link
                                                     href={`/pms/groups?group_id=${r.booking_group_id}`}
@@ -318,7 +318,7 @@ export default function InHousePage() {
                                         </span>
                                     </td>
                                     <td>
-                                        <span className="font-semibold text-slate-800">฿{fmt(r.total_price)}</span>
+                                        <span className="font-semibold text-[var(--text-primary)]">฿{fmt(r.total_price)}</span>
                                     </td>
                                     <td>
                                         <div className="flex gap-1 flex-wrap">
@@ -370,11 +370,11 @@ export default function InHousePage() {
             {!loading && dayUseReservations.length > 0 && (
                 <div className="mt-8 border-t-2 border-dashed border-[var(--border-default)] pt-6">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-sm font-bold uppercase tracking-widest text-[#e11d48]">Day Use In-House</p>
+                        <p className="text-sm font-bold uppercase tracking-widest text-[var(--dayuse-text)]">Day Use In-House</p>
                     </div>
-                    <div className="card overflow-hidden border-[#fecdd3]">
+                    <div className="card overflow-hidden border-[var(--dayuse-border)]">
                         <table className="data-table">
-                            <thead className="bg-[#fff1f2] text-[#be123c]">
+                            <thead className="bg-[var(--dayuse-bg)] text-[var(--dayuse-text-secondary)]">
                                 <tr>
                                     <th>Room</th>
                                     <th>Guest</th>
@@ -388,19 +388,19 @@ export default function InHousePage() {
                                     <tr key={r.id} className="hover:bg-rose-50/50">
                                         <td>
                                             <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
-                                            <div className="text-[10px] uppercase font-bold text-[#e11d48]">Day Use</div>
+                                            <div className="text-[10px] uppercase font-bold text-[var(--dayuse-text)]">Day Use</div>
                                         </td>
                                         <td>
-                                            <div className="font-semibold text-slate-800">{r.guest_name}</div>
+                                            <div className="font-semibold text-[var(--text-primary)]">{r.guest_name}</div>
                                             {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                         </td>
                                         <td className="w-1/4 min-w-[140px]">
-                                            <div className="bg-[var(--bg-surface)] border border-[#fecdd3] rounded-lg p-2 inline-block shadow-sm">
+                                            <div className="bg-[var(--bg-surface)] border border-[var(--dayuse-border)] rounded-lg p-2 inline-block shadow-sm">
                                                 <DayUseTimer expiresAt={r.dayuse_expires_at} />
                                             </div>
                                         </td>
                                         <td>
-                                            <span className="font-semibold text-slate-800">฿{fmt(r.total_price)}</span>
+                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(r.total_price)}</span>
                                         </td>
                                         <td>
                                             <div className="flex gap-2 flex-wrap">
@@ -411,7 +411,7 @@ export default function InHousePage() {
                                                     Extend
                                                 </button>
                                                 <button
-                                                    className="btn btn-primary btn-sm bg-[#e11d48] hover:bg-[#be123c] border-none shadow-md shadow-rose-600/20"
+                                                    className="btn btn-primary btn-sm bg-[var(--dayuse-text)] hover:bg-[var(--dayuse-text-secondary)] border-none shadow-md shadow-rose-600/20"
                                                     onClick={() => handleDayUseCheckout(r.id, r.room_number)}
                                                 >
                                                     Check-Out

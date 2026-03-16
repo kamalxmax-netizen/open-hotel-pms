@@ -277,7 +277,7 @@ export default function MaintenanceDashboard() {
             {/* Main Content */}
             {isLoading ? (
                 <div className="space-y-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-32 animate-pulse rounded-xl bg-slate-200" />)}
+                    {[1, 2, 3].map(i => <div key={i} className="h-32 animate-pulse rounded-xl bg-[var(--bg-muted)]" />)}
                 </div>
             ) : (
                 <div className="pb-8">
@@ -291,7 +291,7 @@ export default function MaintenanceDashboard() {
                                 return (
                                     <div key={floor || 'unknown'}>
                                         <div className="flex items-center gap-2 mb-3">
-                                            <span className="w-7 h-7 rounded bg-slate-200 flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">
+                                            <span className="w-7 h-7 rounded bg-[var(--bg-muted)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">
                                                 {floor || "?"}
                                             </span>
                                             <h3 className="font-bold text-[var(--text-secondary)]">Floor {floor || 'Other'}</h3>

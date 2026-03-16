@@ -341,13 +341,13 @@ export default function ProductsPage() {
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div
                             key={i}
-                            className="h-16 animate-pulse rounded-xl bg-slate-200"
+                            className="h-16 animate-pulse rounded-xl bg-[var(--bg-muted)]"
                         />
                     ))}
                 </div>
             ) : filteredProducts.length === 0 ? (
                 <div className="text-center py-16 bg-[var(--bg-body)] border-2 border-dashed rounded-xl">
-                    <PackageIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <PackageIcon className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
                     {products.length === 0 ? (
                         <>
                             <h3 className="text-lg font-medium text-[var(--text-table-cell)]">
@@ -408,7 +408,7 @@ export default function ProductsPage() {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-[var(--border-subtle)]">
                                 {filteredProducts.map((product) => (
                                     <tr
                                         key={product.id}

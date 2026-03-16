@@ -221,14 +221,14 @@ export default function MaintenanceLogsPage() {
                                 <th className="px-4 py-3">Notes</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-[var(--border-subtle)]">
                             {paginatedLogs.length > 0 ? paginatedLogs.map((log, idx) => (
-                                <tr key={log.id} className={`hover:bg-slate-50/80 transition-colors ${idx % 2 === 1 ? "bg-slate-50/40" : ""}`}>
+                                <tr key={log.id} className={`hover:bg-[var(--bg-body)]/80 transition-colors ${idx % 2 === 1 ? "bg-[var(--bg-body)]/40" : ""}`}>
                                     <td className="px-4 py-3 whitespace-nowrap text-[var(--text-secondary)] text-xs">
                                         {formatThaiDateTime(log.performed_at)}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className="font-bold text-slate-800">{log.room_number || '-'}</span>
+                                        <span className="font-bold text-[var(--text-primary)]">{log.room_number || '-'}</span>
                                     </td>
                                     <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{log.task_name || '-'}</td>
                                     <td className="px-4 py-3 text-center">
@@ -244,14 +244,14 @@ export default function MaintenanceLogsPage() {
                                                 <span className="line-clamp-2">{log.notes}</span>
                                             </span>
                                         ) : (
-                                            <span className="text-slate-300 text-xs">-</span>
+                                            <span className="text-[var(--text-muted)] text-xs">-</span>
                                         )}
                                     </td>
                                 </tr>
                             )) : !isLoading && (
                                 <tr>
                                     <td colSpan={6} className="px-4 py-16 text-center">
-                                        <HistoryIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                        <HistoryIcon className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-2" />
                                         <p className="text-[var(--text-secondary)] font-medium">No maintenance history found</p>
                                         <p className="text-xs text-[var(--text-muted)] mt-1">Try adjusting your filters or date range.</p>
                                     </td>
@@ -260,7 +260,7 @@ export default function MaintenanceLogsPage() {
                             {isLoading && (
                                 <tr>
                                     <td colSpan={6} className="px-4 py-16 text-center">
-                                        <RefreshCwIcon className="w-6 h-6 animate-spin mx-auto text-slate-300" />
+                                        <RefreshCwIcon className="w-6 h-6 animate-spin mx-auto text-[var(--text-muted)]" />
                                     </td>
                                 </tr>
                             )}

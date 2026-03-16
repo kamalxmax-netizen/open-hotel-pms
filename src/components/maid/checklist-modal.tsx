@@ -138,7 +138,7 @@ export default function ChecklistModal({
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-2 -mr-2 rounded-full text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-slate-200 transition-colors"
+            className="p-2 -mr-2 rounded-full text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
           >
             <X size={20} />
           </button>

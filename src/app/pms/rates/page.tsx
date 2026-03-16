@@ -75,7 +75,7 @@ function PriceCell({
 
     const baseClass = `h-full w-full flex items-center justify-center text-xs font-semibold transition cursor-pointer
     ${isToday ? "bg-brand-50" : weekend ? "bg-rose-50/60" : "bg-[var(--bg-surface)]"}
-    ${price === null ? "text-slate-300" : "text-slate-800"}
+    ${price === null ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}
     hover:bg-brand-100`;
 
     if (saving) return <div className={baseClass}><span className="animate-spin text-brand-500">↻</span></div>;
@@ -97,7 +97,7 @@ function PriceCell({
 
     return (
         <div className={baseClass} onClick={() => { setEditing(true); setVal(String(price ?? "")); }}>
-            {price === null ? <span className="text-[10px] text-slate-300">+ Set</span> : `฿${fmt(price)}`}
+            {price === null ? <span className="text-[10px] text-[var(--text-muted)]">+ Set</span> : `฿${fmt(price)}`}
         </div>
     );
 }
@@ -382,7 +382,7 @@ export default function RatesPage() {
                 <div className="ml-auto flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                     <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-rose-200 inline-block" />Weekend</span>
                     <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded bg-brand-100 inline-block" />Today</span>
-                    <span className="text-slate-300">Click cell to edit rate</span>
+                    <span className="text-[var(--text-muted)]">Click cell to edit rate</span>
                 </div>
             </div>
 
@@ -400,7 +400,7 @@ export default function RatesPage() {
                         {loading
                             ? Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="border-b border-[var(--border-subtle)] flex items-center px-3" style={{ height: ROW_H }}>
-                                    <div className="h-3 w-16 rounded bg-slate-200 animate-pulse" />
+                                    <div className="h-3 w-16 rounded bg-[var(--bg-muted)] animate-pulse" />
                                 </div>
                             ))
                             : (data?.room_types ?? []).flatMap((rt) => [
@@ -417,7 +417,7 @@ export default function RatesPage() {
                                         className="border-b border-[var(--border-subtle)] flex items-center px-3 bg-[var(--bg-surface)]"
                                         style={{ height: ROW_H }}
                                     >
-                                        <span className="text-sm font-bold text-slate-800">{room.room_number}</span>
+                                        <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
                                     </div>
                                 ))
                             ])
@@ -469,7 +469,7 @@ export default function RatesPage() {
                               ${isToday ? "bg-brand-900/40" : isWeekend ? "bg-rose-900/20" : ""}`}
                                                     style={{ width: COL_W }}
                                                 >
-                                                    <span className="text-slate-300">{avg !== null ? `฿${avg.toLocaleString("th-TH")}` : "—"}</span>
+                                                    <span className="text-[var(--text-muted)]">{avg !== null ? `฿${avg.toLocaleString("th-TH")}` : "—"}</span>
                                                 </div>
                                             );
                                         })}

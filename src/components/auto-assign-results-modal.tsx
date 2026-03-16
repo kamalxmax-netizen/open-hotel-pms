@@ -27,7 +27,7 @@ export default function AutoAssignResultsModal({ results, onClose }: Props) {
             <div className="bg-[var(--bg-surface)] rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-body)]/50">
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight text-slate-800">Auto-Assign Results</h2>
+                        <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">Auto-Assign Results</h2>
                         <p className="text-sm text-[var(--text-secondary)] mt-1">
                             {successCount} assigned successfully, {failCount} failed.
                         </p>

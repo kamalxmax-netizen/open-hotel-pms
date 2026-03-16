@@ -101,14 +101,14 @@ const DEPT_LABEL: Record<TraceDept, string> = {
 const DEPT_COLOR: Record<TraceDept, string> = {
     FD: "bg-sky-100 text-sky-700", HK: "bg-emerald-100 text-emerald-700",
     MAINT: "bg-amber-100 text-amber-700", MGMT: "bg-violet-100 text-violet-700",
-    OTHER: "bg-slate-100 text-slate-600"
+    OTHER: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]"
 };
 const STATUS_COLOR: Record<TraceStatus, string> = {
-    open: "text-amber-600", done: "text-emerald-600", cancelled: "text-slate-400"
+    open: "text-amber-600", done: "text-emerald-600", cancelled: "text-[var(--text-muted)]"
 };
 
 const VIP_TIER_LABEL: Record<string, { label: string; color: string }> = {
-    regular: { label: "Regular", color: "bg-slate-100 text-slate-600" },
+    regular: { label: "Regular", color: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" },
     loyal: { label: "Regular Loyal", color: "bg-sky-100 text-sky-700" },
     vip: { label: "Year Loyalty", color: "bg-violet-100 text-violet-700" },
     longest: { label: "⭐ VIP", color: "bg-amber-100 text-amber-700" }
@@ -153,8 +153,8 @@ export default function ReservationOptionsPanel({
                 {/* Header */}
                 <div className="drawer-header">
                     <div>
-                        <p className="text-sm font-bold text-slate-900">{guestName}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{checkinDate} → {checkoutDate} · Options</p>
+                        <p className="text-sm font-bold text-[var(--text-primary)]">{guestName}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{checkinDate} → {checkoutDate} · Options</p>
                     </div>
                     <button className="btn-icon btn-ghost" onClick={onClose}>
                         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -164,7 +164,7 @@ export default function ReservationOptionsPanel({
                 </div>
 
                 {/* Tab bar (Oracle-style Options grid → simplified tabs) */}
-                <div className="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold">
+                <div className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] text-xs font-semibold">
                     {([
                         { key: "traces" as Tab, label: "📋 Traces" },
                         { key: "alerts" as Tab, label: "🔔 Alerts" },
@@ -177,8 +177,8 @@ export default function ReservationOptionsPanel({
                             onClick={() => setActiveTab(t.key)}
                             className={`flex-1 py-2.5 px-1 transition
                                 ${activeTab === t.key
-                                    ? "border-b-2 border-brand-600 text-brand-700 bg-white"
-                                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}
+                                    ? "border-b-2 border-brand-600 text-brand-700 bg-[var(--bg-surface)]"
+                                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"}`}
                         >{t.label}</button>
                     ))}
                 </div>
@@ -299,10 +299,10 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
             {/* Open traces */}
             {loading ? (
                 <div className="space-y-2">{[1, 2].map(i => (
-                    <div key={i} className="h-14 rounded-xl bg-slate-100 animate-pulse" />
+                    <div key={i} className="h-14 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse" />
                 ))}</div>
             ) : openTraces.length === 0 && !showForm ? (
-                <div className="text-center py-6 text-slate-400 text-sm">No open traces. Click + to add one.</div>
+                <div className="text-center py-6 text-[var(--text-muted)] text-sm">No open traces. Click + to add one.</div>
             ) : (
                 <div className="space-y-2">
                     {openTraces.map(t => (
@@ -313,15 +313,15 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
                                         <span className={`text-[10px] font-bold rounded px-1.5 py-0.5 ${DEPT_COLOR[t.dept]}`}>
                                             {DEPT_LABEL[t.dept]}
                                         </span>
-                                        <span className="text-[10px] text-slate-400">{t.from_date} → {t.to_date}</span>
+                                        <span className="text-[10px] text-[var(--text-muted)]">{t.from_date} → {t.to_date}</span>
                                         {t.loan_items && (
-                                            <span className="text-[10px] bg-slate-100 text-slate-600 rounded px-1">
+                                            <span className="text-[10px] bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] rounded px-1">
                                                 {t.loan_items.icon} {t.loan_items.name} ×{t.loan_qty}
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-slate-800">{t.trace_text}</p>
-                                    {t.created_by && <p className="text-[10px] text-slate-400 mt-0.5">By {t.created_by}</p>}
+                                    <p className="text-sm text-[var(--text-primary)]">{t.trace_text}</p>
+                                    {t.created_by && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">By {t.created_by}</p>}
                                 </div>
                                 <div className="flex gap-1 flex-shrink-0">
                                     <button
@@ -331,7 +331,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
                                     >✓</button>
                                     <button
                                         onClick={() => resolve(t.id, "cancelled")}
-                                        className="btn btn-sm btn-ghost text-slate-400 hover:text-red-500 px-1"
+                                        className="btn btn-sm btn-ghost text-[var(--text-muted)] hover:text-red-500 px-1"
                                         title="Cancel trace"
                                     >✕</button>
                                 </div>
@@ -369,7 +369,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
                         <div className="flex flex-wrap gap-1">
                             {quickTexts.map((qt, i) => (
                                 <button key={i} onClick={() => { setText(qt.text); setDept(qt.dept); }}
-                                    className="text-[10px] rounded border border-slate-200 bg-white px-2 py-0.5 hover:bg-slate-50 truncate max-w-[160px]"
+                                    className="text-[10px] rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-0.5 hover:bg-[var(--bg-body)] truncate max-w-[160px]"
                                     title={qt.text}
                                 >
                                     {qt.text.slice(0, 30)}…
@@ -405,14 +405,14 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
             {/* Done/Cancelled traces (collapsed) */}
             {doneTraces.length > 0 && (
                 <details className="text-sm">
-                    <summary className="cursor-pointer text-slate-400 text-xs font-semibold">
+                    <summary className="cursor-pointer text-[var(--text-muted)] text-xs font-semibold">
                         {doneTraces.length} resolved trace{doneTraces.length !== 1 ? "s" : ""}
                     </summary>
                     <div className="mt-2 space-y-1">
                         {doneTraces.map(t => (
-                            <div key={t.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2 flex items-center gap-2 opacity-60">
+                            <div key={t.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)] p-2 flex items-center gap-2 opacity-60">
                                 <span className={`text-[10px] font-bold rounded px-1 ${DEPT_COLOR[t.dept]}`}>{t.dept}</span>
-                                <span className="flex-1 text-xs text-slate-600 truncate">{t.trace_text}</span>
+                                <span className="flex-1 text-xs text-[var(--text-secondary)] truncate">{t.trace_text}</span>
                                 <span className={`text-[10px] font-semibold ${STATUS_COLOR[t.status]}`}>{t.status}</span>
                             </div>
                         ))}
@@ -489,9 +489,9 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
         <div className="space-y-4">
             {/* Active alerts */}
             {loading ? (
-                <div className="h-10 rounded-xl bg-slate-100 animate-pulse" />
+                <div className="h-10 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse" />
             ) : activeAlerts.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-4">No alerts on this reservation.</p>
+                <p className="text-center text-sm text-[var(--text-muted)] py-4">No alerts on this reservation.</p>
             ) : (
                 <div className="flex flex-wrap gap-2">
                     {activeAlerts.map(a => (
@@ -514,8 +514,8 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
             )}
 
             {/* Add alert */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <p className="text-xs font-bold text-slate-600">Add Alert</p>
+            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-2">
+                <p className="text-xs font-bold text-[var(--text-secondary)]">Add Alert</p>
                 <div className="flex gap-2">
                     <select className="form-input flex-1" value={addingTemplateId} onChange={e => setAddingTemplateId(e.target.value)}>
                         <option value="">Select alert template…</option>
@@ -542,14 +542,14 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
 
             {/* All template reference */}
             <details className="text-sm">
-                <summary className="cursor-pointer text-slate-400 text-xs font-semibold">View all alert templates</summary>
+                <summary className="cursor-pointer text-[var(--text-muted)] text-xs font-semibold">View all alert templates</summary>
                 <div className="mt-2 space-y-1">
                     {allTemplates.map(template => (
-                        <div key={template.id} className="flex items-center gap-2 text-xs text-slate-600 py-1 border-b border-slate-100">
+                        <div key={template.id} className="flex items-center gap-2 text-xs text-[var(--text-secondary)] py-1 border-b border-[var(--border-subtle)]">
                             <span>{template.icon ?? "🔔"}</span>
                             <span className="font-bold min-w-[86px] uppercase">{template.code}</span>
                             <span className="flex-1">{template.name}</span>
-                            <span className="rounded bg-slate-100 px-1 text-[9px] uppercase">{template.severity}</span>
+                            <span className="rounded bg-[var(--bg-surface-hover)] px-1 text-[9px] uppercase">{template.severity}</span>
                         </div>
                     ))}
                 </div>
@@ -557,14 +557,14 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
 
             {dismissedAlerts.length > 0 && (
                 <details className="text-sm">
-                    <summary className="cursor-pointer text-slate-400 text-xs font-semibold">
+                    <summary className="cursor-pointer text-[var(--text-muted)] text-xs font-semibold">
                         {dismissedAlerts.length} dismissed alert{dismissedAlerts.length !== 1 ? "s" : ""}
                     </summary>
                     <div className="mt-2 space-y-2">
                         {dismissedAlerts.map((a) => (
-                            <div key={a.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 flex items-center justify-between gap-2">
+                            <div key={a.id} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-xs text-[var(--text-secondary)] flex items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                    <p className="font-semibold text-slate-700 truncate">{a.template_name ?? a.alert_code ?? "Alert"}</p>
+                                    <p className="font-semibold text-[var(--text-secondary)] truncate">{a.template_name ?? a.alert_code ?? "Alert"}</p>
                                     <p className="truncate">{a.message ?? a.note ?? ""}</p>
                                 </div>
                                 <button
@@ -664,25 +664,25 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
 
     const tier = linked ? (VIP_TIER_LABEL[linked.vip_tier ?? "regular"] ?? VIP_TIER_LABEL.regular) : null;
 
-    if (loading) return <div className="h-20 rounded-xl bg-slate-100 animate-pulse" />;
+    if (loading) return <div className="h-20 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse" />;
 
     return (
         <div className="space-y-4">
             {linked && mode === "view" ? (
                 /* ── Linked profile card ── */
-                <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-3">
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <p className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
                                 {linked.first_name} {linked.last_name}
                                 {linked.member_no && (
-                                    <span className="text-[10px] font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
+                                    <span className="text-[10px] font-mono bg-[var(--bg-surface-hover)] text-[var(--text-muted)] px-1.5 py-0.5 rounded border border-[var(--border-default)]">
                                         {linked.member_no}
                                     </span>
                                 )}
                             </p>
                             {linked.nationality && (
-                                <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                <p className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
                                     <span className="text-sm leading-none">{getNationalityFlag(linked.nationality)}</span>
                                     {linked.nationality}
                                 </p>
@@ -705,7 +705,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                         {linked.car_registration && <div>🚗 {linked.car_registration}</div>}
                         {linked.gender && <div>👤 {linked.gender === 'M' ? 'Male' : linked.gender === 'F' ? 'Female' : linked.gender}</div>}
                         {linked.stay_count !== undefined && (
-                            <div className="col-span-2 text-slate-500">
+                            <div className="col-span-2 text-[var(--text-muted)]">
                                 🏨 {linked.stay_count} previous stay{linked.stay_count !== 1 ? "s" : ""}
                             </div>
                         )}
@@ -729,7 +729,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
             ) : mode === "search" || (!linked && mode === "view") ? (
                 /* ── Search ── */
                 <div className="space-y-3">
-                    <p className="text-sm font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-[var(--text-secondary)]">
                         {linked ? "Change Guest Profile" : "Link Guest Profile"}
                     </p>
                     <div className="flex gap-2">
@@ -749,13 +749,13 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                                     <button key={p.id}
                                         onClick={() => linkProfile(p.id)}
                                         disabled={saving}
-                                        className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-brand-300 hover:bg-brand-50 transition"
+                                        className="w-full rounded-xl border border-[var(--border-default)] p-3 text-left hover:border-brand-300 hover:bg-brand-50 transition"
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="font-semibold text-sm">{p.first_name} {p.last_name}</span>
                                             <span className={`badge text-[10px] ${t.color}`}>{t.label}</span>
                                         </div>
-                                        <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                                        <div className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
                                             {getNationalityFlag(p.nationality || "")} {p.nationality} · {p.phone} · {p.stay_count} stays
                                         </div>
                                     </button>
@@ -768,7 +768,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                         + Create New Profile
                     </button>
                     {linked && (
-                        <button className="text-xs text-slate-400 underline" onClick={() => setMode("view")}>
+                        <button className="text-xs text-[var(--text-muted)] underline" onClick={() => setMode("view")}>
                             Cancel
                         </button>
                     )}
@@ -776,7 +776,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
             ) : (
                 /* ── Create new ── */
                 <div className="space-y-3">
-                    <p className="text-sm font-semibold text-slate-700">Create New Guest Profile</p>
+                    <p className="text-sm font-semibold text-[var(--text-secondary)]">Create New Guest Profile</p>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="form-label">First Name</label>
@@ -991,15 +991,15 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
 
             {/* Stock table */}
             {loading ? (
-                <div className="h-40 rounded-xl bg-slate-100 animate-pulse" />
+                <div className="h-40 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse" />
             ) : (
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="rounded-xl border border-[var(--border-default)] overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="text-left px-3 py-2 text-xs font-semibold text-slate-400">Item</th>
-                                <th className="text-center px-2 py-2 text-xs font-semibold text-slate-400">Avail</th>
-                                <th className="text-center px-2 py-2 text-xs font-semibold text-slate-400">Qty</th>
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                                <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--text-muted)]">Item</th>
+                                <th className="text-center px-2 py-2 text-xs font-semibold text-[var(--text-muted)]">Avail</th>
+                                <th className="text-center px-2 py-2 text-xs font-semibold text-[var(--text-muted)]">Qty</th>
                                 <th className="px-2 py-2"></th>
                             </tr>
                         </thead>
@@ -1008,7 +1008,7 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
                                 const alreadyLoaned = loanedCodes.has(item.code);
                                 const q = qty[item.code] ?? 1;
                                 return (
-                                    <tr key={item.code} className={`border-b border-slate-100 ${alreadyLoaned ? "bg-rose-50/40" : ""}`}>
+                                    <tr key={item.code} className={`border-b border-[var(--border-subtle)] ${alreadyLoaned ? "bg-rose-50/40" : ""}`}>
                                         <td className="px-3 py-2">
                                             <span className="mr-1">{item.icon}</span>
                                             <span className="font-medium">{item.name}</span>
@@ -1144,26 +1144,26 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
         <div className="space-y-4">
             {/* Added charges */}
             {loading ? (
-                <div className="h-20 rounded-xl bg-slate-100 animate-pulse" />
+                <div className="h-20 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse" />
             ) : charges.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-4">No extra charges on this reservation.</p>
+                <p className="text-center text-sm text-[var(--text-muted)] py-4">No extra charges on this reservation.</p>
             ) : (
                 <div className="space-y-2">
                     {charges.map((c, i) => (
-                        <div key={c.id || i} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                        <div key={c.id || i} className="flex items-center justify-between rounded-xl border border-[var(--border-default)] p-3">
                             <div>
-                                <p className="text-sm font-semibold text-slate-700">
+                                <p className="text-sm font-semibold text-[var(--text-secondary)]">
                                     {[getTemplateMeta(c).icon, getTemplateMeta(c).name].filter(Boolean).join(" ")}
                                 </p>
-                                <p className="text-xs text-slate-400 flex items-center gap-2">
+                                <p className="text-xs text-[var(--text-muted)] flex items-center gap-2">
                                     <span className="capitalize">{getTemplateMeta(c).method || "-"}</span>
                                     {c.note && <span>· {c.note}</span>}
                                 </p>
                             </div>
-                            <span className="font-mono font-bold text-slate-900">฿ {Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className="font-mono font-bold text-[var(--text-primary)]">฿ {Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                     ))}
-                    <div className="flex items-center justify-between py-2 border-t border-slate-200 mt-2 font-bold text-sm text-slate-900">
+                    <div className="flex items-center justify-between py-2 border-t border-[var(--border-default)] mt-2 font-bold text-sm text-[var(--text-primary)]">
                         <span>Total Extra Charges</span>
                         <span className="font-mono">฿ {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>

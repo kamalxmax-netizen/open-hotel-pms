@@ -362,7 +362,7 @@ function StaySummaryDrawer({
           <div className="px-6 py-10 text-sm text-[var(--text-secondary)]">No stay summary available.</div>
         ) : (
           <>
-            <div className="space-y-5 px-6 py-5 text-lg leading-9 text-slate-800">
+            <div className="space-y-5 px-6 py-5 text-lg leading-9 text-[var(--text-primary)]">
               <div className="rounded-2xl border border-[var(--border-default)] px-5 py-4">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-semibold text-[var(--text-primary)]">
@@ -411,7 +411,7 @@ function StaySummaryDrawer({
                   </div>
                 </div>
 
-                <div className="my-5 h-px bg-slate-200" />
+                <div className="my-5 h-px bg-[var(--bg-muted)]" />
 
                 <div className="space-y-3 text-lg leading-9">
                   <div className="flex items-center justify-between gap-4">
@@ -689,7 +689,7 @@ export default function GuestProfileDetailPage() {
                 {isVipBucket(profile.vip_tier) ? (
                   <span className={`badge text-sm ${vipMeta.tone}`}>{vipMeta.label}</span>
                 ) : null}
-                <span className="badge bg-slate-100 font-mono text-sm text-slate-600">
+                <span className="badge bg-[var(--bg-surface-hover)] font-mono text-sm text-[var(--text-secondary)]">
                   Member: {valueOrDash(profile.member_no)}
                 </span>
               </div>
@@ -719,7 +719,7 @@ export default function GuestProfileDetailPage() {
           </div>
         ) : null}
 
-        <div className="grid divide-y divide-slate-200 lg:grid-cols-6 lg:divide-y-0 lg:divide-x">
+        <div className="grid divide-y divide-[var(--border-default)] lg:grid-cols-6 lg:divide-y-0 lg:divide-x">
           <SummaryMetricCard label="Main Stays" value={history.summary.primary_stay_count} />
           <SummaryMetricCard label="Main Nights" value={mainNightCount} />
           <SummaryMetricCard label="Acc. Stays" value={history.summary.accompanying_stay_count} />

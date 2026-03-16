@@ -334,7 +334,7 @@ export default function SmartCardPopup() {
             </div>
           )}
           {(readerState === "reading" || readerState === "done") && (
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--bg-muted)]">
               <div
                 className="h-full rounded-full bg-indigo-500 transition-all"
                 style={{ width: `${progress}%` }}
@@ -374,7 +374,7 @@ export default function SmartCardPopup() {
           <button
             type="button"
             className={`rounded-lg px-3 py-2 text-sm font-semibold text-white ${
-              canConfirm ? "bg-indigo-600 hover:bg-indigo-500" : "cursor-not-allowed bg-slate-300"
+              canConfirm ? "bg-indigo-600 hover:bg-indigo-500" : "cursor-not-allowed bg-[var(--bg-muted)]"
             }`}
             onClick={handleConfirm}
             disabled={!canConfirm}

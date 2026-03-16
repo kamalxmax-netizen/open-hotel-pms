@@ -81,7 +81,7 @@ export default function NightCounter({
             {/* Nights Counter (Center) */}
             <div className="flex flex-col items-center justify-center pt-2">
                 <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1 flex items-center gap-1 tracking-wider">
-                    <span className="text-slate-300">←</span> Night{nights > 1 ? "s" : ""} <span className="text-slate-300">→</span>
+                    <span className="text-[var(--text-muted)]">←</span> Night{nights > 1 ? "s" : ""} <span className="text-[var(--text-muted)]">→</span>
                 </div>
                 <div className="flex items-center bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-sm overflow-hidden">
                     <button

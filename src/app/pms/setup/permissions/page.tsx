@@ -116,7 +116,7 @@ export default function PermissionsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-800">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">
                         {user.full_name ?? user.email}
                       </p>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">
@@ -141,7 +141,7 @@ export default function PermissionsPage() {
             <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-800">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                     {selectedUser.full_name ?? selectedUser.email}
                   </h3>
                   <p className="text-xs text-[var(--text-muted)]">แก้ไข allowed pages</p>
@@ -160,7 +160,7 @@ export default function PermissionsPage() {
                   className="rounded border-[var(--border-input)] text-indigo-500 focus:ring-indigo-400"
                 />
                 <div>
-                  <p className="text-sm font-medium text-slate-800">Full Access (*)</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Full Access (*)</p>
                   <p className="text-xs text-[var(--text-muted)]">เข้าถึงได้ทุกหน้า (Admin)</p>
                 </div>
               </label>
@@ -181,7 +181,7 @@ export default function PermissionsPage() {
                               className="rounded border-[var(--border-input)] text-indigo-500 focus:ring-indigo-400"
                             />
                             <span className="text-sm text-[var(--text-table-cell)]">{page.label}</span>
-                            <span className="text-xs text-slate-300 font-mono ml-auto">{page.path}</span>
+                            <span className="text-xs text-[var(--text-muted)] font-mono ml-auto">{page.path}</span>
                           </label>
                         ))}
                       </div>

@@ -322,7 +322,7 @@ export default function PaymentsPage() {
                 </thead>
                 <tbody>
                   {(summaryData?.by_method ?? []).map((row) => (
-                    <tr key={row.method} className="border-b border-slate-50">
+                    <tr key={row.method} className="border-b border-[var(--border-subtle)]">
                       <td className="py-2">{METHOD_LABEL[row.method]}</td>
                       <td className="py-2 text-right">{fmtMoney(row.total)}</td>
                       <td className="py-2 text-right">{fmtMoney(row.deposits)}</td>
@@ -347,7 +347,7 @@ export default function PaymentsPage() {
                 </thead>
                 <tbody>
                   {(summaryData?.by_category ?? []).map((row) => (
-                    <tr key={row.category} className="border-b border-slate-50">
+                    <tr key={row.category} className="border-b border-[var(--border-subtle)]">
                       <td className="py-2">{CATEGORY_LABEL[row.category]}</td>
                       <td className="py-2 text-right">{fmtMoney(row.inflow)}</td>
                       <td className="py-2 text-right">{fmtMoney(row.refunds)}</td>
@@ -376,7 +376,7 @@ export default function PaymentsPage() {
               </thead>
               <tbody>
                 {(summaryData?.by_day ?? []).map((row) => (
-                  <tr key={row.date} className="border-b border-slate-50">
+                  <tr key={row.date} className="border-b border-[var(--border-subtle)]">
                     <td className="py-2">{row.date}</td>
                     <td className="py-2 text-right">{fmtMoney(row.cash)}</td>
                     <td className="py-2 text-right">{fmtMoney(row.transfer)}</td>
@@ -454,7 +454,7 @@ export default function PaymentsPage() {
                     {reservation.entries.map((entry) => (
                       <tr
                         key={entry.id}
-                        className={`border-b border-slate-50 ${reservation.reservation_id ? "cursor-pointer hover:bg-slate-50/70" : ""}`}
+                        className={`border-b border-[var(--border-subtle)] ${reservation.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : ""}`}
                         onClick={() => openReservation(reservation.reservation_id)}
                       >
                         <td className="py-2">{fmtDateTime(entry.paid_at)}</td>

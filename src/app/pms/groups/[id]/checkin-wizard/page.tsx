@@ -209,9 +209,9 @@ function mapHkBadge(status: HkStatus) {
     return { label: "Paused", className: "bg-rose-100 text-rose-700" };
   }
   if (!normalized) {
-    return { label: "—", className: "bg-slate-100 text-slate-500" };
+    return { label: "—", className: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]" };
   }
-  return { label: normalized, className: "bg-slate-100 text-slate-600" };
+  return { label: normalized, className: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" };
 }
 
 function guestDisplayName(guest: GuestSearchResult): string {
@@ -1428,8 +1428,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             <Link href={backHref} className="text-[var(--text-secondary)] hover:text-indigo-700 text-sm font-semibold">
               Back to Group Detail
             </Link>
-            <span className="text-slate-300">|</span>
-            <h1 className="text-xl font-bold text-slate-800">Group Check-in Wizard</h1>
+            <span className="text-[var(--text-muted)]">|</span>
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Group Check-in Wizard</h1>
           </div>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             <span className="font-semibold text-indigo-700">{groupData?.group_code || "—"}</span>
@@ -1445,10 +1445,10 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         <div className="flex items-center gap-2">
           {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex items-center gap-2">
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${currentStep === step ? "bg-indigo-600 text-white" : currentStep > step ? "bg-emerald-500 text-white" : "bg-slate-200 text-[var(--text-secondary)]"}`}>
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${currentStep === step ? "bg-indigo-600 text-white" : currentStep > step ? "bg-emerald-500 text-white" : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"}`}>
                 {currentStep > step ? "✓" : step}
               </div>
-              {step < 4 ? <div className={`h-0.5 w-6 ${currentStep > step ? "bg-emerald-500" : "bg-slate-200"}`} /> : null}
+              {step < 4 ? <div className={`h-0.5 w-6 ${currentStep > step ? "bg-emerald-500" : "bg-[var(--bg-muted)]"}`} /> : null}
             </div>
           ))}
         </div>
@@ -1463,7 +1463,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             <div className="space-y-4">
               <div className="flex items-end justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800">Step 1 — Select Rooms</h2>
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 1 — Select Rooms</h2>
                   <p className="text-sm text-[var(--text-secondary)]">Choose rooms to include in this check-in run.</p>
                 </div>
                 <div className="text-sm text-[var(--text-secondary)] font-semibold">
@@ -1511,7 +1511,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                           </td>
                           <td className="p-3 font-semibold text-[var(--text-table-cell)]">{row.booking_code}</td>
                           <td className="p-3">
-                            <div className="font-semibold text-slate-800">{row.room_number}</div>
+                            <div className="font-semibold text-[var(--text-primary)]">{row.room_number}</div>
                             <div className="text-xs text-[var(--text-secondary)]">{row.room_type}</div>
                           </td>
                           <td className="p-3 text-[var(--text-table-cell)]">{row.guest_name || "—"}</td>
@@ -1537,7 +1537,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           {currentStep === 2 ? (
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">Step 2 — Guest Assignment</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 2 — Guest Assignment</h2>
                 <p className="text-sm text-[var(--text-secondary)]">Search/scan guest pool, assign primary or accompanying immediately, then auto-distribute by booking order.</p>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Manual profile entry is currently per booking. Use <span className="font-semibold">Manual (per booking)</span> to open reservation editor.
@@ -1547,7 +1547,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-7 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-semibold text-slate-800">Scan Pool</h3>
+                    <h3 className="font-semibold text-[var(--text-primary)]">Scan Pool</h3>
                     <button
                       className="btn btn-secondary"
                       type="button"
@@ -1575,11 +1575,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     {scannedGuestPool.length === 0 ? (
                       <div className="px-3 py-4 text-sm text-[var(--text-secondary)]">No identities in pool yet.</div>
                     ) : (
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-[var(--border-subtle)]">
                         {scannedGuestPool.map((guest) => (
                           <div key={guest.id} className="px-3 py-2 flex items-center justify-between gap-2 bg-[var(--bg-surface)]">
                             <div>
-                              <div className="text-sm font-medium text-slate-800">{guestDisplayName(guest)}</div>
+                              <div className="text-sm font-medium text-[var(--text-primary)]">{guestDisplayName(guest)}</div>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
                                 <span className={`inline-flex rounded px-1.5 py-0.5 font-semibold ${scanSourceBadgeClass(guest.source)}`}>
                                   {scanSourceLabel(guest.source)}
@@ -1604,7 +1604,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                 </div>
 
                 <div className="lg:col-span-5 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-body)] space-y-3">
-                  <h3 className="font-semibold text-slate-800">Manual Assign</h3>
+                  <h3 className="font-semibold text-[var(--text-primary)]">Manual Assign</h3>
                   <div className="flex flex-col gap-2">
                     <input
                       className="form-input"
@@ -1656,14 +1656,14 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     {searchResults.length === 0 ? (
                       <div className="px-3 py-4 text-sm text-[var(--text-secondary)]">No search result yet.</div>
                     ) : (
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-[var(--border-subtle)]">
                         {searchResults.map((guest) => {
                           const assigned = selectedAssignedGuestIds.has(guest.id);
                           const inPool = scannedGuestPool.some((item) => item.id === guest.id);
                           return (
                             <div key={guest.id} className="px-3 py-2 flex items-center justify-between gap-3">
                               <div>
-                                <div className="text-sm font-semibold text-slate-800">{guestDisplayName(guest)}</div>
+                                <div className="text-sm font-semibold text-[var(--text-primary)]">{guestDisplayName(guest)}</div>
                                 <div className="text-xs text-[var(--text-secondary)]">
                                   {guest.phone ? `Phone: ${guest.phone}` : "No phone"}
                                   {guest.profile_status ? ` · ${guest.profile_status}` : ""}
@@ -1712,7 +1712,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-semibold text-slate-800">
+                        <div className="font-semibold text-[var(--text-primary)]">
                           Room {row.room_number} · {row.booking_code}
                         </div>
                         <div className="text-xs text-[var(--text-secondary)]">
@@ -1745,7 +1745,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                         <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Primary</div>
                         {row.party.primary ? (
                           <div className="mt-1">
-                            <div className="font-medium text-slate-800">{row.party.primary.display_name}</div>
+                            <div className="font-medium text-[var(--text-primary)]">{row.party.primary.display_name}</div>
                             <div className="text-xs text-[var(--text-secondary)]">
                               {row.party.primary.profile_status || "draft"}
                               {row.party.primary.nationality_code ? ` · ${row.party.primary.nationality_code}` : ""}
@@ -1779,7 +1779,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                             {row.party.accompanying.map((guest) => (
                               <div key={guest.guest_profile_id} className="flex items-start justify-between gap-2">
                                 <div>
-                                  <div className="text-sm font-medium text-slate-800">{guest.display_name}</div>
+                                  <div className="text-sm font-medium text-[var(--text-primary)]">{guest.display_name}</div>
                                   <div className="text-xs text-[var(--text-secondary)]">
                                     {guest.profile_status || "draft"}
                                     {guest.nationality_code ? ` · ${guest.nationality_code}` : ""}
@@ -1812,7 +1812,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800">Step 3 — Payment Plan</h2>
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 3 — Payment Plan</h2>
                   <p className="text-sm text-[var(--text-secondary)]">Configure split-by-room or master payment.</p>
                 </div>
                 <div className="flex items-center bg-[var(--bg-muted)] p-1 rounded-lg border border-[var(--border-default)]">
@@ -1868,7 +1868,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     return (
                       <div key={row.id} className="border border-[var(--border-default)] rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <div className="font-semibold text-slate-800">{row.booking_code} · Room {row.room_number}</div>
+                          <div className="font-semibold text-[var(--text-primary)]">{row.booking_code} · Room {row.room_number}</div>
                           <div className="text-sm text-[var(--text-secondary)]">Remain: ฿ {row.remaining_balance.toFixed(2)}</div>
                         </div>
 
@@ -2004,7 +2004,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
               {paymentPreview ? (
                 <div className="border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
-                  <div className="text-sm font-semibold text-slate-800">
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">
                     Preview ({paymentPreview.payment_mode})
                   </div>
 
@@ -2081,7 +2081,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           {currentStep === 4 ? (
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">Step 4 — Confirm Check-in</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 4 — Confirm Check-in</h2>
                 <p className="text-sm text-[var(--text-secondary)]">Review ready/not-ready rooms and submit partial check-in.</p>
               </div>
 
@@ -2115,11 +2115,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
               {confirmResults ? (
                 <div className="rounded border border-[var(--border-default)] p-3 bg-[var(--bg-surface)]">
-                  <h3 className="font-semibold text-slate-800 mb-2">Confirm Results</h3>
+                  <h3 className="font-semibold text-[var(--text-primary)] mb-2">Confirm Results</h3>
                   <div className="space-y-2 text-sm">
                     {confirmResults.map((row) => (
                       <div key={row.reservation_id} className="border border-[var(--border-subtle)] rounded p-2">
-                        <div className="font-medium text-slate-800">
+                        <div className="font-medium text-[var(--text-primary)]">
                           {row.booking_code || row.reservation_id} · {row.guest_name || "—"}
                         </div>
                         <div className="text-xs text-[var(--text-secondary)]">status: {row.status}</div>

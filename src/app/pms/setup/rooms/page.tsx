@@ -236,7 +236,7 @@ function RoomCard({
                     </div>
                     {/* Usage bar */}
                     <div className="mt-2 flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden max-w-[200px]">
+                        <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-muted)] overflow-hidden max-w-[200px]">
                             <div
                                 className={`h-full rounded-full transition-all ${usageDiff > 20 ? "bg-rose-400" : usageDiff > 0 ? "bg-amber-400" : "bg-emerald-400"}`}
                                 style={{ width: `${usagePct}%` }}
@@ -297,7 +297,7 @@ function RoomCard({
                                         }
                                     }}
                                 />
-                                <label className="flex-1 text-sm font-medium text-slate-800">
+                                <label className="flex-1 text-sm font-medium text-[var(--text-primary)]">
                                     {bt.name}
                                     <span className="text-xs text-[var(--text-muted)] ml-1">({bt.width_ft} ft)</span>
                                 </label>
@@ -911,7 +911,7 @@ export default function RoomsSetupPage() {
                                     const isSaving = timingSavingId === key;
                                     return (
                                         <tr key={row.id} className="border-b border-[var(--border-subtle)]">
-                                            <td className="py-2 pr-2 font-medium text-slate-800">{row.name_en || "Unknown"}</td>
+                                            <td className="py-2 pr-2 font-medium text-[var(--text-primary)]">{row.name_en || "Unknown"}</td>
                                             <td className="py-2 pr-2 text-[var(--text-secondary)]">{row.code || "—"}</td>
                                             <td className="py-2 pr-2">
                                                 <input
@@ -990,7 +990,7 @@ export default function RoomsSetupPage() {
             {amenitySidebarOpen && (
                 <div className="fixed inset-0 z-50">
                     <div
-                        className="absolute inset-0 bg-slate-900/35"
+                        className="absolute inset-0 bg-[var(--overlay-bg)]"
                         onClick={() => setAmenitySidebarOpen(false)}
                     />
                     <aside className="absolute right-0 top-0 h-full w-full max-w-xl bg-[var(--bg-surface)] shadow-2xl border-l border-[var(--border-default)] flex flex-col">

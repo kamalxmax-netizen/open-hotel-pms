@@ -255,8 +255,8 @@ export default function RevenuePage() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         {loading ? Array.from({ length: 6 }).map((_, i) => (
                             <div key={i} className="card p-4 animate-pulse">
-                                <div className="h-2 w-16 rounded bg-slate-200 mb-3" />
-                                <div className="h-6 w-20 rounded bg-slate-200" />
+                                <div className="h-2 w-16 rounded bg-[var(--bg-muted)] mb-3" />
+                                <div className="h-6 w-20 rounded bg-[var(--bg-muted)]" />
                             </div>
                         )) : <>
                             <KpiTile label="Hotel Revenue" value={kpi ? fmtMoney(kpi.total_revenue) : "—"} sub={`${data?.day_count}d · Room + POS`} />
@@ -327,11 +327,11 @@ export default function RevenuePage() {
                                     <tbody>
                                         {loading ? (
                                             Array.from({ length: 7 }).map((_, i) => (
-                                                <tr key={i} className="border-b border-slate-50">
-                                                    <td className="py-2"><div className="h-3 w-20 rounded bg-slate-200 animate-pulse" /></td>
-                                                    <td className="py-2 text-right"><div className="h-3 w-14 rounded bg-slate-200 animate-pulse ml-auto" /></td>
-                                                    <td className="py-2 text-right pr-2"><div className="h-3 w-8 rounded bg-slate-200 animate-pulse ml-auto" /></td>
-                                                    <td className="py-2"><div className="h-2 w-full rounded-full bg-slate-200 animate-pulse" /></td>
+                                                <tr key={i} className="border-b border-[var(--border-subtle)]">
+                                                    <td className="py-2"><div className="h-3 w-20 rounded bg-[var(--bg-muted)] animate-pulse" /></td>
+                                                    <td className="py-2 text-right"><div className="h-3 w-14 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
+                                                    <td className="py-2 text-right pr-2"><div className="h-3 w-8 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
+                                                    <td className="py-2"><div className="h-2 w-full rounded-full bg-[var(--bg-muted)] animate-pulse" /></td>
                                                 </tr>
                                             ))
                                         ) : (
@@ -341,14 +341,14 @@ export default function RevenuePage() {
                                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                                                 const isToday = day.date === t;
                                                 return (
-                                                    <tr key={day.date} className={`border-b border-slate-50 ${isToday ? "bg-brand-50" : isWeekend ? "bg-rose-50/40" : ""}`}>
+                                                    <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50" : isWeekend ? "bg-rose-50/40" : ""}`}>
                                                         <td className="py-2 pr-3">
                                                             <span className={`text-xs font-semibold mr-1.5 ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
                                                             <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-[var(--text-table-cell)]"}`}>{day.date}</span>
                                                             {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 px-1 py-0.5 font-bold">TODAY</span>}
                                                         </td>
-                                                        <td className="py-2 text-right font-semibold text-slate-800">
-                                                            {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-slate-300">—</span>}
+                                                        <td className="py-2 text-right font-semibold text-[var(--text-primary)]">
+                                                            {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-[var(--text-muted)]">—</span>}
                                                         </td>
                                                         <td className="py-2 text-right pr-3 text-[var(--text-secondary)] text-sm">{day.occupied}/{data?.sellable_rooms ?? "?"}</td>
                                                         <td className="py-2"><OccBar pct={day.occ_pct} /></td>
@@ -389,7 +389,7 @@ export default function RevenuePage() {
                                             <div className="w-full flex items-end" style={{ height: 80 }}>
                                                 <div
                                                     className={`w-full rounded-t-sm transition-all
-                        ${isToday ? "bg-brand-500" : isWeekend ? "bg-rose-400" : "bg-slate-300"}
+                        ${isToday ? "bg-brand-500" : isWeekend ? "bg-rose-400" : "bg-[var(--bg-muted)]"}
                         group-hover:brightness-90`}
                                                     style={{ height: `${Math.max(h, day.revenue > 0 ? 4 : 0)}%` }}
                                                 />
@@ -404,7 +404,7 @@ export default function RevenuePage() {
                             <div className="flex gap-3 mt-2 text-xs text-[var(--text-muted)]">
                                 <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-brand-500 inline-block" />Today</span>
                                 <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-rose-400 inline-block" />Weekend</span>
-                                <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-slate-300 inline-block" />Weekday</span>
+                                <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-[var(--bg-muted)] inline-block" />Weekday</span>
                             </div>
                         </div>
                     )}
@@ -503,14 +503,14 @@ export default function RevenuePage() {
                                     {transferRef.transfers.map((row) => {
                                         const statusColor = row.status === "completed" ? "bg-emerald-100 text-emerald-700"
                                             : row.status === "cancelled" ? "bg-rose-100 text-rose-700"
-                                                : "bg-slate-100 text-slate-600";
+                                                : "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]";
                                         return (
-                                            <tr key={row.transfer_id} className="border-b border-slate-50 hover:bg-[var(--bg-body)]">
+                                            <tr key={row.transfer_id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)]">
                                                 <td className="py-2 text-xs text-[var(--text-secondary)]">{row.date}</td>
                                                 <td className="py-2 font-semibold text-[var(--text-table-cell)]">{row.guest_name ?? "—"}</td>
                                                 <td className="py-2 text-xs text-[var(--text-secondary)]">{row.booking_code ?? "—"}</td>
                                                 <td className="py-2 text-xs text-[var(--text-secondary)]">{row.route ?? "—"}</td>
-                                                <td className="py-2 text-right font-semibold text-slate-800">{fmtMoney(row.selling_price)}</td>
+                                                <td className="py-2 text-right font-semibold text-[var(--text-primary)]">{fmtMoney(row.selling_price)}</td>
                                                 <td className="py-2 text-right text-[var(--text-secondary)]">{fmtMoney(row.cost_price)}</td>
                                                 <td className="py-2 text-right font-semibold text-emerald-700">{fmtMoney(row.margin)}</td>
                                                 <td className="py-2 text-right text-violet-600">{fmtMoney(row.commission)}</td>

@@ -123,7 +123,7 @@ export default function RoomBlocksPage() {
             {/* Add Form */}
             {isAdding && (
                 <div className="card p-5 border border-brand-200 shadow-sm bg-brand-50/30">
-                    <h3 className="font-bold text-slate-800 mb-4">New Room Block</h3>
+                    <h3 className="font-bold text-[var(--text-primary)] mb-4">New Room Block</h3>
                     <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Room Number</label>
@@ -218,7 +218,7 @@ export default function RoomBlocksPage() {
                         <tbody>
                             {blocks.map(b => (
                                 <tr key={b.id}>
-                                    <td className="font-bold text-slate-800">Room {b.room_number}</td>
+                                    <td className="font-bold text-[var(--text-primary)]">Room {b.room_number}</td>
                                     <td>
                                         <span className={`badge ${b.block_type === 'OOO' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
                                             {b.block_type}

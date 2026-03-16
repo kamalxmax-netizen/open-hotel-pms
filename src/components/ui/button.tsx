@@ -15,7 +15,7 @@ function cn(...classes: Array<string | undefined | false | null>) {
 const variantClasses: Record<ButtonVariant, string> = {
   default: "bg-brand-600 text-white hover:bg-brand-700",
   outline: "border border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-table-cell)] hover:bg-[var(--bg-surface-hover)]",
-  secondary: "bg-[var(--bg-muted)] text-slate-800 hover:bg-slate-200",
+  secondary: "bg-[var(--bg-muted)] text-[var(--text-primary)] hover:bg-[var(--bg-muted)]",
   ghost: "bg-transparent text-[var(--text-table-cell)] hover:bg-[var(--bg-surface-hover)]",
   destructive: "bg-rose-600 text-white hover:bg-rose-700",
 };

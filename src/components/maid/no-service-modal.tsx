@@ -35,7 +35,7 @@ export default function NoServiceModal({
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-slate-200 transition-colors"
+                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
                     >
                         <X size={20} />
                     </button>
@@ -63,7 +63,7 @@ export default function NoServiceModal({
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="flex-1 px-4 py-3 rounded-xl font-bold text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] hover:bg-slate-200 transition-colors text-sm"
+                        className="flex-1 px-4 py-3 rounded-xl font-bold text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] hover:bg-[var(--bg-muted)] transition-colors text-sm"
                     >
                         Cancel
                     </button>

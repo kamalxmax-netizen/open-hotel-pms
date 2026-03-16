@@ -17,7 +17,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open:        { label: "Open",        color: "bg-rose-100 text-rose-700" },
   in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700" },
   resolved:    { label: "Resolved",    color: "bg-emerald-100 text-emerald-700" },
-  wontfix:     { label: "Won't Fix",   color: "bg-slate-100 text-slate-500" },
+  wontfix:     { label: "Won't Fix",   color: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]" },
 };
 
 export default function BugReportsPage() {
@@ -62,7 +62,7 @@ export default function BugReportsPage() {
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 filter === s
                   ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  : "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
               }`}
             >
               {s === "all" ? "All" : STATUS_LABELS[s]?.label ?? s}
@@ -83,7 +83,7 @@ export default function BugReportsPage() {
           {/* List */}
           <div className="space-y-2">
             {reports.map((report) => {
-              const meta = STATUS_LABELS[report.status] ?? { label: report.status, color: "bg-slate-100 text-slate-500" };
+              const meta = STATUS_LABELS[report.status] ?? { label: report.status, color: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]" };
               const isSelected = selected?.id === report.id;
               return (
                 <button
@@ -96,7 +96,7 @@ export default function BugReportsPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-slate-800 line-clamp-2">{report.description}</p>
+                    <p className="text-sm text-[var(--text-primary)] line-clamp-2">{report.description}</p>
                     <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${meta.color}`}>
                       {meta.label}
                     </span>
@@ -105,7 +105,7 @@ export default function BugReportsPage() {
                     <span className="text-[10px] text-[var(--text-muted)] font-mono truncate">
                       {report.page_url.replace(/^https?:\/\/[^/]+/, "")}
                     </span>
-                    <span className="text-[10px] text-slate-300">•</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">•</span>
                     <span className="text-[10px] text-[var(--text-muted)]">
                       {new Date(report.created_at).toLocaleDateString("th-TH", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
@@ -121,8 +121,8 @@ export default function BugReportsPage() {
           {selected && (
             <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-5 space-y-4">
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-800">รายละเอียด</h3>
-                <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${STATUS_LABELS[selected.status]?.color ?? "bg-slate-100 text-slate-500"}`}>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">รายละเอียด</h3>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${STATUS_LABELS[selected.status]?.color ?? "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"}`}>
                   {STATUS_LABELS[selected.status]?.label ?? selected.status}
                 </span>
               </div>
@@ -161,7 +161,7 @@ export default function BugReportsPage() {
                     className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-40 ${
                       selected.status === s
                         ? `${meta.color} cursor-default`
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        : "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
                     }`}
                   >
                     → {meta.label}

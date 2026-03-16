@@ -131,14 +131,14 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => { setIsCustom(false); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-slate-200"}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
                         disabled={disabled || isSubmitting}
                     >
                         From Template
                     </button>
                     <button
                         onClick={() => { setIsCustom(true); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-slate-200"}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
                         disabled={disabled || isSubmitting}
                     >
                         Custom Task

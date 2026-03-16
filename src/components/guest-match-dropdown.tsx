@@ -223,12 +223,12 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
                     {p.phone && <span>📱 {p.phone}</span>}
                     {p.nationality_code && <span>{getFlagEmojiByNationalityCode(p.nationality_code)} {p.nationality_code}</span>}
-                    <span className="text-slate-300">Score: {match.score}</span>
+                    <span className="text-[var(--text-muted)]">Score: {match.score}</span>
                 </div>
             </div>
 
             {/* Link icon */}
-            <span className="flex-shrink-0 text-sm text-slate-300 transition group-hover:text-brand-500">🔗</span>
+            <span className="flex-shrink-0 text-sm text-[var(--text-muted)] transition group-hover:text-brand-500">🔗</span>
         </button>
     );
 }

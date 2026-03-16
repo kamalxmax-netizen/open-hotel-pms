@@ -119,7 +119,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
   return (
     <div className="relative">
       {actionLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-lg">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--bg-surface)]/50 backdrop-blur-sm rounded-lg">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-brand-600"></div>
         </div>
       )}
@@ -134,7 +134,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
               <th className="px-4 py-3 font-semibold text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-[var(--border-default)]">
             {noShows.map((ns) => (
               <tr key={ns.id} className="hover:bg-[var(--bg-body)]">
                 <td className="px-4 py-3">

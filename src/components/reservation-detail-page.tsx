@@ -2999,7 +2999,7 @@ export default function ReservationDetailPage({
                                     : "bg-indigo-100 text-indigo-700"
                                 }`}>{mode}</span>
                             {readonlyClosedReservation && (
-                                <span className="rounded bg-slate-200 px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
+                                <span className="rounded bg-[var(--bg-muted)] px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                                     {reservationStatus === "cancelled" ? "cancelled" : "checked out"}
                                 </span>
                             )}
@@ -3130,7 +3130,7 @@ export default function ReservationDetailPage({
                 <form id="res-form" ref={formRef} onSubmit={handleSubmit}>
                     <div className="relative">
                         {lockMessage && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-300/40 backdrop-blur-[1px]">
+                            <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-[var(--bg-muted)]/40 backdrop-blur-[1px]">
                                 <div className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] shadow-sm">
                                     {lockMessage}
                                 </div>
@@ -3388,7 +3388,7 @@ export default function ReservationDetailPage({
                                                         <div className="flex h-[38px] items-stretch overflow-hidden rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] shadow-sm">
                                                             <button
                                                                 type="button"
-                                                                className="flex w-9 items-center justify-center text-[17px] font-bold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-slate-300"
+                                                                className="flex w-9 items-center justify-center text-[17px] font-bold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)]"
                                                                 onClick={openNewPartyModal}
                                                                 disabled={isReadonly || !reservationId}
                                                                 aria-label="Add accompanying guest"
@@ -4360,7 +4360,7 @@ export default function ReservationDetailPage({
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    className="rounded-lg border border-[var(--border-default)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-slate-300"
+                                                    className="rounded-lg border border-[var(--border-default)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)]"
                                                     disabled={partySaving || alreadyLinked || isMain}
                                                     onClick={() => { void selectPartySearchProfile(String(profile.id)); }}
                                                 >

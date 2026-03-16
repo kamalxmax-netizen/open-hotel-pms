@@ -183,13 +183,13 @@ export function SettlementDrawer({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-[var(--bg-surface)]">
           <div>
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
               <Navigation className="w-5 h-5 text-emerald-600" />
               Settlement & Checkout
             </h2>
             <p className="text-xs text-[var(--text-secondary)] font-medium">Reservation #{reservationId.substring(0, 8)}</p>
           </div>
-          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-slate-600 p-2 rounded-full hover:bg-[var(--bg-surface-hover)] transition">
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] p-2 rounded-full hover:bg-[var(--bg-surface-hover)] transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -240,14 +240,14 @@ export function SettlementDrawer({
                   <div className="p-4 space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-[var(--text-secondary)] font-medium">Total Charges</span>
-                      <span className="font-mono text-slate-800 font-semibold">฿ {formatMoney(fromSatang(billingData?.totalChargesSatang ?? 0))}</span>
+                      <span className="font-mono text-[var(--text-primary)] font-semibold">฿ {formatMoney(fromSatang(billingData?.totalChargesSatang ?? 0))}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-[var(--text-secondary)] font-medium">Total Credits</span>
-                      <span className="font-mono text-slate-800 font-semibold">฿ {formatMoney(fromSatang(billingData?.totalCreditsSatang ?? 0))}</span>
+                      <span className="font-mono text-[var(--text-primary)] font-semibold">฿ {formatMoney(fromSatang(billingData?.totalCreditsSatang ?? 0))}</span>
                     </div>
                     <div className="border-t pt-3 flex justify-between items-center">
-                      <span className="text-base font-bold text-slate-800">Outstanding</span>
+                      <span className="text-base font-bold text-[var(--text-primary)]">Outstanding</span>
                       <span className={`text-lg font-mono font-bold ${outstandingSatang > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
                         ฿ {formatMoney(fromSatang(outstandingSatang))}
                       </span>
@@ -273,7 +273,7 @@ export function SettlementDrawer({
                         className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition flex flex-col items-center justify-center gap-1 ${
                           depositAction === "refund"
                             ? "border-amber-400 bg-amber-100/50 text-amber-900 shadow-sm"
-                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-white/60"
+                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-[var(--bg-surface)]/60"
                         }`}
                       >
                          Refund to Guest
@@ -285,7 +285,7 @@ export function SettlementDrawer({
                         className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition flex flex-col items-center justify-center gap-1 ${
                           depositAction === "apply"
                             ? "border-indigo-500 bg-indigo-100/50 text-indigo-900 shadow-sm"
-                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-white/60"
+                            : "border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 hover:bg-[var(--bg-surface)]/60"
                         }`}
                       >
                          Apply to Balance
@@ -295,7 +295,7 @@ export function SettlementDrawer({
 
                     {/* Method selection for Refund Phase 26B prep */}
                     {depositAction === "refund" && (
-                       <div className="flex items-center gap-3 mt-2 bg-white/60 p-2 rounded-lg border border-indigo-100">
+                       <div className="flex items-center gap-3 mt-2 bg-[var(--bg-surface)]/60 p-2 rounded-lg border border-indigo-100">
                           <label className="text-xs font-semibold text-indigo-900 whitespace-nowrap">Refund Method:</label>
                           <select 
                             className="form-select text-sm h-8 py-0 bg-transparent border-indigo-200 text-indigo-900 w-full focus:ring-indigo-500 focus:border-indigo-500"
@@ -333,7 +333,7 @@ export function SettlementDrawer({
                     
                     <div>
                       <div className="flex justify-between items-center mb-2">
-                        <label className="text-sm font-semibold text-slate-800">Amount Due</label>
+                        <label className="text-sm font-semibold text-[var(--text-primary)]">Amount Due</label>
                         <span className="text-sm font-bold text-amber-600">฿ {formatMoney(fromSatang(finalBalanceSatang))}</span>
                       </div>
                       
@@ -352,7 +352,7 @@ export function SettlementDrawer({
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-800">Payment Method</label>
+                      <label className="text-sm font-semibold text-[var(--text-primary)]">Payment Method</label>
                       <div className="grid grid-cols-4 gap-2">
                         {PAYMENT_METHODS.map((m) => (
                           <button

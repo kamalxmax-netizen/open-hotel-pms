@@ -5,8 +5,8 @@ export default function UnauthorizedPage() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="text-center max-w-sm">
         <div className="text-5xl mb-4">🔒</div>
-        <h1 className="text-xl font-bold text-slate-800 mb-2">ไม่มีสิทธิ์เข้าถึง</h1>
-        <p className="text-sm text-slate-500 mb-6">
+        <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">ไม่มีสิทธิ์เข้าถึง</h1>
+        <p className="text-sm text-[var(--text-muted)] mb-6">
           คุณไม่มีสิทธิ์เข้าถึงหน้านี้ กรุณาติดต่อ Admin เพื่อขอสิทธิ์เพิ่มเติม
         </p>
         <Link

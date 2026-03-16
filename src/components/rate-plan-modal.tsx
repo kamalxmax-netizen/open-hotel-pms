@@ -590,7 +590,7 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
                     disabled={alreadySelected}
                   >
                     <span>
-                      <span className="font-medium text-slate-800">{fullName}</span>
+                      <span className="font-medium text-[var(--text-primary)]">{fullName}</span>
                       <span className="ml-2 text-xs text-[var(--text-secondary)]">
                         {profile.member_no ? `#${profile.member_no}` : profile.profile_status ?? "guest"}
                       </span>
@@ -615,7 +615,7 @@ export default function RatePlanModal({ mode, ratePlan, onClose, onSuccess }: Ra
                   return (
                     <div key={profile.id} className="flex items-center justify-between rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm">
                       <div>
-                        <p className="font-medium text-slate-800">{fullName}</p>
+                        <p className="font-medium text-[var(--text-primary)]">{fullName}</p>
                         <p className="text-xs text-[var(--text-secondary)]">
                           {profile.member_no ? `#${profile.member_no} · ` : ""}
                           {profile.profile_status ?? "guest"}

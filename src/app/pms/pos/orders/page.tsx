@@ -277,8 +277,8 @@ export default function PosOrderHistoryPage() {
                 {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="card p-4 animate-pulse">
-                            <div className="h-2 w-20 rounded bg-slate-200 mb-3" />
-                            <div className="h-7 w-24 rounded bg-slate-200" />
+                            <div className="h-2 w-20 rounded bg-[var(--bg-muted)] mb-3" />
+                            <div className="h-7 w-24 rounded bg-[var(--bg-muted)]" />
                         </div>
                     ))
                 ) : (

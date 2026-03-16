@@ -117,7 +117,7 @@ const STATUS_CONFIG: Record<HkStatus, { label: string; badge: string; pill: stri
   closed: {
     label: "Renovation",
     badge: "status-closed",
-    pill: "border-slate-200 bg-slate-100 text-slate-500",
+    pill: "border-[var(--border-default)] bg-[var(--bg-surface-hover)] text-[var(--text-muted)]",
     emoji: "🚧",
   },
 };
@@ -151,7 +151,7 @@ export default function FloorGroup({
   return (
     <div className="space-y-3">
       <h3 className="font-bold text-[var(--text-table-cell)] flex items-center gap-2">
-        <span className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-xs">F{floor}</span>
+        <span className="w-6 h-6 rounded bg-[var(--bg-muted)] flex items-center justify-center text-xs">F{floor}</span>
         Floor {floor}
       </h3>
 
@@ -258,7 +258,7 @@ export default function FloorGroup({
                     {occupancyChip.label}
                   </span>
                   {room.diary_state === "inhouse" && !room.in_house_sold_last_night && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-default)]">
                       Excluded from In-house filter
                     </span>
                   )}
@@ -266,7 +266,7 @@ export default function FloorGroup({
               )}
 
               {room.guest_name && (
-                <div className="text-xs text-slate-600 bg-slate-100 rounded-md px-2 py-1.5 flex items-center gap-2">
+                <div className="text-xs text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] rounded-md px-2 py-1.5 flex items-center gap-2">
                   <span className="opacity-50">👤</span>
                   <span className="truncate font-semibold">{room.guest_name}</span>
                 </div>
@@ -324,10 +324,10 @@ export default function FloorGroup({
                     {expandedMaintenanceByRoomId[room.room_id] ? "Hide details" : "View details"}
                   </button>
                   {expandedMaintenanceByRoomId[room.room_id] && (
-                    <div className="space-y-1 rounded border border-indigo-100 bg-white/80 p-2">
+                    <div className="space-y-1 rounded border border-indigo-100 bg-[var(--bg-surface)]/80 p-2">
                       {room.maintenance_assignments.map((item) => (
                         <div key={item.assignment_id} className="rounded border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1">
-                          <p className="font-semibold text-slate-800">
+                          <p className="font-semibold text-[var(--text-primary)]">
                             {item.task_name}
                             {!!item.estimated_minutes && (
                               <span className="ml-1 font-medium text-[var(--text-secondary)]">({item.estimated_minutes} min)</span>

@@ -255,7 +255,7 @@ export default function RateSummaryPanel({
 
                         {/* Total Row */}
                         <div className="flex items-center justify-between pt-2 border-t border-[var(--border-default)] text-lg">
-                            <span className="font-black text-slate-800">TOTAL</span>
+                            <span className="font-black text-[var(--text-primary)]">TOTAL</span>
                             <span className="font-black font-mono text-brand-700">
                                 ฿ {formatMoney(fromSatang(totalSatang))}
                             </span>

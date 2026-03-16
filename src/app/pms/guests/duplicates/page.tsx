@@ -172,8 +172,8 @@ export default function DuplicatesPage() {
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="card p-4 animate-pulse">
                             <div className="flex gap-4">
-                                <div className="flex-1 space-y-2"><div className="h-4 w-32 bg-slate-200 rounded" /><div className="h-3 w-48 bg-slate-200 rounded" /></div>
-                                <div className="flex-1 space-y-2"><div className="h-4 w-32 bg-slate-200 rounded" /><div className="h-3 w-48 bg-slate-200 rounded" /></div>
+                                <div className="flex-1 space-y-2"><div className="h-4 w-32 bg-[var(--bg-muted)] rounded" /><div className="h-3 w-48 bg-[var(--bg-muted)] rounded" /></div>
+                                <div className="flex-1 space-y-2"><div className="h-4 w-32 bg-[var(--bg-muted)] rounded" /><div className="h-3 w-48 bg-[var(--bg-muted)] rounded" /></div>
                             </div>
                         </div>
                     ))}
@@ -218,7 +218,7 @@ export default function DuplicatesPage() {
                                     {/* Match reasons */}
                                     <div className="flex gap-1 flex-wrap">
                                         {Object.entries(pair.match_fields).map(([k, v]) => (
-                                            <span key={k} className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">
+                                            <span key={k} className="text-[9px] px-1.5 py-0.5 bg-[var(--bg-surface-hover)] text-[var(--text-muted)] rounded font-medium">
                                                 {k}: {String(v)}
                                             </span>
                                         ))}
@@ -286,12 +286,12 @@ function ProfileCard({ profile, label }: { profile: ProfileData | null; label: s
                 <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">{label}</span>
                 {profile.profile_status && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${profile.profile_status === "verified" ? "bg-emerald-100 text-emerald-700"
-                        : profile.profile_status === "merged" ? "bg-slate-200 text-[var(--text-secondary)]"
+                        : profile.profile_status === "merged" ? "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
                             : "bg-amber-100 text-amber-700"
                         }`}>{profile.profile_status}</span>
                 )}
             </div>
-            <p className="text-sm font-bold text-slate-800">{name}</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">{name}</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1.5 text-xs text-[var(--text-secondary)]">
                 {profile.phone && <span>📱 {profile.phone}</span>}
                 {profile.email && <span>✉️ {profile.email}</span>}

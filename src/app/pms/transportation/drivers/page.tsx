@@ -238,7 +238,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
     return (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCancel}>
             <div className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-                <p className="text-slate-800 mb-6">{message}</p>
+                <p className="text-[var(--text-primary)] mb-6">{message}</p>
                 <div className="flex gap-3">
                     <button onClick={onCancel} className="flex-1 px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">Cancel</button>
                     <button onClick={onConfirm} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700">Deactivate</button>
@@ -389,7 +389,7 @@ export default function DriversVehiclesPage() {
                                     <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{d.phone ?? "—"}</td>
                                     <td className="px-4 py-3 text-[var(--text-secondary)]">{d.company ?? "—"}</td>
                                     <td className="px-4 py-3 text-[var(--text-secondary)]">{d.license_type ?? "—"}</td>
-                                    <td className="px-4 py-3 text-center">{d.rating_avg > 0 ? <Stars avg={d.rating_avg} /> : <span className="text-slate-300 text-xs">No ratings</span>}</td>
+                                    <td className="px-4 py-3 text-center">{d.rating_avg > 0 ? <Stars avg={d.rating_avg} /> : <span className="text-[var(--text-muted)] text-xs">No ratings</span>}</td>
                                     <td className="px-4 py-3 text-center font-mono">{d.total_trips}</td>
                                     <td className="px-4 py-3 text-center">
                                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${d.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
@@ -439,7 +439,7 @@ export default function DriversVehiclesPage() {
                                     </td>
                                     <td className="px-4 py-3 text-center">{v.capacity} pax</td>
                                     <td className="px-4 py-3 text-[var(--text-secondary)]">{v.color ?? "—"}</td>
-                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{(v as any).default_driver_name ?? <span className="text-slate-300 italic">None</span>}</td>
+                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{(v as any).default_driver_name ?? <span className="text-[var(--text-muted)] italic">None</span>}</td>
                                     <td className="px-4 py-3 text-center">
                                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${v.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                                             {v.is_active ? "Active" : "Inactive"}

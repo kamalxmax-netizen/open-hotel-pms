@@ -144,7 +144,7 @@ export default function DashboardPage() {
                 {" · "}Calendar: <strong>{data.calendar_date}</strong>
               </p>
             </div>
-            <span className="text-xs font-semibold text-amber-800 shrink-0 bg-white px-2 py-1 rounded shadow-sm">Run Night Audit →</span>
+            <span className="text-xs font-semibold text-amber-800 shrink-0 bg-[var(--bg-surface)] px-2 py-1 rounded shadow-sm">Run Night Audit →</span>
           </div>
         </Link>
       )}
@@ -225,7 +225,7 @@ export default function DashboardPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Cash Received By Method */}
             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4">Cash Received Today</h2>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Cash Received Today</h2>
               <div className="space-y-4">
                  {[
                    { label: 'Bank Transfer', val: data.payments.transfer || 0, key: 'transfer' },
@@ -260,7 +260,7 @@ export default function DashboardPage() {
 
             {/* Revenue By Source */}
             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
-              <h2 className="text-sm font-semibold text-slate-800 mb-4">Revenue by Source</h2>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Revenue by Source</h2>
                <div className="space-y-4">
                  {Object.entries(data.revenue.by_source || {})
                  .sort(([, a], [, b]) => b.revenue - a.revenue)
@@ -288,7 +288,7 @@ export default function DashboardPage() {
 
           {/* Row 5: 7-Day Trend */}
           <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
-            <h2 className="text-sm font-semibold text-slate-800 mb-6">7-Day Revenue Trend</h2>
+            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-6">7-Day Revenue Trend</h2>
             
             {(!data.trend || data.trend.length === 0) ? (
               <div className="h-40 flex items-center justify-center text-[var(--text-muted)] text-sm italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
@@ -338,7 +338,7 @@ export default function DashboardPage() {
              <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 flex justify-between items-center group">
                <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Transfer Services</p>
-                  <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.transfer_revenue)}</p>
+                  <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.transfer_revenue)}</p>
                </div>
                <div className="text-right">
                  <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Margin</p>
@@ -348,18 +348,18 @@ export default function DashboardPage() {
              
              <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">POS Revenue</p>
-               <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.pos_revenue)}</p>
+               <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.pos_revenue)}</p>
              </div>
 
              <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Tips Logged</p>
-               <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.tip_total)}</p>
+               <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.tip_total)}</p>
              </div>
 
              <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-rose-200 p-4 flex items-center justify-between group">
                <div>
                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-rose-600 transition-colors">Day Use Revenue</p>
-                 <p className="text-xl font-bold text-slate-800 mt-0.5">{formatB(data.extras.dayuse_revenue)}</p>
+                 <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.dayuse_revenue)}</p>
                </div>
                <div className="text-right">
                  <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Sessions</p>
@@ -385,7 +385,7 @@ export default function DashboardPage() {
                   {data.arrivals_preview.map((item) => (
                     <div key={item.id} className="flex items-center justify-between rounded-lg bg-[var(--bg-body)] px-3 py-2.5">
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">{item.guest_name}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{item.guest_name}</p>
                         <p className="text-xs text-[var(--text-muted)]">
                           {item.source?.toUpperCase()}
                           {item.checkin_time ? ` · C/I ${item.checkin_time}` : ""}
@@ -414,7 +414,7 @@ export default function DashboardPage() {
                 <div className="space-y-2 bg-[var(--bg-surface)]">
                   {data.departures_preview.map((item) => (
                     <div key={item.id} className="flex items-center justify-between rounded-lg bg-[var(--bg-body)] px-3 py-2.5">
-                      <p className="text-sm font-semibold text-slate-800">{item.guest_name}</p>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{item.guest_name}</p>
                       <span className="text-sm font-semibold text-[var(--text-table-cell)]">
                          {formatB(item.total_price)}
                       </span>
@@ -437,7 +437,7 @@ export default function DashboardPage() {
                 </h2>
               </div>
               {!tracesData ? (
-                <div className="animate-pulse h-20 bg-white/50 rounded-lg"></div>
+                <div className="animate-pulse h-20 bg-[var(--bg-surface)]/50 rounded-lg"></div>
               ) : tracesData.total === 0 ? (
                 <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-amber-200 rounded-lg bg-amber-50/50 italic">No open traces today</p>
               ) : (
@@ -454,9 +454,9 @@ export default function DashboardPage() {
                       })}
                     >
                       <div className="flex justify-between items-start mb-1.5">
-                        <span className="badge bg-slate-200 text-slate-700 font-bold tracking-wide">{t.dept}</span>
+                        <span className="badge bg-[var(--bg-muted)] text-[var(--text-secondary)] font-bold tracking-wide">{t.dept}</span>
                         <div className="text-right leading-tight">
-                          <p className="text-xs font-bold text-slate-800">Room {t.room_number}</p>
+                          <p className="text-xs font-bold text-[var(--text-primary)]">Room {t.room_number}</p>
                           <p className="text-[10px] text-[var(--text-secondary)] truncate max-w-[100px]">{t.guest_name}</p>
                         </div>
                       </div>

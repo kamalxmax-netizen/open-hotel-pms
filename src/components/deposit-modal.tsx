@@ -128,7 +128,7 @@ export default function DepositModal({
             <form id="deposit-form" onSubmit={handleSubmit} className="space-y-4">
                 {/* Booking summary */}
                 <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2 text-sm">
-                    <div className="font-bold text-slate-800">{guestName}</div>
+                    <div className="font-bold text-[var(--text-primary)]">{guestName}</div>
                     <div className="text-[var(--text-muted)] text-xs">{bookingCode} · Total ฿{totalPrice.toLocaleString()}</div>
                 </div>
 

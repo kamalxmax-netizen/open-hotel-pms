@@ -54,7 +54,7 @@ const statusStyle: Record<
     text: "text-green-700"
   },
   closed: {
-    chip: "bg-state-closed/20 text-slate-700",
+    chip: "bg-state-closed/20 text-[var(--text-secondary)]",
     card: "from-rose-100 to-rose-50",
     border: "border-rose-300",
     label: "Closed",
@@ -190,7 +190,7 @@ function LaneBoard({
       </div>
 
       {lane.showCorridorBelow ? (
-        <div className="rounded-lg border border-slate-400/60 bg-slate-300 py-4 text-center text-xs font-semibold uppercase tracking-wider text-[var(--text-table-cell)]">
+        <div className="rounded-lg border border-slate-400/60 bg-[var(--bg-muted)] py-4 text-center text-xs font-semibold uppercase tracking-wider text-[var(--text-table-cell)]">
           Corridor
         </div>
       ) : null}
@@ -201,7 +201,7 @@ function LaneBoard({
 function FloorGap() {
   return (
     <div className="my-5 border-t-2 border-red-500/70 pt-4">
-      <div className="rounded-md border border-slate-400/60 bg-slate-300 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-table-cell)]">
+      <div className="rounded-md border border-slate-400/60 bg-[var(--bg-muted)] py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-table-cell)]">
         Floor Separation
       </div>
     </div>
@@ -377,7 +377,7 @@ export default function LiveBoard({ refreshToken }: { refreshToken: number }) {
           <p className="text-xs text-[var(--text-secondary)]">Floor order: 2 → 3 → 1</p>
         </div>
 
-        <div className="min-w-[1200px] rounded-2xl border border-[var(--border-default)] bg-slate-100/60 p-4">
+        <div className="min-w-[1200px] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface-hover)]/60 p-4">
           <div className="space-y-4">
             {floor2.map((lane) => (
               <LaneBoard
@@ -418,7 +418,7 @@ export default function LiveBoard({ refreshToken }: { refreshToken: number }) {
 
       {isModalOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--modal-overlay-bg)] p-4"
           onClick={closeDetailModal}
         >
           <div

@@ -146,7 +146,7 @@ export default function DeparturesPage() {
 
             {loading && (
                 <div className="space-y-2">
-                    {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-200" />)}
+                    {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--bg-muted)]" />)}
                 </div>
             )}
 
@@ -184,7 +184,7 @@ export default function DeparturesPage() {
                                     const isCheckedOut = d.status === "checked_out" || doneIds.has(d.id);
                                     const loyaltyVisual = resolveGuestLoyaltyVisual(d);
                                     return (
-                                        <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-slate-50 [&>td]:bg-slate-50" : loyaltyVisual.rowClass}>
+                                        <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-[var(--bg-body)] [&>td]:bg-[var(--bg-body)]" : loyaltyVisual.rowClass}>
                                             <td>
                                                 <div className="font-bold text-[var(--text-primary)]">Room {d.room_number}</div>
                                                 <div className="text-xs text-[var(--text-muted)]">{d.room_type}</div>
@@ -192,7 +192,7 @@ export default function DeparturesPage() {
                                             <td>
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <div
-                                                        className={`font-semibold min-w-0 flex-1 truncate ${isCheckedOut ? "text-[var(--text-muted)]" : "text-slate-800"}`}
+                                                        className={`font-semibold min-w-0 flex-1 truncate ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}
                                                         title={d.guest_name}
                                                     >
                                                         {d.guest_name}
@@ -210,7 +210,7 @@ export default function DeparturesPage() {
                                                 {d.phone && <div className="text-xs text-[var(--text-muted)]">{d.phone}</div>}
                                             </td>
                                             <td>
-                                                <span className="badge bg-slate-100 text-slate-600 text-xs">
+                                                <span className="badge bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] text-xs">
                                                     {SOURCE_LABEL[d.source] ?? d.source}
                                                 </span>
                                             </td>
@@ -246,11 +246,11 @@ export default function DeparturesPage() {
             {!loading && dayUseDepartures.length > 0 && (
                 <div className="mt-8 border-t-2 border-dashed border-[var(--border-default)] pt-6">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-sm font-bold uppercase tracking-widest text-[#e11d48]">Day Use Departures</p>
+                        <p className="text-sm font-bold uppercase tracking-widest text-[var(--dayuse-text)]">Day Use Departures</p>
                     </div>
-                    <div className="card overflow-hidden border-[#fecdd3]">
+                    <div className="card overflow-hidden border-[var(--dayuse-border)]">
                         <table className="data-table table-fixed w-full">
-                            <thead className="bg-[#fff1f2] text-[#be123c]">
+                            <thead className="bg-[var(--dayuse-bg)] text-[var(--dayuse-text-secondary)]">
                                 <tr>
                                     <th className="w-[14%]">Room</th>
                                     <th className="w-[34%]">Guest</th>
@@ -263,20 +263,20 @@ export default function DeparturesPage() {
                                 {dayUseDepartures.map((d) => {
                                     const isCheckedOut = d.status === "checked_out" || doneIds.has(d.id);
                                     return (
-                                        <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-slate-50" : "bg-rose-50/20"}>
+                                        <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-[var(--bg-body)]" : "bg-rose-50/20"}>
                                             <td>
                                                 <div className="font-bold text-[var(--text-primary)]">Room {d.room_number}</div>
-                                                <div className="text-[10px] uppercase font-bold text-[#e11d48]">Day Use</div>
+                                                <div className="text-[10px] uppercase font-bold text-[var(--dayuse-text)]">Day Use</div>
                                             </td>
                                             <td>
-                                                <div className="font-semibold text-slate-800 truncate">{d.guest_name}</div>
+                                                <div className="font-semibold text-[var(--text-primary)] truncate">{d.guest_name}</div>
                                                 {d.phone && <div className="text-xs text-[var(--text-muted)]">{d.phone}</div>}
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (
                                                     <span className="badge bg-[var(--bg-muted)] text-[var(--text-secondary)] text-xs">Closed Session</span>
                                                 ) : (
-                                                    <div className="bg-[var(--bg-surface)] border border-[#fecdd3] rounded-lg p-1.5 inline-block shadow-sm scale-90 origin-left">
+                                                    <div className="bg-[var(--bg-surface)] border border-[var(--dayuse-border)] rounded-lg p-1.5 inline-block shadow-sm scale-90 origin-left">
                                                         <DayUseTimer expiresAt={d.dayuse_expires_at} />
                                                     </div>
                                                 )}
@@ -291,7 +291,7 @@ export default function DeparturesPage() {
                                                     <span className="badge bg-emerald-100 text-emerald-700">✓ Checked Out</span>
                                                 ) : (
                                                     <button
-                                                        className="btn btn-primary btn-sm bg-[#e11d48] hover:bg-[#be123c] border-none shadow-md shadow-rose-600/20"
+                                                        className="btn btn-primary btn-sm bg-[var(--dayuse-text)] hover:bg-[var(--dayuse-text-secondary)] border-none shadow-md shadow-rose-600/20"
                                                         onClick={() => handleDayUseCheckout(d.id, d.room_number)}
                                                     >
                                                         Check-out

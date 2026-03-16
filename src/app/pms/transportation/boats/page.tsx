@@ -132,7 +132,7 @@ function DepartureTimesInput({ times, onChange, invalid = false }: { times: stri
                 <input type="text" placeholder="HH:MM (e.g. 07:30)" value={input} onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), add())}
                     className="flex-1 px-3 py-1.5 border border-[var(--border-input)] rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500" />
-                <button type="button" onClick={add} className="px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg text-sm hover:bg-slate-200">Add</button>
+                <button type="button" onClick={add} className="px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg text-sm hover:bg-[var(--bg-muted)]">Add</button>
             </div>
             {invalid && <p className="text-xs text-rose-600 mt-1">At least one departure time is required.</p>}
         </div>
@@ -604,7 +604,7 @@ export default function BoatTicketsPage() {
                                             <td className="px-4 py-3 text-right font-mono text-sm">{r.ticket_price != null ? r.ticket_price.toLocaleString() : "—"}</td>
                                             <td className="px-4 py-3 text-right font-mono text-sm text-[var(--text-muted)]">{r.cost_price != null ? r.cost_price.toLocaleString() : "—"}</td>
                                             <td className="px-4 py-3 text-xs">
-                                                {r.includes_pickup ? <span className="text-green-600">✓{r.pickup_fee ? ` +฿${r.pickup_fee}` : ""}</span> : <span className="text-slate-300">No</span>}
+                                                {r.includes_pickup ? <span className="text-green-600">✓{r.pickup_fee ? ` +฿${r.pickup_fee}` : ""}</span> : <span className="text-[var(--text-muted)]">No</span>}
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-1">

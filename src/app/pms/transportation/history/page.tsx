@@ -394,7 +394,7 @@ export default function TransferHistoryPage() {
                                             {t.booking_code && <p className="text-xs text-[var(--text-muted)] font-mono">{t.booking_code}</p>}
                                         </td>
                                         <td className="px-4 py-3 text-[var(--text-table-cell)] truncate max-w-[160px]">{t.pickup_location} → {t.dropoff_location}</td>
-                                        <td className="px-4 py-3 text-[var(--text-secondary)]">{t.driver_name ?? <span className="text-slate-300">—</span>}</td>
+                                        <td className="px-4 py-3 text-[var(--text-secondary)]">{t.driver_name ?? <span className="text-[var(--text-muted)]">—</span>}</td>
                                         <td className="px-4 py-3 text-right font-mono">{t.selling_price != null ? t.selling_price.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3 text-right font-mono text-[var(--text-muted)]">{t.cost_price != null ? t.cost_price.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3 text-right font-mono font-medium text-blue-700">{t.net_commission != null ? t.net_commission.toLocaleString() : "—"}</td>

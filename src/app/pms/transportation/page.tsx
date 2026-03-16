@@ -477,7 +477,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {/* ── Step 1: Guest ── */}
                     {step === 1 && (
                         <div>
-                            <h3 className="font-semibold text-slate-800 mb-4">Find Reservation</h3>
+                            <h3 className="font-semibold text-[var(--text-primary)] mb-4">Find Reservation</h3>
                             <input autoFocus type="text" placeholder="Search by guest name or booking code…" value={resSearch} onChange={e => setResSearch(e.target.value)}
                                 className={inputCls} />
                             {resLoading && <p className="text-xs text-[var(--text-muted)] mt-2">Searching…</p>}
@@ -513,7 +513,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {/* ── Step 2: Trip ── */}
                     {step === 2 && (
                         <div className="space-y-4">
-                            <h3 className="font-semibold text-slate-800">✈️ Trip Details — {selectedRes?.guest_name}</h3>
+                            <h3 className="font-semibold text-[var(--text-primary)]">✈️ Trip Details — {selectedRes?.guest_name}</h3>
                             <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
                                 <p className="text-xs font-semibold text-[var(--text-secondary)]">Transport Mode</p>
                                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -654,7 +654,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {/* ── Step 3: Provider ── */}
                     {step === 3 && (
                         <div className="space-y-4">
-                            <h3 className="font-semibold text-slate-800">🚗 Provider</h3>
+                            <h3 className="font-semibold text-[var(--text-primary)]">🚗 Provider</h3>
                             {providersLoading && (
                                 <p className="text-xs text-[var(--text-secondary)]">Loading provider data…</p>
                             )}
@@ -735,7 +735,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                     {/* ── Step 4: Pricing ── */}
                     {step === 4 && (
                         <div className="space-y-4">
-                            <h3 className="font-semibold text-slate-800">💰 Pricing</h3>
+                            <h3 className="font-semibold text-[var(--text-primary)]">💰 Pricing</h3>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Selling Price ฿</label>
@@ -1108,7 +1108,7 @@ export default function TransportationDailyBoard() {
             {data?.summary && (
                 <div className="grid grid-cols-6 gap-3 mb-6">
                     {[
-                        { label: "Total", value: data.summary.total, color: "bg-[var(--bg-muted)] text-slate-800" },
+                        { label: "Total", value: data.summary.total, color: "bg-[var(--bg-muted)] text-[var(--text-primary)]" },
                         { label: "Pending", value: data.summary.pending, color: "bg-yellow-100 text-yellow-800" },
                         { label: "Confirmed", value: data.summary.confirmed, color: "bg-blue-100 text-blue-800" },
                         { label: "In Progress", value: data.summary.in_progress, color: "bg-green-100 text-green-800" },
@@ -1169,7 +1169,7 @@ export default function TransportationDailyBoard() {
                                                 <p className="text-[var(--text-table-cell)] font-medium">{t.driver_name}</p>
                                                 {t.driver_phone && <p className="text-xs text-[var(--text-muted)]">{t.driver_phone}</p>}
                                             </div>
-                                        ) : <span className="text-slate-300 italic">Unassigned</span>}
+                                        ) : <span className="text-[var(--text-muted)] italic">Unassigned</span>}
                                     </td>
                                     <td className="px-4 py-3 text-right font-mono">{t.selling_price != null ? `฿${t.selling_price.toLocaleString()}` : "—"}</td>
                                     <td className="px-4 py-3">

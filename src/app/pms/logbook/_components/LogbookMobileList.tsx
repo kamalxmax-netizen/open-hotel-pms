@@ -81,7 +81,7 @@ export function LogbookMobileList({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onOpenFullView(note.id)}
-                  className="rounded px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:bg-slate-200 hover:text-[var(--text-secondary)]"
+                  className="rounded px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:bg-[var(--bg-muted)] hover:text-[var(--text-secondary)]"
                 >
                   Open
                 </button>
@@ -147,7 +147,7 @@ export function LogbookMobileList({
                           ? "bg-purple-200 text-purple-800"
                           : link.link_type === "stock"
                             ? "bg-blue-200 text-blue-800"
-                            : "bg-slate-200 text-[var(--text-primary)]"
+                            : "bg-[var(--bg-muted)] text-[var(--text-primary)]"
                     }`}
                     onClick={async () => {
                       const href = await resolveLogbookLinkHref(link)

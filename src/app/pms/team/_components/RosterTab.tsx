@@ -91,7 +91,7 @@ export function RosterTab() {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex justify-between items-center mt-2">
-                <h2 className="text-lg font-semibold text-slate-800">Daily Roster</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Daily Roster</h2>
                 <div className="flex gap-2">
                     {/* Mock Button for creating a shift, actual impl. depends on modal */}
                     <Button size="sm" className="bg-brand-600 hover:bg-brand-700 text-white">
@@ -119,7 +119,7 @@ export function RosterTab() {
                         <Card key={shift.id} className={`p-4 flex flex-col gap-4 border-l-4 ${shift.is_on_duty ? 'border-l-emerald-500' : 'border-l-slate-300'}`}>
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h3 className="font-bold text-slate-800">{shift.staff?.display_name || "Unknown Staff"}</h3>
+                                    <h3 className="font-bold text-[var(--text-primary)]">{shift.staff?.display_name || "Unknown Staff"}</h3>
                                     <div className="flex gap-2 items-center mt-1">
                                         <Badge variant="outline" className="text-[10px] bg-[var(--bg-body)]">
                                             {shift.staff?.department?.code || "N/A"}
