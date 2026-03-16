@@ -27,27 +27,27 @@ export default function NoServiceModal({
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
             <div
-                className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col"
+                className="w-full max-w-sm bg-[var(--bg-surface)] rounded-2xl shadow-xl overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-                    <h3 className="font-bold text-slate-800">No Service Room {roomNumber}</h3>
+                <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-body)]">
+                    <h3 className="font-bold text-[var(--text-primary)]">No Service Room {roomNumber}</h3>
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-slate-200 transition-colors"
                     >
                         <X size={20} />
                     </button>
                 </div>
 
                 <div className="p-4 flex-1">
-                    <p className="text-sm text-slate-500 mb-3">
+                    <p className="text-sm text-[var(--text-muted)] mb-3">
                         ลูกค้างดทำความสะอาด / แขวนป้าย DND (Do Not Disturb)
                         ระบบจะเปิด Checklist ต่อเพื่อบันทึกของที่เติม/เปลี่ยนจริง
                     </p>
 
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-1.5">
                         Note (Optional)
                     </label>
                     <textarea
@@ -55,7 +55,7 @@ export default function NoServiceModal({
                         onChange={(e) => setNote(e.target.value)}
                         disabled={isSubmitting}
                         placeholder="Type reason here e.g. DND Sign"
-                        className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all resize-none h-24"
+                        className="w-full p-3 border border-[var(--border-default)] rounded-xl bg-[var(--bg-surface)] text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all resize-none h-24"
                     />
                 </div>
 
@@ -63,7 +63,7 @@ export default function NoServiceModal({
                     <button
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors text-sm"
+                        className="flex-1 px-4 py-3 rounded-xl font-bold text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] hover:bg-slate-200 transition-colors text-sm"
                     >
                         Cancel
                     </button>

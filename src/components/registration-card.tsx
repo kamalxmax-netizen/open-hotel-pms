@@ -88,9 +88,9 @@ export default function RegistrationCard({ reservationId, onClose }: Registratio
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 p-4 overflow-auto">
-      <div className="mx-auto max-w-3xl bg-white rounded-xl shadow-xl">
-        <div className="no-print flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <h2 className="text-base font-bold text-slate-900">Registration Card</h2>
+      <div className="mx-auto max-w-3xl bg-[var(--bg-surface)] rounded-xl shadow-xl">
+        <div className="no-print flex items-center justify-between border-b border-[var(--border-default)] px-5 py-3">
+          <h2 className="text-base font-bold text-[var(--text-primary)]">Registration Card</h2>
           <div className="flex items-center gap-2">
             <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
             <button className="btn btn-primary btn-sm" onClick={() => window.print()}>Print</button>
@@ -98,7 +98,7 @@ export default function RegistrationCard({ reservationId, onClose }: Registratio
         </div>
 
         {loading && (
-          <div className="p-10 text-center text-slate-500">Loading registration card...</div>
+          <div className="p-10 text-center text-[var(--text-muted)]">Loading registration card...</div>
         )}
 
         {!loading && error && (
@@ -110,70 +110,70 @@ export default function RegistrationCard({ reservationId, onClose }: Registratio
         )}
 
         {!loading && data && (
-          <div className="reg-card-container p-8 text-slate-900">
-            <header className="border-b border-slate-200 pb-3 mb-4">
+          <div className="reg-card-container p-8 text-[var(--text-primary)]">
+            <header className="border-b border-[var(--border-default)] pb-3 mb-4">
               <h1 className="text-xl font-extrabold tracking-tight">{data.hotel_name}</h1>
-              <p className="text-sm text-slate-600 mt-0.5">{data.hotel_address}</p>
-              <p className="text-sm text-slate-600">{data.hotel_phone}</p>
+              <p className="text-sm text-[var(--text-secondary)] mt-0.5">{data.hotel_address}</p>
+              <p className="text-sm text-[var(--text-secondary)]">{data.hotel_phone}</p>
             </header>
 
             <section className="mb-4">
               <h2 className="text-lg font-bold">REGISTRATION CARD</h2>
-              <p className="text-sm text-slate-600">Booking #{data.booking_code}</p>
+              <p className="text-sm text-[var(--text-secondary)]">Booking #{data.booking_code}</p>
             </section>
 
             <section className="grid grid-cols-2 gap-4 mb-4 text-sm">
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 font-semibold">Guest Info</div>
+              <div className="border border-[var(--border-default)] rounded-lg overflow-hidden">
+                <div className="bg-[var(--bg-body)] px-3 py-2 font-semibold">Guest Info</div>
                 <div className="p-3 space-y-1.5">
-                  <p><span className="text-slate-500">Name:</span> {data.guest_name}</p>
-                  <p><span className="text-slate-500">Phone:</span> {data.guest_phone || "—"}</p>
+                  <p><span className="text-[var(--text-muted)]">Name:</span> {data.guest_name}</p>
+                  <p><span className="text-[var(--text-muted)]">Phone:</span> {data.guest_phone || "—"}</p>
                   <p>
-                    <span className="text-slate-500">
+                    <span className="text-[var(--text-muted)]">
                       {data.guest_identity_type ? `${data.guest_identity_type}#:` : "Identity#:"}
                     </span>{" "}
                     {data.guest_identity_number || "—"}
                   </p>
-                  <p><span className="text-slate-500">Nationality:</span> {data.guest_nationality || "—"}</p>
+                  <p><span className="text-[var(--text-muted)]">Nationality:</span> {data.guest_nationality || "—"}</p>
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 font-semibold">Stay Info</div>
+              <div className="border border-[var(--border-default)] rounded-lg overflow-hidden">
+                <div className="bg-[var(--bg-body)] px-3 py-2 font-semibold">Stay Info</div>
                 <div className="p-3 space-y-1.5">
-                  <p><span className="text-slate-500">Room:</span> {roomLine}</p>
-                  <p><span className="text-slate-500">Arrival:</span> {fmtDate(data.checkin_date)} {data.arrival_time ? `(${data.arrival_time})` : ""}</p>
-                  <p><span className="text-slate-500">Departure:</span> {fmtDate(data.checkout_date)}</p>
-                  <p><span className="text-slate-500">Nights:</span> {data.nights}</p>
-                  <p><span className="text-slate-500">Checked-in At:</span> {fmtDateTime(data.checked_in_at)}</p>
+                  <p><span className="text-[var(--text-muted)]">Room:</span> {roomLine}</p>
+                  <p><span className="text-[var(--text-muted)]">Arrival:</span> {fmtDate(data.checkin_date)} {data.arrival_time ? `(${data.arrival_time})` : ""}</p>
+                  <p><span className="text-[var(--text-muted)]">Departure:</span> {fmtDate(data.checkout_date)}</p>
+                  <p><span className="text-[var(--text-muted)]">Nights:</span> {data.nights}</p>
+                  <p><span className="text-[var(--text-muted)]">Checked-in At:</span> {fmtDateTime(data.checked_in_at)}</p>
                 </div>
               </div>
             </section>
 
-            <section className="mb-4 border border-slate-200 rounded-lg overflow-hidden text-sm">
-              <div className="bg-slate-50 px-3 py-2 font-semibold">Rate Details</div>
+            <section className="mb-4 border border-[var(--border-default)] rounded-lg overflow-hidden text-sm">
+              <div className="bg-[var(--bg-body)] px-3 py-2 font-semibold">Rate Details</div>
               <div className="p-3 grid grid-cols-2 gap-y-1">
-                <p><span className="text-slate-500">Rate / Night:</span> ฿ {fmtMoney(data.rate_per_night)}</p>
-                <p><span className="text-slate-500">Source:</span> {data.source}</p>
-                <p><span className="text-slate-500">Total:</span> ฿ {fmtMoney(data.total_price)}</p>
-                <p><span className="text-slate-500">Deposit:</span> ฿ {fmtMoney(data.deposit_amount)}</p>
+                <p><span className="text-[var(--text-muted)]">Rate / Night:</span> ฿ {fmtMoney(data.rate_per_night)}</p>
+                <p><span className="text-[var(--text-muted)]">Source:</span> {data.source}</p>
+                <p><span className="text-[var(--text-muted)]">Total:</span> ฿ {fmtMoney(data.total_price)}</p>
+                <p><span className="text-[var(--text-muted)]">Deposit:</span> ฿ {fmtMoney(data.deposit_amount)}</p>
               </div>
             </section>
 
             <section className="mb-6 text-sm">
               <h3 className="font-semibold mb-1.5">Special Requests</h3>
-              <div className="min-h-[56px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+              <div className="min-h-[56px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-[var(--text-secondary)]">
                 {data.special_requests || "—"}
               </div>
             </section>
 
-            <footer className="grid grid-cols-2 gap-8 text-sm pt-4 border-t border-slate-200">
+            <footer className="grid grid-cols-2 gap-8 text-sm pt-4 border-t border-[var(--border-default)]">
               <div>
-                <p className="text-slate-500 mb-12">Guest Signature</p>
+                <p className="text-[var(--text-muted)] mb-12">Guest Signature</p>
                 <p className="border-t border-slate-400 pt-1">({data.guest_name})</p>
               </div>
               <div>
-                <p className="text-slate-500 mb-12">Front Desk Signature</p>
+                <p className="text-[var(--text-muted)] mb-12">Front Desk Signature</p>
                 <p className="border-t border-slate-400 pt-1">Authorized Staff</p>
               </div>
             </footer>

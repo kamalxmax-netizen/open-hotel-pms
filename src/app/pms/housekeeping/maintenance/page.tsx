@@ -179,8 +179,8 @@ export default function MaintenanceDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-red-600">Maintenance</p>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Maintenance Hub</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">Track room maintenance status and tasks</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Maintenance Hub</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-0.5">Track room maintenance status and tasks</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Global Notes Bell */}
@@ -205,22 +205,22 @@ export default function MaintenanceDashboard() {
 
             {/* Summary Tiles */}
             <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg border border-l-4 border-l-red-500 p-3 shadow-sm">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                <div className="bg-[var(--bg-surface)] rounded-lg border border-l-4 border-l-red-500 p-3 shadow-sm">
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
                         <AlertCircleIcon className="w-4 h-4 text-red-500" />
                         <span className="uppercase tracking-wide">Overdue</span>
                     </div>
                     <p className="text-2xl font-extrabold text-red-600 mt-1">{summary.overdue}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-l-4 border-l-amber-400 p-3 shadow-sm">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                <div className="bg-[var(--bg-surface)] rounded-lg border border-l-4 border-l-amber-400 p-3 shadow-sm">
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
                         <AlertTriangleIcon className="w-4 h-4 text-amber-500" />
                         <span className="uppercase tracking-wide">Warning</span>
                     </div>
                     <p className="text-2xl font-extrabold text-amber-600 mt-1">{summary.warning}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-l-4 border-l-emerald-500 p-3 shadow-sm">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                <div className="bg-[var(--bg-surface)] rounded-lg border border-l-4 border-l-emerald-500 p-3 shadow-sm">
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
                         <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
                         <span className="uppercase tracking-wide">OK</span>
                     </div>
@@ -291,11 +291,11 @@ export default function MaintenanceDashboard() {
                                 return (
                                     <div key={floor || 'unknown'}>
                                         <div className="flex items-center gap-2 mb-3">
-                                            <span className="w-7 h-7 rounded bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                                            <span className="w-7 h-7 rounded bg-slate-200 flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">
                                                 {floor || "?"}
                                             </span>
-                                            <h3 className="font-bold text-slate-700">Floor {floor || 'Other'}</h3>
-                                            <span className="text-xs text-slate-400">{fRooms.length} rooms</span>
+                                            <h3 className="font-bold text-[var(--text-secondary)]">Floor {floor || 'Other'}</h3>
+                                            <span className="text-xs text-[var(--text-muted)]">{fRooms.length} rooms</span>
                                             {floorOverdue > 0 && (
                                                 <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{floorOverdue} overdue</span>
                                             )}

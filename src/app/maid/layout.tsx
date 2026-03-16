@@ -4,16 +4,16 @@ export default function MaidLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-body)] flex flex-col">
       {/* 
         Top Bar - Removed side padding slightly to max space
         Using sticky top-0 to stay on screen
       */}
-      <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm">
+      <header className="sticky top-0 z-40 w-full bg-[var(--bg-surface)] border-b border-[var(--border-default)] shadow-sm">
         <div className="flex h-14 items-center gap-3 px-4">
           <div className="flex-1">
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">Housekeeping</h1>
-            <p className="text-[10px] text-slate-500 font-medium">Maid Connect App</p>
+            <h1 className="text-lg font-bold text-[var(--text-primary)] leading-tight">Housekeeping</h1>
+            <p className="text-[10px] text-[var(--text-muted)] font-medium">Maid Connect App</p>
           </div>
         </div>
       </header>

@@ -72,19 +72,19 @@ export function LineBindCard({ staffId, onClose }: { staffId: string, onClose: (
             <Card className="w-full max-w-md p-6 shadow-xl flex flex-col gap-5 border-t-4 border-t-[#00B900] animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)]">
                             <span className="text-[#00B900]"><QrCode className="w-5 h-5" /></span>
                             Bind LINE Account
                         </h3>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <p className="text-sm text-[var(--text-muted)] mt-1">
                             Connect this staff profile to their LINE account for push notifications.
                         </p>
                     </div>
                 </div>
 
                 {loading && (
-                    <div className="py-12 flex flex-col items-center gap-4 text-slate-400">
-                        <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-[#00B900] animate-spin"></div>
+                    <div className="py-12 flex flex-col items-center gap-4 text-[var(--text-muted)]">
+                        <div className="w-8 h-8 rounded-full border-4 border-[var(--border-default)] border-t-[#00B900] animate-spin"></div>
                         <p className="text-sm font-medium">Generating secure OTP Token...</p>
                     </div>
                 )}
@@ -101,11 +101,11 @@ export function LineBindCard({ staffId, onClose }: { staffId: string, onClose: (
 
                 {tokenData && (
                     <div className="space-y-5">
-                        <div className="bg-slate-50 p-5 rounded-xl border flex flex-col items-center justify-center gap-4 relative overflow-hidden">
+                        <div className="bg-[var(--bg-body)] p-5 rounded-xl border flex flex-col items-center justify-center gap-4 relative overflow-hidden">
                             <div className="absolute top-0 w-full h-1 bg-[#00B900]/20"></div>
 
                             {/* QR Code generated locally */}
-                            <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                            <div className="bg-[var(--bg-surface)] p-3 rounded-xl shadow-sm border border-[var(--border-default)]">
                                 <QRCode
                                     value={`BIND ${tokenData.token}`}
                                     size={128}
@@ -113,19 +113,19 @@ export function LineBindCard({ staffId, onClose }: { staffId: string, onClose: (
                                     viewBox={`0 0 128 128`}
                                 />
                             </div>
-                            <p className="text-xs text-slate-500 text-center px-4 leading-relaxed">
+                            <p className="text-xs text-[var(--text-muted)] text-center px-4 leading-relaxed">
                                 Staff can scan this QR with the LINE app, or copy the command below and paste it in the official Hotel PMS LINE Bot chat.
                             </p>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-xs font-bold tracking-wider text-slate-500 uppercase">Manual Command</label>
+                            <label className="text-xs font-bold tracking-wider text-[var(--text-muted)] uppercase">Manual Command</label>
                             <div className="flex items-center gap-2">
-                                <code className="flex-1 bg-slate-100 p-3 rounded-lg text-sm font-mono border text-slate-800 break-all select-all">
+                                <code className="flex-1 bg-[var(--bg-surface-hover)] p-3 rounded-lg text-sm font-mono border text-[var(--text-primary)] break-all select-all">
                                     BIND {tokenData.token}
                                 </code>
                                 <Button variant={copied ? "default" : "outline"} onClick={handleCopy} className={`shrink-0 h-12 w-12 ${copied ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`} title="Copy to clipboard">
-                                    {copied ? <Check className="w-5 h-5 text-white" /> : <Copy className="w-5 h-5 text-slate-600" />}
+                                    {copied ? <Check className="w-5 h-5 text-white" /> : <Copy className="w-5 h-5 text-[var(--text-secondary)]" />}
                                 </Button>
                             </div>
                         </div>

@@ -79,7 +79,7 @@ export function MaintenanceRoomDetailModal({
                         <div>
                             <DialogTitle className="text-2xl flex items-center gap-3">
                                 Room {room.room_number}
-                                <span className="text-sm font-normal text-muted-foreground bg-slate-100 px-2 py-1 rounded">
+                                <span className="text-sm font-normal text-muted-foreground bg-[var(--bg-surface-hover)] px-2 py-1 rounded">
                                     {room.room_type_code}
                                 </span>
                             </DialogTitle>
@@ -106,9 +106,9 @@ export function MaintenanceRoomDetailModal({
                             </h4>
                             <div className="space-y-2">
                                 {notes.map(note => (
-                                    <div key={note.id} className="bg-white p-3 rounded border border-amber-100 flex justify-between gap-4 items-start shadow-sm">
+                                    <div key={note.id} className="bg-[var(--bg-surface)] p-3 rounded border border-amber-100 flex justify-between gap-4 items-start shadow-sm">
                                         <div>
-                                            <p className="text-sm text-slate-700">{note.note}</p>
+                                            <p className="text-sm text-[var(--text-secondary)]">{note.note}</p>
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 Reported at: {format(new Date(note.created_at), "dd/MM/yyyy HH:mm")}
                                             </p>
@@ -133,7 +133,7 @@ export function MaintenanceRoomDetailModal({
                         <h4 className="font-semibold text-lg border-b pb-2">Maintenance Tasks ({room.tasks?.length || 0})</h4>
 
                         {room.tasks?.map((task: any) => (
-                            <div key={task.task_id} className={`border rounded-lg p-4 transition-colors ${task.status === 'OVERDUE' ? 'border-red-200 bg-red-50/30' : task.status === 'WARNING' ? 'border-amber-200 bg-amber-50/30' : 'bg-slate-50'}`}>
+                            <div key={task.task_id} className={`border rounded-lg p-4 transition-colors ${task.status === 'OVERDUE' ? 'border-red-200 bg-red-50/30' : task.status === 'WARNING' ? 'border-amber-200 bg-amber-50/30' : 'bg-[var(--bg-body)]'}`}>
 
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3">
                                     <div>
@@ -145,12 +145,12 @@ export function MaintenanceRoomDetailModal({
                                         <div className="flex flex-wrap text-sm text-muted-foreground gap-x-4 gap-y-1 mt-2">
                                             <span className="flex items-center gap-1">
                                                 <CalendarIcon className="w-3.5 h-3.5" /> Last done:
-                                                <strong className="text-slate-700">
+                                                <strong className="text-[var(--text-secondary)]">
                                                     {task.last_done_at ? format(new Date(task.last_done_at), "dd/MM/yyyy") : 'Never'}
                                                 </strong>
                                             </span>
                                             <span>
-                                                Stays: <strong className={task.status !== 'OK' ? 'text-red-600' : 'text-slate-700'}>{task.stays_since_last} / {task.threshold_count}</strong>
+                                                Stays: <strong className={task.status !== 'OK' ? 'text-red-600' : 'text-[var(--text-secondary)]'}>{task.stays_since_last} / {task.threshold_count}</strong>
                                             </span>
                                         </div>
                                     </div>
@@ -185,7 +185,7 @@ export function MaintenanceRoomDetailModal({
                                             {task.checklist_items.map((item: string, idx: number) => (
                                                 <span
                                                     key={`${task.task_id}-check-${idx}`}
-                                                    className="rounded border border-indigo-200 bg-white px-2 py-0.5 text-[11px] text-indigo-700"
+                                                    className="rounded border border-indigo-200 bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] text-indigo-700"
                                                 >
                                                     {item}
                                                 </span>

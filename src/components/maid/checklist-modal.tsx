@@ -127,18 +127,18 @@ export default function ChecklistModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center sm:p-4">
       <div
-        className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full sm:max-w-md bg-[var(--bg-surface)] rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-body)] sticky top-0 z-10">
           <div>
-            <h3 className="font-bold text-slate-800 text-lg">Room {roomNumber} Checklist</h3>
-            <p className="text-xs text-slate-500">Verify items and log actual usage</p>
+            <h3 className="font-bold text-[var(--text-primary)] text-lg">Room {roomNumber} Checklist</h3>
+            <p className="text-xs text-[var(--text-muted)]">Verify items and log actual usage</p>
           </div>
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+            className="p-2 -mr-2 rounded-full text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-slate-200 transition-colors"
           >
             <X size={20} />
           </button>
@@ -153,20 +153,20 @@ export default function ChecklistModal({
           )}
 
           {localItems.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-sm">
+            <div className="text-center py-8 text-[var(--text-muted)] text-sm">
               No amenity checklist required for this room type.
             </div>
           ) : (
             <div className="space-y-4">
               {localItems.map((item, index) => (
-                <div key={item.item || index} className="p-3 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <div key={item.item || index} className="p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{item.item}</p>
-                    <span className="text-[11px] font-bold text-slate-500">
+                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{item.item}</p>
+                    <span className="text-[11px] font-bold text-[var(--text-muted)]">
                       {(amenityUnitChecks[index] ?? []).filter(Boolean).length}/{Math.max(1, Number(item.quantity ?? 1))}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Required quantity: {Math.max(1, Number(item.quantity ?? 1))}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Required quantity: {Math.max(1, Number(item.quantity ?? 1))}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(amenityUnitChecks[index] ?? []).map((checked, unitIndex) => (
                       <button
@@ -175,7 +175,7 @@ export default function ChecklistModal({
                         onClick={() => toggleAmenityUnit(index, unitIndex)}
                         className={`h-7 min-w-7 px-1.5 rounded-md border text-[11px] font-bold transition-colors ${checked
                             ? "bg-brand-500 border-brand-500 text-white"
-                            : "bg-slate-50 border-slate-300 text-slate-500 hover:bg-slate-100"
+                            : "bg-[var(--bg-body)] border-[var(--border-input)] text-[var(--text-muted)] hover:bg-[var(--bg-surface-hover)]"
                           }`}
                       >
                         {checked ? "✓" : unitIndex + 1}
@@ -184,7 +184,7 @@ export default function ChecklistModal({
                   </div>
                 </div>
               ))}
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-[var(--text-muted)]">
                 Tick only the units used. Stock is deducted from checked units only.
               </p>
             </div>
@@ -202,27 +202,27 @@ export default function ChecklistModal({
               {maintenanceChecklist.map((assignment) => {
                 const assignmentMeta = maintenanceAssignments.find((m) => m.assignment_id === assignment.assignment_id);
                 return (
-                  <div key={assignment.assignment_id} className="rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
-                    <p className="text-sm font-semibold text-slate-800">
+                  <div key={assignment.assignment_id} className="rounded-xl border border-indigo-100 bg-[var(--bg-surface)] p-3 shadow-sm">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
                       {assignmentMeta?.task_name ?? "Maintenance Task"}
                     </p>
                     {!!assignmentMeta?.estimated_minutes && (
-                      <p className="text-[11px] text-slate-500">Estimated: {assignmentMeta.estimated_minutes} min</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">Estimated: {assignmentMeta.estimated_minutes} min</p>
                     )}
 
                     <div className="mt-2 space-y-2">
                       {assignment.items.map((item, itemIndex) => (
                         <label
                           key={`${assignment.assignment_id}-${item.item}-${itemIndex}`}
-                          className="flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 bg-slate-50"
+                          className="flex items-center gap-2 rounded-md border border-[var(--border-subtle)] px-2 py-1.5 bg-[var(--bg-body)]"
                         >
                           <input
                             type="checkbox"
                             checked={item.checked}
                             onChange={() => toggleMaintenanceItemChecked(assignment.assignment_id, itemIndex)}
-                            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                            className="h-4 w-4 rounded border-[var(--border-input)] text-brand-600 focus:ring-brand-500"
                           />
-                          <span className={`text-xs ${item.checked ? "text-slate-800 font-semibold" : "text-slate-600"}`}>
+                          <span className={`text-xs ${item.checked ? "text-[var(--text-primary)] font-semibold" : "text-[var(--text-secondary)]"}`}>
                             {item.item}
                           </span>
                         </label>
@@ -242,7 +242,7 @@ export default function ChecklistModal({
               </div>
               <div className="space-y-2">
                 {hkTraces.map((trace) => (
-                  <div key={trace.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs text-amber-800 shadow-sm">
+                  <div key={trace.id} className="rounded-xl border border-amber-100 bg-[var(--bg-surface)] px-3 py-2 text-xs text-amber-800 shadow-sm">
                     • {trace.text}
                   </div>
                 ))}
@@ -258,7 +258,7 @@ export default function ChecklistModal({
               </div>
               <div className="space-y-2">
                 {loanCollections.map((loan, idx) => (
-                  <label key={loan.trace_id} className="flex items-center gap-3 p-3 rounded-xl border border-amber-100 bg-white shadow-sm cursor-pointer hover:bg-slate-50 transition-colors">
+                  <label key={loan.trace_id} className="flex items-center gap-3 p-3 rounded-xl border border-amber-100 bg-[var(--bg-surface)] shadow-sm cursor-pointer hover:bg-[var(--bg-body)] transition-colors">
                     <input
                       type="checkbox"
                       checked={loanChecks[idx]}
@@ -272,11 +272,11 @@ export default function ChecklistModal({
                       className="h-5 w-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">
+                      <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
                         {loan.item_icon} {loan.item_name}
-                        <span className="ml-1 text-slate-500">×{loan.quantity}</span>
+                        <span className="ml-1 text-[var(--text-muted)]">×{loan.quantity}</span>
                       </p>
-                      {loan.due_date && <p className="text-[10px] text-slate-500">Due: {loan.due_date}</p>}
+                      {loan.due_date && <p className="text-[10px] text-[var(--text-muted)]">Due: {loan.due_date}</p>}
                     </div>
                   </label>
                 ))}
@@ -285,7 +285,7 @@ export default function ChecklistModal({
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky bottom-0">
           <button
             onClick={() => {
               if (loanCollections && loanCollections.length > 0) {

@@ -13,7 +13,7 @@ type NoteUpdateOptions = {
 }
 
 const NOTE_COLORS = {
-  general: "border-slate-200 bg-white",
+  general: "border-[var(--border-default)] bg-[var(--bg-surface)]",
   task: "border-amber-300 bg-amber-50",
   urgent: "border-rose-300 bg-rose-50",
   stock: "border-emerald-300 bg-emerald-50",
@@ -51,7 +51,7 @@ export function LogbookMobileList({
 
   if (notes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-sm text-slate-500">
+      <div className="flex flex-col items-center justify-center p-8 text-sm text-[var(--text-muted)]">
         No notes found for this filter.
       </div>
     )
@@ -65,7 +65,7 @@ export function LogbookMobileList({
 
         return (
           <Card key={note.id} className={`flex flex-col overflow-hidden border-l-4 shadow-sm ${borderColor}`}>
-            <div className="flex items-start justify-between gap-2 border-b border-black/5 bg-slate-50 p-3">
+            <div className="flex items-start justify-between gap-2 border-b border-black/5 bg-[var(--bg-body)] p-3">
               <input
                 value={note.title}
                 onChange={(event) =>
@@ -75,13 +75,13 @@ export function LogbookMobileList({
                     { historyMode: "coalesced", saveMode: "debounced" }
                   )
                 }
-                className="w-full rounded px-1 text-sm font-bold text-slate-800 outline-none"
+                className="w-full rounded px-1 text-sm font-bold text-[var(--text-primary)] outline-none"
                 placeholder="Note Title"
               />
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onOpenFullView(note.id)}
-                  className="rounded px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+                  className="rounded px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:bg-slate-200 hover:text-[var(--text-secondary)]"
                 >
                   Open
                 </button>
@@ -96,7 +96,7 @@ export function LogbookMobileList({
 
             <div className="flex flex-col gap-2 p-3">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-600">Type</span>
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Type</span>
                 <select
                   value={note.note_type}
                   onChange={(event) =>
@@ -106,7 +106,7 @@ export function LogbookMobileList({
                       { historyMode: "immediate", saveMode: "immediate" }
                     )
                   }
-                  className="h-7 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700"
+                  className="h-7 rounded border border-[var(--border-input)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-secondary)]"
                 >
                   <option value="general">General</option>
                   <option value="task">Task</option>
@@ -132,7 +132,7 @@ export function LogbookMobileList({
                   )
                 }
                 style={getRichBodyTextareaStyle(richBody)}
-                className="min-h-[96px] w-full resize-none rounded border border-slate-200 bg-white/70 p-2 text-sm outline-none"
+                className="min-h-[96px] w-full resize-none rounded border border-[var(--border-default)] bg-[var(--bg-surface)]/70 p-2 text-sm outline-none"
                 placeholder="Type your notes here..."
               />
 
@@ -147,7 +147,7 @@ export function LogbookMobileList({
                           ? "bg-purple-200 text-purple-800"
                           : link.link_type === "stock"
                             ? "bg-blue-200 text-blue-800"
-                            : "bg-slate-200 text-slate-800"
+                            : "bg-slate-200 text-[var(--text-primary)]"
                     }`}
                     onClick={async () => {
                       const href = await resolveLogbookLinkHref(link)
@@ -186,7 +186,7 @@ export function LogbookMobileList({
                 />
               </div>
 
-              <div className="flex justify-between text-[10px] text-slate-500">
+              <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
                 <span>By {note.author?.display_name || "Admin"}</span>
                 <span>{new Date(note.updated_at).toLocaleDateString()}</span>
               </div>

@@ -103,7 +103,7 @@ export default function NightAuditPendingPopup({
         </DialogHeader>
 
         <div className="space-y-4 px-6 py-5 text-sm text-amber-950">
-          <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3">
+          <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)]/80 px-4 py-3">
             <p className="font-semibold">
               Business Date: <span className="font-bold">{status.business_date}</span>
             </p>

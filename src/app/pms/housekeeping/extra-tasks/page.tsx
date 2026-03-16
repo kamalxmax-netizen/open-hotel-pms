@@ -230,12 +230,12 @@ export default function ExtraTasksPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-sky-600">Housekeeping</p>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Extra Task Board</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">{displayDateText}</p>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Extra Task Board</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-0.5">{displayDateText}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="relative">
-                        <CalendarIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <CalendarIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
                         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="pl-9 w-[160px] h-9" disabled={isLoading} />
                     </div>
                     <Button variant="outline" size="icon" onClick={() => fetchData(true)} disabled={isLoading || isRefreshing} className="h-9 w-9">
@@ -270,10 +270,10 @@ export default function ExtraTasksPage() {
                     {/* Maid Lanes */}
                     <div className="space-y-4 mt-2">
                         {groupedAssignments.every(([, tasks]) => tasks.length === 0) ? (
-                            <div className="text-center py-12 bg-slate-50 rounded-xl border-2 border-dashed">
+                            <div className="text-center py-12 bg-[var(--bg-body)] rounded-xl border-2 border-dashed">
                                 <ListChecksIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                                <p className="text-slate-500 font-medium">No extra tasks for this date.</p>
-                                <p className="text-xs text-slate-400 mt-1">Click the button above to create one.</p>
+                                <p className="text-[var(--text-muted)] font-medium">No extra tasks for this date.</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">Click the button above to create one.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -287,7 +287,7 @@ export default function ExtraTasksPage() {
                                         <div
                                             key={maidName}
                                             className={`rounded-xl border transition-all ${
-                                                isPool ? "bg-slate-50/80 border-slate-200" : "bg-white border-slate-200"
+                                                isPool ? "bg-[var(--bg-body)]/80 border-[var(--border-default)]" : "bg-[var(--bg-surface)] border-[var(--border-default)]"
                                             } ${isDropTarget ? "ring-2 ring-sky-400 bg-sky-50/40" : ""} ${
                                                 isPool && groupedAssignments.length > 1 ? "md:col-span-2 xl:col-span-3" : ""
                                             }`}
@@ -296,23 +296,23 @@ export default function ExtraTasksPage() {
                                             onDrop={(e) => handleDrop(e, maidName)}
                                         >
                                             {/* Lane Header */}
-                                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                                            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
                                                 <div className="flex items-center gap-2.5">
                                                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                        isPool ? "bg-slate-200 text-slate-600" : "bg-sky-100 text-sky-700"
+                                                        isPool ? "bg-slate-200 text-[var(--text-secondary)]" : "bg-sky-100 text-sky-700"
                                                     }`}>
                                                         {isPool ? "P" : maidName.charAt(0)}
                                                     </span>
                                                     <div>
-                                                        <p className="font-semibold text-sm text-slate-800">{isPool ? "POOL" : maidName}</p>
+                                                        <p className="font-semibold text-sm text-[var(--text-primary)]">{isPool ? "POOL" : maidName}</p>
                                                         {!isPool && (
-                                                            <p className="text-[10px] text-slate-400">
+                                                            <p className="text-[10px] text-[var(--text-muted)]">
                                                                 {maidTasksDone}/{tasks.length} done &middot; {maidTotalMin}m est.
                                                             </p>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Badge variant="secondary" className="text-[10px] font-bold bg-slate-100 text-slate-500">
+                                                <Badge variant="secondary" className="text-[10px] font-bold bg-[var(--bg-surface-hover)] text-[var(--text-muted)]">
                                                     {tasks.length}
                                                 </Badge>
                                             </div>
@@ -320,7 +320,7 @@ export default function ExtraTasksPage() {
                                             {/* Lane Body */}
                                             <div className={`p-3 ${isPool ? "flex flex-wrap gap-3" : "space-y-3"}`}>
                                                 {tasks.length === 0 ? (
-                                                    <div className="rounded-lg border border-dashed bg-slate-50/50 px-4 py-6 text-xs text-slate-400 text-center w-full">
+                                                    <div className="rounded-lg border border-dashed bg-[var(--bg-body)]/50 px-4 py-6 text-xs text-[var(--text-muted)] text-center w-full">
                                                         {isPool ? "No unassigned tasks." : "Drag tasks here to assign."}
                                                     </div>
                                                 ) : (
@@ -364,7 +364,7 @@ export default function ExtraTasksPage() {
 // Summary tile component
 function SummaryTile({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: React.ReactNode }) {
     const colorMap: Record<string, string> = {
-        slate: "border-l-slate-400 text-slate-700",
+        slate: "border-l-slate-400 text-[var(--text-secondary)]",
         sky: "border-l-sky-500 text-sky-700",
         emerald: "border-l-emerald-500 text-emerald-700",
         amber: "border-l-amber-400 text-amber-700",
@@ -372,8 +372,8 @@ function SummaryTile({ label, value, color, icon }: { label: string; value: stri
     const cls = colorMap[color] || colorMap.slate;
 
     return (
-        <div className={`bg-white rounded-lg border border-l-4 ${cls} p-3 shadow-sm`}>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+        <div className={`bg-[var(--bg-surface)] rounded-lg border border-l-4 ${cls} p-3 shadow-sm`}>
+            <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-medium">
                 {icon}
                 <span className="uppercase tracking-wide">{label}</span>
             </div>

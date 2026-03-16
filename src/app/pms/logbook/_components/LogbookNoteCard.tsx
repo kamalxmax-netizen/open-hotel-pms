@@ -37,7 +37,7 @@ interface NoteCardProps {
 }
 
 const NOTE_COLORS: Record<LogbookNote["note_type"], { card: string; header: string; body: string }> = {
-  general: { card: "bg-white border-slate-300", header: "bg-slate-100/90", body: "bg-slate-50/85" },
+  general: { card: "bg-[var(--bg-surface)] border-[var(--border-input)]", header: "bg-[var(--bg-surface-hover)]/90", body: "bg-[var(--bg-body)]/85" },
   task: { card: "bg-yellow-100 border-yellow-400", header: "bg-yellow-200/90", body: "bg-yellow-50/90" },
   urgent: { card: "bg-rose-100 border-rose-400", header: "bg-rose-200/90", body: "bg-rose-50/90" },
   stock: { card: "bg-emerald-100 border-emerald-400", header: "bg-emerald-200/90", body: "bg-emerald-50/90" },
@@ -538,7 +538,7 @@ export function LogbookNoteCard({
               { historyMode: "coalesced", saveMode: "debounced" }
             )
           }
-          className={`min-w-0 bg-transparent text-slate-800 outline-none placeholder:text-slate-400 ${
+          className={`min-w-0 bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] ${
             isMinimized ? "flex-none px-1 text-[19px] font-black leading-[1.2]" : "flex-1 px-1 text-[15px] font-black leading-[1.25]"
           }`}
           style={isMinimized ? { width: `${minimizedTitleWidth}px` } : undefined}
@@ -548,7 +548,7 @@ export function LogbookNoteCard({
         <div className="relative z-40 flex shrink-0 items-center" ref={typeMenuRef} data-no-drag>
           <button
             type="button"
-            className={`flex items-center justify-center rounded-full hover:bg-white/60 ${
+            className={`flex items-center justify-center rounded-full hover:bg-[var(--bg-surface)]/60 ${
               isMinimized ? "h-[22px] w-[22px]" : "h-5 w-5"
             }`}
             title={`Type: ${NOTE_TYPE_META[note.note_type].label}`}
@@ -557,15 +557,15 @@ export function LogbookNoteCard({
             <span className={`block ${isMinimized ? "h-4 w-4" : "h-3 w-3"} rounded-full ${NOTE_TYPE_META[note.note_type].dot}`} />
           </button>
           {isTypeMenuOpen ? (
-            <div className="absolute right-0 top-full z-[80] mt-1 w-28 rounded-md border border-slate-200 bg-white p-1 opacity-100 shadow-xl">
+            <div className="absolute right-0 top-full z-[80] mt-1 w-28 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] p-1 opacity-100 shadow-xl">
               {(Object.keys(NOTE_TYPE_META) as LogbookNote["note_type"][]).map((type) => (
                 <button
                   key={type}
                   type="button"
                   className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[10px] ${
                     note.note_type === type
-                      ? "bg-slate-100 font-semibold text-slate-900"
-                      : "text-slate-700 hover:bg-slate-50"
+                      ? "bg-[var(--bg-surface-hover)] font-semibold text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                   }`}
                   onClick={() => {
                     onUpdateContent(
@@ -681,8 +681,8 @@ export function LogbookNoteCard({
           />
 
           {isAtPickerOpen ? (
-            <div className="absolute bottom-20 left-2 right-2 z-30 rounded-md border border-slate-200 bg-white shadow-lg">
-              <div className="border-b border-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
+            <div className="absolute bottom-20 left-2 right-2 z-30 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg">
+              <div className="border-b border-[var(--border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--text-muted)]">
                 Autolink with @
               </div>
               <div className="max-h-36 overflow-auto py-1">
@@ -695,18 +695,18 @@ export function LogbookNoteCard({
                       applyAtOption(option)
                     }}
                     className={`w-full px-2 py-1 text-left text-[11px] ${
-                      index === atActiveIndex ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:bg-slate-50"
+                      index === atActiveIndex ? "bg-[var(--bg-surface-hover)] text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                     }`}
                   >
                     <span className="font-semibold">{option.label}</span>
-                    <span className="ml-1 text-[10px] text-slate-500">{option.hint}</span>
+                    <span className="ml-1 text-[10px] text-[var(--text-muted)]">{option.hint}</span>
                   </button>
                 ))}
                 {atLoading ? (
-                  <div className="px-2 py-1 text-[10px] text-slate-500">Loading suggestions...</div>
+                  <div className="px-2 py-1 text-[10px] text-[var(--text-muted)]">Loading suggestions...</div>
                 ) : null}
                 {!atLoading && atOptions.length === 0 ? (
-                  <div className="px-2 py-1 text-[10px] text-slate-500">No matches</div>
+                  <div className="px-2 py-1 text-[10px] text-[var(--text-muted)]">No matches</div>
                 ) : null}
               </div>
             </div>
@@ -725,7 +725,7 @@ export function LogbookNoteCard({
                         ? "bg-purple-200 text-purple-800"
                         : link.link_type === "stock"
                           ? "bg-blue-200 text-blue-800"
-                          : "bg-slate-200 text-slate-800"
+                          : "bg-slate-200 text-[var(--text-primary)]"
                   }`}
                   onClick={() => void openLink(link)}
                 >
@@ -762,7 +762,7 @@ export function LogbookNoteCard({
             </div>
           </div>
 
-          <div className="mt-0.5 flex items-center justify-between gap-2 text-[9px] leading-none text-slate-500">
+          <div className="mt-0.5 flex items-center justify-between gap-2 text-[9px] leading-none text-[var(--text-muted)]">
             <span className="truncate">
               By {note.author?.display_name || "Admin"}
               {createdMeta ? ` ${createdMeta}` : ""}

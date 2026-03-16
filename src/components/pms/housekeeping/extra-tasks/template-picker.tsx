@@ -102,9 +102,9 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
             <button
                 onClick={() => setIsExpanded(true)}
                 disabled={disabled}
-                className="w-full border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-sky-400 hover:bg-sky-50/50 transition-colors group disabled:opacity-50"
+                className="w-full border-2 border-dashed border-[var(--border-input)] rounded-xl p-4 text-center hover:border-sky-400 hover:bg-sky-50/50 transition-colors group disabled:opacity-50"
             >
-                <div className="flex items-center justify-center gap-2 text-slate-500 group-hover:text-sky-600">
+                <div className="flex items-center justify-center gap-2 text-[var(--text-muted)] group-hover:text-sky-600">
                     <PlusIcon className="w-5 h-5" />
                     <span className="font-semibold text-sm">Create Extra Task</span>
                 </div>
@@ -113,17 +113,17 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
     }
 
     return (
-        <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
+        <div className="border rounded-xl bg-[var(--bg-surface)] shadow-sm overflow-hidden">
             {/* Collapsible Header */}
             <button
                 onClick={() => setIsExpanded(false)}
-                className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 border-b hover:bg-slate-100 transition-colors"
+                className="w-full flex items-center justify-between px-5 py-3 bg-[var(--bg-body)] border-b hover:bg-[var(--bg-surface-hover)] transition-colors"
             >
                 <div className="flex items-center gap-2">
                     <SparklesIcon className="w-4 h-4 text-sky-600" />
-                    <span className="font-semibold text-sm text-slate-800">Create Extra Task</span>
+                    <span className="font-semibold text-sm text-[var(--text-primary)]">Create Extra Task</span>
                 </div>
-                <ChevronUpIcon className="w-4 h-4 text-slate-400" />
+                <ChevronUpIcon className="w-4 h-4 text-[var(--text-muted)]" />
             </button>
 
             <div className="p-5 space-y-4">
@@ -131,14 +131,14 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => { setIsCustom(false); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-slate-200"}`}
                         disabled={disabled || isSubmitting}
                     >
                         From Template
                     </button>
                     <button
                         onClick={() => { setIsCustom(true); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-slate-200"}`}
                         disabled={disabled || isSubmitting}
                     >
                         Custom Task
@@ -146,7 +146,7 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                     <div className="flex-1" />
                     <button
                         onClick={() => setShowCreateTemplate((prev) => !prev)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${showCreateTemplate ? "bg-amber-100 text-amber-700" : "text-slate-500 hover:bg-slate-100"}`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${showCreateTemplate ? "bg-amber-100 text-amber-700" : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-hover)]"}`}
                         disabled={disabled || isSubmitting || isCreatingTemplate}
                     >
                         {showCreateTemplate ? "Close" : "+ New Template"}

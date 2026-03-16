@@ -55,7 +55,7 @@ export function LogbookRichToolbar({
 
   return (
     <div
-      className={`rounded-xl border border-black/10 bg-white/75 backdrop-blur-sm ${
+      className={`rounded-xl border border-black/10 bg-[var(--bg-surface)]/75 backdrop-blur-sm ${
         isCompact ? "px-1.5 py-1" : "px-3 py-2"
       }`}
       data-no-drag
@@ -89,7 +89,7 @@ export function LogbookRichToolbar({
           {richBody.styles.size.toUpperCase()}
         </Button>
 
-        <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1 py-1">
+        <div className="flex items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-1 py-1">
           {LOGBOOK_TEXT_COLORS.map((color) => (
             <button
               key={color}
@@ -132,7 +132,7 @@ export function LogbookRichToolbar({
       </div>
 
       <div className={`mt-2 flex flex-wrap items-center gap-1.5 ${isCompact ? "text-[10px]" : "text-xs"}`}>
-        <span className="font-medium text-slate-500">Alarm</span>
+        <span className="font-medium text-[var(--text-muted)]">Alarm</span>
         <Input
           type="datetime-local"
           value={toLocalDateTimeValue(remindAt)}

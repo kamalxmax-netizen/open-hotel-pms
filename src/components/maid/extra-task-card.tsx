@@ -56,10 +56,10 @@ export default function ExtraTaskCard({
             <span className="rounded bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] font-bold border border-rose-200">
               TASK
             </span>
-            <span className="text-[11px] font-bold text-slate-500">P{task.priority}</span>
+            <span className="text-[11px] font-bold text-[var(--text-muted)]">P{task.priority}</span>
           </div>
-          <h3 className="text-base font-bold text-slate-900 mt-1">{task.task_name}</h3>
-          <p className="text-xs text-slate-600 mt-0.5">Estimated: {task.duration_min} min</p>
+          <h3 className="text-base font-bold text-[var(--text-primary)] mt-1">{task.task_name}</h3>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">Estimated: {task.duration_min} min</p>
         </div>
 
         {isDone ? (
@@ -79,7 +79,7 @@ export default function ExtraTaskCard({
       </div>
 
       {!!task.notes && (
-        <div className="rounded-lg border border-slate-200 bg-white/80 px-2 py-1.5 text-xs text-slate-600">
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]/80 px-2 py-1.5 text-xs text-[var(--text-secondary)]">
           {task.notes}
         </div>
       )}

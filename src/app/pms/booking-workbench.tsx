@@ -464,16 +464,16 @@ export default function BookingWorkbench({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-700">Booking Operations</p>
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Create, Search, Edit, Cancel</h2>
-          <p className="text-sm text-slate-600">Connected to live APIs and Supabase booking workflows.</p>
+          <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Create, Search, Edit, Cancel</h2>
+          <p className="text-sm text-[var(--text-secondary)]">Connected to live APIs and Supabase booking workflows.</p>
         </div>
-        <span className="badge bg-slate-100 text-slate-700">English UI (phase 1)</span>
+        <span className="badge bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]">English UI (phase 1)</span>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Lookup by Room + Date</h3>
+          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Lookup by Room + Date</h3>
             <form onSubmit={lookupByRoomAndDate} className="mt-3 grid gap-2 sm:grid-cols-3">
               <input
                 value={lookupForm.room_number}
@@ -481,7 +481,7 @@ export default function BookingWorkbench({
                   setLookupForm((current) => ({ ...current, room_number: event.target.value }))
                 }
                 placeholder="Room Number"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+                className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
                 required
                 aria-invalid={lookupRoomInvalid ? "true" : "false"}
               />
@@ -489,7 +489,7 @@ export default function BookingWorkbench({
                 type="date"
                 value={lookupForm.date}
                 onChange={(event) => setLookupForm((current) => ({ ...current, date: event.target.value }))}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+                className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
                 required
                 aria-invalid={lookupDateInvalid ? "true" : "false"}
               />
@@ -503,14 +503,14 @@ export default function BookingWorkbench({
             </form>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Lookup by Guest Name</h3>
+          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Lookup by Guest Name</h3>
             <form onSubmit={lookupReservationsByName} className="mt-3 flex gap-2">
               <input
                 value={lookupByName}
                 onChange={(event) => setLookupByName(event.target.value)}
                 placeholder="Guest Name"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+                className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
                 required
                 aria-invalid={lookupNameInvalid ? "true" : "false"}
               />
@@ -530,13 +530,13 @@ export default function BookingWorkbench({
                     key={item.id}
                     type="button"
                     onClick={() => selectFromSearch(item)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+                    className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-left text-sm transition hover:border-brand-300 hover:bg-brand-50/50"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-900">{item.guest_name}</span>
-                      <span className="text-xs text-slate-500">{item.booking_code}</span>
+                      <span className="font-semibold text-[var(--text-primary)]">{item.guest_name}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{item.booking_code}</span>
                     </div>
-                    <div className="mt-0.5 text-xs text-slate-600">
+                    <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
                       Room {item.room_number || "-"} | {item.checkin_date} → {item.checkout_date}
                     </div>
                   </button>
@@ -555,14 +555,14 @@ export default function BookingWorkbench({
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Create Reservation</h3>
+        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Create Reservation</h3>
           <form onSubmit={createReservation} className="mt-3 grid gap-2 sm:grid-cols-2">
             <input
               value={createForm.guest_name}
               onChange={(event) => setCreateForm((current) => ({ ...current, guest_name: event.target.value }))}
               placeholder="Guest Name"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
               required
               aria-invalid={createGuestNameInvalid ? "true" : "false"}
             />
@@ -570,7 +570,7 @@ export default function BookingWorkbench({
               value={createForm.room_number}
               onChange={(event) => setCreateForm((current) => ({ ...current, room_number: event.target.value }))}
               placeholder="Room Number"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
               required
               aria-invalid={createRoomInvalid ? "true" : "false"}
             />
@@ -579,7 +579,7 @@ export default function BookingWorkbench({
               onChange={(event) =>
                 setCreateForm((current) => ({ ...current, source: event.target.value as BookingSource }))
               }
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
             >
               {sourceOptions.map((source) => (
                 <option key={source} value={source}>
@@ -591,7 +591,7 @@ export default function BookingWorkbench({
               type="date"
               value={createForm.checkin_date}
               onChange={(event) => setCreateForm((current) => ({ ...current, checkin_date: event.target.value }))}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
               required
               aria-invalid={createCheckinInvalid ? "true" : "false"}
             />
@@ -599,7 +599,7 @@ export default function BookingWorkbench({
               type="date"
               value={createForm.checkout_date}
               onChange={(event) => setCreateForm((current) => ({ ...current, checkout_date: event.target.value }))}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
               required
               aria-invalid={createCheckoutInvalid ? "true" : "false"}
             />
@@ -607,19 +607,19 @@ export default function BookingWorkbench({
               value={createForm.phone}
               onChange={(event) => setCreateForm((current) => ({ ...current, phone: event.target.value }))}
               placeholder="Phone"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
             />
             <input
               value={createForm.checkin_time}
               onChange={(event) => setCreateForm((current) => ({ ...current, checkin_time: event.target.value }))}
               placeholder="Check-in Time (optional)"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
+              className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring"
             />
             <textarea
               value={createForm.note}
               onChange={(event) => setCreateForm((current) => ({ ...current, note: event.target.value }))}
               placeholder="Note"
-              className="min-h-[80px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
+              className="min-h-[80px] rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
             />
             {createForm.source === "ota" ? (
               <textarea
@@ -628,7 +628,7 @@ export default function BookingWorkbench({
                   setCreateForm((current) => ({ ...current, ota_prices_input: event.target.value }))
                 }
                 placeholder="OTA prices per night (comma/space separated). Example: 1200, 1300"
-                className="min-h-[70px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
+                className="min-h-[70px] rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring sm:col-span-2"
                 aria-invalid={createOtaInvalid ? "true" : "false"}
               />
             ) : null}
@@ -654,10 +654,10 @@ export default function BookingWorkbench({
         </div>
       </div>
 
-      <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mt-5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Reservation Editor</h3>
-          <span className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Reservation Editor</h3>
+          <span className="text-xs text-[var(--text-muted)]">
             {selectedReservation ? selectedReservation.booking_code : "No reservation selected"}
           </span>
         </div>
@@ -668,7 +668,7 @@ export default function BookingWorkbench({
             onChange={(event) => setEditForm((current) => ({ ...current, guest_name: event.target.value }))}
             placeholder="Guest Name"
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100 sm:col-span-2"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)] sm:col-span-2"
             required
             aria-invalid={editGuestNameInvalid ? "true" : "false"}
           />
@@ -677,7 +677,7 @@ export default function BookingWorkbench({
             onChange={(event) => setEditForm((current) => ({ ...current, room_number: event.target.value }))}
             placeholder="Room Number"
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
             required
             aria-invalid={editRoomInvalid ? "true" : "false"}
           />
@@ -685,7 +685,7 @@ export default function BookingWorkbench({
             value={editForm.source}
             onChange={(event) => setEditForm((current) => ({ ...current, source: event.target.value as BookingSource }))}
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
           >
             {sourceOptions.map((source) => (
               <option key={source} value={source}>
@@ -698,7 +698,7 @@ export default function BookingWorkbench({
             value={editForm.checkin_date}
             onChange={(event) => setEditForm((current) => ({ ...current, checkin_date: event.target.value }))}
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
             required
             aria-invalid={editCheckinInvalid ? "true" : "false"}
           />
@@ -707,7 +707,7 @@ export default function BookingWorkbench({
             value={editForm.checkout_date}
             onChange={(event) => setEditForm((current) => ({ ...current, checkout_date: event.target.value }))}
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
             required
             aria-invalid={editCheckoutInvalid ? "true" : "false"}
           />
@@ -716,21 +716,21 @@ export default function BookingWorkbench({
             onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))}
             placeholder="Phone"
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
           />
           <input
             value={editForm.checkin_time}
             onChange={(event) => setEditForm((current) => ({ ...current, checkin_time: event.target.value }))}
             placeholder="Check-in Time"
             disabled={!canEdit}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
           />
           <textarea
             value={editForm.note}
             onChange={(event) => setEditForm((current) => ({ ...current, note: event.target.value }))}
             placeholder="Note"
             disabled={!canEdit}
-            className="min-h-[80px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100 sm:col-span-2"
+            className="min-h-[80px] rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)] sm:col-span-2"
           />
           {editForm.source === "ota" ? (
             <textarea
@@ -738,7 +738,7 @@ export default function BookingWorkbench({
               onChange={(event) => setEditForm((current) => ({ ...current, ota_prices_input: event.target.value }))}
               placeholder="OTA prices per night"
               disabled={!canEdit}
-              className="min-h-[70px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100 sm:col-span-2"
+              className="min-h-[70px] rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)] sm:col-span-2"
               aria-invalid={editOtaInvalid ? "true" : "false"}
             />
           ) : null}
@@ -757,7 +757,7 @@ export default function BookingWorkbench({
                 onChange={(event) => setCancelReason(event.target.value)}
                 placeholder="Cancel reason"
                 disabled={!canEdit || cancelLoading}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm outline-none ring-brand-300 focus:ring disabled:cursor-not-allowed disabled:bg-[var(--bg-surface-hover)]"
               />
               <button
                 type="button"

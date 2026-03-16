@@ -9,7 +9,7 @@ export default function MaidChip({ maidName, priority, className = "" }: { maidN
                 {maidName}
             </span>
             {priority != null && (
-                <span className="inline-flex items-center justify-center bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded text-[10px] shadow-sm">
+                <span className="inline-flex items-center justify-center bg-slate-200 text-[var(--text-secondary)] font-bold px-1.5 py-0.5 rounded text-[10px] shadow-sm">
                     P{priority}
                 </span>
             )}

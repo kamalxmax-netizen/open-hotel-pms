@@ -285,10 +285,10 @@ export default function SmartCardPopup() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
-      <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <main className="min-h-screen bg-[var(--bg-surface-hover)] p-4 sm:p-6">
+      <div className="mx-auto max-w-2xl rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-sm sm:p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-slate-900">Thai ID Reader</h1>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)]">Thai ID Reader</h1>
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
               socketConnected ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
@@ -298,14 +298,14 @@ export default function SmartCardPopup() {
           </span>
         </div>
 
-        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-700">{statusText}</p>
-          <p className="mt-1 text-xs text-slate-500">Endpoint: {endpoint}</p>
+        <div className="mb-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+          <p className="text-sm font-medium text-[var(--text-secondary)]">{statusText}</p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Endpoint: {endpoint}</p>
           {!socketConnected && (
-            <p className="mt-1 text-xs text-slate-500">Start service: `npm run smartcard:service`</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Start service: `npm run smartcard:service`</p>
           )}
           {!socketConnected && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
               Tried endpoints: {wsEndpoints.join(" , ")}
             </p>
           )}
@@ -322,12 +322,12 @@ export default function SmartCardPopup() {
                 value={endpointInput}
                 onChange={(e) => setEndpointInput(e.target.value)}
                 placeholder="ws://127.0.0.1:3001"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-secondary)]"
               />
               <button
                 type="button"
                 onClick={handleApplyEndpoint}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
               >
                 Apply Endpoint
               </button>
@@ -345,20 +345,20 @@ export default function SmartCardPopup() {
 
         {cardData && (
           <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/40 p-3">
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-900">Citizen ID:</span> {cardData.citizenId}
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--text-primary)]">Citizen ID:</span> {cardData.citizenId}
             </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-900">Thai Name:</span> {thaiName || "-"}
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--text-primary)]">Thai Name:</span> {thaiName || "-"}
             </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-900">English Name:</span> {englishName || "-"}
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--text-primary)]">English Name:</span> {englishName || "-"}
             </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-900">DOB:</span> {cardData.birthday || "-"}
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--text-primary)]">DOB:</span> {cardData.birthday || "-"}
             </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold text-slate-900">Gender:</span> {cardData.gender}
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--text-primary)]">Gender:</span> {cardData.gender}
             </p>
           </div>
         )}
@@ -366,7 +366,7 @@ export default function SmartCardPopup() {
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
             onClick={() => window.close()}
           >
             Close

@@ -307,12 +307,12 @@ export default function PassportOcrPopup() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <main className="min-h-screen bg-[var(--bg-surface-hover)] p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Passport OCR</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <h1 className="text-lg font-semibold text-[var(--text-primary)]">Passport OCR</h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Capture the MRZ area at the bottom of the passport. Photo is not stored.
             </p>
           </div>
@@ -322,10 +322,10 @@ export default function PassportOcrPopup() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-800">Choose image</p>
-              <p className="mt-1 text-xs text-slate-500">Use camera or upload an existing passport photo.</p>
+          <section className="space-y-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4">
+            <div className="rounded-xl border border-dashed border-[var(--border-input)] bg-[var(--bg-surface)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Choose image</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Use camera or upload an existing passport photo.</p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <label className="btn btn-primary btn-sm cursor-pointer">
                   Take Photo
@@ -353,36 +353,36 @@ export default function PassportOcrPopup() {
             </div>
 
             <div className="grid gap-4 xl:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-sm font-semibold text-slate-800">Original preview</p>
-                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Original preview</p>
+                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)]">
                   {previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={previewUrl} alt="Passport preview" className="max-h-[360px] w-full rounded-lg object-contain" />
                   ) : (
-                    <p className="px-6 text-center text-sm text-slate-500">No image selected yet.</p>
+                    <p className="px-6 text-center text-sm text-[var(--text-muted)]">No image selected yet.</p>
                   )}
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-sm font-semibold text-slate-800">MRZ auto-crop</p>
-                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">MRZ auto-crop</p>
+                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)]">
                   {mrzPreviewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={mrzPreviewUrl} alt="Passport MRZ preview" className="max-h-[360px] w-full rounded-lg object-contain" />
                   ) : (
-                    <p className="px-6 text-center text-sm text-slate-500">Run Passport OCR to generate MRZ crop preview.</p>
+                    <p className="px-6 text-center text-sm text-[var(--text-muted)]">Run Passport OCR to generate MRZ crop preview.</p>
                   )}
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-sm font-semibold text-slate-800">MRZ enhanced (preview only)</p>
-                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">MRZ enhanced (preview only)</p>
+                <div className="mt-3 flex min-h-[240px] items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)]">
                   {mrzEnhancedPreviewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={mrzEnhancedPreviewUrl} alt="Passport MRZ enhanced preview" className="max-h-[360px] w-full rounded-lg object-contain" />
                   ) : (
-                    <p className="px-6 text-center text-sm text-slate-500">Enhanced OCR fallback preview appears after scanning.</p>
+                    <p className="px-6 text-center text-sm text-[var(--text-muted)]">Enhanced OCR fallback preview appears after scanning.</p>
                   )}
                 </div>
               </div>
@@ -390,15 +390,15 @@ export default function PassportOcrPopup() {
           </section>
 
           <section className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-800">Status</p>
-              <p className="mt-2 text-sm text-slate-600">{statusText}</p>
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Status</p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">{statusText}</p>
               {errorText ? <p className="mt-2 text-sm font-medium text-rose-600">{errorText}</p> : null}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-slate-800">Extracted fields</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Extracted fields</p>
                 {result ? (
                   <span className="badge bg-indigo-100 text-indigo-700">
                     {meta ? `${meta.confidence_label} · ${meta.confidence_score}%` : result.warnings.length > 0 ? `${result.warnings.length} manual check` : "Ready"}
@@ -417,7 +417,7 @@ export default function PassportOcrPopup() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                  <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-4 text-sm text-[var(--text-muted)]">
                     OCR results will appear here after scanning.
                   </div>
                 )}
@@ -435,21 +435,21 @@ export default function PassportOcrPopup() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-800">MRZ</p>
-              <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] text-slate-600">
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">MRZ</p>
+              <div className="mt-3 space-y-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3 font-mono text-[11px] text-[var(--text-secondary)]">
                 <p className="break-all">{result?.mrzLine1 || "-"}</p>
                 <p className="break-all">{result?.mrzLine2 || "-"}</p>
               </div>
               {debug ? (
                 <div className="mt-4 space-y-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Debug source</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">{meta?.selected_source || "-"}</p>
+                  <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Debug source</p>
+                    <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{meta?.selected_source || "-"}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">OCR text</p>
-                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-slate-700">
+                  <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">OCR text</p>
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-[var(--text-secondary)]">
                       {debug.selected_text || "-"}
                     </pre>
                   </div>

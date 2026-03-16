@@ -2855,14 +2855,14 @@ export default function ReservationDetailPage({
     const checkinFieldErrorClass = (field: string | string[]) => {
         const fields = Array.isArray(field) ? field : [field];
         const hasError = fields.some((item) => checkinMissingFields.has(item));
-        return hasError ? "!border-rose-300 !bg-rose-100 text-slate-900 placeholder:text-slate-400" : "";
+        return hasError ? "!border-rose-300 !bg-rose-100 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" : "";
     };
 
     /* ─── Loading state ─── */
     if (fetching) {
         return (
             <PmsModal title="Loading..." size="folio" onClose={onClose}>
-                <div className="p-8 text-center text-slate-400">Loading reservation data...</div>
+                <div className="p-8 text-center text-[var(--text-muted)]">Loading reservation data...</div>
             </PmsModal>
         );
     }
@@ -2950,34 +2950,34 @@ export default function ReservationDetailPage({
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                         Reservation created successfully.
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
                         <div className="grid grid-cols-2 gap-2 text-sm">
-                            <p className="text-slate-500">Booking Code</p>
-                            <p className="font-semibold text-slate-900 text-right">{createdSummary.bookingCode}</p>
+                            <p className="text-[var(--text-muted)]">Booking Code</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">{createdSummary.bookingCode}</p>
 
-                            <p className="text-slate-500">Guest</p>
-                            <p className="font-semibold text-slate-900 text-right">{createdSummary.guestName}</p>
+                            <p className="text-[var(--text-muted)]">Guest</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">{createdSummary.guestName}</p>
 
-                            <p className="text-slate-500">Stay</p>
-                            <p className="font-semibold text-slate-900 text-right">
+                            <p className="text-[var(--text-muted)]">Stay</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">
                                 {createdSummary.checkinDate} → {createdSummary.checkoutDate} ({createdSummary.nights} night{createdSummary.nights > 1 ? "s" : ""})
                             </p>
 
-                            <p className="text-slate-500">Room Type</p>
-                            <p className="font-semibold text-slate-900 text-right">{createdSummary.roomTypeName}</p>
+                            <p className="text-[var(--text-muted)]">Room Type</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">{createdSummary.roomTypeName}</p>
 
-                            <p className="text-slate-500">Room</p>
-                            <p className="font-semibold text-slate-900 text-right">
+                            <p className="text-[var(--text-muted)]">Room</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">
                                 {createdSummary.roomNumber ? `Room ${createdSummary.roomNumber}` : "Not assigned"}
                             </p>
 
-                            <p className="text-slate-500">Channel</p>
-                            <p className="font-semibold text-slate-900 text-right">
+                            <p className="text-[var(--text-muted)]">Channel</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">
                                 {BOOKING_SOURCE_LABEL[createdSummary.source] ?? createdSummary.source}
                             </p>
 
-                            <p className="text-slate-500">Total</p>
-                            <p className="font-semibold text-slate-900 text-right">฿ {formatMoney(createdSummary.totalPrice)}</p>
+                            <p className="text-[var(--text-muted)]">Total</p>
+                            <p className="font-semibold text-[var(--text-primary)] text-right">฿ {formatMoney(createdSummary.totalPrice)}</p>
                         </div>
                     </div>
                 </div>
@@ -2999,7 +2999,7 @@ export default function ReservationDetailPage({
                                     : "bg-indigo-100 text-indigo-700"
                                 }`}>{mode}</span>
                             {readonlyClosedReservation && (
-                                <span className="rounded bg-slate-200 px-2 py-1 text-xs font-bold uppercase tracking-widest text-slate-700">
+                                <span className="rounded bg-slate-200 px-2 py-1 text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                                     {reservationStatus === "cancelled" ? "cancelled" : "checked out"}
                                 </span>
                             )}
@@ -3067,7 +3067,7 @@ export default function ReservationDetailPage({
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 mb-4">{successMessage}</div>
                 )}
                 {readonlyClosedReservation && (
-                    <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    <div className="mb-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
                         This reservation is {reservationStatus === "cancelled" ? "cancelled" : "checked out"}. Details are available in read-only mode.
                     </div>
                 )}
@@ -3079,7 +3079,7 @@ export default function ReservationDetailPage({
                 {(reservationAlertsLoading || reservationAlerts.length > 0) && (
                     <div className="mb-4 space-y-2">
                         {reservationAlertsLoading && reservationAlerts.length === 0 ? (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-muted)]">
                                 Loading alerts...
                             </div>
                         ) : (
@@ -3131,7 +3131,7 @@ export default function ReservationDetailPage({
                     <div className="relative">
                         {lockMessage && (
                             <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-300/40 backdrop-blur-[1px]">
-                                <div className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                                <div className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] shadow-sm">
                                     {lockMessage}
                                 </div>
                             </div>
@@ -3145,10 +3145,10 @@ export default function ReservationDetailPage({
 
                                     {/* Header Badge */}
                                     {reservationId && (
-                                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 flex justify-between items-center text-sm">
+                                        <div className="bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg px-3 py-2 flex justify-between items-center text-sm">
                                             <div className="flex items-stretch gap-2">
-                                                <span className="font-bold text-slate-800">{guestName || "—"}</span>
-                                                <span className="text-slate-400 font-mono text-xs">#{reservationId.slice(0, 8).toUpperCase()}</span>
+                                                <span className="font-bold text-[var(--text-primary)]">{guestName || "—"}</span>
+                                                <span className="text-[var(--text-muted)] font-mono text-xs">#{reservationId.slice(0, 8).toUpperCase()}</span>
                                             </div>
                                             {rooms.find(r => r.id === roomId) && (
                                                 <span className="font-bold text-indigo-700 text-xs bg-indigo-50 px-2 py-0.5 rounded">
@@ -3252,7 +3252,7 @@ export default function ReservationDetailPage({
                                                 {showReassignButton && (
                                                     <button
                                                         type="button"
-                                                        className="inline-flex h-[35px] shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 transition hover:bg-slate-100"
+                                                        className="inline-flex h-[35px] shrink-0 items-center justify-center rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-2 text-[11px] font-semibold leading-none text-[var(--text-secondary)] transition hover:bg-[var(--bg-surface-hover)]"
                                                         onClick={() => setShowAssignRoomModal(true)}
                                                     >
                                                         Re-Assign
@@ -3385,10 +3385,10 @@ export default function ReservationDetailPage({
                                                         <div className="form-label mb-1">
                                                             Accompanying Guest
                                                         </div>
-                                                        <div className="flex h-[38px] items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+                                                        <div className="flex h-[38px] items-stretch overflow-hidden rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] shadow-sm">
                                                             <button
                                                                 type="button"
-                                                                className="flex w-9 items-center justify-center text-[17px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                                className="flex w-9 items-center justify-center text-[17px] font-bold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-slate-300"
                                                                 onClick={openNewPartyModal}
                                                                 disabled={isReadonly || !reservationId}
                                                                 aria-label="Add accompanying guest"
@@ -3397,14 +3397,14 @@ export default function ReservationDetailPage({
                                                             </button>
                                                             <button
                                                                 type="button"
-                                                                className="flex min-w-[66px] items-center justify-center border-x border-slate-200 px-2 text-[11px] font-bold tracking-wide text-slate-700 transition hover:bg-slate-50"
+                                                                className="flex min-w-[66px] items-center justify-center border-x border-[var(--border-default)] px-2 text-[11px] font-bold tracking-wide text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)]"
                                                                 onClick={() => setPartyModalOpen(true)}
                                                             >
                                                                 {partyLoading ? "..." : `${partyCount} PAX`}
                                                             </button>
                                                             <button
                                                                 type="button"
-                                                                className="px-3 text-[11px] font-bold tracking-wide text-slate-700 transition hover:bg-slate-50"
+                                                                className="px-3 text-[11px] font-bold tracking-wide text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)]"
                                                                 onClick={() => setPartyModalOpen(true)}
                                                             >
                                                                 EDIT
@@ -3429,7 +3429,7 @@ export default function ReservationDetailPage({
                                                     {!isReadonly && (
                                                         <button
                                                             type="button"
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50"
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)]"
                                                             onClick={() => setShowManualGuestSearch((value) => !value)}
                                                         >
                                                             <span>{showManualGuestSearch ? "Hide Search" : "Search Profile"}</span>
@@ -3451,7 +3451,7 @@ export default function ReservationDetailPage({
                                                     )}
                                                     {guestProfileId && (
                                                         <>
-                                                            <span className="rounded px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold">
+                                                            <span className="rounded px-2 py-0.5 bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] font-semibold">
                                                                 ID: {guestProfileId.slice(0, 8)}
                                                             </span>
                                                             {profileStatus && (
@@ -3501,7 +3501,7 @@ export default function ReservationDetailPage({
                                                                 <button
                                                                     key={`${member.id}-${member.guest_profile_id || member.display_order}`}
                                                                     type="button"
-                                                                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                                                    className="rounded-full border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
                                                                     onClick={() => { void openPartyMemberModal(member); }}
                                                                 >
                                                                     {memberName || "Guest"}
@@ -3512,7 +3512,7 @@ export default function ReservationDetailPage({
                                                 )}
 
                                                 {showManualGuestSearch && !isReadonly && (
-                                                    <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                                                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 shadow-sm">
                                                         <input
                                                             type="text"
                                                             className="form-input text-sm"
@@ -3520,21 +3520,21 @@ export default function ReservationDetailPage({
                                                             onChange={(e) => setManualGuestSearchQ(e.target.value)}
                                                             placeholder="Search by name / phone / member no"
                                                         />
-                                                        <div className="mt-2 max-h-40 overflow-y-auto rounded border border-slate-100">
+                                                        <div className="mt-2 max-h-40 overflow-y-auto rounded border border-[var(--border-subtle)]">
                                                             {manualGuestSearching && (
-                                                                <div className="px-2 py-2 text-xs text-slate-500">Searching...</div>
+                                                                <div className="px-2 py-2 text-xs text-[var(--text-muted)]">Searching...</div>
                                                             )}
                                                             {!manualGuestSearching && manualGuestSearchQ.trim().length < 2 && (
-                                                                <div className="px-2 py-2 text-xs text-slate-400">Type at least 2 characters.</div>
+                                                                <div className="px-2 py-2 text-xs text-[var(--text-muted)]">Type at least 2 characters.</div>
                                                             )}
                                                             {!manualGuestSearching && manualGuestSearchQ.trim().length >= 2 && manualGuestResults.length === 0 && (
-                                                                <div className="px-2 py-2 text-xs text-slate-400">No profile found.</div>
+                                                                <div className="px-2 py-2 text-xs text-[var(--text-muted)]">No profile found.</div>
                                                             )}
                                                             {!manualGuestSearching && manualGuestResults.map((profile: any) => (
                                                                 <button
                                                                     key={profile.id}
                                                                     type="button"
-                                                                    className="w-full border-b border-slate-100 px-2 py-2 text-left text-xs hover:bg-indigo-50 last:border-b-0"
+                                                                    className="w-full border-b border-[var(--border-subtle)] px-2 py-2 text-left text-xs hover:bg-indigo-50 last:border-b-0"
                                                                     onClick={() => {
                                                                         void selectProfileById(String(profile.id), {
                                                                             first_name: profile.first_name,
@@ -3543,10 +3543,10 @@ export default function ReservationDetailPage({
                                                                         });
                                                                     }}
                                                                 >
-                                                                    <div className="font-semibold text-slate-800">
+                                                                    <div className="font-semibold text-[var(--text-primary)]">
                                                                         {[profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—"}
                                                                     </div>
-                                                                    <div className="text-slate-500">
+                                                                    <div className="text-[var(--text-muted)]">
                                                                         {profile.phone || "—"} {profile.member_no ? `• ${profile.member_no}` : ""}
                                                                     </div>
                                                                 </button>
@@ -3701,7 +3701,7 @@ export default function ReservationDetailPage({
                                                             <label className="form-label text-amber-900">Check-in Time</label>
                                                             <input
                                                                 type="datetime-local"
-                                                                className="form-input h-10 text-sm bg-white"
+                                                                className="form-input h-10 text-sm bg-[var(--bg-surface)]"
                                                                 value={checkedInAt || nowForTimestamp}
                                                                 onChange={(e) => setCheckedInAt(e.target.value)}
                                                                 disabled={isReadonly}
@@ -3711,7 +3711,7 @@ export default function ReservationDetailPage({
                                                             <label className="form-label">Nationality Display</label>
                                                             <input
                                                                 type="text"
-                                                                className="form-input h-10 text-sm bg-slate-50"
+                                                                className="form-input h-10 text-sm bg-[var(--bg-body)]"
                                                                 value={formattedNationality || "—"}
                                                                 readOnly
                                                             />
@@ -3820,7 +3820,7 @@ export default function ReservationDetailPage({
                                                         <label className="form-label">Profile Status</label>
                                                         <input
                                                             type="text"
-                                                            className="form-input text-sm bg-slate-50"
+                                                            className="form-input text-sm bg-[var(--bg-body)]"
                                                             value={profileStatus || "draft"}
                                                             readOnly
                                                         />
@@ -3829,7 +3829,7 @@ export default function ReservationDetailPage({
                                                         <label className="form-label">Last Stay</label>
                                                         <input
                                                             type="text"
-                                                            className="form-input text-sm bg-slate-50"
+                                                            className="form-input text-sm bg-[var(--bg-body)]"
                                                             value={profileLastStayDate || "—"}
                                                             readOnly
                                                         />
@@ -3886,7 +3886,7 @@ export default function ReservationDetailPage({
                                                         placeholder="Profile notes..."
                                                     />
                                                 </div>
-                                                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                                <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                                                     <input
                                                         type="checkbox"
                                                         checked={profileBlacklisted}
@@ -3900,12 +3900,12 @@ export default function ReservationDetailPage({
 
                                         <CollapsibleSection id="guest-history" title="History" icon="📊">
                                             {guestProfileId ? (
-                                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm">
                                                     <div className="space-y-0.5">
-                                                        <p className="font-semibold text-slate-800">
+                                                        <p className="font-semibold text-[var(--text-primary)]">
                                                             Stays: {profileStayCount} {profileStayCount > 0 ? "(Return Guest)" : ""}
                                                         </p>
-                                                        <p className="text-xs text-slate-500">
+                                                        <p className="text-xs text-[var(--text-muted)]">
                                                             Profile: {guestProfileId} {profileLastStayDate ? `• Last stay ${profileLastStayDate}` : ""}
                                                         </p>
                                                     </div>
@@ -3919,14 +3919,14 @@ export default function ReservationDetailPage({
                                                     </a>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-slate-500">Link profile to show guest history.</p>
+                                                <p className="text-sm text-[var(--text-muted)]">Link profile to show guest history.</p>
                                             )}
                                         </CollapsibleSection>
                                     </div>
 
                                     {/* Checkout timestamp (readonly) */}
                                     {mode === "checkout" && checkedInAt && (
-                                        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">
+                                        <div className="flex items-center gap-3 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)]">
                                             <span className="opacity-50">Checked in:</span>
                                             <span className="font-semibold">{new Date(checkedInAt).toLocaleString("th-TH")}</span>
                                         </div>
@@ -3941,7 +3941,7 @@ export default function ReservationDetailPage({
                                                 {roomMoveHistory.map((move, index) => (
                                                     <div
                                                         key={`${move.moved_at || move.move_date}-${index}`}
-                                                        className="rounded-md border border-indigo-100 bg-white px-2.5 py-1.5 text-xs text-indigo-900"
+                                                        className="rounded-md border border-indigo-100 bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs text-indigo-900"
                                                     >
                                                         <p className="font-semibold">
                                                             {move.move_date || "Unknown date"}: Room {move.from_room_number} {"->"} Room {move.to_room_number}
@@ -4008,9 +4008,9 @@ export default function ReservationDetailPage({
                                                 disabled
                                             />
                                         ) : (
-                                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Rate Plan</p>
-                                                <p className="text-sm font-semibold text-slate-700">Rack / Rate Grid</p>
+                                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">
+                                                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Rate Plan</p>
+                                                <p className="text-sm font-semibold text-[var(--text-secondary)]">Rack / Rate Grid</p>
                                             </div>
                                         )
                                     )}
@@ -4257,12 +4257,12 @@ export default function ReservationDetailPage({
                     }
                 >
                     <div className="space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">
                             <div>
-                                <p className="text-sm font-semibold text-slate-800">Room party</p>
-                                <p className="text-xs text-slate-500">Max 4 total guests per room. Primary guest always counts as 1.</p>
+                                <p className="text-sm font-semibold text-[var(--text-primary)]">Room party</p>
+                                <p className="text-xs text-[var(--text-muted)]">Max 4 total guests per room. Primary guest always counts as 1.</p>
                             </div>
-                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
+                            <span className="rounded-full bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-sm">
                                 {partyCount} PAX • {remainingPartySlots} slots left
                             </span>
                         </div>
@@ -4289,7 +4289,7 @@ export default function ReservationDetailPage({
                                         type="button"
                                         className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isSelected
                                             ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
                                             }`}
                                         onClick={() => { void openPartyMemberModal(member); }}
                                     >
@@ -4306,15 +4306,15 @@ export default function ReservationDetailPage({
                         )}
 
                         {!reservationId && (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
                                 Save the reservation first, then add accompanying guests.
                             </div>
                         )}
 
                         <div className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-                            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-semibold text-slate-800">Search Existing Profile</p>
+                                    <p className="text-sm font-semibold text-[var(--text-primary)]">Search Existing Profile</p>
                                     <button
                                         type="button"
                                         className="btn btn-ghost btn-sm"
@@ -4332,15 +4332,15 @@ export default function ReservationDetailPage({
                                     placeholder="Search name / phone / passport / ID"
                                     disabled={partySaving || !reservationId || remainingPartySlots === 0}
                                 />
-                                <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                                <div className="max-h-56 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]">
                                     {partySearchLoading && (
-                                        <div className="px-3 py-2 text-xs text-slate-500">Searching...</div>
+                                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">Searching...</div>
                                     )}
                                     {!partySearchLoading && partySearchQ.trim().length < 2 && (
-                                        <div className="px-3 py-2 text-xs text-slate-400">Type at least 2 characters.</div>
+                                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">Type at least 2 characters.</div>
                                     )}
                                     {!partySearchLoading && partySearchQ.trim().length >= 2 && partySearchResults.length === 0 && (
-                                        <div className="px-3 py-2 text-xs text-slate-400">No profile found.</div>
+                                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No profile found.</div>
                                     )}
                                     {!partySearchLoading && partySearchResults.map((profile: any) => {
                                         const alreadyLinked = displayedParty.some((member) => String(member.guest_profile_id) === String(profile.id));
@@ -4348,19 +4348,19 @@ export default function ReservationDetailPage({
                                         return (
                                             <div
                                                 key={`party-search-${profile.id}`}
-                                                className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0"
+                                                className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-2 last:border-b-0"
                                             >
                                                 <div className="min-w-0">
-                                                    <div className="truncate text-xs font-semibold text-slate-800">
+                                                    <div className="truncate text-xs font-semibold text-[var(--text-primary)]">
                                                         {[profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—"}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-500">
+                                                    <div className="text-[11px] text-[var(--text-muted)]">
                                                         {profile.phone || "—"} {profile.member_no ? `• ${profile.member_no}` : ""}
                                                     </div>
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                    className="rounded-lg border border-[var(--border-default)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-body)] disabled:cursor-not-allowed disabled:text-slate-300"
                                                     disabled={partySaving || alreadyLinked || isMain}
                                                     onClick={() => { void selectPartySearchProfile(String(profile.id)); }}
                                                 >
@@ -4372,13 +4372,13 @@ export default function ReservationDetailPage({
                                 </div>
                             </div>
 
-                            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
-                                        <p className="text-sm font-semibold text-slate-800">
+                                        <p className="text-sm font-semibold text-[var(--text-primary)]">
                                             {partyDraft.linkedMemberId ? "Edit accompanying guest" : "New accompanying guest"}
                                         </p>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-xs text-[var(--text-muted)]">
                                             OCR and Thai ID import fill this guest only.
                                         </p>
                                     </div>
@@ -4403,7 +4403,7 @@ export default function ReservationDetailPage({
                                 </div>
 
                                 {partyDraftLoading ? (
-                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+                                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-6 text-center text-sm text-[var(--text-muted)]">
                                         Loading guest profile...
                                     </div>
                                 ) : (
@@ -4542,8 +4542,8 @@ export default function ReservationDetailPage({
                                         </div>
 
                                         {partyDraft.guestProfileId && (
-                                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                                Profile ID: <span className="font-semibold text-slate-800">{partyDraft.guestProfileId.slice(0, 8)}</span>
+                                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+                                                Profile ID: <span className="font-semibold text-[var(--text-primary)]">{partyDraft.guestProfileId.slice(0, 8)}</span>
                                                 {partyDraft.linkedMemberId ? " • already linked to this reservation" : " • ready to add"}
                                             </div>
                                         )}
@@ -4563,7 +4563,7 @@ export default function ReservationDetailPage({
                             Full payment is required before checkout.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 text-sm text-slate-700">
+                    <div className="space-y-3 text-sm text-[var(--text-secondary)]">
                         <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
                             <p>
                                 Remaining balance: <span className="font-bold text-rose-700">฿{formatMoney(fromSatang(checkoutRemainingSatang))}</span>
@@ -4573,7 +4573,7 @@ export default function ReservationDetailPage({
                             </p>
                         </div>
                         {checkoutPaymentSatang > 0 && (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-xs text-[var(--text-secondary)]">
                                 Entered payment: ฿{formatMoney(fromSatang(checkoutPaymentSatang))} / Required: ฿{formatMoney(fromSatang(checkoutBalanceSatang))}
                             </div>
                         )}
@@ -4598,11 +4598,11 @@ export default function ReservationDetailPage({
                             ลูกค้ามาถึงแล้ว ต้องการยกเลิก No-Show?
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 text-sm text-slate-700">
+                    <div className="space-y-3 text-sm text-[var(--text-secondary)]">
                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                             Reservation will return to active status. If no-show fee exists, the system will refund it automatically.
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-xs text-[var(--text-secondary)]">
                             If the original room is no longer available, room assignment will be cleared and FO will need to assign a new room before check-in.
                         </div>
                     </div>

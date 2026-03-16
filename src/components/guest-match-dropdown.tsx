@@ -107,7 +107,7 @@ export default function GuestMatchDropdown({
             className={`absolute z-50 mt-2 w-full max-h-80 overflow-y-auto rounded-2xl border border-stone-200 bg-stone-50/80 shadow-xl backdrop-blur-sm ${className}`}
         >
             {loading && (
-                <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-slate-500">
+                <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-[var(--text-muted)]">
                     <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -118,7 +118,7 @@ export default function GuestMatchDropdown({
 
             {!loading && matches.length === 0 && (
                 <div className="px-4 py-3">
-                    <p className="mb-2 text-[11px] text-slate-500">No matching profiles found</p>
+                    <p className="mb-2 text-[11px] text-[var(--text-muted)]">No matching profiles found</p>
                     <button
                         type="button"
                         onClick={() => { setOpen(false); onCreate(); }}
@@ -133,7 +133,7 @@ export default function GuestMatchDropdown({
                 <>
                     {/* Strong matches */}
                     {strong.length > 0 && (
-                        <div className="border-b border-slate-100 px-4 py-2.5">
+                        <div className="border-b border-[var(--border-subtle)] px-4 py-2.5">
                             <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">
                                 Strong Match ({strong.length})
                             </p>
@@ -145,7 +145,7 @@ export default function GuestMatchDropdown({
 
                     {/* Possible matches */}
                     {possible.length > 0 && (
-                        <div className="border-b border-t border-slate-100 px-4 py-2.5">
+                        <div className="border-b border-t border-[var(--border-subtle)] px-4 py-2.5">
                             <p className="text-[11px] font-bold uppercase tracking-wide text-amber-600">
                                 Possible Match ({possible.length})
                             </p>
@@ -157,8 +157,8 @@ export default function GuestMatchDropdown({
 
                     {/* Low confidence matches (still useful for partial name typing) */}
                     {lowConfidence.length > 0 && (
-                        <div className="border-b border-t border-slate-100 px-4 py-2.5">
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        <div className="border-b border-t border-[var(--border-subtle)] px-4 py-2.5">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
                                 Name Match ({lowConfidence.length})
                             </p>
                         </div>
@@ -168,7 +168,7 @@ export default function GuestMatchDropdown({
                     ))}
 
                     {/* Create new */}
-                    <div className="border-t border-slate-100 px-4 py-3">
+                    <div className="border-t border-[var(--border-subtle)] px-4 py-3">
                         <button
                             type="button"
                             onClick={() => { setOpen(false); onCreate(); }}
@@ -198,7 +198,7 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
         <button
             type="button"
             onClick={onSelect}
-            className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50/80"
+            className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[var(--bg-body)]/80"
         >
             {/* Avatar circle */}
             <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${badgeColor}`}>
@@ -208,7 +208,7 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
             {/* Info */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="truncate text-[15px] font-semibold text-slate-800">{name || "—"}</span>
+                    <span className="truncate text-[15px] font-semibold text-[var(--text-primary)]">{name || "—"}</span>
                     {p.stay_count > 0 && (
                         <span className="flex-shrink-0 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
                             Return · {p.stay_count} stays
@@ -220,7 +220,7 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
                         </span>
                     )}
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
                     {p.phone && <span>📱 {p.phone}</span>}
                     {p.nationality_code && <span>{getFlagEmojiByNationalityCode(p.nationality_code)} {p.nationality_code}</span>}
                     <span className="text-slate-300">Score: {match.score}</span>

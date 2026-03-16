@@ -125,8 +125,8 @@ export default function MaintenanceTasksPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-red-600">Maintenance</p>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Task Definitions</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Task Definitions</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-0.5">
                         {activeCount} active &middot; {inactiveCount} inactive
                     </p>
                 </div>
@@ -160,7 +160,7 @@ export default function MaintenanceTasksPage() {
                     {filteredTasks.map(task => (
                         <div
                             key={task.id}
-                            className={`bg-white rounded-xl border overflow-hidden transition-all ${
+                            className={`bg-[var(--bg-surface)] rounded-xl border overflow-hidden transition-all ${
                                 task.is_active
                                     ? "border-l-4 border-l-red-500 hover:shadow-md"
                                     : "opacity-50 border-l-4 border-l-slate-300"
@@ -171,9 +171,9 @@ export default function MaintenanceTasksPage() {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="text-base font-bold text-slate-900">{task.name}</h3>
+                                            <h3 className="text-base font-bold text-[var(--text-primary)]">{task.name}</h3>
                                             {!task.is_active && (
-                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-[var(--text-muted)] px-2 py-0.5 rounded-full">Inactive</span>
                                             )}
                                             {task.sync_to_housekeeper && (
                                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -181,7 +181,7 @@ export default function MaintenanceTasksPage() {
                                                 </span>
                                             )}
                                         </div>
-                                        {task.description && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{task.description}</p>}
+                                        {task.description && <p className="text-sm text-[var(--text-muted)] mt-1 line-clamp-2">{task.description}</p>}
                                     </div>
 
                                     <Button
@@ -209,23 +209,23 @@ export default function MaintenanceTasksPage() {
                                     {task.applicable_room_types ? (
                                         <div className="flex flex-wrap gap-1">
                                             {task.applicable_room_types.map(code => (
-                                                <span key={code} className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{code}</span>
+                                                <span key={code} className="text-[10px] font-bold bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] px-2 py-0.5 rounded-full">{code}</span>
                                             ))}
                                         </div>
                                     ) : (
-                                        <span className="text-xs text-slate-400">All Room Types</span>
+                                        <span className="text-xs text-[var(--text-muted)]">All Room Types</span>
                                     )}
                                 </div>
 
                                 {/* Checklist preview */}
                                 {task.sync_to_housekeeper && task.checklist_items && task.checklist_items.length > 0 && (
-                                    <p className="text-xs text-slate-400 mt-2 pl-2 border-l-2 border-slate-200">
+                                    <p className="text-xs text-[var(--text-muted)] mt-2 pl-2 border-l-2 border-[var(--border-default)]">
                                         Checklist: {task.checklist_items.slice(0, 3).join(", ")}{task.checklist_items.length > 3 ? ` +${task.checklist_items.length - 3} more` : ""}
                                     </p>
                                 )}
 
                                 {/* Bottom actions */}
-                                <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-100">
+                                <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -251,10 +251,10 @@ export default function MaintenanceTasksPage() {
                     ))}
 
                     {tasks.length === 0 && (
-                        <div className="text-center py-16 bg-slate-50 border-2 border-dashed rounded-xl">
+                        <div className="text-center py-16 bg-[var(--bg-body)] border-2 border-dashed rounded-xl">
                             <LayersIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="text-lg font-medium text-slate-700">No maintenance tasks yet</h3>
-                            <p className="text-sm text-slate-500 mt-1">Create tasks like AC cleaning or pipe flushing.</p>
+                            <h3 className="text-lg font-medium text-[var(--text-secondary)]">No maintenance tasks yet</h3>
+                            <p className="text-sm text-[var(--text-muted)] mt-1">Create tasks like AC cleaning or pipe flushing.</p>
                             <Button className="mt-4 h-9 bg-red-600 hover:bg-red-700" onClick={() => { setSelectedTask(null); setModalOpen(true); }}>
                                 <PlusIcon className="w-4 h-4 mr-1.5" /> Create First Task
                             </Button>
@@ -262,7 +262,7 @@ export default function MaintenanceTasksPage() {
                     )}
 
                     {tasks.length > 0 && filteredTasks.length === 0 && (
-                        <div className="text-center py-12 text-slate-400">
+                        <div className="text-center py-12 text-[var(--text-muted)]">
                             <p>No tasks match &ldquo;{searchQuery}&rdquo;</p>
                         </div>
                     )}

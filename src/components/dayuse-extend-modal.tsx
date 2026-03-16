@@ -125,7 +125,7 @@ export default function DayUseExtendModal({
     >
       <form id="dayuse-extend-form" onSubmit={handleSubmit} className="space-y-4">
         <div className="rounded-lg border border-[#fecdd3] bg-[#fff1f2] px-3 py-2 text-sm">
-          <div className="font-semibold text-slate-900">{guestName || "Day Use Guest"}</div>
+          <div className="font-semibold text-[var(--text-primary)]">{guestName || "Day Use Guest"}</div>
           <div className="text-xs text-[#be123c]">Room {roomNumber}</div>
         </div>
 
@@ -179,7 +179,7 @@ export default function DayUseExtendModal({
         </div>
 
         {settings && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[var(--text-muted)]">
             Default extension: {settings.dayuse_extend_min} min · Suggested charge ฿{settings.dayuse_extend_rate}
           </p>
         )}

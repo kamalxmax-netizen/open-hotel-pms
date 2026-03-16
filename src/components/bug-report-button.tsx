@@ -113,22 +113,22 @@ export default function BugReportButton() {
 
   return (
     <div id="bug-report-overlay" className="fixed inset-0 z-50 flex items-end justify-end p-4 pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+      <div className="pointer-events-auto w-full max-w-md bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-2">
             <span className="text-rose-500 text-lg">🐛</span>
-            <h3 className="text-sm font-semibold text-slate-800">Report Bug</h3>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Report Bug</h3>
           </div>
-          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 transition-colors text-lg leading-none">×</button>
+          <button onClick={handleClose} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-lg leading-none">×</button>
         </div>
 
         {/* Content */}
         <div className="p-4 space-y-3">
           {/* Screenshot preview */}
           {state === "capturing" && (
-            <div className="h-24 bg-slate-100 rounded-lg flex items-center justify-center">
-              <p className="text-xs text-slate-400">กำลัง capture หน้าจอ...</p>
+            <div className="h-24 bg-[var(--bg-surface-hover)] rounded-lg flex items-center justify-center">
+              <p className="text-xs text-[var(--text-muted)]">กำลัง capture หน้าจอ...</p>
             </div>
           )}
 
@@ -140,7 +140,7 @@ export default function BugReportButton() {
                   <img
                     src={screenshotDataUrl}
                     alt="Screenshot preview"
-                    className="w-full h-28 object-cover rounded-lg border border-slate-200"
+                    className="w-full h-28 object-cover rounded-lg border border-[var(--border-default)]"
                   />
                   <button
                     onClick={() => setScreenshotDataUrl(null)}
@@ -152,7 +152,7 @@ export default function BugReportButton() {
               ) : (
                 <button
                   onClick={capture}
-                  className="w-full h-16 border-2 border-dashed border-slate-200 rounded-lg flex items-center justify-center gap-2 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-500 transition"
+                  className="w-full h-16 border-2 border-dashed border-[var(--border-default)] rounded-lg flex items-center justify-center gap-2 text-xs text-[var(--text-muted)] hover:border-[var(--border-input)] hover:text-[var(--text-muted)] transition"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -180,10 +180,10 @@ export default function BugReportButton() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="อธิบายปัญหา เช่น 'กดบันทึกแล้วหน้าขาว' หรือ 'ตัวเลขผิด'"
                 rows={3}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent"
+                className="w-full text-sm border border-[var(--border-default)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent"
               />
 
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-[var(--text-muted)]">
                 หน้า: <span className="font-mono">{pathname}</span>
               </p>
 

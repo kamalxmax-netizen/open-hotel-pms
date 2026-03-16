@@ -49,19 +49,19 @@ export function MaintenanceNotesModal({
 
         <div className="space-y-2">
           {notes.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-[var(--text-muted)]">
               No pending notes
             </div>
           ) : (
             notes.map((note) => (
-              <div key={note.id} className="rounded-lg border bg-white p-3 shadow-sm">
+              <div key={note.id} className="rounded-lg border bg-[var(--bg-surface)] p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm text-slate-800 flex items-start gap-2">
+                    <p className="text-sm text-[var(--text-primary)] flex items-start gap-2">
                       <MessageSquareIcon className="h-4 w-4 mt-0.5 text-amber-500" />
                       <span>{note.note}</span>
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
                       {format(new Date(note.created_at), "dd/MM/yyyy HH:mm")}
                     </p>
                   </div>

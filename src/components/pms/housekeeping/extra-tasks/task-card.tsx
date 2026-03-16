@@ -16,7 +16,7 @@ interface ExtraTaskCardProps {
 }
 
 const STATUS_STYLES: Record<string, { border: string; badge: string; label: string }> = {
-    pending: { border: "border-l-slate-300", badge: "bg-slate-100 text-slate-600", label: "Pending" },
+    pending: { border: "border-l-slate-300", badge: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]", label: "Pending" },
     in_progress: { border: "border-l-sky-500", badge: "bg-sky-100 text-sky-700", label: "In Progress" },
     paused: { border: "border-l-amber-400", badge: "bg-amber-100 text-amber-700", label: "Paused" },
     done: { border: "border-l-emerald-500", badge: "bg-emerald-100 text-emerald-700", label: "Done" },
@@ -65,17 +65,17 @@ export function ExtraTaskCard({ assignment, onStatusChange, disabled }: ExtraTas
     const isLoading = loadingAction !== null;
 
     return (
-        <div className={`bg-white rounded-lg border border-l-4 ${style.border} shadow-sm hover:shadow-md transition-all`}>
+        <div className={`bg-[var(--bg-surface)] rounded-lg border border-l-4 ${style.border} shadow-sm hover:shadow-md transition-all`}>
             {/* Header row */}
             <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-slate-900 truncate">{assignment.task_name}</p>
+                    <p className="font-semibold text-sm text-[var(--text-primary)] truncate">{assignment.task_name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1">
                             <ClockIcon className="w-3 h-3" /> {assignment.duration_min}m
                         </span>
                         {assignment.priority !== undefined && assignment.priority > 0 && (
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface-hover)] px-1.5 py-0.5 rounded">
                                 P{assignment.priority}
                             </span>
                         )}
@@ -103,7 +103,7 @@ export function ExtraTaskCard({ assignment, onStatusChange, disabled }: ExtraTas
 
             {/* Action buttons */}
             {!isDone && (
-                <div className="px-3 pb-3 flex gap-1.5 justify-end border-t border-slate-100 pt-2">
+                <div className="px-3 pb-3 flex gap-1.5 justify-end border-t border-[var(--border-subtle)] pt-2">
                     {assignment.status === "pending" && (
                         <>
                             <Button

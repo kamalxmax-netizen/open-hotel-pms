@@ -102,7 +102,7 @@ export default function AvailableRoomSelect({
             </select>
 
             {loading && (
-                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
                     ...
                 </span>
             )}

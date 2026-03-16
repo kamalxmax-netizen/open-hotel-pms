@@ -489,14 +489,14 @@ export default function MaidPage() {
   return (
     <div className="pb-24">
       {/* Maid Selector (Temporary for testing without auth) */}
-      <div className="px-4 py-3 bg-white border-b border-slate-200">
+      <div className="px-4 py-3 bg-[var(--bg-surface)] border-b border-[var(--border-default)]">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2 flex-1">
+          <label className="text-xs font-bold text-[var(--text-muted)] uppercase flex items-center gap-2 flex-1">
             Select Maid
             <select
               value={maidName}
               onChange={e => setMaidName(e.target.value)}
-              className="ml-auto bg-slate-100 text-slate-800 text-sm rounded-md px-2 py-1 font-semibold outline-none"
+              className="ml-auto bg-[var(--bg-surface-hover)] text-[var(--text-primary)] text-sm rounded-md px-2 py-1 font-semibold outline-none"
             >
               {maidLaneNames.map(name => (
                 <option key={name} value={name}>{name}</option>
@@ -507,7 +507,7 @@ export default function MaidPage() {
             type="button"
             onClick={() => void refreshNow()}
             disabled={isRefreshing || isActionLoading}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-50"
+            className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)] disabled:opacity-50"
           >
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </button>
@@ -537,7 +537,7 @@ export default function MaidPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto hide-scrollbar px-4 py-3 gap-2 bg-slate-50 sticky top-14 z-30 shadow-sm border-b border-slate-200">
+      <div className="flex overflow-x-auto hide-scrollbar px-4 py-3 gap-2 bg-[var(--bg-body)] sticky top-14 z-30 shadow-sm border-b border-[var(--border-default)]">
         <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")}>
           All
           {hkCollectRoomCount > 0 && (
@@ -565,7 +565,7 @@ export default function MaidPage() {
       <div className="p-4 space-y-4">
         {isLoading && !data ? (
           <div className="flex justify-center p-8">
-            <span className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-brand-600 animate-spin"></span>
+            <span className="w-8 h-8 rounded-full border-4 border-[var(--border-default)] border-t-brand-600 animate-spin"></span>
           </div>
         ) : !hasVisibleItems ? (
           <EmptyState message={`No rooms in '${activeTab}' category.`} />
@@ -646,7 +646,7 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
       onClick={onClick}
       className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold flex items-center gap-2 transition-colors ${active
         ? "bg-slate-800 text-white shadow-sm"
-        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)]"
         }`}
     >
       {children}

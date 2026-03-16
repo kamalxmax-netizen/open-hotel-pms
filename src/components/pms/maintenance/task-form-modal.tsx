@@ -242,7 +242,7 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                     </div>
 
                     <div className="space-y-4">
-                        <div className="flex flex-row items-center justify-between border rounded-lg p-4 bg-slate-50">
+                        <div className="flex flex-row items-center justify-between border rounded-lg p-4 bg-[var(--bg-body)]">
                             <div className="space-y-0.5">
                                 <Label className="text-base">Housekeeping Sync</Label>
                                 <p className="text-xs text-muted-foreground">
@@ -253,7 +253,7 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                         </div>
 
                         {syncToHK && (
-                            <div className="space-y-3 bg-white p-4 border rounded-lg">
+                            <div className="space-y-3 bg-[var(--bg-surface)] p-4 border rounded-lg">
                                 <Label className="flex justify-between items-center">
                                     Sub-checklist Items
                                     <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={() => setChecklistItems([...checklistItems, ""])}>
@@ -262,13 +262,13 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                                 </Label>
 
                                 {checklistItems.length === 0 && (
-                                    <p className="text-center text-sm text-muted-foreground py-2 border border-dashed rounded bg-slate-50">Not set</p>
+                                    <p className="text-center text-sm text-muted-foreground py-2 border border-dashed rounded bg-[var(--bg-body)]">Not set</p>
                                 )}
 
                                 <div className="space-y-2">
                                     {checklistItems.map((item, idx) => (
                                         <div key={idx} className="flex gap-2 items-center">
-                                            <span className="text-xs text-slate-400 font-mono">{idx + 1}.</span>
+                                            <span className="text-xs text-[var(--text-muted)] font-mono">{idx + 1}.</span>
                                             <Input value={item} onChange={e => updateChecklistItem(idx, e.target.value)} placeholder="Step description" className="h-8" />
                                             <Button type="button" variant="ghost" size="icon" className="h-11 w-11 text-red-500" onClick={() => removeChecklistItem(idx)}>
                                                 <TrashIcon className="w-4 h-4" />
@@ -281,8 +281,8 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                                     <Label>Estimated time by room type (minutes)</Label>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                         {normalizedApplicableTypes.map((code) => (
-                                            <div key={code} className="flex items-center gap-2 rounded border border-slate-200 px-2 py-1.5">
-                                                <span className="w-8 text-xs font-semibold text-slate-600">{code}</span>
+                                            <div key={code} className="flex items-center gap-2 rounded border border-[var(--border-default)] px-2 py-1.5">
+                                                <span className="w-8 text-xs font-semibold text-[var(--text-secondary)]">{code}</span>
                                                 <Input
                                                     type="number"
                                                     min={1}
@@ -322,7 +322,7 @@ function BadgeButton({ active, onClick, children }: { active: boolean, onClick: 
             className={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold border rounded-full transition-colors ${
                 active
                     ? "bg-red-600 text-white border-red-600 shadow-sm"
-                    : "bg-white text-slate-600 hover:bg-slate-100 border-slate-300"
+                    : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] border-[var(--border-input)]"
             }`}
         >
             <span className={`text-[11px] leading-none ${active ? "opacity-100" : "opacity-30"}`}>●</span>

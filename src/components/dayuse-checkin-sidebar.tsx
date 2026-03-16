@@ -112,18 +112,18 @@ export function DayUseCheckinSidebar({
   return (
     <div className="fixed inset-0 z-[70] flex">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="ml-auto h-full w-full max-w-md bg-white shadow-2xl relative z-[71] flex flex-col">
-        <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+      <aside className="ml-auto h-full w-full max-w-md bg-[var(--bg-surface)] shadow-2xl relative z-[71] flex flex-col">
+        <div className="border-b border-[var(--border-default)] px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-rose-600">Day Use</p>
-            <h3 className="text-lg font-bold text-slate-900">Walk-in Check In · Room {roomNumber}</h3>
+            <h3 className="text-lg font-bold text-[var(--text-primary)]">Walk-in Check In · Room {roomNumber}</h3>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto">
           {loading && (
-            <div className="text-sm text-slate-500">Loading settings...</div>
+            <div className="text-sm text-[var(--text-muted)]">Loading settings...</div>
           )}
 
           {!loading && (
@@ -135,12 +135,12 @@ export function DayUseCheckinSidebar({
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Room</label>
-                <input className="form-input bg-slate-50" value={roomNumber} disabled />
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Room</label>
+                <input className="form-input bg-[var(--bg-body)]" value={roomNumber} disabled />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Guest Name (optional)</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Guest Name (optional)</label>
                 <input
                   className="form-input"
                   value={guestName}
@@ -150,7 +150,7 @@ export function DayUseCheckinSidebar({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone (optional)</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Phone (optional)</label>
                 <input
                   className="form-input"
                   value={phone}
@@ -161,7 +161,7 @@ export function DayUseCheckinSidebar({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Rate (THB)</label>
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Rate (THB)</label>
                   <input
                     type="number"
                     min={0}
@@ -177,7 +177,7 @@ export function DayUseCheckinSidebar({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Amount (THB)</label>
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Amount (THB)</label>
                   <input
                     type="number"
                     min={0}
@@ -192,7 +192,7 @@ export function DayUseCheckinSidebar({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Method</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Method</label>
                 <select
                   className="form-input"
                   value={paymentMethod}
@@ -205,7 +205,7 @@ export function DayUseCheckinSidebar({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Note (optional)</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Note (optional)</label>
                 <input
                   className="form-input"
                   value={paymentNote}
@@ -215,7 +215,7 @@ export function DayUseCheckinSidebar({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Reservation Note (optional)</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Reservation Note (optional)</label>
                 <textarea
                   className="form-input min-h-[80px]"
                   value={note}
@@ -225,7 +225,7 @@ export function DayUseCheckinSidebar({
               </div>
 
               {settings && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   Default duration: {settings.dayuse_duration_min} min · Extend default: ฿{settings.dayuse_extend_rate} / {settings.dayuse_extend_min} min
                 </p>
               )}
@@ -233,7 +233,7 @@ export function DayUseCheckinSidebar({
           )}
         </div>
 
-        <div className="border-t border-slate-200 p-4 flex items-center justify-end gap-2">
+        <div className="border-t border-[var(--border-default)] p-4 flex items-center justify-end gap-2">
           <button className="btn btn-secondary btn-sm" onClick={onClose} disabled={submitting}>Cancel</button>
           <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={loading || submitting}>
             {submitting ? "Checking in..." : "Confirm Check In"}

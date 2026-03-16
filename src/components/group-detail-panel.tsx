@@ -382,10 +382,10 @@ export default function GroupDetailPanel({
 
     return (
         <div className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm flex justify-end">
-            <div className="w-[800px] h-full bg-white shadow-2xl flex flex-col animate-slide-in-right overflow-hidden border-l border-slate-200">
+            <div className="w-[800px] h-full bg-[var(--bg-surface)] shadow-2xl flex flex-col animate-slide-in-right overflow-hidden border-l border-[var(--border-default)]">
 
                 {/* Header */}
-                <div className="bg-slate-50 border-b border-slate-200 px-6 py-5 flex items-start justify-between">
+                <div className="bg-[var(--bg-body)] border-b border-[var(--border-default)] px-6 py-5 flex items-start justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-1">
                             <span className="text-xs font-bold font-mono bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
@@ -393,13 +393,13 @@ export default function GroupDetailPanel({
                             </span>
                             <span className={`badge ${group.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
                                 group.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100 text-slate-500'
+                                    'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]'
                                 }`}>
                                 {group.status.toUpperCase()}
                             </span>
                         </div>
-                        <h2 className="text-xl font-bold text-slate-800">{group.group_name}</h2>
-                        <div className="text-sm text-slate-500 mt-1 flex flex-wrap gap-4">
+                        <h2 className="text-xl font-bold text-[var(--text-primary)]">{group.group_name}</h2>
+                        <div className="text-sm text-[var(--text-muted)] mt-1 flex flex-wrap gap-4">
                             {group.contact_name && (
                                 <span className="flex items-center gap-1">👤 {group.contact_name}</span>
                             )}
@@ -417,7 +417,7 @@ export default function GroupDetailPanel({
                         >
                             Edit info
                         </button>
-                        <button className="btn btn-ghost btn-sm text-slate-400" onClick={onClose}>✕</button>
+                        <button className="btn btn-ghost btn-sm text-[var(--text-muted)]" onClick={onClose}>✕</button>
                     </div>
                 </div>
 
@@ -472,11 +472,11 @@ export default function GroupDetailPanel({
                 )}
 
                 {/* List Body */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6">
+                <div className="flex-1 overflow-y-auto p-6 bg-[var(--bg-body)] space-y-6">
 
                     <div className="flex justify-between items-center mb-2">
                         <div>
-                            <h3 className="font-bold text-slate-700 text-lg">Reservations in Group</h3>
+                            <h3 className="font-bold text-[var(--text-secondary)] text-lg">Reservations in Group</h3>
                             {dueInNeedsAssignCount > 0 && (
                                 <p className="text-xs text-amber-700 mt-0.5">
                                     {dueInNeedsAssignCount} due-in reservation{dueInNeedsAssignCount !== 1 ? "s" : ""} still need room assignment before check-in
@@ -505,7 +505,7 @@ export default function GroupDetailPanel({
                     </div>
 
                     {addingRes && (
-                        <div className="bg-white border-2 border-indigo-100 p-4 rounded-xl flex items-start gap-3 shadow-sm animate-fade-in">
+                        <div className="bg-[var(--bg-surface)] border-2 border-indigo-100 p-4 rounded-xl flex items-start gap-3 shadow-sm animate-fade-in">
                             <div className="flex-1 space-y-2">
                                 <label className="form-label text-indigo-900 text-xs uppercase tracking-wide">Search Reservation</label>
                                 <div className="grid grid-cols-12 gap-2">
@@ -566,7 +566,7 @@ export default function GroupDetailPanel({
                                     </div>
                                 </div>
                                 {!selectedReservation && (
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-xs text-[var(--text-muted)]">
                                         Search by booking code, guest, phone, source, and arrival date, then select from result list.
                                     </p>
                                 )}
@@ -594,13 +594,13 @@ export default function GroupDetailPanel({
                                     Boolean(searchSource) ||
                                     Boolean(searchArrivalDate)
                                 ) && (
-                                        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                                        <div className="border border-[var(--border-default)] rounded-lg overflow-hidden bg-[var(--bg-surface)]">
                                             {searchLoading ? (
-                                                <div className="px-3 py-2 text-xs text-slate-500">Searching...</div>
+                                                <div className="px-3 py-2 text-xs text-[var(--text-muted)]">Searching...</div>
                                             ) : searchResults.length === 0 ? (
-                                                <div className="px-3 py-2 text-xs text-slate-500">No matching reservations found.</div>
+                                                <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No matching reservations found.</div>
                                             ) : (
-                                                <div className="max-h-56 overflow-auto divide-y divide-slate-100">
+                                                <div className="max-h-56 overflow-auto divide-y divide-[var(--border-subtle)]">
                                                     {searchResults.map((item) => (
                                                         <button
                                                             key={item.id}
@@ -618,7 +618,7 @@ export default function GroupDetailPanel({
                                                             disabled={Boolean(item.booking_group_id)}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <div className="text-xs font-semibold text-slate-800">{item.booking_code} · {item.guest_name}</div>
+                                                                <div className="text-xs font-semibold text-[var(--text-primary)]">{item.booking_code} · {item.guest_name}</div>
                                                                 {item.booking_group_id === group.id && (
                                                                     <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                                                                         Linked Here
@@ -630,7 +630,7 @@ export default function GroupDetailPanel({
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            <div className="text-[11px] text-slate-500">
+                                                            <div className="text-[11px] text-[var(--text-muted)]">
                                                                 {item.checkin_date} → {item.checkout_date} · Room {item.room_number} · {String(item.source || "").toUpperCase()}
                                                             </div>
                                                         </button>
@@ -648,7 +648,7 @@ export default function GroupDetailPanel({
                                 {addLoading ? "Linking..." : "Link to Group"}
                             </button>
                             <button
-                                className="btn btn-ghost btn-sm text-slate-400 h-9"
+                                className="btn btn-ghost btn-sm text-[var(--text-muted)] h-9"
                                 onClick={() => {
                                     setAddingRes(false);
                                     setError("");
@@ -682,11 +682,11 @@ export default function GroupDetailPanel({
                     )}
 
                     {massCheckinOpen && (
-                        <div className="bg-white border-2 border-emerald-200 p-4 rounded-xl shadow-sm space-y-3">
+                        <div className="bg-[var(--bg-surface)] border-2 border-emerald-200 p-4 rounded-xl shadow-sm space-y-3">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <h4 className="font-bold text-emerald-800">Mass Check-in Policy</h4>
-                                    <p className="text-xs text-slate-500 mt-0.5">
+                                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
                                         Set check-in time, deposit policy, and optional split payments per booking before running check-in.
                                     </p>
                                 </div>
@@ -710,18 +710,18 @@ export default function GroupDetailPanel({
 
                             <div className="max-h-[360px] overflow-auto space-y-2 pr-1">
                                 {massCheckinRows.map((row) => (
-                                    <div key={row.reservation_id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <div key={row.reservation_id} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
                                         <div className="flex items-center justify-between gap-3">
-                                            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                            <label className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                                                 <input
                                                     type="checkbox"
                                                     checked={row.selected}
                                                     onChange={(e) => updateMassRow(row.reservation_id, { selected: e.target.checked })}
                                                 />
                                                 <span>{row.booking_code}</span>
-                                                <span className="text-slate-400">·</span>
+                                                <span className="text-[var(--text-muted)]">·</span>
                                                 <span>{row.guest_name}</span>
-                                                <span className="text-slate-400">· Room {row.room_number}</span>
+                                                <span className="text-[var(--text-muted)]">· Room {row.room_number}</span>
                                             </label>
                                         </div>
 
@@ -866,15 +866,15 @@ export default function GroupDetailPanel({
                     )}
 
                     {reservations.length === 0 ? (
-                        <div className="text-center py-12 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="text-center py-12 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm">
                             <span className="text-4xl">📭</span>
-                            <h4 className="font-bold text-slate-700 mt-3">No reservations yet</h4>
-                            <p className="text-slate-500 text-sm mt-1">Create a new booking or link an existing one.</p>
+                            <h4 className="font-bold text-[var(--text-secondary)] mt-3">No reservations yet</h4>
+                            <p className="text-[var(--text-muted)] text-sm mt-1">Create a new booking or link an existing one.</p>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] overflow-hidden">
                             <table className="data-table">
-                                <thead className="bg-slate-50">
+                                <thead className="bg-[var(--bg-body)]">
                                     <tr>
                                         <th>Room</th>
                                         <th>Guest</th>
@@ -884,29 +884,29 @@ export default function GroupDetailPanel({
                                         <th className="text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-[var(--border-subtle)]">
                                     {reservations.map(r => {
                                         const isDueInToday = r.status === "active" && r.checkin_date === todayYmd;
                                         const isUnassigned = r.room_number === "Unassigned" || r.room_number === "—";
                                         const canCheckin = isDueInToday && !isUnassigned && !r.is_checked_in;
                                         return (
-                                            <tr key={r.id} className={`hover:bg-slate-50 transition-colors ${canCheckin ? "bg-emerald-50/30" : ""}`}>
+                                            <tr key={r.id} className={`hover:bg-[var(--bg-body)] transition-colors ${canCheckin ? "bg-emerald-50/30" : ""}`}>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-bold text-slate-800 text-sm">Room {r.room_number}</div>
-                                                    <div className="text-xs text-slate-500 mt-0.5">{r.room_type}</div>
+                                                    <div className="font-bold text-[var(--text-primary)] text-sm">Room {r.room_number}</div>
+                                                    <div className="text-xs text-[var(--text-muted)] mt-0.5">{r.room_type}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-semibold text-slate-700 text-sm">{r.guest_name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{r.booking_code}</div>
+                                                    <div className="font-semibold text-[var(--text-secondary)] text-sm">{r.guest_name}</div>
+                                                    <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">{r.booking_code}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="text-sm font-medium text-slate-600">{r.checkin_date}</div>
-                                                    <div className="text-xs text-slate-400">→ {r.checkout_date}</div>
+                                                    <div className="text-sm font-medium text-[var(--text-secondary)]">{r.checkin_date}</div>
+                                                    <div className="text-xs text-[var(--text-muted)]">→ {r.checkout_date}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <span className={`badge ${r.status === "active" ? "bg-emerald-100 text-emerald-700" :
                                                         r.status === "cancelled" ? "bg-rose-100 text-rose-700" :
-                                                            r.status === "checked_out" ? "bg-slate-100 text-slate-600" :
+                                                            r.status === "checked_out" ? "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" :
                                                                 "bg-amber-100 text-amber-700"
                                                         }`}>
                                                         {r.status}
@@ -919,7 +919,7 @@ export default function GroupDetailPanel({
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
-                                                    <div className="font-bold text-slate-800 text-sm">฿{Number(r.total_price || 0).toLocaleString()}</div>
+                                                    <div className="font-bold text-[var(--text-primary)] text-sm">฿{Number(r.total_price || 0).toLocaleString()}</div>
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
                                                     <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -930,7 +930,7 @@ export default function GroupDetailPanel({
                                                             View Folio
                                                         </button>
                                                         <button
-                                                            className="text-xs text-slate-500 font-semibold hover:underline inline-flex items-center"
+                                                            className="text-xs text-[var(--text-muted)] font-semibold hover:underline inline-flex items-center"
                                                             onClick={() => setOptionsResId(String(r.id))}
                                                         >
                                                             Options

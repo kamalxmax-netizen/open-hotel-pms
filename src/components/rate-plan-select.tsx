@@ -184,7 +184,7 @@ export default function RatePlanSelect({
         <p className="text-xs text-amber-700">No eligible rate plans for this guest. Public rates only appear before profile selection or when available.</p>
       )}
       {!guestProfileId && !loading && (
-        <p className="text-xs text-slate-500">Select guest profile to see tier and special rates.</p>
+        <p className="text-xs text-[var(--text-muted)]">Select guest profile to see tier and special rates.</p>
       )}
       {error && (
         <p className="text-xs text-rose-600">{error}</p>

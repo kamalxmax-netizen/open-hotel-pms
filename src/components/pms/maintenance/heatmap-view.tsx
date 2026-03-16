@@ -46,7 +46,7 @@ export function MaintenanceHeatmapView({ rooms, groupBy, onClickRoom }: HeatmapV
         // For normal/warning states, use gradient
         const color = getHeatColor(maxPercent);
         // Darken text if bg is bright (green/yellow), white if red/dark orange
-        const textColor = maxPercent > 70 ? "text-white" : "text-slate-900";
+        const textColor = maxPercent > 70 ? "text-white" : "text-[var(--text-primary)]";
 
         return { backgroundColor: color, color: textColor };
     };
@@ -73,7 +73,7 @@ export function MaintenanceHeatmapView({ rooms, groupBy, onClickRoom }: HeatmapV
                 const warning = groupRooms.filter(r => !r.tasks.some((t: any) => t.status === 'OVERDUE') && r.tasks.some((t: any) => t.status === 'WARNING')).length;
 
                 return (
-                    <div key={groupName} className="space-y-3 border p-4 rounded-xl bg-slate-50/30">
+                    <div key={groupName} className="space-y-3 border p-4 rounded-xl bg-[var(--bg-body)]/30">
                         <div className="flex justify-between items-center border-b pb-2">
                             <h3 className="font-semibold text-lg">
                                 {groupBy === 'floor'
@@ -83,7 +83,7 @@ export function MaintenanceHeatmapView({ rooms, groupBy, onClickRoom }: HeatmapV
                             <div className="text-sm flex gap-3 text-muted-foreground font-medium">
                                 {overdue > 0 && <span className="text-red-600">Overdue: {overdue}</span>}
                                 {warning > 0 && <span className="text-amber-600">Warning: {warning}</span>}
-                                <span className="text-slate-500">Total: {groupRooms.length} rooms</span>
+                                <span className="text-[var(--text-muted)]">Total: {groupRooms.length} rooms</span>
                             </div>
                         </div>
 
@@ -123,7 +123,7 @@ export function MaintenanceHeatmapView({ rooms, groupBy, onClickRoom }: HeatmapV
                                                 <div className="bg-slate-900 text-white p-2 font-semibold border-b border-slate-700">
                                                     Room {room.room_number} ({room.room_type_code})
                                                 </div>
-                                                <div className="p-2 space-y-2 text-sm bg-white text-slate-900 max-h-60 overflow-y-auto">
+                                                <div className="p-2 space-y-2 text-sm bg-[var(--bg-surface)] text-[var(--text-primary)] max-h-60 overflow-y-auto">
                                                     {room.tasks.map((t: any) => (
                                                         <div key={t.task_id} className="border-b last:border-0 pb-2 last:pb-0">
                                                             <div className="flex justify-between font-medium">

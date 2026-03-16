@@ -192,7 +192,7 @@ export default function RoomCard({
             </div>
           )}
           {!room.is_no_service && (
-            <p className="mt-1 text-right text-[10px] font-semibold text-slate-600">
+            <p className="mt-1 text-right text-[10px] font-semibold text-[var(--text-secondary)]">
               Target {targetDurationMin} min ({targetDurationLabel})
               {maintenanceMinutesTotal > 0
                 ? ` = ${baseCleaningMin} + ${maintenanceMinutesTotal}`
@@ -203,13 +203,13 @@ export default function RoomCard({
       </div>
 
       {maintenanceAssignments.length > 0 && showMaintenanceDetails && (
-        <div className="rounded-xl border border-indigo-100 bg-white/80 p-2 space-y-2">
+        <div className="rounded-xl border border-indigo-100 bg-[var(--bg-surface)]/80 p-2 space-y-2">
           {maintenanceAssignments.map((assignment) => (
-            <div key={assignment.assignment_id} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5">
-              <p className="text-xs font-semibold text-slate-800">
+            <div key={assignment.assignment_id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">
                 {assignment.task_name}
                 {!!assignment.estimated_minutes && (
-                  <span className="ml-1 text-[10px] font-medium text-slate-500">({assignment.estimated_minutes} min)</span>
+                  <span className="ml-1 text-[10px] font-medium text-[var(--text-muted)]">({assignment.estimated_minutes} min)</span>
                 )}
               </p>
               {assignment.checklist_items && assignment.checklist_items.length > 0 ? (
@@ -224,7 +224,7 @@ export default function RoomCard({
                   ))}
                 </div>
               ) : (
-                <p className="mt-1 text-[10px] text-slate-500">No checklist items defined.</p>
+                <p className="mt-1 text-[10px] text-[var(--text-muted)]">No checklist items defined.</p>
               )}
             </div>
           ))}
@@ -246,7 +246,7 @@ export default function RoomCard({
               <button
                 onClick={() => onNoServiceClick(room)}
                 disabled={isActionLoading}
-                className="min-h-[48px] px-4 bg-white border border-slate-300 text-slate-600 rounded-xl font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+                className="min-h-[48px] px-4 bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-secondary)] rounded-xl font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
               >
                 <Ban size={18} className="mr-1" /> NS
               </button>
@@ -301,7 +301,7 @@ export default function RoomCard({
         </div>
       )}
       {isDone && (
-        <div className="mt-0.5 text-[11px] font-semibold text-slate-600">
+        <div className="mt-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
           Target time: {targetDurationMin} min ({targetDurationLabel})
         </div>
       )}
