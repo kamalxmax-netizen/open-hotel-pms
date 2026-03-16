@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import ReservationDetailPage from "@/components/reservation-detail-page";
 
 type MethodRow = {
   method: "cash" | "transfer" | "credit_card" | "other";
@@ -149,7 +149,6 @@ const PRESETS = [
 ];
 
 export default function PaymentsPage() {
-  const router = useRouter();
   const today = useMemo(() => toDateInput(new Date()), []);
   const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(today);
@@ -160,10 +159,11 @@ export default function PaymentsPage() {
   const [error, setError] = useState<string>("");
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
   const [detailData, setDetailData] = useState<DetailResponse | null>(null);
+  const [detailResId, setDetailResId] = useState<string | null>(null);
 
   function openReservation(reservationId?: string | null) {
     if (!reservationId) return;
-    router.push(`/pms/reservations?open=${reservationId}`);
+    setDetailResId(reservationId);
   }
 
   const load = useCallback(async () => {
@@ -476,6 +476,18 @@ export default function PaymentsPage() {
             <div className="card p-8 text-center text-[var(--text-secondary)]">No folio details in selected dates.</div>
           )}
         </div>
+      )}
+
+      {detailResId && (
+        <ReservationDetailPage
+          mode="edit"
+          reservationId={detailResId}
+          onClose={() => setDetailResId(null)}
+          onSuccess={() => {
+            setDetailResId(null);
+            void load();
+          }}
+        />
       )}
     </div>
   );

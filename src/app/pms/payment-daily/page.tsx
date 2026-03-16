@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import ReservationDetailPage from "@/components/reservation-detail-page";
 
 /* ─── Types ─────────────────────────────────────────── */
 type MethodBreakdown = {
@@ -183,11 +183,12 @@ function PaymentTableColGroup() {
 
 /* ─── Page ──────────────────────────────────────────── */
 export default function PaymentDailyPage() {
-    const router = useRouter();
     const [date, setDate] = useState(today());
     const [data, setData] = useState<PaymentDailyData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [detailResId, setDetailResId] = useState<string | null>(null);
+    const [detailMode, setDetailMode] = useState<"edit" | "inhouse">("edit");
 
     const [floorFilter, setFloorFilter] = useState<string>("all");
     const [showMode, setShowMode] = useState<"payments" | "all">("payments");
@@ -195,9 +196,13 @@ export default function PaymentDailyPage() {
     const [showPos, setShowPos] = useState(true);
     const [showDepositRefunds, setShowDepositRefunds] = useState(false);
 
-    function openReservation(reservationId?: string | null) {
+    function openReservation(
+        reservationId?: string | null,
+        mode: "edit" | "inhouse" = "edit"
+    ) {
         if (!reservationId) return;
-        router.push(`/pms/reservations?open=${reservationId}`);
+        setDetailMode(mode);
+        setDetailResId(reservationId);
     }
 
     const load = useCallback(async () => {
@@ -365,7 +370,10 @@ export default function PaymentDailyPage() {
                                                             <tr
                                                                 key={`${br.room_number}-${tr.reservation_id || "no-res"}-${idx}`}
                                                                 className={`border-b border-[var(--border-subtle)] transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
-                                                                onClick={() => openReservation(tr.reservation_id)}
+                                                                onClick={() => openReservation(
+                                                                    tr.reservation_id,
+                                                                    tr.stay_flow === "due_in" ? "edit" : "inhouse"
+                                                                )}
                                                             >
                                                                 <td className={`px-4 py-2 ${B} leading-tight`}>
                                                                     <span className="font-bold text-slate-800 inline-flex items-center gap-1.5">
@@ -414,7 +422,10 @@ export default function PaymentDailyPage() {
                                                     <tr
                                                         key={`no-room-${tr.reservation_id || "no-res"}-${idx}`}
                                                         className={`border-b border-[var(--border-subtle)] transition-colors ${tr.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
-                                                        onClick={() => openReservation(tr.reservation_id)}
+                                                        onClick={() => openReservation(
+                                                            tr.reservation_id,
+                                                            tr.stay_flow === "due_in" ? "edit" : "inhouse"
+                                                        )}
                                                     >
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
                                                             <span className="font-bold text-slate-800 inline-flex items-center gap-1.5">
@@ -543,7 +554,7 @@ export default function PaymentDailyPage() {
                                         <tr
                                             key={adv.booking_code}
                                             className={`border-b border-[var(--border-subtle)] transition-colors ${adv.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : "hover:bg-[var(--bg-body)]/50"}`}
-                                            onClick={() => openReservation(adv.reservation_id)}
+                                            onClick={() => openReservation(adv.reservation_id, "edit")}
                                         >
                                             <td className={`px-4 py-2 ${B} leading-tight`}>
                                                 <div className="flex justify-between items-center mb-0.5">
@@ -685,6 +696,18 @@ export default function PaymentDailyPage() {
                         </div>
                     )}
                 </div>
+            )}
+
+            {detailResId && (
+                <ReservationDetailPage
+                    mode={detailMode}
+                    reservationId={detailResId}
+                    onClose={() => setDetailResId(null)}
+                    onSuccess={() => {
+                        setDetailResId(null);
+                        void load();
+                    }}
+                />
             )}
         </div>
     );

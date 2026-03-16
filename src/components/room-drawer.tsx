@@ -539,7 +539,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             }
             setAlertsLoading(true);
             try {
-                const res = await fetch(`/api/bookings/${room.reservation.id}/alerts?surface=room_drawer`);
+                const res = await fetch(
+                    `/api/bookings/${room.reservation.id}/alerts?surface=room_drawer`,
+                    { cache: "no-store" }
+                );
                 const data = await res.json();
                 if (!alive) return;
                 if (res.ok && data.success) {
@@ -560,7 +563,13 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             }
         }
         loadAlerts();
-        return () => { alive = false; };
+        const timer = window.setInterval(() => {
+            void loadAlerts();
+        }, 15000);
+        return () => {
+            alive = false;
+            window.clearInterval(timer);
+        };
     }, [room.reservation?.id]);
 
     useEffect(() => {

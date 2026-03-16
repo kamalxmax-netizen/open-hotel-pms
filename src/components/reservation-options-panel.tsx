@@ -46,12 +46,14 @@ type AlertRow = {
     } | null;
 };
 
-type AlertCode = {
+type AlertTemplateOption = {
+    id: number;
     code: string;
-    description: string;
-    dept: string | null;
-    auto_on_co: boolean;
+    name: string;
+    description: string | null;
+    severity: "info" | "warning" | "critical";
     icon: string | null;
+    is_active: boolean;
 };
 
 type LoanItem = {
@@ -426,9 +428,9 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
 ══════════════════════════════════════════════════════════════ */
 function AlertsTab({ reservationId }: { reservationId: string }) {
     const [alerts, setAlerts] = useState<AlertRow[]>([]);
-    const [allCodes, setAllCodes] = useState<AlertCode[]>([]);
+    const [allTemplates, setAllTemplates] = useState<AlertTemplateOption[]>([]);
     const [loading, setLoading] = useState(true);
-    const [addingCode, setAddingCode] = useState("");
+    const [addingTemplateId, setAddingTemplateId] = useState("");
     const [addingNote, setAddingNote] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -436,26 +438,26 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
     const load = useCallback(async () => {
         setLoading(true);
         const [aRes, cRes] = await Promise.all([
-            fetch(`/api/bookings/${reservationId}/alerts?include_dismissed=1`).then(r => r.json()),
-            fetch("/api/alert-codes").then(r => r.json())
+            fetch(`/api/bookings/${reservationId}/alerts?include_dismissed=1`, { cache: "no-store" }).then(r => r.json()),
+            fetch("/api/alert-templates?active=true", { cache: "no-store" }).then(r => r.json())
         ]);
         if (aRes.success) setAlerts(aRes.alerts);
-        if (cRes.success) setAllCodes(cRes.codes);
+        if (cRes.success) setAllTemplates(cRes.templates ?? []);
         setLoading(false);
     }, [reservationId]);
 
     useEffect(() => { load(); }, [load]);
 
     async function addAlert() {
-        if (!addingCode) return;
+        if (!addingTemplateId) return;
         setSaving(true); setError("");
         const res = await fetch(`/api/bookings/${reservationId}/alerts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ alert_code: addingCode, note: addingNote || undefined })
+            body: JSON.stringify({ alert_template_id: Number(addingTemplateId), note: addingNote || undefined })
         });
         const d = await res.json();
-        if (res.ok) { setAddingCode(""); setAddingNote(""); load(); }
+        if (res.ok) { setAddingTemplateId(""); setAddingNote(""); load(); }
         else setError(d.error ?? "Error");
         setSaving(false);
     }
@@ -471,8 +473,17 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
 
     const activeAlerts = alerts.filter((a) => !a.is_dismissed);
     const dismissedAlerts = alerts.filter((a) => a.is_dismissed);
-    const usedCodes = new Set(activeAlerts.map(a => a.alert_code).filter(Boolean));
-    const available = allCodes.filter(c => !usedCodes.has(c.code));
+    const usedTemplateIds = new Set(
+        activeAlerts
+            .map((a) => (a.alert_template_id == null ? null : Number(a.alert_template_id)))
+            .filter((id): id is number => Number.isFinite(id as number))
+    );
+    const usedLegacyCodes = new Set(activeAlerts.map((a) => String(a.alert_code ?? "").trim().toLowerCase()).filter(Boolean));
+    const available = allTemplates.filter((template) => {
+        if (usedTemplateIds.has(template.id)) return false;
+        const normalizedCode = String(template.code ?? "").trim().toLowerCase();
+        return !usedLegacyCodes.has(normalizedCode);
+    });
 
     return (
         <div className="space-y-4">
@@ -506,19 +517,19 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <p className="text-xs font-bold text-slate-600">Add Alert</p>
                 <div className="flex gap-2">
-                    <select className="form-input flex-1" value={addingCode} onChange={e => setAddingCode(e.target.value)}>
-                        <option value="">Select alert code…</option>
-                        {available.map(c => (
-                            <option key={c.code} value={c.code}>
-                                {c.icon} {c.code} — {c.description}
+                    <select className="form-input flex-1" value={addingTemplateId} onChange={e => setAddingTemplateId(e.target.value)}>
+                        <option value="">Select alert template…</option>
+                        {available.map(template => (
+                            <option key={template.id} value={String(template.id)}>
+                                {template.icon ?? "🔔"} {template.name} — {template.code}
                             </option>
                         ))}
                     </select>
-                    <button className="btn btn-primary btn-sm px-4" onClick={addAlert} disabled={!addingCode || saving}>
+                    <button className="btn btn-primary btn-sm px-4" onClick={addAlert} disabled={!addingTemplateId || saving}>
                         {saving ? "…" : "+ Add"}
                     </button>
                 </div>
-                {addingCode && (
+                {addingTemplateId && (
                     <input
                         className="form-input"
                         placeholder="Optional note (e.g. adaptor EU type)"
@@ -529,16 +540,16 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
                 {error && <p className="text-xs text-rose-600">{error}</p>}
             </div>
 
-            {/* All code reference */}
+            {/* All template reference */}
             <details className="text-sm">
-                <summary className="cursor-pointer text-slate-400 text-xs font-semibold">View all alert codes</summary>
+                <summary className="cursor-pointer text-slate-400 text-xs font-semibold">View all alert templates</summary>
                 <div className="mt-2 space-y-1">
-                    {allCodes.map(c => (
-                        <div key={c.code} className="flex items-center gap-2 text-xs text-slate-600 py-1 border-b border-slate-100">
-                            <span>{c.icon}</span>
-                            <span className="font-bold w-10">{c.code}</span>
-                            <span className="flex-1">{c.description}</span>
-                            {c.auto_on_co && <span className="text-[9px] bg-rose-100 text-rose-600 rounded px-1">C/O</span>}
+                    {allTemplates.map(template => (
+                        <div key={template.id} className="flex items-center gap-2 text-xs text-slate-600 py-1 border-b border-slate-100">
+                            <span>{template.icon ?? "🔔"}</span>
+                            <span className="font-bold min-w-[86px] uppercase">{template.code}</span>
+                            <span className="flex-1">{template.name}</span>
+                            <span className="rounded bg-slate-100 px-1 text-[9px] uppercase">{template.severity}</span>
                         </div>
                     ))}
                 </div>

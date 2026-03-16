@@ -117,8 +117,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "Loyal",
       tierEmoji: "🔹",
       tierBadgeClass: "border-amber-200 bg-amber-100 text-amber-700",
-      rowClass: "bg-sky-50/70 [&>td]:bg-sky-50/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-sky-200 bg-sky-50/90",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
+      hoverPanelClass: "border-sky-300 bg-sky-50/95",
     };
   }
 
@@ -131,8 +131,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "VIP",
       tierEmoji: "🔶",
       tierBadgeClass: "border-violet-200 bg-violet-100 text-violet-700",
-      rowClass: "bg-sky-50/70 [&>td]:bg-sky-50/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-sky-200 bg-sky-50/90",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
+      hoverPanelClass: "border-sky-300 bg-sky-50/95",
     };
   }
 
@@ -145,8 +145,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: "VIP+",
       tierEmoji: "💠",
       tierBadgeClass: "border-yellow-300 bg-yellow-100 text-yellow-800",
-      rowClass: "bg-sky-50/70 [&>td]:bg-sky-50/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
-      hoverPanelClass: "border-rose-300 bg-rose-50/90",
+      rowClass: "bg-sky-200/90 [&>td]:bg-sky-100/70 hover:bg-sky-100/70 hover:[&>td]:bg-sky-100/70",
+      hoverPanelClass: "border-rose-300 bg-rose-50/95",
     };
   }
 
@@ -159,8 +159,8 @@ export function resolveGuestLoyaltyVisual(
       tierLabel: null,
       tierEmoji: null,
       tierBadgeClass: "",
-      rowClass: "bg-emerald-50/70 [&>td]:bg-emerald-50/70 hover:bg-emerald-100/70 hover:[&>td]:bg-emerald-100/70",
-      hoverPanelClass: "border-green-300 bg-green-50/90",
+      rowClass: "bg-lime-200/70 [&>td]:bg-lime-100/70 hover:bg-lime-100/70 hover:[&>td]:bg--100/70",
+      hoverPanelClass: "border-lime-400 bg-lime-100/95",
     };
   }
 

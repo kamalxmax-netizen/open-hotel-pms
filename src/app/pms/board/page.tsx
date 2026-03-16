@@ -586,7 +586,7 @@ function RoomCard({
                                     className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${room.alert_severity === "critical"
                                             ? "bg-red-500"
                                             : room.alert_severity === "warning"
-                                                ? "bg-amber-400"
+                                                ? "bg-orange-700"
                                                 : "bg-sky-400"
                                         }`}
                                 />
@@ -595,7 +595,7 @@ function RoomCard({
                                     className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${room.alert_severity === "critical"
                                             ? "bg-red-500"
                                             : room.alert_severity === "warning"
-                                                ? "bg-amber-400"
+                                                ? "bg-orange-500"
                                                 : "bg-sky-400"
                                         }`}
                                     title={room.first_alert_message ?? "Alert"}
