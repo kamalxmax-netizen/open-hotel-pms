@@ -28,6 +28,7 @@ const ALL_PAGES = [
   { path: "/pms/team", label: "Team & Shifts", section: "Admin" },
   { path: "/pms/logbook", label: "Logbook", section: "Admin" },
   { path: "/pms/setup", label: "All Setup Pages", section: "Admin" },
+  { path: "/pms/training", label: "Training", section: "Admin" },
 ];
 
 /* ─── GET /api/permissions ───────────────────────
