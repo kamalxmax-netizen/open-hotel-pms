@@ -71,7 +71,7 @@ export default function TrainingPage() {
 
     if (activeChapter) {
         return (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col" style={{ margin: "-1.5rem", height: "calc(100vh - 4rem)" }}>
                 {/* Viewer header */}
                 <div
                     className="flex items-center gap-3 px-4 py-2.5 border-b"
