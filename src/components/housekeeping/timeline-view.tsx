@@ -133,18 +133,18 @@ function buildBlockTooltip(block: TimelineBlock) {
   const lines =
     block.itemType === "extra"
       ? [
-          "Extra Task",
-          `Task: ${block.taskName ?? block.label}`,
-          `Status: ${statusLabel(block)}`,
-          `${minuteToLabel(block.startMin)} - ${minuteToLabel(block.endMin)}`,
-          `Duration: ${Math.max(Math.round(block.durationMin), 1)} min`,
-        ]
+        "Extra Task",
+        `Task: ${block.taskName ?? block.label}`,
+        `Status: ${statusLabel(block)}`,
+        `${minuteToLabel(block.startMin)} - ${minuteToLabel(block.endMin)}`,
+        `Duration: ${Math.max(Math.round(block.durationMin), 1)} min`,
+      ]
       : [
-          `Room ${block.label}`,
-          `Status: ${statusLabel(block)}`,
-          `${minuteToLabel(block.startMin)} - ${minuteToLabel(block.endMin)}`,
-          `Duration: ${Math.max(Math.round(block.durationMin), 1)} min`,
-        ];
+        `Room ${block.label}`,
+        `Status: ${statusLabel(block)}`,
+        `${minuteToLabel(block.startMin)} - ${minuteToLabel(block.endMin)}`,
+        `Duration: ${Math.max(Math.round(block.durationMin), 1)} min`,
+      ];
 
   if (block.priority != null) lines.push(`Priority: P${block.priority}`);
   const normalizedNote = normalizeTimelineNote(block.note);
@@ -847,7 +847,7 @@ export default function TimelineView({
                   {workHours.slice(1, -1).map((hour) => (
                     <div
                       key={`${lane.key}-grid-${hour}`}
-                      className="absolute top-0 bottom-0 border-l border-[var(--border-default)]/70"
+                      className="absolute top-0 bottom-0 border-l border-[var(--timeline-grid)]"
                       style={{ left: (hour - WORK_START_HOUR) * 60 * MIN_TO_PX }}
                     />
                   ))}
@@ -868,7 +868,7 @@ export default function TimelineView({
                         left: gap.leftPx,
                         width: gap.widthPx,
                         backgroundImage:
-                          "repeating-linear-gradient(45deg, #e5e7eb, #e5e7eb 4px, #f8fafc 4px, #f8fafc 8px)",
+                          "repeating-linear-gradient(45deg, var(--timeline-gap-line), var(--timeline-gap-line) 4px, var(--timeline-gap-bg) 4px, var(--timeline-gap-bg) 8px)",
                       }}
                       onMouseEnter={(e) => openTooltip(e, buildGapTooltip(gap.startMin, gap.endMin))}
                       onMouseMove={moveTooltip}
@@ -883,9 +883,8 @@ export default function TimelineView({
                         key={block.key}
                         className={`absolute top-1 bottom-1 border rounded-md flex items-center justify-center text-[10px] font-bold overflow-hidden px-1 shadow-sm whitespace-nowrap z-10 ${getStatusClass(
                           block
-                        )} ${isDraggable ? "cursor-grab active:cursor-grabbing hover:ring-1 hover:ring-rose-300" : ""} ${
-                          draggingRoomId === block.dragId ? "opacity-70" : ""
-                        }`}
+                        )} ${isDraggable ? "cursor-grab active:cursor-grabbing hover:ring-1 hover:ring-rose-300" : ""} ${draggingRoomId === block.dragId ? "opacity-70" : ""
+                          }`}
                         style={{ left: block.leftPx, width: block.widthPx }}
                         draggable={isDraggable}
                         onDragStart={(e) => {

@@ -496,10 +496,10 @@ export default function MaidPage() {
             <select
               value={maidName}
               onChange={e => setMaidName(e.target.value)}
-              className="ml-auto bg-[var(--bg-surface-hover)] text-[var(--text-primary)] text-sm rounded-md px-2 py-1 font-semibold outline-none"
+              className="ml-auto bg-[var(--bg-surface-hover)] dark:bg-white/5 border border-transparent dark:border-white/5 text-[var(--text-primary)] text-sm rounded-md px-2 py-1 font-semibold outline-none focus:ring-1 focus:ring-brand-500"
             >
               {maidLaneNames.map(name => (
-                <option key={name} value={name}>{name}</option>
+                <option key={name} value={name} className="dark:bg-slate-900">{name}</option>
               ))}
             </select>
           </label>
@@ -507,7 +507,7 @@ export default function MaidPage() {
             type="button"
             onClick={() => void refreshNow()}
             disabled={isRefreshing || isActionLoading}
-            className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)] disabled:opacity-50"
+            className="rounded-md border border-[var(--border-input)] dark:border-white/10 bg-[var(--bg-surface)] dark:bg-white/5 px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)] dark:text-[var(--text-primary)] hover:dark:bg-white/10 transition-colors disabled:opacity-50"
           >
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </button>
@@ -541,7 +541,7 @@ export default function MaidPage() {
         <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")}>
           All
           {hkCollectRoomCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500 text-white">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500 dark:bg-amber-500/20 dark:text-amber-400 text-white font-bold">
               📦 {hkCollectRoomCount}
             </span>
           )}
@@ -644,9 +644,9 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold flex items-center gap-2 transition-colors ${active
-        ? "bg-slate-800 text-white shadow-sm"
-        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)]"
+      className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold flex items-center gap-2 transition-all ${active
+        ? "bg-slate-800 dark:bg-brand-500/20 text-white dark:text-brand-400 border-transparent dark:border-brand-500/30 shadow-sm"
+        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] dark:border-white/5 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-white/5"
         }`}
     >
       {children}
@@ -656,7 +656,10 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
 
 function Badge({ count, alert }: { count: number, alert?: boolean }) {
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[10px] ${alert ? "bg-rose-500 text-white" : "bg-sky-500 text-white"}`}>
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${alert 
+      ? "bg-rose-500 dark:bg-rose-500/20 text-white dark:text-rose-400" 
+      : "bg-sky-500 dark:bg-sky-500/20 text-white dark:text-sky-400"
+    }`}>
       {count}
     </span>
   );

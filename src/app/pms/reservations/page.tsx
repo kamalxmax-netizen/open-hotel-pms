@@ -35,10 +35,10 @@ type Reservation = {
 
 /* ─── Display helpers ─────────────────────────── */
 const STATUS_STYLE: Record<ResStatus, string> = {
-    active: "bg-emerald-100 text-emerald-700",
-    cancelled: "bg-rose-100 text-rose-600",
-    checked_out: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]",
-    no_show: "bg-amber-100 text-amber-700"
+    active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+    cancelled: "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
+    checked_out: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] dark:bg-emerald-500/15 dark:text-emerald-400",
+    no_show: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
 };
 const STATUS_LABEL: Record<ResStatus, string> = {
     active: "Active",
@@ -50,10 +50,10 @@ const SOURCE_LABEL: Record<string, string> = {
     walkin: "Walk-in", ota: "OTA", direct: "Direct", agent: "Agent"
 };
 const SOURCE_COLOR: Record<string, string> = {
-    walkin: "bg-sky-100 text-sky-700",
-    ota: "bg-purple-100 text-purple-700",
-    direct: "bg-emerald-100 text-emerald-700",
-    agent: "bg-amber-100 text-amber-700"
+    walkin: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+    ota: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400",
+    direct: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+    agent: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
 };
 const STATUS_SORT_RANK: Record<ResStatus, number> = {
     active: 0,
@@ -382,7 +382,7 @@ export default function ReservationsPage() {
                                             {r.booking_group_id && (
                                                 <Link
                                                     href={`/pms/groups?group_id=${r.booking_group_id}`}
-                                                    className="badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                    className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors"
                                                     title={r.group_name ?? "Open Group Booking"}
                                                 >
                                                     {formatShortGroupCode(r.group_code)}
@@ -430,7 +430,7 @@ export default function ReservationsPage() {
                                                         Edit
                                                     </button>
                                                     <button
-                                                        className="btn btn-danger btn-sm"
+                                                        className="btn btn-danger btn-sm bg-rose-600 border-rose-600 hover:bg-rose-700 dark:bg-rose-500/30 dark:border-rose-500/30 dark:text-rose-400 dark:hover:bg-rose-500/40"
                                                         disabled={cancelSubmitting && cancelTarget?.id === r.id}
                                                         onClick={() => handleCancel(r)}
                                                     >

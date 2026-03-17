@@ -11,10 +11,10 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  default: "bg-brand-100 text-brand-700",
-  secondary: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]",
+  default: "bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400 dark:border dark:border-brand-500/20",
+  secondary: "bg-[var(--bg-muted)] text-[var(--text-table-cell)] dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700",
   outline: "border border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-table-cell)]",
-  destructive: "bg-rose-100 text-rose-700",
+  destructive: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 dark:border dark:border-rose-500/30",
 };
 
 export function Badge({ className, variant = "default", ...props }: BadgeProps) {

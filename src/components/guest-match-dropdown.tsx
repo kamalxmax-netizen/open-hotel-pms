@@ -122,7 +122,7 @@ export default function GuestMatchDropdown({
                     <button
                         type="button"
                         onClick={() => { setOpen(false); onCreate(); }}
-                        className="w-full rounded-xl bg-brand-50 px-4 py-2.5 text-[13px] font-semibold text-brand-600 transition hover:bg-brand-100"
+                        className="w-full rounded-xl bg-brand-50 dark:bg-indigo-500/20 px-4 py-2.5 text-[13px] font-semibold text-brand-600 dark:text-indigo-300 transition hover:bg-brand-100 dark:hover:bg-indigo-500/30"
                     >
                         + Create New Profile
                     </button>
@@ -172,7 +172,7 @@ export default function GuestMatchDropdown({
                         <button
                             type="button"
                             onClick={() => { setOpen(false); onCreate(); }}
-                            className="w-full rounded-xl bg-brand-50 px-4 py-2.5 text-[13px] font-semibold text-brand-600 transition hover:bg-brand-100"
+                            className="w-full rounded-xl bg-brand-50 dark:bg-indigo-500/20 px-4 py-2.5 text-[13px] font-semibold text-brand-600 dark:text-indigo-300 transition hover:bg-brand-100 dark:hover:bg-indigo-500/30"
                         >
                             + Create New Profile
                         </button>
@@ -210,12 +210,12 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
                 <div className="flex items-center gap-2">
                     <span className="truncate text-[15px] font-semibold text-[var(--text-primary)]">{name || "—"}</span>
                     {p.stay_count > 0 && (
-                        <span className="flex-shrink-0 rounded-lg bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                        <span className="flex-shrink-0 rounded-lg bg-blue-100 dark:bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
                             Return · {p.stay_count} stays
                         </span>
                     )}
                     {p.vip_tier && p.vip_tier !== "regular" && (
-                        <span className="flex-shrink-0 rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-700">
+                        <span className="flex-shrink-0 rounded-lg bg-violet-100 dark:bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-700 dark:text-violet-300">
                             {p.vip_tier}
                         </span>
                     )}

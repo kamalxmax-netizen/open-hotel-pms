@@ -344,7 +344,7 @@ export default function PaymentDailyPage() {
                                                             <tr key={`empty-${br.room_number}`} className="text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
                                                                 <td className={`px-4 py-2.5 ${B} font-medium`}>
                                                                     {br.room_number}
-                                                                    {isUnpaidOccupied && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold uppercase">ค้างจ่าย</span>}
+                                                                    {isUnpaidOccupied && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase">ค้างจ่าย</span>}
                                                                 </td>
                                                                 <td className={`px-4 py-2.5 ${B} text-right`}>—</td>
                                                                 <td className={`px-2 py-2.5 ${Bi} text-right`}>—</td>
@@ -360,11 +360,11 @@ export default function PaymentDailyPage() {
 
                                                     return roomRows.map((tr, idx) => {
                                                         const badge = tr.stay_flow === "due_out"
-                                                            ? { text: "↓OUT", className: "bg-amber-100 text-amber-700" }
+                                                            ? { text: "↓OUT", className: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" }
                                                             : tr.stay_flow === "due_in"
-                                                                ? { text: "↑IN", className: "bg-sky-100 text-sky-700" }
+                                                                ? { text: "↑IN", className: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400" }
                                                                 : tr.stay_flow === "in_house"
-                                                                    ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700" }
+                                                                    ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" }
                                                                     : null;
                                                         return (
                                                             <tr
@@ -412,11 +412,11 @@ export default function PaymentDailyPage() {
                                             </tr>
                                             {unassignedTodayRooms.map((tr, idx) => {
                                                 const badge = tr.stay_flow === "due_out"
-                                                    ? { text: "↓OUT", className: "bg-amber-100 text-amber-700" }
+                                                    ? { text: "↓OUT", className: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" }
                                                     : tr.stay_flow === "due_in"
-                                                        ? { text: "↑IN", className: "bg-sky-100 text-sky-700" }
+                                                        ? { text: "↑IN", className: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400" }
                                                         : tr.stay_flow === "in_house"
-                                                            ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700" }
+                                                            ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" }
                                                             : null;
                                                 return (
                                                     <tr
@@ -573,9 +573,9 @@ export default function PaymentDailyPage() {
                                             <PaymentCells m={adv.methods} />
                                             <td className="px-3 py-2 text-xs flex flex-col items-start gap-1 justify-center min-h-[50px]">
                                                 <span className="font-semibold text-[var(--text-secondary)]">CI: {adv.checkin_date.split('-').slice(1).reverse().join('/')}</span>
-                                                {adv.payment_status === "deposit" && <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded">มัดจำ</span>}
-                                                {adv.payment_status === "partial" && <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-1.5 py-0.5 rounded">บางส่วน</span>}
-                                                {adv.payment_status === "full" && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">เต็ม</span>}
+                                                {adv.payment_status === "deposit" && <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-1.5 py-0.5 rounded">มัดจำ</span>}
+                                                {adv.payment_status === "partial" && <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-1.5 py-0.5 rounded">บางส่วน</span>}
+                                                {adv.payment_status === "full" && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-1.5 py-0.5 rounded">เต็ม</span>}
                                                 {adv.notes.length > 0 && <div className="text-[var(--text-muted)] mt-0.5 truncate max-w-[150px]" title={adv.notes.join(" | ")}>{adv.notes[0]}</div>}
                                             </td>
                                         </tr>

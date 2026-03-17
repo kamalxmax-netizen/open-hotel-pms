@@ -32,6 +32,13 @@
 
   /* ─── Toggle switch ─── */
   --toggle-off: #cbd5e1;
+  /* ─── Timeline ─── */
+  --timeline-grid: rgba(226, 232, 240, 0.7);
+  --timeline-gap-bg: #f8fafc;
+  --timeline-gap-line: #e5e7eb;
+  /* ─── Housekeeping ─── */
+  --hk-stripe-in-progress: rgba(255, 255, 255, 0.9);
+  --hk-stripe-paused: rgba(255, 255, 255, 0.9);
 }
 
 html.dark {
@@ -58,6 +65,13 @@ html.dark {
   --dayuse-border: rgba(159, 18, 57, 0.3);
 
   --toggle-off: #3a4450;
+  /* ─── Timeline ─── */
+  --timeline-grid: rgba(45, 54, 64, 0.7);
+  --timeline-gap-bg: #1a1f26;
+  --timeline-gap-line: #2d3640;
+  /* ─── Housekeeping ─── */
+  --hk-stripe-in-progress: rgba(255, 255, 255, 0.15);
+  --hk-stripe-paused: rgba(255, 255, 255, 0.15);
 }
 
 body {
@@ -148,16 +162,27 @@ body {
 /* ─── Room status colours ─────────────────────── */
 /* available = emerald */
 .status-available  { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+html.dark .status-available { @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20; }
+
 /* reserved / in-house = amber */
 .status-reserved   { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+html.dark .status-reserved { @apply bg-amber-500/10 text-amber-400 border-amber-500/20; }
+
 /* dirty = rose */
 .status-dirty      { @apply bg-rose-50 text-rose-700 border border-rose-200; }
+html.dark .status-dirty { @apply bg-rose-500/10 text-rose-400 border-rose-500/20; }
+
 /* cleaning / in-progress = sky */
 .status-cleaning   { @apply bg-sky-50 text-sky-700 border border-sky-200; }
+html.dark .status-cleaning { @apply bg-sky-500/10 text-sky-400 border-sky-500/20; }
+
 /* approved / clean = green */
 .status-approved   { @apply bg-green-50 text-green-700 border border-green-200; }
+html.dark .status-approved { @apply bg-green-500/10 text-green-400 border-green-500/20; }
+
 /* closed / renovation = slate */
 .status-closed     { @apply bg-slate-100 text-slate-500 border border-slate-200; }
+html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; }
 
 /* ─── Room Card (Board) ───────────────────────── */
 .room-card {
@@ -324,7 +349,9 @@ textarea[aria-invalid="true"]:focus {
   color: var(--text-primary);
 }
 .toast-success { @apply border-emerald-200 bg-emerald-50 text-emerald-800; }
+html.dark .toast-success { @apply border-emerald-500/30 bg-emerald-500/15 text-emerald-400; }
 .toast-error   { @apply border-rose-200 bg-rose-50 text-rose-800; }
+html.dark .toast-error { @apply border-rose-500/30 bg-rose-500/15 text-rose-400; }
 
 /* ─── Table ───────────────────────────────────── */
 .data-table {

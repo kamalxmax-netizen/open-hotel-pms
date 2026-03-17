@@ -221,7 +221,7 @@ export function ReservationFolioModal({
         }
       >
         {error && (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
             {error}
           </div>
         )}
@@ -249,8 +249,8 @@ export function ReservationFolioModal({
                     type="button"
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                       filter === item.key
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
+                        ? "border-slate-900 bg-slate-900 text-white dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-400 shadow-[0_0_15px_rgba(var(--brand-500-rgb),0.2)]"
+                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] dark:border-white/5"
                     }`}
                     onClick={() => setFilter(item.key)}
                   >
@@ -266,29 +266,29 @@ export function ReservationFolioModal({
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Room Charges</div>
               <div className="mt-4 text-2xl font-semibold text-[var(--text-primary)]">฿{formatMoney(folio?.summary.room_charges_total ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-700">Discount</div>
-              <div className="mt-4 text-2xl font-semibold text-rose-800">฿{formatMoney(folio?.summary.discount_total ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:bg-rose-500/10 dark:border-rose-500/20">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-700 dark:text-rose-400">Discount</div>
+              <div className="mt-4 text-2xl font-semibold text-rose-800 dark:text-rose-200">฿{formatMoney(folio?.summary.discount_total ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">Extra Charges</div>
-              <div className="mt-4 text-2xl font-semibold text-amber-800">฿{formatMoney(folio?.summary.extra_charges_total ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:bg-amber-500/10 dark:border-amber-500/20">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">Extra Charges</div>
+              <div className="mt-4 text-2xl font-semibold text-amber-800 dark:text-amber-200">฿{formatMoney(folio?.summary.extra_charges_total ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Payments</div>
-              <div className="mt-4 text-2xl font-semibold text-emerald-800">฿{formatMoney(folio?.summary.payments_total ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Payments</div>
+              <div className="mt-4 text-2xl font-semibold text-emerald-800 dark:text-emerald-200">฿{formatMoney(folio?.summary.payments_total ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-700">Refunds</div>
-              <div className="mt-4 text-2xl font-semibold text-rose-800">฿{formatMoney(folio?.summary.refunds_total ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:bg-rose-500/10 dark:border-rose-500/20">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-700 dark:text-rose-400">Refunds</div>
+              <div className="mt-4 text-2xl font-semibold text-rose-800 dark:text-rose-200">฿{formatMoney(folio?.summary.refunds_total ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-700">Deposit Held</div>
-              <div className="mt-4 text-2xl font-semibold text-indigo-800">฿{formatMoney(folio?.summary.deposit_held ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:bg-indigo-500/10 dark:border-indigo-500/20">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-400">Deposit Held</div>
+              <div className="mt-4 text-2xl font-semibold text-indigo-800 dark:text-indigo-200">฿{formatMoney(folio?.summary.deposit_held ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-slate-900 bg-slate-900 p-4 text-white">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">Outstanding</div>
-              <div className="mt-4 text-2xl font-semibold">฿{formatMoney(folio?.summary.outstanding_balance ?? 0)}</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-slate-900 bg-slate-900 p-4 text-white dark:border-indigo-500/30 dark:bg-indigo-950/40">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)] dark:text-indigo-300">Outstanding</div>
+              <div className="mt-4 text-2xl font-semibold dark:text-indigo-50">฿{formatMoney(folio?.summary.outstanding_balance ?? 0)}</div>
             </div>
           </div>
 
@@ -384,7 +384,7 @@ export function ReservationFolioModal({
             <div className="space-y-4">
               <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
                 <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                  <WalletCards className="h-4 w-4 text-indigo-600" />
+                  <WalletCards className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   Action Rail
                 </div>
 
@@ -392,7 +392,7 @@ export function ReservationFolioModal({
                   {canAddPayment && (
                     <button
                       type="button"
-                      className="btn btn-primary w-full justify-center"
+                      className="btn btn-primary w-full justify-center dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/50 dark:hover:bg-brand-500/30 transition-all"
                       onClick={() => setShowPaymentForm((current) => !current)}
                     >
                       Add Payment
@@ -428,8 +428,8 @@ export function ReservationFolioModal({
               </div>
 
               {canAddPayment && showPaymentForm && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-400">
                     <ReceiptText className="h-4 w-4" />
                     Add Payment
                   </div>

@@ -14,9 +14,9 @@ type BugReport = {
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  open:        { label: "Open",        color: "bg-rose-100 text-rose-700" },
-  in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700" },
-  resolved:    { label: "Resolved",    color: "bg-emerald-100 text-emerald-700" },
+  open:        { label: "Open",        color: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" },
+  in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" },
+  resolved:    { label: "Resolved",    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" },
   wontfix:     { label: "Won't Fix",   color: "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]" },
 };
 
@@ -91,8 +91,8 @@ export default function BugReportsPage() {
                   onClick={() => setSelected(report)}
                   className={`w-full text-left p-3.5 rounded-xl border transition-all ${
                     isSelected
-                      ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400"
-                      : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--border-input)]"
+                      ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400 dark:bg-indigo-500/10 dark:border-indigo-500/30 dark:ring-indigo-500/20"
+                      : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--border-input)] hover:bg-[var(--bg-surface-hover)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">

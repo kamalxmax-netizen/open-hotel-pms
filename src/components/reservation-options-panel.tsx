@@ -99,8 +99,10 @@ const DEPT_LABEL: Record<TraceDept, string> = {
     FD: "Front Desk", HK: "Housekeeping", MAINT: "Maintenance", MGMT: "Management", OTHER: "Other"
 };
 const DEPT_COLOR: Record<TraceDept, string> = {
-    FD: "bg-sky-100 text-sky-700", HK: "bg-emerald-100 text-emerald-700",
-    MAINT: "bg-amber-100 text-amber-700", MGMT: "bg-violet-100 text-violet-700",
+    FD: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+    HK: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    MAINT: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    MGMT: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
     OTHER: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]"
 };
 const STATUS_COLOR: Record<TraceStatus, string> = {
@@ -109,9 +111,9 @@ const STATUS_COLOR: Record<TraceStatus, string> = {
 
 const VIP_TIER_LABEL: Record<string, { label: string; color: string }> = {
     regular: { label: "Regular", color: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" },
-    loyal: { label: "Regular Loyal", color: "bg-sky-100 text-sky-700" },
-    vip: { label: "Year Loyalty", color: "bg-violet-100 text-violet-700" },
-    longest: { label: "⭐ VIP", color: "bg-amber-100 text-amber-700" }
+    loyal: { label: "Regular Loyal", color: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400" },
+    vip: { label: "Year Loyalty", color: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400" },
+    longest: { label: "⭐ VIP", color: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" }
 };
 
 const QUICK_TEXTS: { dept: TraceDept; text: string }[] = [
@@ -306,7 +308,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
             ) : (
                 <div className="space-y-2">
                     {openTraces.map(t => (
-                        <div key={t.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <div key={t.id} className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-900/20 p-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 mb-1">
@@ -343,7 +345,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
 
             {/* Add trace form */}
             {showForm ? (
-                <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 space-y-3">
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-3">
                     <div className="flex gap-2">
                         <div className="flex-1">
                             <label className="form-label">Department</label>
@@ -496,12 +498,12 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
                 <div className="flex flex-wrap gap-2">
                     {activeAlerts.map(a => (
                         <div key={a.id}
-                            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 pl-2 pr-1 py-1"
+                            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-900/20 pl-2 pr-1 py-1"
                         >
                             <span className="text-sm">{a.icon ?? a.alert_codes?.icon ?? "🔔"}</span>
                             <div>
-                                <span className="text-xs font-bold text-rose-700">{a.template_name ?? a.alert_code ?? "Alert"}</span>
-                                {a.message && <span className="ml-1 text-[10px] text-rose-500">{a.message}</span>}
+                                <span className="text-xs font-bold text-rose-700 dark:text-rose-400">{a.template_name ?? a.alert_code ?? "Alert"}</span>
+                                {a.message && <span className="ml-1 text-[10px] text-rose-500 dark:text-rose-400/80">{a.message}</span>}
                             </div>
                             <button
                                 onClick={() => setDismissed(a.id, "dismiss")}
@@ -690,7 +692,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                         </div>
                         <div className="flex items-center gap-1.5">
                             {linked.blacklisted && (
-                                <span className="badge bg-red-100 text-red-700 text-[10px]">⛔ Blacklisted</span>
+                                <span className="badge bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 text-[10px]">⛔ Blacklisted</span>
                             )}
                             {tier && (
                                 <span className={`badge text-[10px] font-bold ${tier.color}`}>{tier.label}</span>
@@ -712,12 +714,12 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                     </div>
 
                     {linked.preferences && (
-                        <div className="rounded-lg bg-sky-50 border border-sky-100 px-3 py-2 text-xs text-sky-700">
+                        <div className="rounded-lg bg-sky-50 border border-sky-100 dark:bg-sky-900/20 dark:border-sky-500/30 px-3 py-2 text-xs text-sky-700 dark:text-sky-400">
                             💬 <span className="font-semibold">Preferences:</span> {linked.preferences}
                         </div>
                     )}
                     {linked.notes && (
-                        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700">
+                        <div className="rounded-lg bg-amber-50 border border-amber-100 dark:bg-amber-900/20 dark:border-amber-500/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                             📝 <span className="font-semibold">Staff Notes:</span> {linked.notes}
                         </div>
                     )}
@@ -749,7 +751,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                                     <button key={p.id}
                                         onClick={() => linkProfile(p.id)}
                                         disabled={saving}
-                                        className="w-full rounded-xl border border-[var(--border-default)] p-3 text-left hover:border-brand-300 hover:bg-brand-50 transition"
+                                        className="w-full rounded-xl border border-[var(--border-default)] p-3 text-left hover:border-brand-500 hover:bg-[var(--bg-surface-hover)] transition"
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="font-semibold text-sm">{p.first_name} {p.last_name}</span>
@@ -936,13 +938,19 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
     }
 
     const loanedCodes = new Set(traces.map(t => t.loan_item_code));
+    const loanedQtyByCode = new Map<string, number>();
+    for (const t of traces) {
+        if (t.loan_item_code) {
+            loanedQtyByCode.set(t.loan_item_code, (loanedQtyByCode.get(t.loan_item_code) ?? 0) + (t.loan_qty || 1));
+        }
+    }
 
     return (
         <div className="space-y-4">
             {loanReminder && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-900/20 px-3 py-3 text-sm text-amber-800 dark:text-amber-400">
                     <p className="font-semibold">This item may require an extra charge.</p>
-                    <p className="mt-1">
+                    <p className="mt-1 text-amber-700 dark:text-amber-400/80">
                         {loanReminder.itemName}
                         {loanReminder.templateCode ? ` · Suggested template: ${loanReminder.templateCode}` : ""}
                     </p>
@@ -963,18 +971,18 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
                     <p className="text-xs font-bold text-rose-600 mb-2">⚠️ Items Currently Loaned Out (must collect at C/O)</p>
                     <div className="space-y-1">
                         {traces.map(t => (
-                            <div key={t.id} className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                            <div key={t.id} className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-900/20 px-3 py-2">
                                 <div className="text-sm">
-                                    <span className="font-semibold text-rose-700">
+                                    <span className="font-semibold text-rose-700 dark:text-rose-400">
                                         {t.loan_items?.icon} {t.loan_items?.name ?? t.loan_item_code}
                                     </span>
-                                    <span className="ml-1 text-rose-500 text-xs">×{t.loan_qty}</span>
-                                    <span className="ml-2 bg-rose-200 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                    <span className="ml-1 text-rose-500 dark:text-rose-400/80 text-xs">×{t.loan_qty}</span>
+                                    <span className="ml-2 bg-rose-200 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
                                         Due: {t.due_date || checkoutDate}
                                         {!t.due_date ? " (C/O auto)" : ""}
                                     </span>
                                     {t.loan_items?.requires_hk_collection && (
-                                        <span className="ml-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200">
+                                        <span className="ml-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/30">
                                             HK Collect
                                         </span>
                                     )}
@@ -1005,14 +1013,14 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
                         </thead>
                         <tbody>
                             {items.map(item => {
-                                const alreadyLoaned = loanedCodes.has(item.code);
+                                const currentlyLoaned = loanedQtyByCode.get(item.code) ?? 0;
                                 const q = qty[item.code] ?? 1;
                                 return (
-                                    <tr key={item.code} className={`border-b border-[var(--border-subtle)] ${alreadyLoaned ? "bg-rose-50/40" : ""}`}>
+                                    <tr key={item.code} className={`border-b border-[var(--border-subtle)] ${currentlyLoaned > 0 ? "bg-amber-50/40 dark:bg-amber-900/10" : ""}`}>
                                         <td className="px-3 py-2">
                                             <span className="mr-1">{item.icon}</span>
                                             <span className="font-medium">{item.name}</span>
-                                            {alreadyLoaned && <span className="ml-2 text-[10px] text-rose-500 font-semibold">LOANED</span>}
+                                            {currentlyLoaned > 0 && <span className="ml-2 text-[10px] text-amber-600 dark:text-amber-400 font-semibold">×{currentlyLoaned} loaned</span>}
                                         </td>
                                         <td className="text-center px-2 py-2">
                                             <span className={item.available === 0 ? "text-rose-500 font-bold" : "text-emerald-600 font-semibold"}>
@@ -1025,13 +1033,13 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
                                                 value={q}
                                                 onChange={e => setQty(prev => ({ ...prev, [item.code]: parseInt(e.target.value) || 1 }))}
                                                 className="form-input w-14 py-0.5 text-center"
-                                                disabled={item.available === 0 || alreadyLoaned}
+                                                disabled={item.available === 0}
                                             />
                                         </td>
                                         <td className="px-2 py-2">
                                             <button
                                                 className="btn btn-sm btn-primary text-xs px-3 py-1"
-                                                disabled={item.available === 0 || alreadyLoaned || loaning === item.code}
+                                                disabled={item.available === 0 || loaning === item.code}
                                                 onClick={() => loanItem(item.code)}
                                             >
                                                 {loaning === item.code ? "…" : "Loan"}
@@ -1046,14 +1054,14 @@ function LoanItemsTab({ reservationId, checkinDate, checkoutDate, onOpenCharges 
             )}
 
             {!loading && (
-                <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 space-y-2">
-                    <div className="text-xs text-brand-900">
-                        <span className="font-semibold">Default Due Date:</span>{" "}
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 space-y-2">
+                    <div className="text-xs text-[var(--text-primary)]">
+                        <span className="font-semibold text-[var(--text-secondary)]">Default Due Date:</span>{" "}
                         <span className="font-bold">{checkoutDate}</span>{" "}
-                        <span className="text-brand-700">(auto-follows reservation C/O)</span>
+                        <span className="text-[var(--text-muted)]">(auto-follows reservation C/O)</span>
                     </div>
                     <div className="flex items-center gap-3">
-                        <label className="text-xs font-semibold text-brand-900 whitespace-nowrap">Specific Due Date (Optional):</label>
+                        <label className="text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">Specific Due Date (Optional):</label>
                         <input
                             type="date"
                             className="form-input text-xs py-1"
@@ -1078,6 +1086,7 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [depositHeld, setDepositHeld] = useState(0);
 
     const [form, setForm] = useState({ template_code: "", amount: "", method: "cash", note: "" });
 
@@ -1087,7 +1096,11 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
             fetch(`/api/bookings/${reservationId}/extra-charges`).then(r => r.json()).catch(() => ({})),
             fetch("/api/extra-fee-templates?active=true").then(r => r.json()).catch(() => ({}))
         ]);
-        if (cRes.success) setCharges(cRes.charges || []);
+        if (cRes.success) {
+            setCharges(cRes.charges || []);
+            const held = Number(cRes.summary?.deposit_held ?? 0);
+            setDepositHeld(Number.isFinite(held) ? held : 0);
+        }
         if (tRes.success) setTemplates(tRes.templates || []);
         setLoading(false);
     }, [reservationId]);
@@ -1096,6 +1109,10 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
 
     async function addCharge() {
         if (!form.template_code) return;
+        if (form.method === "deposit" && depositHeld <= 0) {
+            setError("No deposit held for this reservation.");
+            return;
+        }
         setSaving(true); setError("");
         const selected = templates.find(t => t.code === form.template_code);
         const amt = parseFloat(form.amount) || selected?.default_price || 0;
@@ -1171,8 +1188,8 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
             )}
 
             {/* Add form */}
-            <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 space-y-3">
-                <p className="text-sm font-semibold text-brand-900">Add Extra Charge</p>
+            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-3">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Add Extra Charge</p>
 
                 <div>
                     <label className="form-label">Charge Type / Template</label>
@@ -1213,9 +1230,24 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
                             <option value="cash">Cash</option>
                             <option value="transfer">Transfer</option>
                             <option value="credit_card">Card</option>
+                            {depositHeld > 0 && <option value="deposit">Deposit Deduct</option>}
                         </select>
                     </div>
                 </div>
+
+                {form.method === "deposit" && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        <div className="font-semibold">Deposit held: ฿{depositHeld.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                        {(() => {
+                            const amt = parseFloat(form.amount) || 0;
+                            return amt > depositHeld ? (
+                                <div className="mt-1 text-xs">
+                                    Charge ฿{amt.toFixed(2)} exceeds deposit. ฿{depositHeld.toFixed(2)} will be applied, ฿{(amt - depositHeld).toFixed(2)} remains outstanding.
+                                </div>
+                            ) : null;
+                        })()}
+                    </div>
+                )}
 
                 <div>
                     <label className="form-label">Note (Optional)</label>

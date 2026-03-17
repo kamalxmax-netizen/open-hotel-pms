@@ -181,10 +181,10 @@ function EditGuestProfileModal({
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" disabled={saving} onClick={onClose}>
+          <button className="btn btn-secondary dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30" disabled={saving} onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={saving} onClick={onSave}>
+          <button className="btn btn-primary dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30" disabled={saving} onClick={onSave}>
             {saving ? "Saving..." : "Save Changes"}
           </button>
         </>
@@ -369,11 +369,10 @@ function StaySummaryDrawer({
                     Room {summary.room_number || "—"}
                   </span>
                   <span
-                    className={`badge text-sm ${
-                      summary.role === "primary"
+                    className={`badge text-sm ${summary.role === "primary"
                         ? "bg-blue-100 text-blue-700"
                         : "bg-amber-100 text-amber-700"
-                    }`}
+                      }`}
                   >
                     {summary.role === "primary" ? "Main Guest" : "Accompanying"}
                   </span>
@@ -435,8 +434,8 @@ function StaySummaryDrawer({
 
             <div className="border-t border-[var(--border-default)] px-6 py-5">
               <div className="flex justify-end">
-                <Link href={`/pms/reservations?open=${summary.reservation_id}`} className="btn btn-primary">
-                Open Reservation
+                <Link href={`/pms/reservations?open=${summary.reservation_id}`} className="btn btn-primary dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30">
+                  Open Reservation
                 </Link>
               </div>
             </div>
@@ -467,6 +466,9 @@ export default function GuestProfileDetailPage() {
   const [staySummary, setStaySummary] = useState<GuestStaySummary | null>(null);
   const [stayLoading, setStayLoading] = useState(false);
   const [stayError, setStayError] = useState("");
+  const [stayStatusFilter, setStayStatusFilter] = useState<"all" | "checked_out" | "cancelled">("all");
+  const [stayDateFrom, setStayDateFrom] = useState("");
+  const [stayDateTo, setStayDateTo] = useState("");
 
   useEffect(() => {
     if (!profileId) return;
@@ -552,6 +554,31 @@ export default function GuestProfileDetailPage() {
         : [],
     [history]
   );
+
+  const hasDateFilter = Boolean(stayDateFrom || stayDateTo);
+
+  const displayedStays = useMemo(() => {
+    let rows = combinedStays;
+    // Status filter
+    if (stayStatusFilter !== "all") {
+      rows = rows.filter((s) => s.status === stayStatusFilter);
+    }
+    // Date range filter
+    if (stayDateFrom) {
+      rows = rows.filter((s) => {
+        const d = s.checkin_date ?? s.checked_in_at ?? "";
+        return d >= stayDateFrom;
+      });
+    }
+    if (stayDateTo) {
+      rows = rows.filter((s) => {
+        const d = s.checkin_date ?? s.checked_in_at ?? "";
+        return d <= stayDateTo;
+      });
+    }
+    // Limit: 10 when no date range, 50 when date range is set
+    return rows.slice(0, hasDateFilter ? 50 : 10);
+  }, [combinedStays, stayStatusFilter, stayDateFrom, stayDateTo, hasDateFilter]);
 
   async function handleSaveProfile() {
     if (!profile || !editForm) return;
@@ -696,8 +723,8 @@ export default function GuestProfileDetailPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                className="btn btn-secondary"
+               <button
+                className="btn btn-secondary dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"
                 onClick={() => {
                   setShowEditValidation(false);
                   setShowEditModal(true);
@@ -706,7 +733,7 @@ export default function GuestProfileDetailPage() {
               >
                 Edit
               </button>
-              <button className="btn btn-danger" onClick={() => void handleDeleteProfile()} disabled={deleteSaving || editSaving}>
+              <button className="btn btn-danger dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30" onClick={() => void handleDeleteProfile()} disabled={deleteSaving || editSaving}>
                 {deleteSaving ? "Deleting..." : "Delete Profile"}
               </button>
             </div>
@@ -766,9 +793,65 @@ export default function GuestProfileDetailPage() {
         </div>
 
         <div className="border-t border-[var(--border-default)] px-5 py-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">Stay History</h2>
-            <p className="text-lg text-[var(--text-secondary)]">{combinedStays.length} records</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">Stay History</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Showing {displayedStays.length} of {combinedStays.length} records
+                {!hasDateFilter && combinedStays.length > 10 && (
+                  <span className="ml-1 text-[var(--text-muted)]">— select a date range to see more (up to 50)</span>
+                )}
+              </p>
+            </div>
+            {/* Filters */}
+            <div className="flex flex-wrap items-end gap-3">
+              {/* Status filter */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Status</label>
+                <div className="flex rounded-lg border border-[var(--border-input)] overflow-hidden text-xs font-semibold">
+                  {(["all", "checked_out", "cancelled"] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setStayStatusFilter(v)}
+                      className={`px-3 py-1.5 transition ${
+                        stayStatusFilter === v
+                          ? "bg-brand-600 text-white"
+                          : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
+                      }`}
+                    >
+                      {v === "all" ? "All" : v === "checked_out" ? "Checked Out" : "Cancelled"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Date range */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Check-in From</label>
+                <input
+                  type="date"
+                  value={stayDateFrom}
+                  onChange={(e) => setStayDateFrom(e.target.value)}
+                  className="form-input py-1.5 text-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">To</label>
+                <input
+                  type="date"
+                  value={stayDateTo}
+                  onChange={(e) => setStayDateTo(e.target.value)}
+                  className="form-input py-1.5 text-sm"
+                />
+              </div>
+              {hasDateFilter && (
+                <button
+                  onClick={() => { setStayDateFrom(""); setStayDateTo(""); }}
+                  className="btn btn-secondary btn-sm h-[34px]"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -786,14 +869,14 @@ export default function GuestProfileDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {combinedStays.length === 0 ? (
+              {displayedStays.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-10 text-center text-sm text-[var(--text-secondary)]">
-                    No stay history found.
+                    No stay history found{stayStatusFilter !== "all" || hasDateFilter ? " matching the current filters" : ""}.
                   </td>
                 </tr>
               ) : (
-                combinedStays.map((stay) => {
+                displayedStays.map((stay) => {
                   const roleMeta = getRoleMeta(stay.role);
                   return (
                     <tr
@@ -819,6 +902,17 @@ export default function GuestProfileDetailPage() {
               )}
             </tbody>
           </table>
+          {/* Limit reminder */}
+          {hasDateFilter && displayedStays.length === 50 && (
+            <p className="px-5 py-2 text-center text-xs text-[var(--text-muted)]">
+              Showing 50 records maximum. Narrow the date range to see specific entries.
+            </p>
+          )}
+          {!hasDateFilter && combinedStays.length > 10 && (
+            <p className="px-5 py-3 text-center text-xs text-[var(--text-muted)] border-t border-[var(--border-subtle)]">
+              Showing latest 10 records. Select a date range above to see older stays.
+            </p>
+          )}
         </div>
       </section>
 

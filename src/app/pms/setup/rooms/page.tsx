@@ -231,7 +231,7 @@ function RoomCard({
                             </span>
                         )}
                         {!room.is_sellable && (
-                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">DO NOT SELL</span>
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 px-2 py-0.5 rounded-full">DO NOT SELL</span>
                         )}
                     </div>
                     {/* Usage bar */}
@@ -396,7 +396,7 @@ function RoomCard({
                                                 <span className="text-sm font-medium text-[var(--text-table-cell)] flex items-center gap-1.5">
                                                     {item.item_name}
                                                     {item.product_id && (
-                                                        <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
+                                                        <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
                                                     )}
                                                 </span>
                                                 <span className="text-xs font-bold text-[var(--text-secondary)]">x{item.default_quantity}</span>
@@ -448,7 +448,7 @@ function RoomCard({
                                 {catDeductions.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 mb-2">
                                         {catDeductions.map(d => (
-                                            <span key={d.id} className="inline-flex items-center gap-1 text-xs bg-rose-50 border border-rose-100 text-rose-700 rounded-full px-2 py-0.5">
+                                            <span key={d.id} className="inline-flex items-center gap-1 text-xs bg-rose-50 border border-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/20 rounded-full px-2 py-0.5">
                                                 {d.label} (−{d.deduct_points})
                                                 <button
                                                     className="text-rose-400 hover:text-rose-600 ml-0.5"
@@ -561,7 +561,7 @@ function RoomCard({
                             </span>
                             <span>{qualityBadge(computedScore)}</span>
                             {computedScore < 6 && (
-                                <span className="text-xs text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">⚠ จะถูกขายท้ายสุด (Auto-Assign)</span>
+                                <span className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-500/15 dark:text-rose-400 px-2 py-0.5 rounded-full">⚠ จะถูกขายท้ายสุด (Auto-Assign)</span>
                             )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -1075,7 +1075,7 @@ export default function RoomsSetupPage() {
                                         <div key={`${item.id ?? "new"}-${idx}`} className="rounded-lg border border-[var(--border-default)] p-3 bg-[var(--bg-body)]/50">
                                             {item.product_id && (
                                                 <div className="mb-1.5">
-                                                    <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
+                                                    <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30 px-1.5 py-0.5 rounded-full">📦 Inventory Linked</span>
                                                 </div>
                                             )}
                                             <div className="grid grid-cols-12 gap-2 items-end">

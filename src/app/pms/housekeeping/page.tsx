@@ -403,7 +403,7 @@ export default function HousekeepingPage() {
       }
       if (d.success) {
         setRooms(d.rooms || []);
-        
+
         // Ensure "clean" count covers both "cleaned" or "approved" tasks as appropriate
         setSummary(d.summary || { dirty: 0, cleaning: 0, clean: 0, available: 0, no_service: 0 });
       } else {
@@ -1003,7 +1003,7 @@ export default function HousekeepingPage() {
     acc[f].push(r);
     return acc;
   }, {} as Record<number, HkRoom[]>);
-  
+
   const sortedFloors = Object.keys(floorGroups).map(Number).sort((a, b) => a - b);
 
   const todayLabel = new Date(date).toLocaleDateString("en-GB", {
@@ -1084,12 +1084,11 @@ export default function HousekeepingPage() {
         />
       )}
 
-	      {/* Dirty room + extra task pool for drag-to-timeline assignment */}
-	      {showPlanningBoard && (
-	        <div
-	          className={`card p-4 transition ${
-	            showPoolDragHint ? "ring-2 ring-rose-400 bg-rose-50/40" : ""
-          }`}
+      {/* Dirty room + extra task pool for drag-to-timeline assignment */}
+      {showPlanningBoard && (
+        <div
+          className={`card p-4 transition ${showPoolDragHint ? "ring-2 ring-rose-400 bg-rose-50/40 dark:ring-rose-500/30 dark:bg-rose-950/20" : ""
+            }`}
           onDragOver={(e) => {
             e.preventDefault();
             setPoolDropActive(true);
@@ -1099,147 +1098,143 @@ export default function HousekeepingPage() {
               setPoolDropActive(false);
             }
           }}
-	          onDrop={(e) => {
-	            e.preventDefault();
-	            setPoolDropActive(false);
-	            const itemId =
-	              e.dataTransfer.getData("text/plain") ||
-	              timelineDraggingRoomId ||
-	              draggingDirtyRoomId;
-	            if (!itemId) return;
-	            void unassignDirtyToPool(itemId);
-	            setTimelineBarDragging(false);
-	            setTimelineDraggingRoomId(null);
-	            setDraggingDirtyRoomId(null);
-	          }}
-	        >
+          onDrop={(e) => {
+            e.preventDefault();
+            setPoolDropActive(false);
+            const itemId =
+              e.dataTransfer.getData("text/plain") ||
+              timelineDraggingRoomId ||
+              draggingDirtyRoomId;
+            if (!itemId) return;
+            void unassignDirtyToPool(itemId);
+            setTimelineBarDragging(false);
+            setTimelineDraggingRoomId(null);
+            setDraggingDirtyRoomId(null);
+          }}
+        >
           <div className="flex items-center justify-between gap-3 flex-wrap">
-	            <div>
-	              <h3 className="text-sm font-bold text-[var(--text-primary)]">Dirty &amp; Task Pool</h3>
-	              <p className="text-xs text-[var(--text-secondary)] mt-1">
-	                Drag dirty room or pending extra task to a maid lane. Drag assigned timeline bar back here to return room to pool.
-	              </p>
-	            </div>
-		            <span className="text-xs rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 font-semibold">
-		              {dirtyRoomPool.length} Dirty · {dirtyPoolCollectCount} HK Collect · {extraTaskPool.length} Extra
-		            </span>
-		          </div>
+            <div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Dirty &amp; Task Pool</h3>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Drag dirty room or pending extra task to a maid lane. Drag assigned timeline bar back here to return room to pool.
+              </p>
+            </div>
+            <span className="text-xs rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 font-semibold dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
+              {dirtyRoomPool.length} Dirty · {dirtyPoolCollectCount} HK Collect · {extraTaskPool.length} Extra
+            </span>
+          </div>
           <div
-            className={`mt-3 min-h-10 rounded-xl border border-dashed p-3 transition ${
-              showPoolDragHint
-                ? "border-rose-400 bg-rose-100/60"
+            className={`mt-3 min-h-10 rounded-xl border border-dashed p-3 transition ${showPoolDragHint
+                ? "border-rose-400 bg-rose-100/60 dark:border-rose-500/40 dark:bg-rose-500/10"
                 : "border-[var(--border-default)] bg-[var(--bg-surface)]"
-            }`}
+              }`}
           >
             <div
-              className={`mb-2 h-4 text-center text-xs font-bold transition ${
-                showPoolDragHint ? "text-rose-700 opacity-100" : "text-transparent opacity-0"
-              }`}
+              className={`mb-2 h-4 text-center text-xs font-bold transition ${showPoolDragHint ? "text-rose-700 dark:text-rose-400 opacity-100" : "text-transparent opacity-0"
+                }`}
               aria-hidden={!showPoolDragHint}
             >
-	              Drag Bar Here to Return to Pool
-	            </div>
-	            <div className="flex flex-wrap gap-2">
-	            {dirtyRoomPool.length === 0 && extraTaskPool.length === 0 ? (
-	              <span className="text-xs text-[var(--text-secondary)]">No dirty rooms / pending extra tasks right now.</span>
-	            ) : (
-	              <>
-		              {dirtyRoomPool.map((room) => {
-		                const isDragging = draggingDirtyRoomId === room.room_id;
-		                const isAssigning = savingDraft;
+              Drag Bar Here to Return to Pool
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {dirtyRoomPool.length === 0 && extraTaskPool.length === 0 ? (
+                <span className="text-xs text-[var(--text-secondary)]">No dirty rooms / pending extra tasks right now.</span>
+              ) : (
+                <>
+                  {dirtyRoomPool.map((room) => {
+                    const isDragging = draggingDirtyRoomId === room.room_id;
+                    const isAssigning = savingDraft;
                     const hkCollectCount = Math.max(Number(room.hk_collect_count ?? 0), 0);
-	                  const chipClass = room.is_no_service
-	                    ? "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950/60"
-	                    : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60";
-	                return (
-	                  <button
-                    key={room.room_id}
-                    type="button"
-                    draggable={!isAssigning}
-                    onDragStart={(e) => {
-                      setTimelineBarDragging(false);
-                      setTimelineDraggingRoomId(null);
-                      setDraggingDirtyRoomId(room.room_id);
-                      e.dataTransfer.setData("text/plain", room.room_id);
-                      e.dataTransfer.effectAllowed = "move";
-                      attachDragImage(e);
-                    }}
-                    onDragEnd={() => {
-                      setDraggingDirtyRoomId(null);
-                      setPoolDropActive(false);
-                    }}
-	                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-	                      isDragging
-	                        ? "border-brand-400 bg-brand-50 text-brand-700"
-	                        : chipClass
-	                    } ${isAssigning ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
-	                  >
-		                    {room.is_no_service && <span>NS</span>}
-                        {hkCollectCount > 0 && <span>📦{hkCollectCount}</span>}
-		                    <span>{room.room_number}</span>
-		                  </button>
-		                );
-		              })}
-	              {extraTaskPool.map((task) => {
-	                const dragId = `${EXTRA_TASK_DRAG_PREFIX}${task.id}`;
-	                const isDragging = draggingDirtyRoomId === dragId;
-	                const isAssigning = savingDraft || Boolean(updating);
-                  const isCancelling = updating === dragId;
-	                return (
-	                  <button
-	                    key={task.id}
-	                    type="button"
-	                    draggable={!isAssigning && !isCancelling}
-	                    onDragStart={(e) => {
-	                      setTimelineBarDragging(false);
-	                      setTimelineDraggingRoomId(null);
-	                      setDraggingDirtyRoomId(dragId);
-	                      e.dataTransfer.setData("text/plain", dragId);
-	                      e.dataTransfer.effectAllowed = "move";
-	                      attachDragImage(e);
-	                    }}
-	                    onDragEnd={() => {
-	                      setDraggingDirtyRoomId(null);
-	                      setPoolDropActive(false);
-	                    }}
-	                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-	                      isDragging
-	                        ? "border-brand-400 bg-brand-50 text-brand-700"
-	                        : "border-rose-300 bg-rose-100 text-rose-800 hover:bg-rose-200"
-	                    } ${isAssigning || isCancelling ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
-	                    title={`${task.task_name} • ${task.duration_min} min`}
-	                  >
-	                    <span>TASK</span>
-	                    <span className="max-w-[140px] truncate">{task.task_name}</span>
-                      <span
-                        role="button"
-                        aria-label="Delete task"
-                        title="Delete task"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                    const chipClass = room.is_no_service
+                      ? "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950/60"
+                      : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60";
+                    return (
+                      <button
+                        key={room.room_id}
+                        type="button"
+                        draggable={!isAssigning}
+                        onDragStart={(e) => {
+                          setTimelineBarDragging(false);
+                          setTimelineDraggingRoomId(null);
+                          setDraggingDirtyRoomId(room.room_id);
+                          e.dataTransfer.setData("text/plain", room.room_id);
+                          e.dataTransfer.effectAllowed = "move";
+                          attachDragImage(e);
                         }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void cancelExtraTask(task.id);
+                        onDragEnd={() => {
+                          setDraggingDirtyRoomId(null);
+                          setPoolDropActive(false);
                         }}
-                        className="ml-1 rounded px-1 text-[11px] font-black leading-none hover:bg-rose-200"
+                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isDragging
+                            ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
+                            : chipClass
+                          } ${isAssigning ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
                       >
-                        x
-                      </span>
-	                  </button>
-	                );
-	              })}
-	              </>
-	            )}
-	            </div>
-	          </div>
-	        </div>
-	      )}
+                        {room.is_no_service && <span>NS</span>}
+                        {hkCollectCount > 0 && <span>📦{hkCollectCount}</span>}
+                        <span>{room.room_number}</span>
+                      </button>
+                    );
+                  })}
+                  {extraTaskPool.map((task) => {
+                    const dragId = `${EXTRA_TASK_DRAG_PREFIX}${task.id}`;
+                    const isDragging = draggingDirtyRoomId === dragId;
+                    const isAssigning = savingDraft || Boolean(updating);
+                    const isCancelling = updating === dragId;
+                    return (
+                      <button
+                        key={task.id}
+                        type="button"
+                        draggable={!isAssigning && !isCancelling}
+                        onDragStart={(e) => {
+                          setTimelineBarDragging(false);
+                          setTimelineDraggingRoomId(null);
+                          setDraggingDirtyRoomId(dragId);
+                          e.dataTransfer.setData("text/plain", dragId);
+                          e.dataTransfer.effectAllowed = "move";
+                          attachDragImage(e);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingDirtyRoomId(null);
+                          setPoolDropActive(false);
+                        }}
+                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isDragging
+                            ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
+                            : "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60"
+                          } ${isAssigning || isCancelling ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
+                        title={`${task.task_name} • ${task.duration_min} min`}
+                      >
+                        <span>TASK</span>
+                        <span className="max-w-[140px] truncate">{task.task_name}</span>
+                        <span
+                          role="button"
+                          aria-label="Delete task"
+                          title="Delete task"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void cancelExtraTask(task.id);
+                          }}
+                          className="ml-1 rounded px-1 text-[11px] font-black leading-none hover:bg-rose-200 dark:hover:bg-rose-500/30"
+                        >
+                          x
+                        </span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(filter === "all" || filter === "dirty" || filter === "in_progress" || filter === "due_out" || filter === "back_to_back" || filter === "in_house") && (
-        <div className={`card p-3 border ${hasDraftChanges ? "border-amber-300 bg-amber-50/60" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
+        <div className={`card p-3 border ${hasDraftChanges ? "border-amber-300 bg-amber-50/60 dark:bg-amber-900/20 dark:border-amber-500/30" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs font-semibold text-[var(--text-table-cell)]">
               {hasDraftChanges
@@ -1259,7 +1254,7 @@ export default function HousekeepingPage() {
                 type="button"
                 onClick={() => void saveDraftAssignments()}
                 disabled={!hasDraftChanges || savingDraft}
-                className="rounded-md border border-emerald-300 bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 disabled:opacity-50"
+                className="rounded-md border border-emerald-300 bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 disabled:opacity-50 dark:border-emerald-500/50"
               >
                 {savingDraft ? "Saving..." : "Save Changes"}
               </button>
@@ -1270,35 +1265,35 @@ export default function HousekeepingPage() {
 
       {/* Filter pills */}
       <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2">
-         <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           {FILTER_TABS.map((f) => {
-             let count = 0;
-             if (f.key === "all") count = rooms.filter(r => r.is_sellable).length;
-             else if (f.key === "extra_tasks") count = extraTaskPending.length;
-             else if (f.key === "due_out") count = rooms.filter(r => r.diary_state === "due_out" || (r.is_checkout_dirty_today && r.hk_status === "dirty")).length;
-             else if (f.key === "back_to_back") count = rooms.filter(r => r.diary_state === "back_to_back").length;
-             else if (f.key === "in_house") count = rooms.filter(r => r.diary_state === "inhouse" && r.in_house_sold_last_night).length;
-             else if (f.key === "cleaned") count = rooms.filter(r => String(r.hk_status) === "cleaned" && !r.is_no_service).length;
-             else if (f.key === "in_progress") count = rooms.filter(r => r.hk_status === "in_progress" || r.hk_status === "paused").length;
-             else if (f.key === "no_service") count = rooms.filter(r => r.is_no_service).length;
-             else if (f.key === "dirty") count = rooms.filter((r) => r.is_sellable && r.hk_status === "dirty").length;
-             else count = rooms.filter((r) => r.is_sellable && r.hk_status === f.key).length;
+            let count = 0;
+            if (f.key === "all") count = rooms.filter(r => r.is_sellable).length;
+            else if (f.key === "extra_tasks") count = extraTaskPending.length;
+            else if (f.key === "due_out") count = rooms.filter(r => r.diary_state === "due_out" || (r.is_checkout_dirty_today && r.hk_status === "dirty")).length;
+            else if (f.key === "back_to_back") count = rooms.filter(r => r.diary_state === "back_to_back").length;
+            else if (f.key === "in_house") count = rooms.filter(r => r.diary_state === "inhouse" && r.in_house_sold_last_night).length;
+            else if (f.key === "cleaned") count = rooms.filter(r => String(r.hk_status) === "cleaned" && !r.is_no_service).length;
+            else if (f.key === "in_progress") count = rooms.filter(r => r.hk_status === "in_progress" || r.hk_status === "paused").length;
+            else if (f.key === "no_service") count = rooms.filter(r => r.is_no_service).length;
+            else if (f.key === "dirty") count = rooms.filter((r) => r.is_sellable && r.hk_status === "dirty").length;
+            else count = rooms.filter((r) => r.is_sellable && r.hk_status === f.key).length;
 
-             return (
-               <button
-                 key={f.key}
-                 onClick={() => setFilter(f.key)}
-                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${filter === f.key
-                     ? "border-brand-500 bg-brand-600 text-white"
-                     : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
-                 }`}
-               >
-                 {f.label}
-                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${filter === f.key ? 'bg-[var(--bg-surface)]/20 text-white' : 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]'}`}>
-                   {count}
-                 </span>
-               </button>
-             );
+            return (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${filter === f.key
+                  ? "border-brand-500 bg-brand-600 text-white dark:bg-brand-500 dark:border-brand-400"
+                  : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)] dark:border-white/10 dark:hover:bg-white/5"
+                  }`}
+              >
+                {f.label}
+                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${filter === f.key ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface-hover)] text-[var(--text-muted)] dark:bg-white/10 dark:text-gray-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
           })}
         </div>
       </div>
@@ -1340,13 +1335,13 @@ export default function HousekeepingPage() {
         <div className="toast-bar toast-success fixed bottom-6 right-6 z-50 shadow-2xl">{toast}</div>
       )}
 
-      <AssignmentModal 
-         isOpen={!!assignRoom}
-         room={assignRoom}
-         onClose={() => setAssignRoom(null)}
-         onSave={saveAssignment}
-         isSubmitting={assignRoom ? updating === assignRoom.room_id : false}
-         maidNames={maidLaneNames}
+      <AssignmentModal
+        isOpen={!!assignRoom}
+        room={assignRoom}
+        onClose={() => setAssignRoom(null)}
+        onSave={saveAssignment}
+        isSubmitting={assignRoom ? updating === assignRoom.room_id : false}
+        maidNames={maidLaneNames}
       />
 
       {showDueModal && (
@@ -1399,13 +1394,12 @@ export default function HousekeepingPage() {
                 return (
                   <label
                     key={key}
-                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 transition ${
-                      task.already_assigned
+                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 transition ${task.already_assigned
                         ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
                         : isChecked
                           ? "border-indigo-300 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40"
                           : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:bg-[var(--bg-body)]"
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"

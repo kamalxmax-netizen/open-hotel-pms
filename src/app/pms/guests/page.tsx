@@ -367,11 +367,11 @@ export default function GuestsPage() {
           <p className="mt-1 text-sm text-[var(--text-secondary)]">Manage guest records and stay history.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/pms/guests/duplicates" className="btn btn-secondary">
+          <Link href="/pms/guests/duplicates" className="btn btn-secondary dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
             Merge Profiles
           </Link>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
             onClick={() => {
               setCreateError("");
               setCreateForm(EMPTY_FORM);
@@ -425,7 +425,7 @@ export default function GuestsPage() {
             <div className="flex justify-end">
               <div className="flex items-center gap-2">
                 <button
-                  className={`btn btn-sm ${showAllProfiles ? "btn-primary" : "btn-secondary"}`}
+                  className={`btn btn-sm ${showAllProfiles ? "btn-primary dark:bg-brand-500/30" : "btn-secondary dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"}`}
                   onClick={() => setShowAllProfiles((prev) => !prev)}
                 >
                   {showAllProfiles ? "Showing All" : "Show All"}
@@ -535,14 +535,14 @@ export default function GuestsPage() {
                 <div className="text-[var(--text-secondary)]">
                   {response.total > 0
                     ? `Showing ${(page - 1) * response.page_size + 1}-${Math.min(
-                        page * response.page_size,
-                        response.total
-                      )} of ${response.total}`
+                      page * response.page_size,
+                      response.total
+                    )} of ${response.total}`
                     : "Showing 0 results"}
                 </div>
                 <div className="flex items-center justify-center gap-3">
-                  <button
-                    className="btn btn-secondary btn-sm"
+                   <button
+                    className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"
                     disabled={page <= 1 || loading}
                     onClick={() => setPage((current) => Math.max(1, current - 1))}
                   >
@@ -551,8 +551,8 @@ export default function GuestsPage() {
                   <span>
                     Page {response.total_pages === 0 ? 0 : page} of {response.total_pages}
                   </span>
-                  <button
-                    className="btn btn-secondary btn-sm"
+                   <button
+                    className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"
                     disabled={loading || page >= response.total_pages}
                     onClick={() => setPage((current) => current + 1)}
                   >

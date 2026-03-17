@@ -84,7 +84,14 @@ export async function GET(request: Request) {
         const raw = String(room?.room_number ?? "").trim();
         if (!raw) return false;
         const normalized = raw.replace(/^0+/, "");
-        return wanted.has(raw) || wanted.has(normalized);
+        const digitsOnly = raw.replace(/\D/g, "");
+        const digitsNormalized = digitsOnly.replace(/^0+/, "");
+        return (
+          wanted.has(raw) ||
+          wanted.has(normalized) ||
+          wanted.has(digitsOnly) ||
+          wanted.has(digitsNormalized)
+        );
       });
 
       if ((fallbackRooms ?? []).length > 0) {

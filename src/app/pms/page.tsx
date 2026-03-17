@@ -51,7 +51,7 @@ function StatTile({
   href?: string;
 }) {
   const inner = (
-    <div className={`stat-card border-l-4 ${color} hover:shadow-md transition bg-[var(--bg-surface)] p-4 rounded-xl shadow-sm h-full`}>
+    <div className={`stat-card border-l-4 ${color} hover:shadow-md transition bg-[var(--bg-surface)] p-4 rounded-xl shadow-sm h-full dark:border-white/5`}>
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{label}</p>
       <p className="text-3xl font-extrabold text-[var(--text-primary)] mt-2">{value}</p>
       {sub && <p className="text-xs text-[var(--text-muted)] mt-1">{sub}</p>}
@@ -134,17 +134,17 @@ export default function DashboardPage() {
       {/* Row 1: EOD Alert */}
       {data?.needs_eod && (
         <Link href="/pms/night-audit">
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-amber-100/50 transition border-l-4 shadow-sm">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-amber-100/50 transition border-l-4 shadow-sm dark:bg-amber-500/10 dark:border-amber-500/20 dark:border-l-amber-500">
             <div>
-              <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
                 <span>⚠️</span> Night Audit pending
               </p>
-              <p className="text-xs mt-0.5 text-amber-700">
+              <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-500/80">
                 Business Date: <strong>{data.business_date}</strong>
                 {" · "}Calendar: <strong>{data.calendar_date}</strong>
               </p>
             </div>
-            <span className="text-xs font-semibold text-amber-800 shrink-0 bg-[var(--bg-surface)] px-2 py-1 rounded shadow-sm">Run Night Audit →</span>
+            <span className="text-xs font-semibold text-amber-800 dark:text-amber-400 shrink-0 bg-[var(--bg-surface)] dark:bg-amber-500/20 px-2 py-1 rounded shadow-sm">Run Night Audit →</span>
           </div>
         </Link>
       )}
@@ -194,29 +194,29 @@ export default function DashboardPage() {
           </div>
 
           {/* Row 3: Movement Badges */}
-          <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4">
+          <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 dark:border-white/5">
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3">Live Front Desk Operations</h2>
             <div className="flex flex-wrap gap-2 md:gap-4">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-lg border border-brand-200 text-sm">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-lg border border-brand-200 text-sm dark:bg-brand-500/10 dark:text-brand-400 dark:border-brand-500/20">
                  <span className="font-semibold">Arrivals:</span> 
                  <span className="font-bold">{data.live.arrivals_checked_in}/{data.live.arrivals}</span>
               </div>
-               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200 text-sm">
+               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200 text-sm dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20">
                  <span className="font-semibold">Departures:</span> 
                  <span className="font-bold">{data.live.departures_checked_out}/{data.live.departures}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg border border-[var(--border-default)] text-sm">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg border border-[var(--border-default)] text-sm dark:bg-white/5 dark:border-white/10">
                  <span className="font-semibold">In-house:</span> 
                  <span className="font-bold">{data.live.in_house}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg border border-rose-200 text-sm">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg border border-rose-200 text-sm dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
                  <span className="font-semibold">No-show Pending:</span> 
                  <span className="font-bold">{data.live.no_show_pending}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-sm">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-sm dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
                  <span className="font-semibold">Dirty Rooms:</span> 
                  <span className="font-bold">{data.live.dirty_rooms}</span>
-                 <Link href="/pms/board" className="ml-1 text-[10px] uppercase text-amber-600 hover:underline">View</Link>
+                 <Link href="/pms/board" className="ml-1 text-[10px] uppercase text-amber-600 dark:text-amber-400 hover:underline">View</Link>
               </div>
             </div>
           </div>
@@ -244,8 +244,8 @@ export default function DashboardPage() {
                           <span className="font-medium text-[var(--text-table-cell)]">{item.label}</span>
                           <span className="font-bold text-[var(--text-primary)]">{formatB(item.val)} <span className="text-[var(--text-muted)] font-normal">({pct}%)</span></span>
                         </div>
-                        <div className="w-full bg-[var(--bg-muted)] rounded-full h-2.5">
-                          <div className={`${getMethodColor(item.key)} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div>
+                        <div className="w-full bg-[var(--bg-muted)] dark:bg-white/5 rounded-full h-2.5">
+                          <div className={`${getMethodColor(item.key)} h-2.5 rounded-full dark:opacity-80`} style={{ width: `${pct}%` }}></div>
                         </div>
                       </div>
                     )
@@ -271,8 +271,8 @@ export default function DashboardPage() {
                           <span className="font-medium text-[var(--text-table-cell)] capitalize">{source} <span className="text-[var(--text-muted)] font-normal ml-1">({stats.nights} nights)</span></span>
                           <span className="font-bold text-[var(--text-primary)]">{formatB(stats.revenue)} <span className="text-[var(--text-muted)] font-normal">({stats.pct.toFixed(0)}%)</span></span>
                         </div>
-                        <div className="w-full bg-[var(--bg-muted)] rounded-full h-2.5">
-                          <div className={`${getSourceColor(source)} h-2.5 rounded-full`} style={{ width: `${stats.pct}%` }}></div>
+                        <div className="w-full bg-[var(--bg-muted)] dark:bg-white/5 rounded-full h-2.5">
+                          <div className={`${getSourceColor(source)} h-2.5 rounded-full dark:opacity-80`} style={{ width: `${stats.pct}%` }}></div>
                         </div>
                       </div>
                     )
@@ -425,12 +425,12 @@ export default function DashboardPage() {
             </div>
             
             {/* Open Traces Today */}
-            <div className="card p-4 border-amber-200 bg-amber-50/20">
+            <div className="card p-4 border-amber-200 bg-amber-50/20 dark:border-amber-500/20 dark:bg-amber-500/5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold flex items-center gap-1.5 text-amber-900">
+                <h2 className="text-sm font-semibold flex items-center gap-1.5 text-amber-900 dark:text-amber-400">
                   <span className="text-lg">📋</span> Open Traces Today
                   {tracesData?.total > 0 && (
-                    <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1">
+                    <span className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1">
                       {tracesData.total}
                     </span>
                   )}

@@ -76,11 +76,11 @@ export function SettlementDrawer({
 
   // Derived calculations
   const outstandingSatang = billingData?.outstandingSatang ?? 0;
-  
+
   // If we apply deposit, how much of outstanding is covered?
   const depositSatang = toSatang(depositAmount);
   const appliedDepositSatang = depositAction === "apply" ? depositSatang : 0;
-  
+
   // What does the guest ACTUALLY need to pay right now?
   const finalBalanceSatang = Math.max(0, outstandingSatang - appliedDepositSatang);
   // Optional: what if deposit is bigger than outstanding? (Refund the rest)

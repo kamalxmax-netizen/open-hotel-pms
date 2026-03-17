@@ -59,20 +59,20 @@ interface BoatRoute { id: string; company_id: string; company_name?: string | nu
 
 // ─── Constants ────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-800",
-    confirmed: "bg-blue-100 text-blue-800",
-    driver_assigned: "bg-indigo-100 text-indigo-800",
-    in_progress: "bg-green-100 text-green-800",
-    completed: "bg-emerald-100 text-emerald-800",
-    cancelled: "bg-red-100 text-red-800",
-    no_show: "bg-gray-100 text-gray-800",
+    pending: "bg-yellow-100 text-yellow-800 dark:bg-amber-500/10 dark:text-amber-400",
+    confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
+    driver_assigned: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-400",
+    in_progress: "bg-green-100 text-green-800 dark:bg-emerald-500/10 dark:text-emerald-400",
+    completed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
+    cancelled: "bg-red-100 text-red-800 dark:bg-rose-500/10 dark:text-rose-400",
+    no_show: "bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/40",
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
-    unpaid: "bg-orange-100 text-orange-800",
-    paid_to_hotel: "bg-green-100 text-green-800",
-    paid_to_driver: "bg-blue-100 text-blue-800",
-    settled: "bg-emerald-100 text-emerald-800",
+    unpaid: "bg-orange-100 text-orange-800 dark:bg-orange-500/10 dark:text-orange-400",
+    paid_to_hotel: "bg-green-100 text-green-800 dark:bg-emerald-500/10 dark:text-emerald-400",
+    paid_to_driver: "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
+    settled: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -119,9 +119,9 @@ function transferIcon(row: TransferRow): string {
 function getUrgencyClass(dt: string, status: string): string {
     if (["completed", "cancelled"].includes(status)) return "";
     const diffMin = (new Date(dt).getTime() - Date.now()) / 60000;
-    if (diffMin < 0) return "border-l-4 border-l-red-500 bg-red-50";
-    if (diffMin <= 10) return "border-l-4 border-l-orange-400 bg-orange-50";
-    if (diffMin <= 30) return "border-l-4 border-l-blue-300";
+    if (diffMin < 0) return "border-l-4 border-l-red-500 bg-red-50 dark:bg-rose-500/5";
+    if (diffMin <= 10) return "border-l-4 border-l-orange-400 bg-orange-50 dark:bg-amber-500/5";
+    if (diffMin <= 30) return "border-l-4 border-l-blue-300 dark:bg-blue-500/5";
     return "";
 }
 
@@ -1109,11 +1109,11 @@ export default function TransportationDailyBoard() {
                 <div className="grid grid-cols-6 gap-3 mb-6">
                     {[
                         { label: "Total", value: data.summary.total, color: "bg-[var(--bg-muted)] text-[var(--text-primary)]" },
-                        { label: "Pending", value: data.summary.pending, color: "bg-yellow-100 text-yellow-800" },
-                        { label: "Confirmed", value: data.summary.confirmed, color: "bg-blue-100 text-blue-800" },
-                        { label: "In Progress", value: data.summary.in_progress, color: "bg-green-100 text-green-800" },
-                        { label: "Completed", value: data.summary.completed, color: "bg-emerald-100 text-emerald-800" },
-                        { label: "Cancelled", value: data.summary.cancelled, color: "bg-red-100 text-red-800" },
+                        { label: "Pending", value: data.summary.pending, color: "bg-yellow-100 text-yellow-800 dark:bg-amber-500/10 dark:text-amber-400" },
+                        { label: "Confirmed", value: data.summary.confirmed, color: "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400" },
+                        { label: "In Progress", value: data.summary.in_progress, color: "bg-green-100 text-green-800 dark:bg-emerald-500/10 dark:text-emerald-400" },
+                        { label: "Completed", value: data.summary.completed, color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300" },
+                        { label: "Cancelled", value: data.summary.cancelled, color: "bg-red-100 text-red-800 dark:bg-rose-500/10 dark:text-rose-400" },
                     ].map(({ label, value, color }) => (
                         <div key={label} className={`rounded-xl p-4 ${color}`}>
                             <p className="text-xs font-medium opacity-70">{label}</p>
@@ -1136,7 +1136,7 @@ export default function TransportationDailyBoard() {
                 <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                            <tr className="bg-[var(--bg-body)] border-b border-[var(--border-default)] dark:bg-white/5">
                                 <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Time</th>
                                 <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Type</th>
                                 <th className="px-4 py-3 text-left font-semibold text-[var(--text-secondary)]">Guest</th>
@@ -1161,7 +1161,7 @@ export default function TransportationDailyBoard() {
                                     <td className="px-4 py-3 font-mono text-[var(--text-secondary)]">{t.room_number ?? "—"}</td>
                                     <td className="px-4 py-3">
                                         <p className="text-[var(--text-table-cell)] truncate max-w-[180px]">{t.pickup_location} → {t.dropoff_location}</p>
-                                        {t.boat_company_name && <p className="text-xs text-blue-600">{t.boat_company_name}</p>}
+                                        {t.boat_company_name && <p className="text-xs text-blue-600 dark:text-blue-400">{t.boat_company_name}</p>}
                                     </td>
                                     <td className="px-4 py-3">
                                         {t.driver_name ? (
@@ -1173,12 +1173,12 @@ export default function TransportationDailyBoard() {
                                     </td>
                                     <td className="px-4 py-3 text-right font-mono">{t.selling_price != null ? `฿${t.selling_price.toLocaleString()}` : "—"}</td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PAYMENT_COLORS[t.payment_status] ?? "bg-gray-100"}`}>
+                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PAYMENT_COLORS[t.payment_status] ?? "bg-gray-100 dark:bg-white/5"}`}>
                                             {t.payment_status.replace(/_/g, " ")}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100"}`}>
+                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100 dark:bg-white/5"}`}>
                                             {t.status.replace(/_/g, " ")}
                                         </span>
                                     </td>
@@ -1187,7 +1187,7 @@ export default function TransportationDailyBoard() {
                                             <button
                                                 onClick={() => setEditingTransfer(t)}
                                                 disabled={["completed", "cancelled", "no_show"].includes(t.status)}
-                                                className="px-2 py-1 text-xs bg-[var(--bg-body)] border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-lg hover:bg-[var(--bg-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                                className="px-2 py-1 text-xs bg-[var(--bg-body)] border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-lg hover:bg-[var(--bg-surface-hover)] dark:bg-white/5 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
                                                 title={["completed", "cancelled", "no_show"].includes(t.status) ? "Closed bookings cannot be edited" : "Edit booking"}
                                             >
                                                 Edit
@@ -1206,7 +1206,7 @@ export default function TransportationDailyBoard() {
                                                         disabled={disabled}
                                                         onClick={() => advanceStatus(t)}
                                                         title={title}
-                                                        className="px-2 py-1 text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        className="px-2 py-1 text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-400 dark:hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         {updatingId === t.id ? "…" : nextStatus.replace(/_/g, " ") + " →"}
                                                     </button>

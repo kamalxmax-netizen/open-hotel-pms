@@ -281,7 +281,7 @@ export default function InHousePage() {
                                             {r.booking_group_id && (
                                                 <Link
                                                     href={`/pms/groups?group_id=${r.booking_group_id}`}
-                                                    className="badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                    className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400 hover:bg-indigo-200 transition-colors"
                                                     title={r.group_name ?? "Open Group Booking"}
                                                 >
                                                     {formatShortGroupCode(r.group_code)}
@@ -289,7 +289,7 @@ export default function InHousePage() {
                                             )}
                                             {r.open_traces_count > 0 && (
                                                 <span
-                                                    className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px]"
+                                                    className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400"
                                                     title="Open Traces"
                                                 >
                                                     🟠 {r.open_traces_count}
@@ -297,7 +297,7 @@ export default function InHousePage() {
                                             )}
                                             {(r.alert_count ?? 0) > 0 && (
                                                 <span
-                                                    className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px]"
+                                                    className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400"
                                                     title={r.first_alert_message ?? "Alerts Present"}
                                                 >
                                                     🔴 {r.alert_count}

@@ -5,7 +5,7 @@ export default function MaidChip({ maidName, priority, className = "" }: { maidN
 
     return (
         <div className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
-            <span className="inline-flex items-center justify-center bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider shadow-sm">
+            <span className="inline-flex items-center justify-center bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 border border-transparent dark:border-indigo-800/30 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider shadow-sm">
                 {maidName}
             </span>
             {priority != null && (

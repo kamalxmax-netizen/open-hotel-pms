@@ -100,7 +100,7 @@ export default function NightAuditPage() {
         }
         if (index === currentIndex) {
             return (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white ring-4 ring-brand-100 font-bold shadow-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white ring-4 ring-brand-100 dark:ring-brand-500/20 font-bold shadow-sm">
                     {index + 1}
                 </div>
             )
@@ -126,7 +126,7 @@ export default function NightAuditPage() {
 
     return (
         <div className="flex h-screen flex-col bg-[var(--bg-body)]">
-            <div className="flex-none border-b bg-[var(--bg-surface)] p-4 sm:p-6 shadow-sm z-10 relative">
+            <div className="flex-none border-b bg-[var(--bg-surface)] p-4 sm:p-6 shadow-sm z-10 relative dark:border-white/5">
                 <div className="mx-auto max-w-4xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                         <div>
@@ -137,7 +137,7 @@ export default function NightAuditPage() {
 
                     {/* Progress Bar */}
                     <div className="relative">
-                        <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--bg-muted)] -z-10 hidden sm:block">
+                        <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--bg-muted)] dark:bg-white/5 -z-10 hidden sm:block">
                             <div
                                 className="h-full bg-brand-600 transition-all duration-300"
                                 style={{ width: `${(Math.max(0, ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step)) / 4) * 100}%` }}
@@ -148,7 +148,7 @@ export default function NightAuditPage() {
                             {(["noshow", "precheck", "preview", "confirm", "summary"] as AuditStep[]).map((s, i) => (
                                 <div key={s} className="flex flex-col items-center gap-2">
                                     {renderStepIcon(s, i)}
-                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700" : ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step) > i ? "text-[var(--text-table-cell)]" : "text-[var(--text-muted)]"
+                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700 dark:text-brand-400" : ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step) > i ? "text-[var(--text-table-cell)]" : "text-[var(--text-muted)]"
                                         }`}>
                                         {stepLabels[i]}
                                     </span>
@@ -286,19 +286,19 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "summary" && (
-                        <div className="rounded-xl border border-green-200 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col">
-                            <div className="flex flex-col items-center text-center pb-8 border-b border-green-100 mb-8 bg-green-50/50 p-6 rounded-t-xl -mx-6 -mt-6">
-                                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4 shadow-sm ring-8 ring-green-50">
-                                    <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="rounded-xl border border-green-200 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col dark:border-emerald-500/30 dark:bg-emerald-500/5">
+                            <div className="flex flex-col items-center text-center pb-8 border-b border-green-100 mb-8 bg-green-50/50 p-6 rounded-t-xl -mx-6 -mt-6 dark:border-emerald-500/10 dark:bg-emerald-500/10">
+                                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4 shadow-sm ring-8 ring-green-50 dark:bg-emerald-500/20 dark:ring-emerald-500/10">
+                                    <svg className="h-8 w-8 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
                                 </div>
-                                <h2 className="text-2xl font-bold text-green-800">Night Audit Completed</h2>
-                                <p className="mt-2 text-sm font-medium text-green-700">
+                                <h2 className="text-2xl font-bold text-green-800 dark:text-emerald-400">Night Audit Completed</h2>
+                                <p className="mt-2 text-sm font-medium text-green-700 dark:text-emerald-500/80">
                                     Closed date: {businessDate}
                                 </p>
-                                <div className="mt-3 px-4 py-2 bg-[var(--bg-surface)] rounded-lg border border-green-200 shadow-sm inline-block">
-                                    <p className="text-sm font-medium text-green-800 flex items-center gap-2">
+                                <div className="mt-3 px-4 py-2 bg-[var(--bg-surface)] rounded-lg border border-green-200 shadow-sm inline-block dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                                    <p className="text-sm font-medium text-green-800 flex items-center gap-2 dark:text-emerald-400">
                                         ✨ New business date: <strong className="text-base">{nextBusinessDate || "Tomorrow"}</strong>
                                     </p>
                                 </div>

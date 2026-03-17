@@ -527,9 +527,9 @@ function OrderRow({
                         variant="outline"
                         className={
                             order.status === "completed"
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30"
                                 : order.status === "voided"
-                                  ? "border-red-200 bg-red-50 text-red-700"
+                                  ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/20"
                                   : "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-secondary)]"
                         }
                     >

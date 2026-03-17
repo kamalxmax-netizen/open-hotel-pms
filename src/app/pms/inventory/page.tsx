@@ -311,12 +311,12 @@ export default function InventoryDashboardPage() {
 
   function getRoomBadgeClass(floorNumber: number | null): string {
     if (usageFloorFilter !== "all") {
-      return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)]";
+      return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)] dark:bg-slate-500/10 dark:text-slate-400";
     }
-    if (floorNumber === 1) return "border-sky-200 bg-sky-50 text-sky-700";
-    if (floorNumber === 2) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    if (floorNumber === 3) return "border-amber-200 bg-amber-50 text-amber-700";
-    return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)]";
+    if (floorNumber === 1) return "border-sky-200 bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400";
+    if (floorNumber === 2) return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400";
+    if (floorNumber === 3) return "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400";
+    return "border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-table-cell)] dark:bg-slate-500/10 dark:text-slate-400";
   }
 
   const floorDetailsMap = useMemo(() => {
@@ -395,7 +395,7 @@ export default function InventoryDashboardPage() {
             {summaryTiles.map((tile) => (
               <div
                 key={tile.label}
-                className={`card border-l-4 ${tile.borderColor} p-4 flex items-start justify-between`}
+                className={`card border-l-4 ${tile.borderColor} p-4 flex items-start justify-between dark:bg-[var(--bg-surface)]`}
               >
                 <div>
                   <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">{tile.label}</p>
@@ -470,7 +470,7 @@ export default function InventoryDashboardPage() {
                               </thead>
                               <tbody>
                                 {floorDetails.map((item) => (
-                                  <tr key={`${floorNum}-${item.product_id}`} className="border-b border-[var(--border-subtle)]">
+                                  <tr key={`${floorNum}-${item.product_id}`} className="border-b border-[var(--border-subtle)] dark:border-white/10">
                                     <td className="py-1.5 pr-2 text-[var(--text-table-cell)]">{item.product_name ?? "Unknown"}</td>
                                     <td className="py-1.5 pr-2 text-right font-semibold text-[var(--text-primary)]">{item.quantity}</td>
                                     <td className="py-1.5 text-[var(--text-secondary)]">{item.unit ?? "-"}</td>
@@ -495,10 +495,10 @@ export default function InventoryDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setUsageFloorFilter("all")}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
                     usageFloorFilter === "all"
-                      ? "bg-brand-50 text-brand-700 border-brand-200"
-                      : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)]"
+                      ? "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                      : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)] dark:bg-[var(--bg-surface)] dark:border-white/5"
                   }`}
                 >
                   All Floors
@@ -508,10 +508,10 @@ export default function InventoryDashboardPage() {
                     key={floor}
                     type="button"
                     onClick={() => setUsageFloorFilter(floor)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
                       usageFloorFilter === floor
-                        ? "bg-brand-50 text-brand-700 border-brand-200"
-                        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)]"
+                        ? "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                        : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)] dark:bg-[var(--bg-surface)] dark:border-white/5"
                     }`}
                   >
                     Floor {floor}

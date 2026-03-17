@@ -178,17 +178,17 @@ export default function RatePlansPage() {
                     {plan.access_summary?.label ?? "Public"}
                   </td>
                   <td>
-                    <span className={`badge ${plan.is_active ? "bg-emerald-100 text-emerald-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"}`}>
+                    <span className={`badge ${plan.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"}`}>
                       {plan.is_active ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td>
                     <div className="flex gap-1">
-                      <button className="btn btn-secondary btn-sm" onClick={() => setEditingPlan(plan)}>
+                      <button className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30" onClick={() => setEditingPlan(plan)}>
                         Edit
                       </button>
                       <button
-                        className="btn btn-secondary btn-sm"
+                        className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"
                         onClick={() => toggleActive(plan)}
                       >
                         {plan.is_active ? "Deactivate" : "Activate"}

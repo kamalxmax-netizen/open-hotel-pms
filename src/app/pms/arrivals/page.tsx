@@ -51,10 +51,10 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 const SOURCE_COLOR: Record<string, string> = {
-    walkin: "bg-sky-100 text-sky-700",
-    ota: "bg-purple-100 text-purple-700",
-    direct: "bg-emerald-100 text-emerald-700",
-    agent: "bg-amber-100 text-amber-700"
+    walkin: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-400",
+    ota: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400",
+    direct: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+    agent: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
 };
 
 function fmt(n: number) {
@@ -340,7 +340,7 @@ export default function ArrivalsPage() {
                                                 {a.booking_group_id && (
                                                     <Link
                                                         href={`/pms/groups?group_id=${a.booking_group_id}`}
-                                                        className="badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                                        className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400 hover:bg-indigo-200 transition-colors"
                                                         title={a.group_name ?? "Open Group Booking"}
                                                     >
                                                         {formatShortGroupCode(a.group_code)}
@@ -348,24 +348,24 @@ export default function ArrivalsPage() {
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                                {(a.alert_count ?? a.alerts?.length ?? 0) > 0 && (
-                                                    <span className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px]" title={a.first_alert_message ?? "Alerts Present"}>
-                                                        🔴 {a.alert_count ?? a.alerts.length}
-                                                    </span>
-                                                )}
-                                                {a.do_not_move_assigned_room && (
-                                                    <span
-                                                        className="badge bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 text-[10px]"
-                                                        title={a.do_not_move_reason || "Assigned room is locked"}
-                                                    >
-                                                        🔒 Do Not Move
-                                                    </span>
-                                                )}
-                                                {a.open_traces_count > 0 && (
-                                                    <span className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px]" title="Open Traces">
-                                                        🟠 {a.open_traces_count}
-                                                    </span>
-                                                )}
+                                                 {(a.alert_count ?? a.alerts?.length ?? 0) > 0 && (
+                                                     <span className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400" title={a.first_alert_message ?? "Alerts Present"}>
+                                                         🔴 {a.alert_count ?? a.alerts.length}
+                                                     </span>
+                                                 )}
+                                                 {a.do_not_move_assigned_room && (
+                                                     <span
+                                                         className="badge bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                                                         title={a.do_not_move_reason || "Assigned room is locked"}
+                                                     >
+                                                         🔒 Do Not Move
+                                                     </span>
+                                                 )}
+                                                 {a.open_traces_count > 0 && (
+                                                     <span className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400" title="Open Traces">
+                                                         🟠 {a.open_traces_count}
+                                                     </span>
+                                                 )}
                                             </div>
                                             {a.phone && <div className="text-xs text-[var(--text-muted)]">{a.phone}</div>}
                                         </td>
@@ -391,7 +391,7 @@ export default function ArrivalsPage() {
                                         <td>
                                             {done ? (
                                                 <div className="flex gap-2 items-center">
-                                                    <span className="badge bg-emerald-100 text-emerald-700">✓ Checked In</span>
+                                                    <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">✓ Checked In</span>
                                                     <button className="btn btn-secondary btn-sm" onClick={() => setOptionsArrival(a)}>⋯ Options</button>
                                                 </div>
                                             ) : isNoShow ? (

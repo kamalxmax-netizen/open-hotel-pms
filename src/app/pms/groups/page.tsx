@@ -207,14 +207,14 @@ export default function GroupsPage() {
                             {groups.map((g) => (
                                 <tr
                                     key={g.id}
-                                    className="hover:bg-indigo-50/50 cursor-pointer transition-colors"
+                                    className="hover:bg-indigo-50/50 dark:hover:bg-brand-500/10 cursor-pointer transition-colors"
                                     onClick={() => {
                                         setSelectedGroupId(g.id);
                                         setGroupQuery(g.id);
                                     }}
                                 >
                                     <td className="py-3 px-4">
-                                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
+                                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 dark:bg-indigo-500/20 dark:text-indigo-400 px-2 py-1 rounded">
                                             {g.group_code}
                                         </span>
                                     </td>
@@ -229,7 +229,7 @@ export default function GroupsPage() {
                                         {g.source}
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${g.reservations_count > 0 ? "bg-indigo-100 text-indigo-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"
+                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${g.reservations_count > 0 ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)]"
                                             }`}>
                                             {g.reservations_count}
                                         </span>
@@ -238,8 +238,8 @@ export default function GroupsPage() {
                                         <div className="font-bold text-[var(--text-primary)]">฿{(g.total_price || 0).toLocaleString()}</div>
                                     </td>
                                     <td className="py-3 px-4">
-                                        <span className={`badge ${g.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                                            g.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                        <span className={`badge ${g.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                            g.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
                                                 'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]'
                                             }`}>
                                             {g.status.toUpperCase()}

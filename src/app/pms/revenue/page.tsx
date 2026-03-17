@@ -341,11 +341,11 @@ export default function RevenuePage() {
                                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                                                 const isToday = day.date === t;
                                                 return (
-                                                    <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50 dark:bg-brand-950/30" : isWeekend ? "bg-rose-50/40 dark:bg-rose-950/20" : ""}`}>
+                                                    <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50 dark:bg-brand-500/10" : isWeekend ? "bg-rose-50/40 dark:bg-rose-500/10" : ""}`}>
                                                         <td className="py-2 pr-3">
                                                             <span className={`text-xs font-semibold mr-1.5 ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
                                                             <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-[var(--text-table-cell)]"}`}>{day.date}</span>
-                                                            {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400 px-1 py-0.5 font-bold">TODAY</span>}
+                                                            {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-400 px-1 py-0.5 font-bold">TODAY</span>}
                                                         </td>
                                                         <td className="py-2 text-right font-semibold text-[var(--text-primary)]">
                                                             {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-[var(--text-muted)]">—</span>}

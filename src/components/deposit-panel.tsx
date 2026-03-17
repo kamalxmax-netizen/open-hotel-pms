@@ -53,13 +53,13 @@ export function DepositPanel({
   }
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-4">
+    <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-widest text-amber-800">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300">
           💰 Deposit Collection
         </h3>
         {depositAmount > 0 && (
-          <span className="rounded bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900">
+          <span className="rounded bg-amber-200 dark:bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-900 dark:text-amber-300">
             Total Collected: ฿ {formatMoney(depositAmount)}
           </span>
         )}
@@ -74,15 +74,15 @@ export function DepositPanel({
             return (
               <div
                 key={`${line.method}-${idx}-${line.amount}`}
-                className="flex items-center justify-between rounded-md border border-amber-200 bg-[var(--bg-surface)] px-2 py-1.5 text-xs"
+                className="flex items-center justify-between rounded-md border border-amber-200 dark:border-amber-500/20 bg-[var(--bg-surface)] px-2 py-1.5 text-xs"
               >
                 <div className="min-w-0">
-                  <span className="font-semibold text-amber-900">{methodLabel}</span>
+                  <span className="font-semibold text-amber-900 dark:text-amber-300">{methodLabel}</span>
                   {line.note && (
-                    <span className="ml-1 text-amber-700 truncate">({line.note})</span>
+                    <span className="ml-1 text-amber-700 dark:text-amber-400 truncate">({line.note})</span>
                   )}
                 </div>
-                <span className="font-mono font-semibold text-amber-900">
+                <span className="font-mono font-semibold text-amber-900 dark:text-amber-300">
                   ฿ {formatMoney(line.amount)}
                 </span>
               </div>
@@ -90,11 +90,11 @@ export function DepositPanel({
           })}
         </div>
       ) : (
-        <p className="text-xs text-amber-700">No deposit collected yet.</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400">No deposit collected yet.</p>
       )}
 
       {depositNote && (
-        <div className="rounded-md border border-amber-300 bg-[var(--bg-surface)] px-2 py-1.5 text-xs text-amber-900">
+        <div className="rounded-md border border-amber-300 dark:border-amber-500/20 bg-[var(--bg-surface)] px-2 py-1.5 text-xs text-amber-900 dark:text-amber-300">
           <span className="font-semibold">Deposit Note:</span> {depositNote}
         </div>
       )}
@@ -187,7 +187,7 @@ export function DepositPanel({
       )}
 
       {!canEditDeposit && (
-        <div className="rounded-md border border-amber-300 bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-amber-900">
+        <div className="rounded-md border border-amber-300 dark:border-amber-500/20 bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-amber-900 dark:text-amber-300">
           Deposit is locked before check-in. Use pre-payment only until guest is checked in.
         </div>
       )}

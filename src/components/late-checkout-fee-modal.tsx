@@ -78,10 +78,10 @@ export default function LateCheckoutFeeModal({
                 onClose={onClose}
             >
                 <div className="space-y-4">
-                    <div className="bg-rose-50 border border-rose-200 rounded-lg p-5 flex flex-col items-center text-center">
+                    <div className="bg-rose-50 border border-rose-200 dark:bg-rose-950/20 dark:border-rose-500/30 rounded-lg p-5 flex flex-col items-center text-center">
                         <span className="text-3xl mb-2">⚠</span>
-                        <h4 className="font-bold text-rose-800 text-lg">Checkout after 16:00</h4>
-                        <p className="text-sm text-rose-700 mt-2">
+                        <h4 className="font-bold text-rose-800 dark:text-rose-400 text-lg">Checkout after 16:00</h4>
+                        <p className="text-sm text-rose-700 dark:text-rose-500 mt-2">
                             The current time is past the late checkout limit. It is highly recommended to extend the reservation for 1 more night instead of processing a checkout.
                         </p>
                     </div>
@@ -94,7 +94,7 @@ export default function LateCheckoutFeeModal({
                             Extend Stay (Recommended)
                         </button>
                         <button
-                            className="btn bg-[var(--bg-surface)] border border-rose-300 text-rose-700 hover:bg-rose-50 font-bold w-full"
+                            className="btn bg-[var(--bg-surface)] border border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-bold w-full"
                             onClick={() => setStep(1)}
                         >
                             Continue Checkout
@@ -112,7 +112,7 @@ export default function LateCheckoutFeeModal({
             onClose={onClose}
         >
             <div className="space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800 text-sm">
+                <div className="bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/30 rounded-lg p-4 text-amber-800 dark:text-amber-400 text-sm">
                     <strong>Late Departure Detected ({isAfter1600 ? "After 16:00" : "13:01 - 16:00"})</strong>
                     <p className="mt-1">
                         The suggested policy fee is {isAfter1600 ? "100%" : "50%"} of the last night's rate. You can adjust the amount or waive the fee entirely.

@@ -388,12 +388,12 @@ export default function GroupDetailPanel({
                 <div className="bg-[var(--bg-body)] border-b border-[var(--border-default)] px-6 py-5 flex items-start justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-1">
-                            <span className="text-xs font-bold font-mono bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
+                            <span className="text-xs font-bold font-mono bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 px-2 py-0.5 rounded">
                                 {group.group_code}
                             </span>
-                            <span className={`badge ${group.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                                group.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-[var(--bg-surface-hover)] text-[var(--text-muted)]'
+                            <span className={`badge ${group.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                group.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                                    'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]'
                                 }`}>
                                 {group.status.toUpperCase()}
                             </span>
@@ -422,30 +422,30 @@ export default function GroupDetailPanel({
                 </div>
 
                 {/* Summary Bar */}
-                <div className="bg-indigo-900 text-white px-6 py-4 flex items-center justify-between text-sm shadow-inner">
-                    <div className="flex gap-8">
+                <div className="bg-indigo-900 dark:bg-indigo-950/90 text-white px-6 py-4 flex items-center justify-between flex-wrap gap-4 shadow-inner">
+                    <div className="flex gap-4 sm:gap-6 shrink-0">
                         <div>
-                            <div className="text-indigo-300 text-xs mb-0.5 uppercase tracking-wide">Total Rooms</div>
+                            <div className="text-indigo-300 dark:text-indigo-400/80 text-xs mb-0.5 uppercase tracking-wide">Total Rooms</div>
                             <div className="font-bold text-lg">{reservations.length}</div>
                         </div>
                         <div>
-                            <div className="text-indigo-300 text-xs mb-0.5 uppercase tracking-wide">Total Nights</div>
+                            <div className="text-indigo-300 dark:text-indigo-400/80 text-xs mb-0.5 uppercase tracking-wide">Total Nights</div>
                             <div className="font-bold text-lg">{totalNights}</div>
                         </div>
                         <div>
-                            <div className="text-indigo-300 text-xs mb-0.5 uppercase tracking-wide">Group Revenue</div>
+                            <div className="text-indigo-300 dark:text-indigo-400/80 text-xs mb-0.5 uppercase tracking-wide">Group Revenue</div>
                             <div className="font-bold text-lg">฿{totalPrice.toLocaleString()}</div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                         <Link
                             href={`/pms/groups/${group.id}/checkin-wizard`}
-                            className="bg-purple-600 hover:bg-purple-500 text-white border border-purple-500 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-2"
+                            className="bg-purple-600 hover:bg-purple-500 dark:bg-purple-600/30 dark:hover:bg-purple-600/40 text-white border border-purple-500 dark:border-purple-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-2"
                         >
                             <span className="text-purple-200">✨</span> Check-in Wizard
                         </Link>
                         <button
-                            className="bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-900/40 disabled:text-emerald-200 text-white border border-emerald-500 px-3 py-1.5 rounded-lg font-bold transition-colors"
+                            className="bg-emerald-700 hover:bg-emerald-600 dark:bg-emerald-600/30 dark:hover:bg-emerald-600/40 disabled:bg-emerald-900/40 disabled:text-emerald-200 text-white border border-emerald-500 dark:border-emerald-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors"
                             onClick={() => openMassCheckin()}
                             disabled={dueInTodayReservations.length === 0}
                             title={dueInTodayReservations.length > 0
@@ -455,7 +455,7 @@ export default function GroupDetailPanel({
                             Mass Check-in ({dueInTodayReservations.length})
                         </button>
                         <button
-                            className="bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-500 px-3 py-1.5 rounded-lg font-bold transition-colors"
+                            className="bg-indigo-700 hover:bg-indigo-600 dark:bg-indigo-600/30 dark:hover:bg-indigo-600/40 text-white border border-indigo-500 dark:border-indigo-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors"
                             onClick={() => setShowCreateRes(true)}
                         >
                             + Create New Reservation
@@ -465,7 +465,7 @@ export default function GroupDetailPanel({
 
                 {/* Note Area */}
                 {group.note && (
-                    <div className="px-6 py-3 bg-amber-50 text-amber-900 border-b border-amber-200 text-sm flex gap-3">
+                    <div className="px-6 py-3 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-400 border-b border-amber-200 dark:border-amber-500/20 text-sm flex gap-3">
                         <span className="mt-0.5">📝</span>
                         <p className="flex-1 whitespace-pre-wrap">{group.note}</p>
                     </div>
@@ -890,7 +890,7 @@ export default function GroupDetailPanel({
                                         const isUnassigned = r.room_number === "Unassigned" || r.room_number === "—";
                                         const canCheckin = isDueInToday && !isUnassigned && !r.is_checked_in;
                                         return (
-                                            <tr key={r.id} className={`hover:bg-[var(--bg-body)] transition-colors ${canCheckin ? "bg-emerald-50/30" : ""}`}>
+                                            <tr key={r.id} className={`hover:bg-[var(--bg-body)] transition-colors ${canCheckin ? "bg-emerald-50/30 dark:bg-emerald-500/10" : ""}`}>
                                                 <td className="py-3 px-4">
                                                     <div className="font-bold text-[var(--text-primary)] text-sm">Room {r.room_number}</div>
                                                     <div className="text-xs text-[var(--text-muted)] mt-0.5">{r.room_type}</div>
@@ -904,10 +904,10 @@ export default function GroupDetailPanel({
                                                     <div className="text-xs text-[var(--text-muted)]">→ {r.checkout_date}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className={`badge ${r.status === "active" ? "bg-emerald-100 text-emerald-700" :
-                                                        r.status === "cancelled" ? "bg-rose-100 text-rose-700" :
-                                                            r.status === "checked_out" ? "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" :
-                                                                "bg-amber-100 text-amber-700"
+                                                    <span className={`badge ${r.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" :
+                                                        r.status === "cancelled" ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400" :
+                                                            r.status === "checked_out" ? "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] dark:bg-slate-500/20 dark:text-slate-400" :
+                                                                "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
                                                         }`}>
                                                         {r.status}
                                                     </span>
@@ -924,7 +924,7 @@ export default function GroupDetailPanel({
                                                 <td className="py-3 px-4 text-right">
                                                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                                                         <button
-                                                            className="text-xs text-indigo-600 font-bold hover:underline inline-flex items-center"
+                                                            className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline inline-flex items-center"
                                                             onClick={() => setFolioResId(String(r.id))}
                                                         >
                                                             View Folio

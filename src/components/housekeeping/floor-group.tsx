@@ -183,29 +183,27 @@ export default function FloorGroup({
           const hkCollectTooltipLines =
             hkCollectCount > 0
               ? [
-                  `HK Collect: ${hkCollectCount} line${hkCollectCount > 1 ? "s" : ""}, ${hkCollectUnits} unit${hkCollectUnits > 1 ? "s" : ""}`,
-                  ...hkCollectItems.map((item) => `${item.item_name} ×${Math.max(Number(item.quantity ?? 1), 1)}`),
-                ]
+                `HK Collect: ${hkCollectCount} line${hkCollectCount > 1 ? "s" : ""}, ${hkCollectUnits} unit${hkCollectUnits > 1 ? "s" : ""}`,
+                ...hkCollectItems.map((item) => `${item.item_name} ×${Math.max(Number(item.quantity ?? 1), 1)}`),
+              ]
               : [];
           const occupancyChip =
             room.diary_state === "back_to_back"
-              ? { label: "↕ Back-to-back", className: "bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800" }
+              ? { label: "↕ Back-to-back", className: "bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-400 dark:border-indigo-500/30" }
               : room.diary_state === "due_out"
-                ? { label: "↑ Due out", className: "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800" }
+                ? { label: "↑ Due out", className: "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30" }
                 : room.diary_state === "due_in"
-                  ? { label: "↓ Due in", className: "bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800" }
+                  ? { label: "↓ Due in", className: "bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-400 dark:border-sky-500/30" }
                   : room.diary_state === "inhouse"
-                    ? { label: "● In-house", className: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800" }
+                    ? { label: "● In-house", className: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30" }
                     : null;
 
           return (
             <div
               key={isPrior ? `${room.room_id}-prior-${room.hk_task_id}` : room.room_id}
-              className={`card p-4 space-y-3 relative overflow-hidden transition-all ${
-                isPrior ? "opacity-60 border-dashed" : ""
-              } ${
-                isCleanedAndWaiting ? "ring-2 ring-amber-400 bg-amber-50/30" : ""
-              }`}
+              className={`card p-4 space-y-3 relative overflow-hidden transition-all ${isPrior ? "opacity-60 border-dashed" : ""
+                } ${isCleanedAndWaiting ? "ring-2 ring-amber-400 bg-amber-50/30 dark:ring-amber-500/50 dark:bg-amber-500/5" : ""
+                }`}
             >
               {isPrior && (
                 <div className="absolute top-0 inset-x-0 bg-emerald-500 text-white text-[10px] font-bold text-center py-0.5 uppercase tracking-wider">
@@ -213,7 +211,7 @@ export default function FloorGroup({
                 </div>
               )}
               {isCleanedAndWaiting && (
-                <div className="absolute top-0 inset-x-0 bg-amber-400 text-amber-900 text-[10px] font-bold text-center py-0.5 uppercase tracking-wider">
+                <div className="absolute top-0 inset-x-0 bg-amber-400 text-amber-900 text-[10px] font-bold text-center py-0.5 uppercase tracking-wider dark:bg-amber-500/80 dark:text-amber-950">
                   Waiting Approval
                 </div>
               )}
@@ -224,13 +222,12 @@ export default function FloorGroup({
                     <span className="text-xl font-bold text-[var(--text-primary)] tracking-tight">{room.room_number}</span>
                     {hkAlertCount > 0 && (
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                          room.hk_alert_severity === "critical"
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${room.hk_alert_severity === "critical"
                             ? "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
                             : room.hk_alert_severity === "warning"
                               ? "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
                               : "border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-400"
-                        }`}
+                          }`}
                         title={room.hk_first_alert_message ?? "Housekeeping alert"}
                       >
                         🔴 {hkAlertCount}
@@ -248,7 +245,7 @@ export default function FloorGroup({
                       <span className="relative inline-flex group">
                         <span
                           tabIndex={0}
-                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800 outline-none"
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20 outline-none"
                         >
                           📦 HK Collect {hkCollectCount}
                         </span>

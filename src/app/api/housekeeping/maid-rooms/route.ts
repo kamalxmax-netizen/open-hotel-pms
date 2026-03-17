@@ -609,6 +609,13 @@ export async function GET(request: NextRequest) {
         Array.from(recentReservationByRoomId.values()).map((row) => row.reservation_id)
       )
     );
+    const runtimeTraceReservationIds = Array.from(
+      new Set(
+        Array.from(recentReservationByRoomId.values())
+          .filter((row) => row.status === "active")
+          .map((row) => row.reservation_id)
+      )
+    );
 
     if (loanCollectionReservationIds.length > 0) {
       const { data: loanTraceRows, error: loanTraceError } = await supabase
@@ -648,11 +655,11 @@ export async function GET(request: NextRequest) {
       }>
     >();
 
-    if (loanCollectionReservationIds.length > 0) {
+    if (runtimeTraceReservationIds.length > 0) {
       const { data: hkTraceRows, error: hkTraceError } = await supabase
         .from("reservation_traces")
         .select("id, reservation_id, trace_text, dept, loan_item_code, status")
-        .in("reservation_id", loanCollectionReservationIds)
+        .in("reservation_id", runtimeTraceReservationIds)
         .eq("status", "open")
         .eq("dept", "HK")
         .is("loan_item_code", null);
@@ -750,13 +757,16 @@ export async function GET(request: NextRequest) {
         isCollectionVisibleStatus &&
         Boolean(guest);
       const loanCollections = recentReservation
-        ? (loanCollectionsByReservationId.get(recentReservation.reservation_id) ?? []).filter((item) => {
-            if (shouldShowCheckoutCollections) return true;
-            if (shouldShowStayoverCollections) {
-              return item.due_date !== null && item.due_date <= date;
-            }
-            return false;
-          })
+        ? (loanCollectionsByReservationId.get(recentReservation.reservation_id) ?? [])
+            .filter((item) => {
+              if (shouldShowCheckoutCollections) return true;
+              if (shouldShowStayoverCollections) return true; // Visible daily for HK awareness
+              return false;
+            })
+            .map((item) => ({
+              ...item,
+              is_due: shouldShowCheckoutCollections || (item.due_date !== null && item.due_date <= date),
+            }))
         : [];
       const hkTraces = recentReservation
         ? (hkTraceItemsByReservationId.get(recentReservation.reservation_id) ?? [])

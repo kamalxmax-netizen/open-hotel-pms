@@ -309,9 +309,9 @@ export default function StockLevelsPage() {
 
     // ── Status helpers ──
     function stockStatus(qty: number, reorderLevel?: number) {
-        if (qty === 0) return { label: "OUT", color: "text-red-600 bg-red-50", icon: XCircleIcon };
-        if (reorderLevel && qty <= reorderLevel) return { label: "LOW", color: "text-amber-600 bg-amber-50", icon: AlertTriangleIcon };
-        return { label: "OK", color: "text-emerald-600 bg-emerald-50", icon: CheckCircle2Icon };
+        if (qty === 0) return { label: "OUT", color: "text-red-600 bg-red-50 dark:bg-red-500/20 dark:text-red-400", icon: XCircleIcon };
+        if (reorderLevel && qty <= reorderLevel) return { label: "LOW", color: "text-amber-600 bg-amber-50 dark:bg-amber-500/20 dark:text-amber-400", icon: AlertTriangleIcon };
+        return { label: "OK", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-400", icon: CheckCircle2Icon };
     }
 
     // ── Get current floor data ──
@@ -368,21 +368,21 @@ export default function StockLevelsPage() {
 
             {/* Summary Tiles */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="card border-l-4 border-l-slate-400 p-4">
+                <div className="card border-l-4 border-l-slate-400 p-4 dark:bg-[var(--bg-surface)]">
                     <p className="text-xs text-[var(--text-secondary)] font-medium">Total Products</p>
                     <p className="text-2xl font-extrabold text-[var(--text-primary)]">{mainStock.length}</p>
                 </div>
-                <div className="card border-l-4 border-l-emerald-500 p-4">
+                <div className="card border-l-4 border-l-emerald-500 p-4 dark:bg-[var(--bg-surface)]">
                     <p className="text-xs text-[var(--text-secondary)] font-medium">In Stock</p>
-                    <p className="text-2xl font-extrabold text-emerald-600">{mainStock.filter(i => i.quantity > i.reorder_level).length}</p>
+                    <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{mainStock.filter(i => i.quantity > i.reorder_level).length}</p>
                 </div>
-                <div className="card border-l-4 border-l-amber-400 p-4">
+                <div className="card border-l-4 border-l-amber-400 p-4 dark:bg-[var(--bg-surface)]">
                     <p className="text-xs text-[var(--text-secondary)] font-medium">Low Stock</p>
-                    <p className="text-2xl font-extrabold text-amber-600">{lowCount}</p>
+                    <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{lowCount}</p>
                 </div>
-                <div className="card border-l-4 border-l-red-500 p-4">
+                <div className="card border-l-4 border-l-red-500 p-4 dark:bg-[var(--bg-surface)]">
                     <p className="text-xs text-[var(--text-secondary)] font-medium">Out of Stock</p>
-                    <p className="text-2xl font-extrabold text-red-600">{outCount}</p>
+                    <p className="text-2xl font-extrabold text-red-600 dark:text-red-400">{outCount}</p>
                 </div>
             </div>
 
@@ -394,7 +394,7 @@ export default function StockLevelsPage() {
                         onClick={() => setActiveTab(tab.key)}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                             activeTab === tab.key
-                                ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm"
+                                ? "bg-[var(--bg-surface)] text-brand-700 dark:text-brand-400 shadow-sm"
                                 : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                         }`}
                     >
@@ -404,7 +404,7 @@ export default function StockLevelsPage() {
             </div>
 
             {/* Stock Table */}
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden dark:border-white/10">
                 {isLoading ? (
                     <div className="p-4 space-y-3">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -426,7 +426,7 @@ export default function StockLevelsPage() {
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-[var(--border-subtle)] dark:divide-white/10">
                             {mainStock.map(item => {
                                 const status = stockStatus(item.quantity, item.reorder_level);
                                 const StatusIcon = status.icon;
@@ -437,12 +437,12 @@ export default function StockLevelsPage() {
                                             <p className="text-xs text-[var(--text-muted)]">{item.unit ?? ""}</p>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <Badge variant="secondary" className="text-[10px]">
+                                            <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-slate-500/20 dark:text-slate-300">
                                                 {item.category ?? "—"}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : item.quantity <= item.reorder_level ? "text-amber-600" : "text-[var(--text-primary)]"}`}>
+                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600 dark:text-red-400" : item.quantity <= item.reorder_level ? "text-amber-600 dark:text-amber-400" : "text-[var(--text-primary)]"}`}>
                                                 {item.quantity}
                                             </span>
                                         </td>
@@ -494,7 +494,7 @@ export default function StockLevelsPage() {
                                 <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-[var(--border-subtle)] dark:divide-white/10">
                             {currentFloorItems.map(item => {
                                 const status = stockStatus(item.quantity);
                                 const StatusIcon = status.icon;
@@ -505,7 +505,7 @@ export default function StockLevelsPage() {
                                             <p className="text-xs text-[var(--text-muted)]">{item.unit ?? ""}</p>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600" : "text-[var(--text-primary)]"}`}>
+                                            <span className={`text-lg font-extrabold ${item.quantity === 0 ? "text-red-600 dark:text-red-400" : "text-[var(--text-primary)]"}`}>
                                                 {item.quantity}
                                             </span>
                                         </td>

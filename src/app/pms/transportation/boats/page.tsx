@@ -121,7 +121,7 @@ function DepartureTimesInput({ times, onChange, invalid = false }: { times: stri
                 aria-invalid={invalid}
             >
                 {times.map(t => (
-                    <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-mono">
+                    <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400 rounded-full text-xs font-mono">
                         {t}
                         <button type="button" onClick={() => onChange(times.filter(x => x !== t))} className="text-blue-500 hover:text-red-500 ml-0.5">×</button>
                     </span>
@@ -563,8 +563,8 @@ export default function BoatTicketsPage() {
                         </div>
                     ) : Object.entries(grouped).map(([companyId, { company, routes: compRoutes }]) => (
                         <div key={companyId} className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden shadow-sm">
-                            <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-[var(--border-default)]">
-                                <h2 className="text-base font-bold text-blue-900">⛵ {company?.name ?? "Unknown Company"}</h2>
+                            <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10 px-6 py-4 border-b border-[var(--border-default)]">
+                                <h2 className="text-base font-bold text-blue-900 dark:text-blue-300">⛵ {company?.name ?? "Unknown Company"}</h2>
                                 <button onClick={() => setRouteModal({ open: true, defaultCompanyId: companyId })}
                                     className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ Add Route</button>
                             </div>
@@ -591,7 +591,7 @@ export default function BoatTicketsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-[var(--text-secondary)] text-xs">{r.departure_pier_name ?? "—"}</td>
                                             <td className="px-4 py-3">
-                                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{r.boat_type}</span>
+                                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400">{r.boat_type}</span>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1">
@@ -642,7 +642,7 @@ export default function BoatTicketsPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${c.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${c.is_active ? "bg-green-100 text-green-800 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-red-100 text-red-800 dark:bg-rose-500/10 dark:text-rose-400"}`}>
                                         {c.is_active ? "Active" : "Inactive"}
                                     </span>
                                     <button onClick={() => setCompanyModal({ open: true, editing: c })}

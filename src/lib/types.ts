@@ -84,6 +84,8 @@ export interface LoanCollectionItem {
   item_icon: string;
   quantity: number;
   due_date: string | null;
+  /** true when due_date <= today or checkout; false when still active but not yet due */
+  is_due?: boolean;
 }
 
 export interface Room {

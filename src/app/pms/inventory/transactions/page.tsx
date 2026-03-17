@@ -36,13 +36,13 @@ function formatThaiDate(dateStr: string) {
 }
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-    use: { label: "Used", color: "bg-sky-100 text-sky-700" },
-    transfer_out: { label: "Transfer Out", color: "bg-amber-100 text-amber-700" },
-    transfer_in: { label: "Transfer In", color: "bg-emerald-100 text-emerald-700" },
-    sale: { label: "POS Sale", color: "bg-brand-100 text-brand-700" },
-    receive: { label: "Received", color: "bg-green-100 text-green-700" },
-    adjust: { label: "Adjusted", color: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]" },
-    return: { label: "Returned", color: "bg-purple-100 text-purple-700" },
+    use: { label: "Used", color: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400" },
+    transfer_out: { label: "Transfer Out", color: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" },
+    transfer_in: { label: "Transfer In", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" },
+    sale: { label: "POS Sale", color: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400" },
+    receive: { label: "Received", color: "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" },
+    adjust: { label: "Adjusted", color: "bg-[var(--bg-muted)] text-[var(--text-table-cell)] dark:bg-slate-500/20 dark:text-slate-400" },
+    return: { label: "Returned", color: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400" },
 };
 
 /* ── Component ── */
@@ -211,7 +211,7 @@ export default function TransactionsPage() {
             </div>
 
             {/* Transaction Table */}
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden dark:border-white/10">
                 {isLoading ? (
                     <div className="p-4 space-y-3">
                         {Array.from({ length: 8 }).map((_, i) => (
@@ -222,7 +222,7 @@ export default function TransactionsPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-[var(--border-subtle)]">
+                                <tr className="border-b border-[var(--border-subtle)] dark:border-white/10">
                                     <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Date/Time</th>
                                     <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Product</th>
                                     <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Action</th>
@@ -233,7 +233,7 @@ export default function TransactionsPage() {
                                     <th className="text-left text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Note</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50">
+                            <tbody className="divide-y divide-[var(--border-subtle)] dark:divide-white/10">
                                 {filteredTx.map(tx => {
                                     const actionInfo = ACTION_LABELS[tx.action] ?? { label: tx.action, color: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" };
                                     const isNegative = tx.quantity_change < 0;
@@ -251,7 +251,7 @@ export default function TransactionsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <span className={`text-sm font-bold flex items-center justify-end gap-0.5 ${isNegative ? "text-red-600" : "text-emerald-600"}`}>
+                                                <span className={`text-sm font-bold flex items-center justify-end gap-0.5 ${isNegative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                                                     {isNegative ? <ArrowDownIcon className="w-3 h-3" /> : <ArrowUpIcon className="w-3 h-3" />}
                                                     {isNegative ? tx.quantity_change : `+${tx.quantity_change}`}
                                                 </span>

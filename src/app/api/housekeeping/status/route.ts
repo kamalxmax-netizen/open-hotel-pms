@@ -956,6 +956,13 @@ export async function GET(request: NextRequest) {
         const loanCollectionReservationIds = Array.from(
             new Set(Array.from(recentReservationByRoomId.values()).map((row) => row.reservation_id))
         );
+        const runtimeSurfaceReservationIds = Array.from(
+            new Set(
+                Array.from(recentReservationByRoomId.values())
+                    .filter((row) => row.status === "active")
+                    .map((row) => row.reservation_id)
+            )
+        );
 
         if (loanCollectionReservationIds.length > 0) {
             const { data: loanTraceRows, error: loanTraceError } = await supabase
@@ -989,11 +996,11 @@ export async function GET(request: NextRequest) {
         }>();
         const hkTraceItemsByReservationId = new Map<string, Array<{ id: string; text: string }>>();
 
-        if (loanCollectionReservationIds.length > 0) {
+        if (runtimeSurfaceReservationIds.length > 0) {
             const { data: alertRows, error: alertRowsError } = await supabase
                 .from("reservation_alerts")
                 .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
-                .in("reservation_id", loanCollectionReservationIds);
+                .in("reservation_id", runtimeSurfaceReservationIds);
             if (alertRowsError) return NextResponse.json({ error: alertRowsError.message }, { status: 500 });
 
             const groupedAlerts = new Map<string, any[]>();
@@ -1016,7 +1023,7 @@ export async function GET(request: NextRequest) {
             const { data: hkTraceRows, error: hkTraceRowsError } = await supabase
                 .from("reservation_traces")
                 .select("id, reservation_id, trace_text, dept, loan_item_code, status")
-                .in("reservation_id", loanCollectionReservationIds)
+                .in("reservation_id", runtimeSurfaceReservationIds)
                 .eq("status", "open")
                 .eq("dept", "HK")
                 .is("loan_item_code", null);
@@ -1080,9 +1087,7 @@ export async function GET(request: NextRequest) {
             const visibleLoanCollections = recentReservation
                 ? (loanCollectionsByReservationId.get(recentReservation.reservation_id) ?? []).filter((item) => {
                     if (shouldShowCheckoutCollections) return true;
-                    if (shouldShowStayoverCollections) {
-                        return item.due_date !== null && item.due_date <= dateParam;
-                    }
+                    if (shouldShowStayoverCollections) return true; // Badge visible daily for HK awareness (e.g. pillow case changes)
                     return false;
                 })
                 : [];
@@ -1301,7 +1306,7 @@ export async function POST(request: NextRequest) {
 
             const { data: existingTask, error: existingTaskError } = await supabase
                 .from("housekeeping_tasks")
-                .select("id, status")
+                .select("id, status, assigned_maid_name, started_at, finished_at, approved_at")
                 .eq("room_id", room_id)
                 .eq("stay_date", date)
                 .maybeSingle();
@@ -1309,11 +1314,32 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: existingTaskError.message }, { status: 500 });
             }
 
-            if (existingTask?.status === "in_progress" || existingTask?.status === "paused") {
+            const taskStatus = existingTask?.status ?? null;
+            const taskLockedStarted = taskStatus === "in_progress" || taskStatus === "paused";
+            const taskLockedCompleted =
+                taskStatus === "cleaned" ||
+                taskStatus === "approved" ||
+                Boolean(existingTask?.finished_at) ||
+                Boolean(existingTask?.approved_at);
+
+            if (taskLockedStarted) {
                 return NextResponse.json(
                     {
-                        error: "Cannot reset room while housekeeping is in progress.",
-                        warning: `Current task status is ${existingTask.status}.`,
+                        error: "Housekeeping has started for this room. Dirty / No Service is locked.",
+                        reason_code: "hk_task_locked_started",
+                        current_status: taskStatus,
+                        assigned_maid_name: existingTask?.assigned_maid_name ?? null,
+                    },
+                    { status: 409 }
+                );
+            }
+            if (taskLockedCompleted) {
+                return NextResponse.json(
+                    {
+                        error: "Housekeeping has already finished for this room. Dirty / No Service is locked.",
+                        reason_code: "hk_task_locked_completed",
+                        current_status: taskStatus,
+                        assigned_maid_name: existingTask?.assigned_maid_name ?? null,
                     },
                     { status: 409 }
                 );
@@ -1382,6 +1408,15 @@ export async function POST(request: NextRequest) {
                 success: true,
                 room_id,
                 marked_as: markAsNoService ? "no_service" : "dirty",
+                housekeeping: {
+                    status: "dirty",
+                    is_no_service: markAsNoService,
+                    no_service_note: markAsNoService ? note : null,
+                    assigned_maid_name: existingTask?.assigned_maid_name ?? null,
+                    started_at: null,
+                    finished_at: null,
+                    approved_at: null,
+                },
             });
         }
 

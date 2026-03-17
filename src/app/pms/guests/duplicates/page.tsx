@@ -154,14 +154,14 @@ export default function DuplicatesPage() {
                         <option value="do_not_merge">Do Not Merge</option>
                     </select>
                     <button
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-primary btn-sm dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
                         onClick={() => void handleScan()}
                         disabled={scanning || loading}
                         title="Scan active profiles and queue duplicate pairs"
                     >
                         {scanning ? "Scanning..." : "Scan Duplicates"}
                     </button>
-                    <button className="btn btn-secondary btn-sm" onClick={load}>↻ Refresh</button>
+                    <button className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30" onClick={load}>↻ Refresh</button>
                 </div>
             </div>
 
@@ -185,7 +185,7 @@ export default function DuplicatesPage() {
                     {statusFilter === "pending" && (
                         <div className="mt-4">
                             <button
-                                className="btn btn-primary btn-sm"
+                                className="btn btn-primary btn-sm dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
                                 onClick={() => void handleScan()}
                                 disabled={scanning || loading}
                             >
@@ -237,14 +237,14 @@ export default function DuplicatesPage() {
                                         <button
                                             disabled={isLoading}
                                             onClick={() => handleMerge(pair.profile_a, pair.profile_b, pair.id)}
-                                            className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                            className="btn btn-sm bg-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 text-white hover:bg-emerald-700 disabled:opacity-50"
                                         >
                                             ← Merge into A
                                         </button>
                                         <button
                                             disabled={isLoading}
                                             onClick={() => handleMerge(pair.profile_b, pair.profile_a, pair.id)}
-                                            className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                            className="btn btn-sm bg-blue-600 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30 text-white hover:bg-blue-700 disabled:opacity-50"
                                         >
                                             Merge into B →
                                         </button>
@@ -252,7 +252,7 @@ export default function DuplicatesPage() {
                                         <button
                                             disabled={isLoading}
                                             onClick={() => handleAction(pair.id, "dismissed")}
-                                            className="btn btn-sm btn-secondary disabled:opacity-50"
+                                            className="btn btn-sm btn-secondary dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30 disabled:opacity-50"
                                         >
                                             Dismiss
                                         </button>

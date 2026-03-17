@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { createPortal } from "react-dom";
 import RoomDrawer, { type RoomDrawerRoom } from "@/components/room-drawer";
 import ReservationDetailPage from "@/components/reservation-detail-page";
@@ -134,39 +135,38 @@ const STATUS_STYLE: Record<
     }
 };
 
-const DIARY_STYLE: Record<DiaryState, { symbol: string; label: string; symbolClass: string; chipClass: string }> = {
+const DIARY_STYLE: Record<DiaryState, { symbol: ReactNode; label: string; symbolClass: string; chipClass: string }> = {
     available: {
         symbol: "●",
         label: "Available",
         symbolClass: "text-emerald-500",
-        chipClass: "bg-emerald-100 text-emerald-700"
+        chipClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
     },
     due_in: {
-        symbol: "↓",
+        symbol: <ArrowDown className="w-3.5 h-3.5" strokeWidth={5} />,
         label: "Due In",
-        symbolClass: "text-sky-600",
-        chipClass: "bg-sky-100 text-sky-700"
+        symbolClass: "text-sky-600 dark:text-sky-400",
+        chipClass: "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400"
     },
     inhouse: {
         symbol: "●",
         label: "In-House",
         symbolClass: "text-amber-500",
-        chipClass: "bg-amber-100 text-amber-700"
+        chipClass: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
     },
     back_to_back: {
-        symbol: "↓↑",
+        symbol: <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={5} />,
         label: "Back-to-Back",
-        symbolClass: "text-indigo-600",
-        chipClass: "bg-indigo-100 text-indigo-700"
+        symbolClass: "text-indigo-600 dark:text-indigo-400",
+        chipClass: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400"
     },
     due_out: {
-        symbol: "↑",
+        symbol: <ArrowUp className="w-3.5 h-3.5" strokeWidth={5} />,
         label: "Due Out",
-        symbolClass: "text-rose-600",
-        chipClass: "bg-rose-100 text-rose-700"
+        symbolClass: "text-rose-600 dark:text-rose-400",
+        chipClass: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
     }
 };
-
 type FilterKey = RoomStatus | "all" | "due_in" | "due_out" | "inhouse" | "back_to_back";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -174,7 +174,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
     { key: "available", label: "Available" },
     { key: "due_in", label: "Due In 🛬" },
     { key: "inhouse", label: "In-House" },
-    { key: "back_to_back", label: "Back-to-Back ↕" },
+    { key: "back_to_back", label: "Back-to-Back" },
     { key: "due_out", label: "Due Out 🛫" },
     { key: "dirty", label: "Dirty" },
     { key: "cleaning", label: "Cleaning" },
@@ -202,8 +202,8 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const HK_STRIPE_COLOR_BY_STATUS: Partial<Record<HousekeepingRawStatus, string>> = {
     dirty: "rgba(239, 68, 68, 0.95)",
-    in_progress: "rgba(255, 255, 255, 0.98)",
-    paused: "rgba(255, 255, 255, 0.98)",
+    in_progress: "var(--hk-stripe-in-progress)",
+    paused: "var(--hk-stripe-paused)",
     cleaned: "rgba(34, 197, 94, 0.95)",
 };
 
@@ -503,7 +503,7 @@ function RoomCard({
                             <span className={`${roomNoClass} font-bold text-[var(--text-primary)] leading-none`}>{room.room_number}</span>
                             {diary && (
                                 <span
-                                    className={`text-[11px] font-black leading-none ${diary.symbolClass}`}
+                                    className={`inline-flex items-center text-[11px] font-black leading-none ${diary.symbolClass}`}
                                     title={diary.label}
                                 >
                                     {diary.symbol}
@@ -584,19 +584,19 @@ function RoomCard({
                                 {/* วงขยายออก (ping layer) */}
                                 <span
                                     className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${room.alert_severity === "critical"
-                                            ? "bg-red-500"
-                                            : room.alert_severity === "warning"
-                                                ? "bg-orange-700"
-                                                : "bg-sky-400"
+                                        ? "bg-red-500"
+                                        : room.alert_severity === "warning"
+                                            ? "bg-orange-700"
+                                            : "bg-sky-400"
                                         }`}
                                 />
                                 {/* จุดหลัก */}
                                 <span
                                     className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${room.alert_severity === "critical"
-                                            ? "bg-red-500"
-                                            : room.alert_severity === "warning"
-                                                ? "bg-orange-500"
-                                                : "bg-sky-400"
+                                        ? "bg-red-500"
+                                        : room.alert_severity === "warning"
+                                            ? "bg-orange-500"
+                                            : "bg-sky-400"
                                         }`}
                                     title={room.first_alert_message ?? "Alert"}
                                 />
@@ -614,7 +614,7 @@ function RoomCard({
             {hoverAnchor && !isMobile && createPortal(
                 <div
                     ref={hoverPanelRef}
-                    className={`fixed z-[80] w-64 rounded-xl border shadow-xl p-3 pointer-events-none select-none ${loyaltyVisual.hoverPanelClass}`}
+                    className={`fixed z-[80] w-64 rounded-xl border shadow-xl p-3 pointer-events-none select-none ${loyaltyVisual.hoverPanelClass} dark:border-white/10`}
                     style={{ top: hoverAnchor.top, left: hoverAnchor.left }}
                 >
                     <div className="flex items-center justify-between mb-1">
@@ -650,56 +650,56 @@ function RoomCard({
                                 </span>
                             )}
                             {room.special_request && (
-                                <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 mt-1">
-                                    <p className="text-[10px] font-semibold text-fuchsia-700">
+                                <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 mt-1 dark:bg-fuchsia-500/10 dark:border-fuchsia-500/20">
+                                    <p className="text-[10px] font-semibold text-fuchsia-700 dark:text-fuchsia-400">
                                         Special Request
                                     </p>
-                                    <p className="text-[10px] text-fuchsia-700 whitespace-pre-wrap break-words">
+                                    <p className="text-[10px] text-fuchsia-700 dark:text-fuchsia-300/90 whitespace-pre-wrap break-words">
                                         {room.special_request}
                                     </p>
                                 </div>
                             )}
                             {room.diary_state === "back_to_back" && room.due_in_guest_name && (
-                                <div className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 mt-1">
-                                    <p className="text-[10px] font-semibold text-sky-700">
+                                <div className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 mt-1 dark:bg-sky-500/10 dark:border-sky-500/20">
+                                    <p className="text-[10px] font-semibold text-sky-700 dark:text-sky-400">
                                         Due In: {room.due_in_guest_name}
                                     </p>
                                     {(room.due_in_checkin_date || room.due_in_checkout_date) && (
-                                        <p className="text-[10px] text-sky-600">
+                                        <p className="text-[10px] text-sky-600 dark:text-sky-300/80">
                                             {room.due_in_checkin_date ?? "—"} → {room.due_in_checkout_date ?? "—"}
                                         </p>
                                     )}
                                 </div>
                             )}
                             {hasMoveHistory && (
-                                <div className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 mt-1">
-                                    <p className="text-[10px] font-semibold text-indigo-800">
+                                <div className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 mt-1 dark:bg-indigo-500/10 dark:border-indigo-500/20">
+                                    <p className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-400">
                                         Room Move: {room.room_move_from} → {room.room_number}
                                     </p>
                                     {room.room_move_reason && (
-                                        <p className="text-[10px] text-indigo-700 truncate">
+                                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300 truncate">
                                             Reason: {room.room_move_reason}
                                         </p>
                                     )}
                                 </div>
                             )}
                             {hasTransferAlertCandidate && room.transfer_pickup_at && (
-                                <div className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 mt-1">
-                                    <p className="text-[10px] font-semibold text-sky-700">
+                                <div className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 mt-1 dark:bg-sky-500/10 dark:border-sky-500/20">
+                                    <p className="text-[10px] font-semibold text-sky-700 dark:text-sky-400">
                                         {room.transfer_type_icon ?? "🚗"} Transfer {formatBangkokTime(room.transfer_pickup_at)}
                                     </p>
-                                    <p className="text-[10px] text-sky-600">
+                                    <p className="text-[10px] text-sky-600 dark:text-sky-300">
                                         Status: {room.transfer_status}
                                     </p>
                                 </div>
                             )}
                             {hasDayUseAlertCandidate && room.dayuse_expires_at && (
-                                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 mt-1">
-                                    <p className="text-[10px] font-semibold text-amber-700">
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 mt-1 dark:bg-amber-500/10 dark:border-amber-500/20">
+                                    <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
                                         ⏱ Day Use ends {formatBangkokTime(room.dayuse_expires_at)}
                                     </p>
                                     {room.dayuse_timer_state && (
-                                        <p className="text-[10px] text-amber-600">
+                                        <p className="text-[10px] text-amber-600 dark:text-amber-300">
                                             State: {room.dayuse_timer_state}
                                         </p>
                                     )}
@@ -1198,8 +1198,8 @@ export default function BoardPage() {
                                 disabled={!baseBusinessDate && opt.offset !== 0}
                                 className={`px-3 py-1.5 rounded-md font-medium transition ${dateOffset === opt.offset
                                     ? opt.offset === 0
-                                        ? "bg-[var(--bg-surface)] shadow text-[var(--text-primary)]"
-                                        : "bg-rose-600 text-white shadow"
+                                        ? "bg-[var(--bg-surface)] shadow text-[var(--text-primary)] dark:bg-brand-500/20 dark:text-brand-400"
+                                        : "bg-rose-600 text-white shadow dark:bg-rose-500/30 dark:text-rose-400 border-none"
                                     : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
                                     } ${!baseBusinessDate && opt.offset !== 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
@@ -1261,7 +1261,12 @@ export default function BoardPage() {
                                     key={f.key}
                                     onClick={() => toggleFilter(f.key)}
                                     className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
-                                        ? "border-brand-400 bg-brand-600 text-white"
+                                        ? f.key === "available" ? "border-emerald-400 bg-emerald-600 text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40"
+                                            : f.key === "due_in" ? "border-sky-400 bg-sky-600 text-white dark:bg-sky-500/20 dark:text-sky-400 dark:border-sky-500/40"
+                                                : f.key === "inhouse" ? "border-amber-400 bg-amber-600 text-white dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40"
+                                                    : f.key === "back_to_back" ? "border-indigo-400 bg-indigo-600 text-white dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-500/40"
+                                                        : f.key === "due_out" || f.key === "dirty" ? "border-rose-400 bg-rose-600 text-white dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/40"
+                                                            : "border-brand-400 bg-brand-600 text-white dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/40"
                                         : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                                         }`}
                                 >
@@ -1273,7 +1278,7 @@ export default function BoardPage() {
                     <button
                         onClick={() => setShowHkDirtyLayer((v) => !v)}
                         className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${showHkDirtyLayer
-                            ? "border-rose-300 bg-rose-50 text-rose-700"
+                            ? "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30"
                             : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
                             }`}
                         title="Toggle dirty housekeeping pattern layer on room cards"
@@ -1296,7 +1301,7 @@ export default function BoardPage() {
             )}
             {!dayUseError && dayUseData && dayUseData.rooms.length === 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Day Use configured but no rooms found in DB. Seed rooms 118/120/122 first.
+                    Day Use configured but no mapped rooms found. Check `rooms.is_dayuse = true` for your Day Use rooms.
                 </div>
             )}
 

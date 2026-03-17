@@ -198,11 +198,11 @@ export default function DeparturesPage() {
                                                         {d.guest_name}
                                                     </div>
                                                     {d.booking_group_id && (
-                                                        <Link
-                                                            href={`/pms/groups?group_id=${d.booking_group_id}`}
-                                                            className="badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
-                                                            title={d.group_name ?? "Open Group Booking"}
-                                                        >
+                                                            <Link
+                                                                href={`/pms/groups?group_id=${d.booking_group_id}`}
+                                                                className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400 hover:bg-indigo-200 transition-colors"
+                                                                title={d.group_name ?? "Open Group Booking"}
+                                                            >
                                                             {formatShortGroupCode(d.group_code)}
                                                         </Link>
                                                     )}
@@ -223,7 +223,7 @@ export default function DeparturesPage() {
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (
-                                                    <span className="badge bg-emerald-100 text-emerald-700">✓ Checked Out</span>
+                                                    <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">✓ Checked Out</span>
                                                 ) : (
                                                     <button
                                                         className="btn btn-primary btn-sm"
@@ -288,7 +288,7 @@ export default function DeparturesPage() {
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (
-                                                    <span className="badge bg-emerald-100 text-emerald-700">✓ Checked Out</span>
+                                                    <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">✓ Checked Out</span>
                                                 ) : (
                                                     <button
                                                         className="btn btn-primary btn-sm bg-[var(--dayuse-text)] hover:bg-[var(--dayuse-text-secondary)] border-none shadow-md shadow-rose-600/20"

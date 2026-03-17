@@ -2954,7 +2954,7 @@ export default function ReservationDetailPage({
                 }
             >
                 <div className="space-y-3">
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-400">
                         Reservation created successfully.
                     </div>
                     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
@@ -3347,11 +3347,11 @@ export default function ReservationDetailPage({
                                             forceOpen
                                             badge={
                                                 guestProfileId ? (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
                                                         Linked Profile
                                                     </span>
                                                 ) : returnGuestSuggestion ? (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">
                                                         Return Guest
                                                     </span>
                                                 ) : null
@@ -3462,13 +3462,13 @@ export default function ReservationDetailPage({
                                                                 ID: {guestProfileId.slice(0, 8)}
                                                             </span>
                                                             {profileStatus && (
-                                                                <span className="rounded px-2 py-0.5 bg-sky-100 text-sky-700 font-semibold">
+                                                                <span className="rounded px-2 py-0.5 bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400 font-semibold">
                                                                     {profileStatus}
                                                                 </span>
                                                             )}
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-ghost btn-sm"
+                                                                className="btn btn-ghost btn-sm text-red-500 hover:text-red-600 dark:text-rose-400 dark:hover:text-rose-300"
                                                                 onClick={async () => {
                                                                     if (!reservationId) {
                                                                         setGuestProfileId(null);
@@ -3492,7 +3492,7 @@ export default function ReservationDetailPage({
                                                         </>
                                                     )}
                                                     {!guestProfileId && returnGuestSuggestion && (
-                                                        <span className="rounded px-2 py-0.5 bg-blue-50 text-blue-700">
+                                                        <span className="rounded px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">
                                                             Suggested: {returnGuestSuggestion.profile.first_name} {returnGuestSuggestion.profile.last_name} (score {returnGuestSuggestion.score})
                                                         </span>
                                                     )}
@@ -4571,11 +4571,11 @@ export default function ReservationDetailPage({
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 text-sm text-[var(--text-secondary)]">
-                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:border-rose-800/30 dark:bg-rose-950/20 px-3 py-2">
                             <p>
-                                Remaining balance: <span className="font-bold text-rose-700">฿{formatMoney(fromSatang(checkoutRemainingSatang))}</span>
+                                Remaining balance: <span className="font-bold text-rose-700 dark:text-rose-400">฿{formatMoney(fromSatang(checkoutRemainingSatang))}</span>
                             </p>
-                            <p className="mt-1 text-xs text-rose-700">
+                            <p className="mt-1 text-xs text-rose-700 dark:text-rose-500">
                                 Enter the collected payment in the checkout payment panel first, then confirm checkout again.
                             </p>
                         </div>

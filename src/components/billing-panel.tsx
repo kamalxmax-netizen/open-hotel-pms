@@ -295,9 +295,9 @@ export function BillingPanel({
     (balanceDueSatang > 0 || (deferPersist && pendingPayments.length > 0));
 
   return (
-    <div className="bg-[var(--bg-surface)] border rounded-xl overflow-hidden shadow-sm flex flex-col">
+    <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl overflow-hidden shadow-sm flex flex-col">
       {/* HEADER */}
-      <div className="bg-[var(--bg-body)] px-5 py-4 border-b flex justify-between items-center">
+      <div className="bg-[var(--bg-body)] px-5 py-4 border-b border-[var(--border-default)] flex justify-between items-center">
         <h3 className="font-bold text-[var(--text-primary)] uppercase tracking-widest text-sm flex items-center gap-2">
            <span className="text-lg">💳</span> Guest Folio
         </h3>
@@ -318,10 +318,10 @@ export function BillingPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b">
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b border-[var(--border-default)] divide-[var(--border-default)]">
         {/* CHARGES PANEL */}
         <div className="p-5 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b pb-2">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b border-[var(--border-default)] pb-2">
             Charges Summary
           </h4>
           
@@ -332,11 +332,11 @@ export function BillingPanel({
             </div>
 
             {discountAmount > 0 && (
-              <div className="flex justify-between items-center text-sm text-rose-700">
+              <div className="flex justify-between items-center text-sm text-rose-700 dark:text-rose-400">
                 <div className="flex min-w-0 flex-col">
                   <span className="font-medium">Discount</span>
                   {discountReason ? (
-                    <span className="truncate text-[11px] text-rose-500" title={discountReason}>
+                    <span className="truncate text-[11px] text-rose-500 dark:text-rose-500/80" title={discountReason}>
                       {discountReason}
                     </span>
                   ) : null}
@@ -356,7 +356,7 @@ export function BillingPanel({
                     </div>
                   ))}
                   {policyPreviewSatang > 0 && (
-                    <div className="flex justify-between items-center text-sm text-amber-700 pl-2 border-l-2 border-amber-200 bg-amber-50/70 rounded px-2 py-1">
+                    <div className="flex justify-between items-center text-sm text-amber-700 dark:text-amber-400 pl-2 border-l-2 border-amber-200 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/10 rounded px-2 py-1">
                       <span>Late checkout fee (pending)</span>
                       <span className="font-mono">฿ {formatMoney(fromSatang(policyPreviewSatang))}</span>
                     </div>
@@ -365,7 +365,7 @@ export function BillingPanel({
               </div>
             )}
             
-            <div className="pt-2 border-t flex justify-between items-center text-sm font-bold text-[var(--text-primary)]">
+            <div className="pt-2 border-t border-[var(--border-default)] flex justify-between items-center text-sm font-bold text-[var(--text-primary)]">
               <span>Total Charges</span>
               <span className="font-mono">฿ {formatMoney(fromSatang(totalChargesSatang))}</span>
             </div>
@@ -386,7 +386,7 @@ export function BillingPanel({
 
         {/* CREDITS PANEL */}
         <div className="p-5 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b pb-2 flex justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] border-b border-[var(--border-default)] pb-2 flex justify-between">
             <span>Payment</span>
             <span className="text-[var(--text-table-cell)]">฿ {formatMoney(fromSatang(totalCreditsSatang))}</span>
           </h4>
@@ -408,8 +408,8 @@ export function BillingPanel({
                   <div key={p.id || idx} className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold shrink-0 ${
-                        isPending ? "bg-amber-100 text-amber-800" : 
-                        isRefund ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
+                        isPending ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400" : 
+                        isRefund ? "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-400" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400"
                       }`}>
                         {methodLabel}
                       </span>
@@ -437,27 +437,27 @@ export function BillingPanel({
 
       {/* DEPOSIT SUMMARY (Separate Section per B3) */}
       {depositTransactions.length > 0 && (
-        <div className="bg-indigo-50/50 px-5 py-3 border-b flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-           <div className="flex items-center gap-2 text-indigo-800">
+        <div className="bg-indigo-50/50 dark:bg-indigo-500/10 px-5 py-3 border-b border-[var(--border-default)] flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+           <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
              <span className="text-lg">🔒</span>
              <span className="text-xs font-bold uppercase tracking-widest">Deposit Held</span>
            </div>
            
-           <div className="flex flex-col gap-1 items-end">
-             {depositLines.map((p, idx) => (
-                <div key={`dep-${p.method}-${idx}`} className="flex items-center gap-2 text-xs text-indigo-700">
-                   <span className="uppercase opacity-70 bg-indigo-100 px-1 py-0.5 rounded">{p.method}</span>
-                   {p.note && <span className="opacity-70">({p.note})</span>}
-                   <span className="font-mono font-bold ml-2 text-sm">฿ {formatMoney(p.amount)}</span>
-                </div>
-             ))}
-           </div>
+            <div className="flex flex-col gap-1 items-end">
+              {depositLines.map((p, idx) => (
+                 <div key={`dep-${p.method}-${idx}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
+                    <span className="uppercase opacity-70 bg-indigo-100 dark:bg-indigo-500/20 px-1 py-0.5 rounded">{p.method}</span>
+                    {p.note && <span className="opacity-70">({p.note})</span>}
+                    <span className="font-mono font-bold ml-2 text-sm">฿ {formatMoney(p.amount)}</span>
+                 </div>
+              ))}
+            </div>
         </div>
       )}
 
       {/* FOOTER ACTIONS */}
       {canShowAddForm && (
-        <div className="bg-[var(--bg-body)] p-4 border-t flex flex-wrap gap-2 items-end">
+        <div className="bg-[var(--bg-body)] p-4 border-t border-[var(--border-default)] flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[300px] flex gap-2">
             <select
               className="form-select flex-[0.8] text-sm h-9 px-2"
@@ -470,13 +470,12 @@ export function BillingPanel({
               ))}
             </select>
             <div className="relative flex-1">
-              <span className="absolute left-2 top-2 text-[var(--text-muted)] font-bold text-sm">฿</span>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 placeholder="Amount"
-                className="form-input text-sm h-9 pl-6 w-full font-mono"
+                className="form-input text-sm h-9 w-full font-mono"
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
                 onKeyDown={handleAddPaymentEnter}

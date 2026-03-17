@@ -497,7 +497,7 @@ export default function FoPreparePage() {
         <button
           onClick={() => setActiveTab("prepare")}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-            activeTab === "prepare" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
+            activeTab === "prepare" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-brand-400 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
           }`}
         >
           Morning Prepare
@@ -505,7 +505,7 @@ export default function FoPreparePage() {
         <button
           onClick={() => setActiveTab("return")}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-            activeTab === "return" ? "bg-[var(--bg-surface)] text-brand-700 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
+            activeTab === "return" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-brand-400 shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]"
           }`}
         >
           End-of-day Return
@@ -515,7 +515,7 @@ export default function FoPreparePage() {
       {activeTab === "prepare" ? (
         <div className="space-y-4">
           {existingBatch && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 p-3 text-sm text-amber-800 dark:text-amber-400">
               <p className="font-semibold">
                 Daily prepare batch already created ({existingBatch.status}) for {existingBatch.business_date}.
               </p>
@@ -627,7 +627,7 @@ export default function FoPreparePage() {
           ) : (
             <>
               {returnTargetBatch && returnTargetBatch.business_date !== businessDate && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 p-3 text-sm text-amber-800 dark:text-amber-400">
                   <p className="font-semibold">
                     Pending return from {returnTargetBatch.business_date} is shown first.
                   </p>
@@ -640,10 +640,10 @@ export default function FoPreparePage() {
                 <div
                   className={`rounded-xl border p-3 text-sm ${
                     returnFeedback.kind === "success"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400"
                       : returnFeedback.kind === "info"
-                        ? "border-sky-200 bg-sky-50 text-sky-800"
-                        : "border-rose-200 bg-rose-50 text-rose-800"
+                        ? "border-sky-200 bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400"
+                        : "border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400"
                   }`}
                 >
                   {returnFeedback.message}
@@ -673,7 +673,7 @@ export default function FoPreparePage() {
               </div>
 
               {canReturn && !canReturn.all_rooms_finished && batchDetail?.batch.status === "prepared" && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 p-3 text-amber-800 dark:text-amber-400">
                   <div className="flex items-start gap-2">
                     <AlertTriangleIcon className="w-4 h-4 mt-0.5" />
                     <div className="text-sm">

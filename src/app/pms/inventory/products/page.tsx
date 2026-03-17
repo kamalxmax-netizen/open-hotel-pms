@@ -43,9 +43,9 @@ const CATEGORY_LABELS: Record<ProductCategory, string> = {
 };
 
 const CATEGORY_BADGE_CLASS: Record<ProductCategory, string> = {
-    amenity: "bg-sky-100 text-sky-700",
-    pos: "bg-amber-100 text-amber-700",
-    both: "bg-brand-100 text-brand-700",
+    amenity: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+    pos: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+    both: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400",
 };
 
 const FLOW_LABELS: Record<FulfillmentMode, string> = {
@@ -54,8 +54,8 @@ const FLOW_LABELS: Record<FulfillmentMode, string> = {
 };
 
 const FLOW_BADGE_CLASS: Record<FulfillmentMode, string> = {
-    standard: "bg-[var(--bg-muted)] text-[var(--text-table-cell)]",
-    daily_prepare: "bg-indigo-100 text-indigo-700",
+    standard: "bg-[var(--bg-muted)] text-[var(--text-table-cell)] dark:bg-slate-500/20 dark:text-slate-400",
+    daily_prepare: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400",
 };
 
 interface ProductFormData {
@@ -310,7 +310,7 @@ export default function ProductsPage() {
                     onClick={() => setShowActiveOnly((prev) => !prev)}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                         showActiveOnly
-                            ? "border-brand-300 bg-brand-50 text-brand-700"
+                            ? "border-brand-300 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
                             : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)]"
                     }`}
                 >
@@ -377,11 +377,10 @@ export default function ProductsPage() {
                 </div>
             ) : (
                 <>
-                    {/* Desktop Table */}
-                    <div className="hidden md:block card overflow-hidden">
+                    <div className="hidden md:block card overflow-hidden dark:border-white/5">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-body)]/60">
+                                <tr className="border-b border-[var(--border-subtle)] dark:border-white/5 bg-[var(--bg-body)]/60">
                                     <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Name
                                     </th>
@@ -408,7 +407,7 @@ export default function ProductsPage() {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[var(--border-subtle)]">
+                            <tbody className="divide-y divide-[var(--border-subtle)] dark:divide-white/5">
                                 {filteredProducts.map((product) => (
                                     <tr
                                         key={product.id}
@@ -453,7 +452,11 @@ export default function ProductsPage() {
                                                         ? "default"
                                                         : "secondary"
                                                 }
-                                                className="text-[10px]"
+                                                className={`text-[10px] ${
+                                                    product.is_active
+                                                        ? "dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20"
+                                                        : "dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/20"
+                                                }`}
                                             >
                                                 {product.is_active
                                                     ? "Active"
@@ -535,7 +538,11 @@ export default function ProductsPage() {
                                                         ? "default"
                                                         : "secondary"
                                                 }
-                                                className="text-[10px]"
+                                                className={`text-[10px] ${
+                                                    product.is_active
+                                                        ? "dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20"
+                                                        : "dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/20"
+                                                }`}
                                             >
                                                 {product.is_active
                                                     ? "Active"

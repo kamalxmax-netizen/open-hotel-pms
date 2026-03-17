@@ -11,6 +11,7 @@ import { DayUseTimer } from "./dayuse-timer";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 type DiaryState = "available" | "due_in" | "inhouse" | "back_to_back" | "due_out";
+type HousekeepingDrawerStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved" | null;
 
 export type RoomDrawerRoom = {
     room_id: string;
@@ -59,6 +60,38 @@ export type RoomDrawerRoom = {
     transfer_alert_enabled?: boolean | null;
 };
 
+type DrawerHousekeepingState = {
+    hk_status: HousekeepingDrawerStatus;
+    hk_assigned_maid: string | null;
+    hk_started_at: string | null;
+    hk_finished_at: string | null;
+    hk_approved_at: string | null;
+    hk_is_no_service: boolean;
+    hk_no_service_note: string | null;
+};
+
+function buildDrawerHousekeepingState(room: RoomDrawerRoom): DrawerHousekeepingState {
+    const status = room.hk_status;
+    const normalizedStatus: HousekeepingDrawerStatus =
+        status === "dirty" ||
+        status === "in_progress" ||
+        status === "paused" ||
+        status === "cleaned" ||
+        status === "approved"
+            ? status
+            : null;
+
+    return {
+        hk_status: normalizedStatus,
+        hk_assigned_maid: room.hk_assigned_maid ?? null,
+        hk_started_at: room.hk_started_at ?? null,
+        hk_finished_at: room.hk_finished_at ?? null,
+        hk_approved_at: room.hk_approved_at ?? null,
+        hk_is_no_service: room.hk_is_no_service ?? false,
+        hk_no_service_note: room.hk_no_service_note ?? null,
+    };
+}
+
 const STATUS_LABEL: Record<string, string> = {
     available: "Available",
     reserved: "Reserved / In-house",
@@ -88,8 +121,8 @@ const HOUSEKEEPING_LABEL: Record<string, string> = {
 const HOUSEKEEPING_BADGE: Record<string, string> = {
     dirty: "status-dirty",
     in_progress: "status-cleaning",
-    paused: "bg-amber-100 text-amber-700 border border-amber-200",
-    cleaned: "bg-lime-100 text-lime-700 border border-lime-200",
+    paused: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+    cleaned: "bg-lime-100 text-lime-700 border border-lime-200 dark:bg-lime-500/10 dark:text-lime-400 dark:border-lime-500/20",
     approved: "status-approved",
 };
 
@@ -104,12 +137,12 @@ const TRANSFER_STATUS_LABEL: Record<string, string> = {
 };
 
 const TRANSFER_STATUS_BADGE: Record<string, string> = {
-    pending: "bg-amber-100 text-amber-700 border border-amber-200",
-    confirmed: "bg-sky-100 text-sky-700 border border-sky-200",
-    driver_assigned: "bg-indigo-100 text-indigo-700 border border-indigo-200",
-    in_progress: "bg-green-100 text-green-700 border border-green-200",
-    completed: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-    cancelled: "bg-rose-100 text-rose-700 border border-rose-200",
+    pending: "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+    confirmed: "bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20",
+    driver_assigned: "bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20",
+    in_progress: "bg-green-100 text-green-700 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+    completed: "bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20",
+    cancelled: "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20",
     no_show: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] border border-[var(--border-default)]",
 };
 
@@ -193,6 +226,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [msg, setMsg] = useState("");
     const [transferAlertToggleLoading, setTransferAlertToggleLoading] = useState(false);
     const [transferAlertEnabledLocal, setTransferAlertEnabledLocal] = useState(room.transfer_alert_enabled !== false);
+    const [hkView, setHkView] = useState<DrawerHousekeepingState>(() => buildDrawerHousekeepingState(room));
     const [hkActionLoading, setHkActionLoading] = useState<"dirty" | "no_service" | null>(null);
     const [showNoServiceBox, setShowNoServiceBox] = useState(false);
     const [noServiceNoteInput, setNoServiceNoteInput] = useState("");
@@ -212,6 +246,29 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [inlineAlerts, setInlineAlerts] = useState<InlineReservationAlert[]>([]);
     const [alertsLoading, setAlertsLoading] = useState(false);
     const [traceCount, setTraceCount] = useState(0);
+
+    function resolveRoomDiaryLockMessage(payload: {
+        error?: string;
+        reason_code?: string;
+        current_status?: string;
+        assigned_maid_name?: string | null;
+    }) {
+        const maidName = payload.assigned_maid_name?.trim();
+        const maidSuffix = maidName ? ` by ${maidName}` : "";
+        if (payload.reason_code === "hk_task_locked_started") {
+            return `Housekeeping already started${maidSuffix}. Dirty / No Service is locked.`;
+        }
+        if (payload.reason_code === "hk_task_locked_completed") {
+            return `Housekeeping already finished${maidSuffix}. Dirty / No Service is locked.`;
+        }
+        if (payload.current_status === "in_progress" || payload.current_status === "paused") {
+            return `Housekeeping already started${maidSuffix}. Dirty / No Service is locked.`;
+        }
+        if (payload.current_status === "cleaned" || payload.current_status === "approved") {
+            return `Housekeeping already finished${maidSuffix}. Dirty / No Service is locked.`;
+        }
+        return payload.error ?? "Room housekeeping state is locked.";
+    }
 
     // ESC to close
     useEffect(() => {
@@ -277,6 +334,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
 
     async function handleMarkDirtyFromDiary() {
         if (!room.room_id) return;
+        if (housekeepingLocked) {
+            setMsg(housekeepingLockMessage ?? "Room housekeeping state is locked.");
+            return;
+        }
         setHkActionLoading("dirty");
         try {
             const date = getThailandDateString();
@@ -289,11 +350,32 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     date,
                 }),
             });
-            const payload = await res.json().catch(() => ({} as { error?: string }));
+            const payload = await res.json().catch(
+                () =>
+                    ({} as {
+                        error?: string;
+                        reason_code?: string;
+                        current_status?: string;
+                        assigned_maid_name?: string | null;
+                        housekeeping?: {
+                            assigned_maid_name?: string | null;
+                        };
+                    })
+            );
             if (!res.ok) {
-                setMsg(payload.error ?? "Failed to mark room dirty.");
+                setMsg(resolveRoomDiaryLockMessage(payload));
                 return;
             }
+            setHkView((prev) => ({
+                ...prev,
+                hk_status: "dirty",
+                hk_assigned_maid: payload.housekeeping?.assigned_maid_name ?? prev.hk_assigned_maid,
+                hk_is_no_service: false,
+                hk_no_service_note: null,
+                hk_started_at: null,
+                hk_finished_at: null,
+                hk_approved_at: null,
+            }));
             setMsg("Room sent to housekeeping as Dirty.");
             onRefresh();
         } finally {
@@ -303,6 +385,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
 
     async function handleMarkNoServiceFromDiary() {
         if (!room.room_id) return;
+        if (housekeepingLocked) {
+            setMsg(housekeepingLockMessage ?? "Room housekeeping state is locked.");
+            return;
+        }
         setHkActionLoading("no_service");
         try {
             const date = getThailandDateString();
@@ -317,11 +403,32 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     note,
                 }),
             });
-            const payload = await res.json().catch(() => ({} as { error?: string }));
+            const payload = await res.json().catch(
+                () =>
+                    ({} as {
+                        error?: string;
+                        reason_code?: string;
+                        current_status?: string;
+                        assigned_maid_name?: string | null;
+                        housekeeping?: {
+                            assigned_maid_name?: string | null;
+                        };
+                    })
+            );
             if (!res.ok) {
-                setMsg(payload.error ?? "Failed to mark room No Service.");
+                setMsg(resolveRoomDiaryLockMessage(payload));
                 return;
             }
+            setHkView((prev) => ({
+                ...prev,
+                hk_status: "dirty",
+                hk_assigned_maid: payload.housekeeping?.assigned_maid_name ?? prev.hk_assigned_maid,
+                hk_is_no_service: true,
+                hk_no_service_note: note,
+                hk_started_at: null,
+                hk_finished_at: null,
+                hk_approved_at: null,
+            }));
             setMsg("Room marked as No Service and sent to housekeeping.");
             setShowNoServiceBox(false);
             setNoServiceNoteInput("");
@@ -375,6 +482,21 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         (room.transfer_status === "pending" ||
             room.transfer_status === "confirmed" ||
             room.transfer_status === "driver_assigned");
+    const housekeepingLocked =
+        hkView.hk_status === "in_progress" ||
+        hkView.hk_status === "paused" ||
+        hkView.hk_status === "cleaned" ||
+        hkView.hk_status === "approved" ||
+        Boolean(hkView.hk_finished_at) ||
+        Boolean(hkView.hk_approved_at);
+    const housekeepingStartedLocked =
+        hkView.hk_status === "in_progress" || hkView.hk_status === "paused";
+    const housekeepingLockMessage = housekeepingLocked
+        ? housekeepingStartedLocked
+            ? `Housekeeping already started${hkView.hk_assigned_maid ? ` by ${hkView.hk_assigned_maid}` : ""}. Dirty / No Service is locked.`
+            : `Housekeeping already finished${hkView.hk_assigned_maid ? ` by ${hkView.hk_assigned_maid}` : ""}. Dirty / No Service is locked.`
+        : null;
+    const disableInHouseControls = hkActionLoading !== null || housekeepingLocked;
     const transferAlertEnabled = transferAlertEnabledLocal;
     const transferAlertToggleReady = canToggleTransferAlertNow(room.transfer_pickup_at);
     const editMode: "edit" | "inhouse" = diaryState === "due_in" ? "edit" : "inhouse";
@@ -386,6 +508,19 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         : 0;
     const depositHeld = Number(folioSummary?.deposit_amount ?? res?.deposit_amount ?? 0);
     const balanceDue = Number(folioSummary?.balance_due ?? res?.total_price ?? 0);
+
+    useEffect(() => {
+        setHkView(buildDrawerHousekeepingState(room));
+    }, [
+        room.room_id,
+        room.hk_status,
+        room.hk_assigned_maid,
+        room.hk_started_at,
+        room.hk_finished_at,
+        room.hk_approved_at,
+        room.hk_is_no_service,
+        room.hk_no_service_note,
+    ]);
 
     useEffect(() => {
         if (!res?.id) {
@@ -665,7 +800,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                             <p className="text-base font-bold text-[var(--text-primary)]">{res.guest_name}</p>
                                             {res.phone && <p className="text-xs text-[var(--text-muted)]">{res.phone}</p>}
                                         </div>
-                                        <span className="badge bg-amber-100 text-amber-700 shrink-0">
+                                        <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 shrink-0">
                                             {SOURCE_LABEL[res.source] ?? res.source}
                                         </span>
                                     </div>
@@ -694,11 +829,11 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 space-y-1">
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="text-[var(--text-muted)]">Deposit Held</span>
-                                            <span className="font-semibold text-amber-700">฿{fmt(depositHeld)}</span>
+                                            <span className="font-semibold text-amber-700 dark:text-amber-500">฿{fmt(depositHeld)}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="text-[var(--text-muted)]">Room Balance Due</span>
-                                            <span className={`font-semibold ${balanceDue > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                            <span className={`font-semibold ${balanceDue > 0 ? "text-rose-700 dark:text-rose-500" : "text-emerald-700 dark:text-emerald-500"}`}>
                                                 {balanceDue > 0
                                                     ? `฿${fmt(balanceDue)}`
                                                     : balanceDue < 0
@@ -724,7 +859,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
 
                                     {res.note && (
-                                        <p className="text-xs text-[var(--text-muted)] bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                        <p className="text-xs text-[var(--text-muted)] bg-amber-50 border border-amber-100 dark:bg-amber-500/5 dark:border-amber-500/20 rounded-lg px-3 py-2">
                                             📝 {res.note}
                                         </p>
                                     )}
@@ -741,10 +876,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                         key={alert.id}
                                                         className={`rounded-lg border px-3 py-2 text-xs ${
                                                             alert.severity === "critical"
-                                                                ? "border-rose-200 bg-rose-50 text-rose-800"
+                                                                ? "border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400"
                                                                 : alert.severity === "warning"
-                                                                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                                                                    : "border-sky-200 bg-sky-50 text-sky-800"
+                                                                    ? "border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400"
+                                                                    : "border-sky-200 bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-300"
                                                         }`}
                                                     >
                                                         <div className="flex items-start justify-between gap-3">
@@ -764,7 +899,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     <div className="flex flex-wrap gap-2">
                                         {assignedLockActive && (
                                             <span
-                                                className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+                                                className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
                                                 title={assignedLockReason ?? "Assigned room is locked"}
                                             >
                                                 🔒 Do Not Move
@@ -772,7 +907,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                         )}
                                         {plannedMoveLockedCount > 0 && (
                                             <span
-                                                className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+                                                className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
                                                 title="There is at least one locked planned room move"
                                             >
                                                 🚫 Plan Locked
@@ -781,7 +916,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     </div>
 
                                     {assignedLockActive && (
-                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-800">
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/20 px-3 py-3 text-sm text-rose-800 dark:text-rose-400">
                                             <p className="font-semibold">Do Not Move: Room {assignedLockRoomNumber}</p>
                                             <p className="mt-1">{assignedLockReason || "No reason provided."}</p>
                                         </div>
@@ -882,12 +1017,12 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 >
                                                     ⋯ Options
                                                     {inlineAlerts.length > 0 && (
-                                                        <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                                                        <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
                                                             🔴 {inlineAlerts.length}
                                                         </span>
                                                     )}
                                                     {traceCount > 0 && (
-                                                        <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                                        <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
                                                             🟠 {traceCount}
                                                         </span>
                                                     )}
@@ -905,8 +1040,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                         </>
                                     </div>
                                     {showLockEditor && !assignedLockActive && (
-                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 space-y-2">
-                                            <p className="text-sm font-semibold text-rose-800">Lock Room</p>
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/20 px-3 py-3 space-y-2">
+                                            <p className="text-sm font-semibold text-rose-800 dark:text-rose-400">Lock Room</p>
                                             <textarea
                                                 className="form-input min-h-[72px]"
                                                 value={lockReasonInput}
@@ -975,7 +1110,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
                                 Transfer Alert
                             </h3>
-                            <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 space-y-2">
+                            <div className="rounded-xl border border-sky-200 bg-sky-50 dark:bg-sky-500/10 dark:border-sky-500/20 px-4 py-3 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg leading-none">{room.transfer_type_icon ?? "🚗"}</span>
@@ -993,7 +1128,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     {canControlTransferAlert && (
                                         <div className="flex items-center gap-2">
                                             <span
-                                                className={`text-xs font-semibold ${transferAlertEnabled ? "text-emerald-700" : "text-[var(--text-secondary)]"}`}
+                                                className={`text-xs font-semibold ${transferAlertEnabled ? "text-emerald-700 dark:text-emerald-400" : "text-[var(--text-secondary)]"}`}
                                             >
                                                 Alert {transferAlertEnabled ? "ON" : "OFF"}
                                             </span>
@@ -1018,13 +1153,13 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
                                 </div>
                                 {room.transfer_guest_note && (
-                                    <div className="rounded-md border border-sky-200 bg-[var(--bg-surface)] px-3 py-2 text-xs text-sky-800">
+                                    <div className="rounded-md border border-sky-200 bg-[var(--bg-surface)] px-3 py-2 text-xs text-sky-800 dark:text-sky-300">
                                         <p className="font-semibold">Guest Note</p>
                                         <p className="mt-1 whitespace-pre-wrap">{room.transfer_guest_note}</p>
                                     </div>
                                 )}
                                 {canControlTransferAlert && !transferAlertToggleReady && (
-                                    <p className="text-[11px] text-sky-700">
+                                    <p className="text-[11px] text-sky-700 dark:text-sky-400">
                                         Alert switch is allowed 30 minutes before pickup.
                                         Earliest: {earliestToggleTransferAlertAt(room.transfer_pickup_at)}
                                     </p>
@@ -1042,37 +1177,37 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                             <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className={`badge ${room.hk_status ? (HOUSEKEEPING_BADGE[room.hk_status] ?? "status-closed") : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] border border-[var(--border-default)]"}`}>
-                                            {room.hk_status ? (HOUSEKEEPING_LABEL[room.hk_status] ?? room.hk_status) : "No HK Task"}
+                                        <span className={`badge ${hkView.hk_status ? (HOUSEKEEPING_BADGE[hkView.hk_status] ?? "status-closed") : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] border border-[var(--border-default)]"}`}>
+                                            {hkView.hk_status ? (HOUSEKEEPING_LABEL[hkView.hk_status] ?? hkView.hk_status) : "No HK Task"}
                                         </span>
-                                        {room.hk_is_no_service ? (
-                                            <span className="badge bg-sky-100 text-sky-700 border border-sky-300">No Service</span>
+                                        {hkView.hk_is_no_service ? (
+                                            <span className="badge bg-sky-100 text-sky-700 border border-sky-300 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20">No Service</span>
                                         ) : null}
                                     </div>
                                     <span className="text-xs text-[var(--text-muted)]">
-                                        {room.hk_assigned_maid ? `Maid: ${room.hk_assigned_maid}` : "Unassigned"}
+                                        {hkView.hk_assigned_maid ? `Maid: ${hkView.hk_assigned_maid}` : "Unassigned"}
                                     </span>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-2 text-[11px]">
                                     <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
                                         <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Started</p>
-                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_started_at)}</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(hkView.hk_started_at)}</p>
                                     </div>
                                     <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
                                         <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Cleaned</p>
-                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_finished_at)}</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(hkView.hk_finished_at)}</p>
                                     </div>
                                     <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5">
                                         <p className="text-[10px] uppercase text-[var(--text-muted)] font-semibold">Approved</p>
-                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(room.hk_approved_at)}</p>
+                                        <p className="font-medium text-[var(--text-secondary)]">{fmtBangkokDateTime(hkView.hk_approved_at)}</p>
                                     </div>
                                 </div>
 
-                                {room.hk_is_no_service && room.hk_no_service_note && (
-                                    <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                                {hkView.hk_is_no_service && hkView.hk_no_service_note && (
+                                    <div className="rounded-md border border-sky-200 bg-sky-50 dark:bg-sky-500/10 dark:border-sky-500/20 px-3 py-2 text-xs text-sky-800 dark:text-sky-300">
                                         <p className="font-semibold">No Service Note</p>
-                                        <p className="mt-1 whitespace-pre-wrap">{room.hk_no_service_note}</p>
+                                        <p className="mt-1 whitespace-pre-wrap">{hkView.hk_no_service_note}</p>
                                     </div>
                                 )}
 
@@ -1086,7 +1221,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 type="button"
                                                 className="btn btn-secondary btn-sm"
                                                 onClick={handleMarkDirtyFromDiary}
-                                                disabled={hkActionLoading !== null}
+                                                disabled={disableInHouseControls}
                                             >
                                                 {hkActionLoading === "dirty" ? "Sending..." : "Mark Dirty"}
                                             </button>
@@ -1094,11 +1229,16 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 type="button"
                                                 className="btn btn-secondary btn-sm"
                                                 onClick={() => setShowNoServiceBox((prev) => !prev)}
-                                                disabled={hkActionLoading !== null}
+                                                disabled={disableInHouseControls}
                                             >
                                                 {showNoServiceBox ? "Close No Service" : "No Service"}
                                             </button>
                                         </div>
+                                        {housekeepingLockMessage ? (
+                                            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                                {housekeepingLockMessage}
+                                            </div>
+                                        ) : null}
                                         {showNoServiceBox && (
                                             <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 space-y-2">
                                                 <label className="text-[11px] font-semibold text-[var(--text-secondary)] block">
@@ -1110,7 +1250,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                     className="w-full rounded-md border border-[var(--border-default)] px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-500"
                                                     rows={3}
                                                     placeholder="e.g. Water only, no full cleaning"
-                                                    disabled={hkActionLoading !== null}
+                                                    disabled={disableInHouseControls}
                                                 />
                                                 <div className="flex justify-end gap-2">
                                                     <button
@@ -1120,7 +1260,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                             setShowNoServiceBox(false);
                                                             setNoServiceNoteInput("");
                                                         }}
-                                                        disabled={hkActionLoading !== null}
+                                                        disabled={disableInHouseControls}
                                                     >
                                                         Cancel
                                                     </button>
@@ -1128,7 +1268,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                         type="button"
                                                         className="btn btn-primary btn-sm"
                                                         onClick={handleMarkNoServiceFromDiary}
-                                                        disabled={hkActionLoading !== null}
+                                                        disabled={disableInHouseControls}
                                                     >
                                                         {hkActionLoading === "no_service" ? "Sending..." : "Send No Service"}
                                                     </button>

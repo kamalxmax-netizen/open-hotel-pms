@@ -46,12 +46,12 @@ export default function RoomCard({
   );
   const targetDurationMs = targetDurationMin * 60_000;
   const targetDurationLabel = formatDuration(targetDurationMs);
-  
+
   // Real-time timer effect
   useEffect(() => {
     // Initial sync
     setElapsedMs(computeElapsedMs(room.started_at, room.accumulated_ms));
-    
+
     // Only set interval if actively running
     if (room.status === "in_progress" && room.started_at) {
       const interval = setInterval(() => {
@@ -59,7 +59,7 @@ export default function RoomCard({
       }, 1000);
       return () => clearInterval(interval);
     }
-    
+
     // If finished or approved, stick to the final accumulated time
     if (room.status === "cleaned" || room.status === "approved") {
       setElapsedMs(room.accumulated_ms);
@@ -80,16 +80,16 @@ export default function RoomCard({
 
   // Status mapping colors
   const statusColors = {
-    dirty: "bg-rose-50 border-rose-200 text-rose-700",
-    in_progress: "bg-sky-50 border-sky-300 text-sky-700",
-    paused: "bg-amber-50 border-amber-300 text-amber-700",
-    cleaned: "bg-green-50 border-green-300 text-green-700",
-    approved: "bg-emerald-50 border-emerald-300 text-emerald-700",
-    no_service: "bg-sky-50 border-sky-300 text-sky-700",
+    dirty: "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400",
+    in_progress: "bg-sky-50 border-sky-300 text-sky-700 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400",
+    paused: "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400",
+    cleaned: "bg-green-50 border-green-300 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400",
+    approved: "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400",
+    no_service: "bg-sky-50 border-sky-300 text-sky-700 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400",
   };
 
-  const currentStyle = room.is_no_service 
-    ? statusColors.no_service 
+  const currentStyle = room.is_no_service
+    ? statusColors.no_service
     : statusColors[room.status] || statusColors.dirty;
 
   return (
@@ -105,12 +105,12 @@ export default function RoomCard({
               </span>
             )}
             {loanCollectionItemCount > 0 && (
-              <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">
+              <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30">
                 📦 HK Collect {loanCollectionUnitCount}
               </span>
             )}
             {hkTraces.length > 0 && (
-              <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">
+              <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30">
                 🟠 Trace {hkTraces.length}
               </span>
             )}
@@ -119,30 +119,30 @@ export default function RoomCard({
             {room.room_type_code} • {room.guest_name ? room.guest_name : "No Guest"}
           </p>
           {maintenanceAssignments.length > 0 && (
-            <div className="mt-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700">
+            <div className="mt-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400">
               <p className="font-semibold">
                 🔧 Maintenance Due: {maintenanceAssignments.length} (+{maintenanceMinutesTotal} min)
               </p>
-              <p className="truncate text-indigo-600">
+              <p className="truncate text-indigo-600 dark:text-indigo-400/80">
                 {maintenanceAssignments.map((item) => item.task_name).join(" • ")}
               </p>
               <button
                 type="button"
                 onClick={() => setShowMaintenanceDetails((prev) => !prev)}
-                className="mt-1 text-[10px] font-bold text-indigo-700 underline underline-offset-2"
+                className="mt-1 text-[10px] font-bold text-indigo-700 dark:text-indigo-400 underline underline-offset-2"
               >
                 {showMaintenanceDetails ? "Hide special task details" : "View special task details"}
               </button>
             </div>
           )}
           {room.is_no_service && room.no_service_note && (
-            <div className="mt-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-800">
+            <div className="mt-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400">
               <p className="font-semibold">NS Note</p>
               <p className="mt-0.5 whitespace-pre-wrap">{room.no_service_note}</p>
             </div>
           )}
           {loanCollectionItemCount > 0 && (
-            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400">
               <p className="font-semibold">
                 Items to collect: {loanCollectionItemCount} item{loanCollectionItemCount > 1 ? "s" : ""} ({loanCollectionUnitCount} unit{loanCollectionUnitCount > 1 ? "s" : ""})
               </p>
@@ -156,7 +156,7 @@ export default function RoomCard({
             </div>
           )}
           {hkTraces.length > 0 && (
-            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400">
               <p className="font-semibold">HK Trace</p>
               <p className="mt-0.5 truncate">
                 {hkTraces.slice(0, 2).map((trace) => trace.text).join(" • ")}
@@ -165,15 +165,15 @@ export default function RoomCard({
             </div>
           )}
         </div>
-        
+
         {/* Status Badge */}
         <div className="shrink-0 flex flex-col items-end justify-start">
           {room.is_no_service ? (
-            <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-700 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider border border-sky-200">
+            <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-700 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider border border-sky-200 dark:bg-sky-500/20 dark:text-sky-400 dark:border-sky-500/30">
               <Ban size={12} /> No Service
             </span>
           ) : room.status === "cleaned" ? (
-            <span className="inline-flex items-center gap-1 bg-green-200 text-green-800 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1 bg-green-200 text-green-800 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30">
               <Hourglass size={12} /> Inspect
             </span>
           ) : room.status === "approved" ? (
@@ -181,12 +181,11 @@ export default function RoomCard({
               <CheckCircle size={12} /> Done
             </span>
           ) : (
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-sm font-bold ${
-              isOvertime ? "bg-rose-200 text-rose-800" :
-              isInProgress ? "bg-sky-200 text-sky-800" : 
-              isPaused ? "bg-amber-200 text-amber-800" : 
-              "bg-rose-200 text-rose-800"
-            }`}>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-sm font-bold ${isOvertime ? "bg-rose-200 text-rose-800 dark:bg-rose-500/30 dark:text-rose-400" :
+                isInProgress ? "bg-sky-200 text-sky-800 dark:bg-sky-500/30 dark:text-sky-400" :
+                  isPaused ? "bg-amber-200 text-amber-800 dark:bg-amber-500/30 dark:text-amber-400" :
+                    "bg-rose-200 text-rose-800 dark:bg-rose-500/30 dark:text-rose-400"
+              }`}>
               <Clock size={14} className={isInProgress ? "animate-spin-slow" : ""} />
               {formatCountdown(remainingMs)}
             </div>
@@ -217,7 +216,7 @@ export default function RoomCard({
                   {assignment.checklist_items.map((item, idx) => (
                     <span
                       key={`${assignment.assignment_id}-${item}-${idx}`}
-                      className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700"
+                      className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700 dark:bg-indigo-500/20 dark:border-indigo-500/30 dark:text-indigo-400"
                     >
                       {item}
                     </span>
@@ -239,14 +238,14 @@ export default function RoomCard({
               <button
                 onClick={() => onStart(room.room_id, room.task_id, room.is_no_service)}
                 disabled={isActionLoading}
-                className="flex-1 min-h-[48px] bg-brand-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                className="flex-1 min-h-[48px] bg-brand-600 dark:bg-brand-500/20 text-white dark:text-brand-400 border border-transparent dark:border-brand-500/30 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
               >
                 <Play size={18} fill="currentColor" /> Start
               </button>
               <button
                 onClick={() => onNoServiceClick(room)}
                 disabled={isActionLoading}
-                className="min-h-[48px] px-4 bg-[var(--bg-surface)] border border-[var(--border-input)] text-[var(--text-secondary)] rounded-xl font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+                className="min-h-[48px] px-4 bg-[var(--bg-surface)] dark:bg-white/5 border border-[var(--border-input)] dark:border-white/10 text-[var(--text-secondary)] dark:text-[var(--text-primary)] rounded-xl font-bold flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
               >
                 <Ban size={18} className="mr-1" /> NS
               </button>
@@ -258,14 +257,14 @@ export default function RoomCard({
               <button
                 onClick={() => onPause(room.task_id!)}
                 disabled={isActionLoading}
-                className="flex-1 min-h-[48px] bg-amber-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                className="flex-1 min-h-[48px] bg-amber-500 dark:bg-amber-500/20 text-white dark:text-amber-400 border border-transparent dark:border-amber-500/30 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
               >
                 <Pause size={18} fill="currentColor" /> Pause
               </button>
               <button
                 onClick={() => onFinishClick(room)}
                 disabled={isActionLoading}
-                className="flex-1 min-h-[48px] bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                className="flex-1 min-h-[48px] bg-green-600 dark:bg-emerald-500/20 text-white dark:text-emerald-400 border border-transparent dark:border-emerald-500/30 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
               >
                 <CheckCircle size={18} /> Finish
               </button>
@@ -277,14 +276,14 @@ export default function RoomCard({
               <button
                 onClick={() => onResume(room.task_id!)}
                 disabled={isActionLoading}
-                className="flex-1 min-h-[48px] bg-brand-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                className="flex-1 min-h-[48px] bg-brand-600 dark:bg-brand-500/20 text-white dark:text-brand-400 border border-transparent dark:border-brand-500/30 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
               >
                 <Play size={18} fill="currentColor" /> Resume
               </button>
               <button
                 onClick={() => onFinishClick(room)}
                 disabled={isActionLoading}
-                className="flex-1 min-h-[48px] bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                className="flex-1 min-h-[48px] bg-green-600 dark:bg-emerald-500/20 text-white dark:text-emerald-400 border border-transparent dark:border-emerald-500/30 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
               >
                 <CheckCircle size={18} /> Finish
               </button>
@@ -292,12 +291,12 @@ export default function RoomCard({
           )}
         </div>
       )}
-      
+
       {/* Read-only Time Info for Done state */}
       {isDone && room.finished_at && (
         <div className="mt-1 flex items-center justify-between text-xs font-medium opacity-70">
           <span>Time spent: {formatDuration(room.accumulated_ms)}</span>
-          <span>Finished {new Date(room.finished_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          <span>Finished {new Date(room.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       )}
       {isDone && (

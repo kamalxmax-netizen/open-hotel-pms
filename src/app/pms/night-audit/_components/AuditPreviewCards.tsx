@@ -53,7 +53,7 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
   }
 
   if (error) {
-    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
+    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">{error}</div>
   }
 
   if (!snapshot) return null
@@ -65,7 +65,7 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
         <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Revenue (Accrual)</h3>
         <div className="mb-4">
           <p className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Total Room Revenue</p>
-          <p className="text-2xl font-black text-brand-700">{formatB(snapshot.total_revenue)}</p>
+          <p className="text-2xl font-black text-brand-700 dark:text-brand-500">{formatB(snapshot.total_revenue)}</p>
         </div>
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
           <div className="flex justify-between border-b border-[var(--border-subtle)] pb-1">
