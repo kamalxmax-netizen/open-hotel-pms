@@ -6,6 +6,7 @@ import { assertBusinessDayOpen, normalizeOperatorPaymentMethod, toLocalDate } fr
 import { computePrepaidNetAmount, suggestRefundMethod } from "@/lib/settlement-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 
 const cancelSchema = z.object({
   cancel_reason: z.string().min(1).optional(),
@@ -19,6 +20,10 @@ const cancelSchema = z.object({
 
 function normalizeAmount(value: number): number {
   return fromSatang(toSatang(value));
+}
+
+function isCheckedInColumnMissing(message?: string | null): boolean {
+  return /checked_in_at/i.test(String(message ?? ""));
 }
 
 export async function POST(
@@ -47,17 +52,44 @@ export async function POST(
   const feeNote = parsed.data.fee_note?.trim() || null;
   const refundNote = parsed.data.refund_note?.trim() || null;
 
-  const { data: reservationRef, error: reservationRefError } = await supabase
+  let reservationRef: { id: string; booking_group_id: string | null; checked_in_at?: string | null } | null = null;
+  const withCheckedIn = await supabase
     .from("reservations")
-    .select("id, booking_group_id")
+    .select("id, booking_group_id, checked_in_at")
     .eq("id", reservationId)
     .maybeSingle();
 
-  if (reservationRefError) {
-    return NextResponse.json({ error: reservationRefError.message }, { status: 500 });
+  if (withCheckedIn.error && isCheckedInColumnMissing(withCheckedIn.error.message)) {
+    const fallback = await supabase
+      .from("reservations")
+      .select("id, booking_group_id")
+      .eq("id", reservationId)
+      .maybeSingle();
+    if (fallback.error) {
+      return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+    }
+    reservationRef = fallback.data as { id: string; booking_group_id: string | null } | null;
+  } else if (withCheckedIn.error) {
+    return NextResponse.json({ error: withCheckedIn.error.message }, { status: 500 });
+  } else {
+    reservationRef = withCheckedIn.data as { id: string; booking_group_id: string | null; checked_in_at?: string | null } | null;
   }
+
   if (!reservationRef) {
     return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
+  }
+
+  let wasCheckedIn = Boolean((reservationRef as any)?.checked_in_at);
+  if (!wasCheckedIn) {
+    const { data: checkinLog } = await supabase
+      .from("audit_logs")
+      .select("id")
+      .eq("entity_type", "reservation")
+      .eq("entity_id", reservationId)
+      .eq("action", "checked_in")
+      .limit(1)
+      .maybeSingle();
+    wasCheckedIn = Boolean(checkinLog?.id);
   }
 
   const { data: paymentRows, error: paymentRowsError } = await supabase
@@ -104,6 +136,22 @@ export async function POST(
 
   const nowIso = new Date().toISOString();
   const localDate = toLocalDate(new Date(nowIso));
+
+  let roomIdForDirtyAfterCancel: string | null = null;
+  if (wasCheckedIn) {
+    const { data: activeNightsBeforeCancel, error: activeNightsError } = await supabase
+      .from("reservation_nights")
+      .select("room_id, stay_date")
+      .eq("reservation_id", reservationId)
+      .is("cancelled_at", null)
+      .order("stay_date", { ascending: true });
+    if (!activeNightsError) {
+      const nights = (activeNightsBeforeCancel ?? []).filter((row: any) => row?.room_id);
+      const roomForToday = nights.find((row: any) => String(row?.stay_date ?? "") === localDate);
+      const fallbackRoom = roomForToday ?? nights[0];
+      roomIdForDirtyAfterCancel = fallbackRoom?.room_id ? String(fallbackRoom.room_id) : null;
+    }
+  }
   try {
     await assertBusinessDayOpen(supabase, localDate);
   } catch (error) {
@@ -190,6 +238,29 @@ export async function POST(
     return NextResponse.json({ error: "Cancel reservation failed." }, { status: 500 });
   }
 
+  // If reservation was already checked in, room must become dirty immediately after cancellation.
+  let hkDirtyMarked = false;
+  let hkDirtyWarning: string | null = null;
+
+  if (wasCheckedIn) {
+    if (roomIdForDirtyAfterCancel) {
+      try {
+        await markRoomDirtyTask(supabase as any, {
+          roomId: roomIdForDirtyAfterCancel,
+          stayDate: localDate,
+          assignedMaidName: null,
+          clearDailyPlanWhenUnassigned: true,
+          logNote: "Marked dirty after cancellation (post check-in)",
+        });
+        hkDirtyMarked = true;
+      } catch (dirtyError: any) {
+        hkDirtyWarning = `Cancellation succeeded, but failed to mark room dirty: ${String(dirtyError?.message ?? dirtyError)}`;
+      }
+    } else {
+      hkDirtyWarning = "Cancellation succeeded, but room_id not found for HK dirty mark.";
+    }
+  }
+
   if (reservationRef.booking_group_id) {
     try {
       await syncBookingGroupStatusById(supabase, String(reservationRef.booking_group_id));
@@ -209,7 +280,12 @@ export async function POST(
         refund_due: refundDue,
         refund_method: refundDue > 0 ? refundMethod : null,
         suggested_refund_method: suggestedRefundMethod,
-      }
+      },
+      housekeeping: {
+        was_checked_in: wasCheckedIn,
+        dirty_marked: hkDirtyMarked,
+        warning: hkDirtyWarning,
+      },
     },
     { status: 200 }
   );

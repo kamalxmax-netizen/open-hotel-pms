@@ -139,7 +139,7 @@ const DIARY_STYLE: Record<DiaryState, { symbol: ReactNode; label: string; symbol
     available: {
         symbol: "●",
         label: "Available",
-        symbolClass: "text-emerald-500",
+        symbolClass: "text-emerald-500 dark:text-emerald-400",
         chipClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
     },
     due_in: {
@@ -151,7 +151,7 @@ const DIARY_STYLE: Record<DiaryState, { symbol: ReactNode; label: string; symbol
     inhouse: {
         symbol: "●",
         label: "In-House",
-        symbolClass: "text-amber-500",
+        symbolClass: "text-amber-500 dark:text-amber-400",
         chipClass: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
     },
     back_to_back: {
@@ -362,11 +362,11 @@ function RoomCard({
                 : "Day Use alert";
     const transferShadowStyle = activeAlertLevel
         ? {
-            animationDuration: activeAlertLevel === "red" ? "1.0s" : "1.8s",
+            animationDuration: activeAlertLevel === "red" ? "0.6s" : "1.2s",
             boxShadow:
                 activeAlertLevel === "red"
-                    ? "0 0 0 3px rgba(222, 64, 64, 0.5), 0 22px 44px rgba(239,68,68,0.54)"
-                    : "0 0 0 2px rgba(245,158,11,0.46), 0 20px 40px rgba(245,158,11,0.50)",
+                    ? "0 0 0 10px rgba(239, 68, 68, 0.9), 0 0 100px rgba(239, 68, 68, 0.9), 0 0 40px rgba(239, 68, 68, 1) inset, 0 0 30px #fff"
+                    : "0 0 0 8px rgba(245, 158, 11, 0.9), 0 0 80px rgba(245, 158, 11, 0.9), 0 0 30px rgba(245, 158, 11, 1) inset, 0 0 20px #fff",
         }
         : undefined;
     const loyaltyVisual = resolveGuestLoyaltyVisual(room);
@@ -580,23 +580,24 @@ function RoomCard({
                     )}
                     {(room.alert_count ?? 0) > 0 && (
                         <span className="absolute bottom-0 left-1/2 -translate-x-1/2">
-                            <span className="relative flex h-3.5 w-3.5">
-                                {/* วงขยายออก (ping layer) */}
+                            <span className="relative flex h-4 w-4">
+                                {/* วงขยายออก (ping layer) - เพิ่มความแรง 2 เท่า */}
                                 <span
-                                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${room.alert_severity === "critical"
-                                        ? "bg-red-500"
+                                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-100 ${room.alert_severity === "critical"
+                                        ? "bg-red-400"
                                         : room.alert_severity === "warning"
-                                            ? "bg-orange-700"
+                                            ? "bg-orange-400"
                                             : "bg-sky-400"
                                         }`}
+                                    style={{ animationDuration: "1s" }}
                                 />
-                                {/* จุดหลัก */}
+                                {/* จุดหลักพร้อม Glow หนักๆ */}
                                 <span
-                                    className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${room.alert_severity === "critical"
-                                        ? "bg-red-500"
+                                    className={`relative inline-flex h-4 w-4 rounded-full border-2 border-[var(--bg-surface)] dark:border-zinc-900 shadow-[0_0_20px_rgba(255,255,255,0.4)] ${room.alert_severity === "critical"
+                                        ? "bg-red-500 shadow-red-500/80"
                                         : room.alert_severity === "warning"
-                                            ? "bg-orange-500"
-                                            : "bg-sky-400"
+                                            ? "bg-orange-500 shadow-orange-500/80"
+                                            : "bg-sky-400 shadow-sky-400/80"
                                         }`}
                                     title={room.first_alert_message ?? "Alert"}
                                 />

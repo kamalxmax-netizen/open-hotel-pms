@@ -17,7 +17,17 @@ type SupabaseLike = {
 export type MarkDirtyOptions = {
   roomId: string;
   stayDate: string;
+  /**
+   * - undefined: keep current assignee when updating an existing active task
+   * - null: force unassign (send to Pool)
+   * - string: force assign to this maid
+   */
   assignedMaidName?: string | null;
+  /**
+   * When force-unassigning to Pool, also clear assignment board row
+   * (`daily_plans`) for the same room + date.
+   */
+  clearDailyPlanWhenUnassigned?: boolean;
   /** Short note stored in housekeeping_logs */
   logNote?: string;
 };
@@ -39,7 +49,14 @@ export async function markRoomDirtyTask(
   supabase: SupabaseLike,
   options: MarkDirtyOptions
 ): Promise<MarkDirtyResult> {
-  const { roomId, stayDate, assignedMaidName = null, logNote = "Marked dirty" } = options;
+  const {
+    roomId,
+    stayDate,
+    assignedMaidName,
+    clearDailyPlanWhenUnassigned = false,
+    logNote = "Marked dirty",
+  } = options;
+  const hasAssignedMaidOverride = Object.prototype.hasOwnProperty.call(options, "assignedMaidName");
 
   // --- 1. Find the latest existing task for this room+date ---
   const { data: latestTask, error: fetchError } = await supabase
@@ -75,7 +92,7 @@ export async function markRoomDirtyTask(
         finished_at: null,
         approved_at: null,
         accumulated_ms: 0,
-        assigned_maid_name: assignedMaidName,
+        assigned_maid_name: hasAssignedMaidOverride ? (assignedMaidName ?? null) : null,
       })
       .select("id, task_seq")
       .single();
@@ -87,6 +104,17 @@ export async function markRoomDirtyTask(
       status: "dirty",
       note: logNote,
     });
+
+    if (clearDailyPlanWhenUnassigned && hasAssignedMaidOverride && assignedMaidName == null) {
+      const { error: clearPlanError } = await supabase
+        .from("daily_plans")
+        .delete()
+        .eq("plan_date", stayDate)
+        .eq("room_id", roomId);
+      if (clearPlanError) {
+        throw new Error(clearPlanError.message ?? "Failed to clear HK daily plan assignment");
+      }
+    }
 
     return { task_id: String(newTask.id), task_seq: Number(newTask.task_seq), created_new: true };
   }
@@ -104,7 +132,9 @@ export async function markRoomDirtyTask(
       finished_at: null,
       approved_at: null,
       accumulated_ms: 0,
-      assigned_maid_name: assignedMaidName ?? latestTask.assigned_maid_name ?? null,
+      assigned_maid_name: hasAssignedMaidOverride
+        ? (assignedMaidName ?? null)
+        : (latestTask.assigned_maid_name ?? null),
     })
     .eq("id", latestTask.id)
     .select("id, task_seq")
@@ -117,6 +147,17 @@ export async function markRoomDirtyTask(
     status: "dirty",
     note: logNote,
   });
+
+  if (clearDailyPlanWhenUnassigned && hasAssignedMaidOverride && assignedMaidName == null) {
+    const { error: clearPlanError } = await supabase
+      .from("daily_plans")
+      .delete()
+      .eq("plan_date", stayDate)
+      .eq("room_id", roomId);
+    if (clearPlanError) {
+      throw new Error(clearPlanError.message ?? "Failed to clear HK daily plan assignment");
+    }
+  }
 
   return {
     task_id: String(updatedTask.id),

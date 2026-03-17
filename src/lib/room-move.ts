@@ -406,6 +406,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       roomId: oldRoomId,
       stayDate: today,
       assignedMaidName: null,
+      clearDailyPlanWhenUnassigned: true,
       logNote: "Marked dirty again after room move",
     }).catch((err) => {
       throw new RoomMoveError(String(err?.message ?? err ?? "Failed to mark previous room as dirty."), 500);

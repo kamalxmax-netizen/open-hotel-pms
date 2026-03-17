@@ -131,7 +131,7 @@ export default function CancelFeeModal({
             onClose={onClose}
         >
             <div className="space-y-4">
-                <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 text-rose-800 text-sm">
+                <div className="bg-rose-50 border border-rose-200 dark:bg-rose-900/20 dark:border-rose-500/30 rounded-lg p-4 text-rose-800 dark:text-rose-400 text-sm">
                     <strong>Cancelling {guestName || "Reservation"}</strong>
                     <p className="mt-1">
                         Are you sure you want to cancel this booking? This action cannot be reversed.
@@ -139,8 +139,8 @@ export default function CancelFeeModal({
                     <div className="mt-2 text-xs">
                         Guest pre-paid: <span className="font-bold">฿{formatMoney(prepaidNet)}</span>
                     </div>
-                    {warning && <p className="mt-2 text-xs text-rose-700">{warning}</p>}
-                    {previewError && <p className="mt-2 text-xs text-rose-700">{previewError}</p>}
+                    {warning && <p className="mt-2 text-xs text-rose-700 dark:text-rose-400/80">{warning}</p>}
+                    {previewError && <p className="mt-2 text-xs text-rose-700 dark:text-rose-400/80">{previewError}</p>}
                 </div>
 
                 <div>
@@ -243,12 +243,12 @@ export default function CancelFeeModal({
                 )}
 
                 {canUsePrepaidSettlement && (
-                    <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 rounded-lg">
-                        <div className="text-xs font-bold text-sky-700 uppercase tracking-wider">Refund Summary</div>
+                    <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 dark:bg-sky-900/20 dark:border-sky-500/30 rounded-lg">
+                        <div className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">Refund Summary</div>
                         <div className="text-sm text-[var(--text-table-cell)] space-y-1">
                             <p>Pre-paid: ฿{formatMoney(prepaidNet)}</p>
                             <p>Less fee: ฿{formatMoney(feeInputAmount)}</p>
-                            <p className="font-semibold text-emerald-700">Refund due: ฿{formatMoney(refundDuePreview)}</p>
+                            <p className="font-semibold text-emerald-700 dark:text-emerald-400">Refund due: ฿{formatMoney(refundDuePreview)}</p>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">

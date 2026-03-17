@@ -43,7 +43,6 @@ export default function ChecklistModal({
   const [localItems, setLocalItems] = useState<ChecklistItem[]>([]);
   const [amenityUnitChecks, setAmenityUnitChecks] = useState<boolean[][]>([]);
   const [maintenanceChecklist, setMaintenanceChecklist] = useState<MaintenanceChecklistSubmission[]>([]);
-  const [loanChecks, setLoanChecks] = useState<boolean[]>([]);
 
   useEffect(() => {
     // When modal opens, initialize local state directly from props
@@ -83,9 +82,8 @@ export default function ChecklistModal({
           }))
       );
 
-      setLoanChecks((loanCollections ?? []).map(() => false));
     }
-  }, [isOpen, items, maintenanceAssignments, loanCollections]);
+  }, [isOpen, items, maintenanceAssignments]);
 
   if (!isOpen) return null;
 
@@ -262,22 +260,11 @@ export default function ChecklistModal({
                       <p className="text-[11px] text-amber-700 dark:text-amber-400/80">Please collect these items from the guest or room.</p>
                     </div>
                     <div className="space-y-2">
-                      {loanCollections.map((loan, idx) => {
+                      {loanCollections.map((loan) => {
                         if (loan.is_due === false) return null;
                         return (
-                          <label key={loan.trace_id} className="flex items-center gap-3 p-3 rounded-xl border border-amber-100 dark:border-amber-500/20 bg-[var(--bg-surface)] shadow-sm cursor-pointer hover:bg-[var(--bg-surface-hover)] transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={loanChecks[idx]}
-                              onChange={() => {
-                                setLoanChecks(prev => {
-                                  const newChecks = [...prev];
-                                  newChecks[idx] = !newChecks[idx];
-                                  return newChecks;
-                                });
-                              }}
-                              className="h-5 w-5 rounded border-amber-300 dark:border-amber-500/40 text-amber-600 dark:text-amber-500 focus:ring-amber-500"
-                            />
+                          <div key={loan.trace_id} className="flex items-center gap-3 p-3 rounded-xl border border-amber-100 dark:border-amber-500/20 bg-[var(--bg-surface)] shadow-sm">
+                            <span className="text-amber-500 text-base">✓</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
                                 {loan.item_icon} {loan.item_name}
@@ -285,10 +272,13 @@ export default function ChecklistModal({
                               </p>
                               {loan.due_date && <p className="text-[10px] text-[var(--text-muted)]">Due: {loan.due_date}</p>}
                             </div>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400/80">
+                      Finishing this room will mark all due loan items above as collected.
+                    </p>
                   </>
                 )}
                 {notDueItems.length > 0 && (
@@ -321,17 +311,6 @@ export default function ChecklistModal({
         <div className="p-4 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] sticky bottom-0">
           <button
             onClick={() => {
-              if (loanCollections && loanCollections.length > 0) {
-                // Only warn about due items not checked — not-yet-due items don't need collection
-                const dueIndices = loanCollections.map((l, i) => l.is_due !== false ? i : -1).filter(i => i >= 0);
-                const allDueChecked = dueIndices.every(i => loanChecks[i]);
-                if (dueIndices.length > 0 && !allDueChecked) {
-                  if (!confirm("Warning: Some loan items were not marked as collected. Proceed with finishing room anyway?")) {
-                    return;
-                  }
-                }
-              }
-
               const normalizedChecklist = localItems.map((item, index) => {
                 const units = amenityUnitChecks[index] ?? [];
                 const requiredQty = Math.max(1, Number(item.quantity ?? units.length ?? 1));
@@ -345,9 +324,9 @@ export default function ChecklistModal({
                 };
               });
 
-              // Only collect due items that were checked
+              // Auto-collect all due HK-linked loans when finishing room.
               const collectedIds = loanCollections
-                ? loanCollections.filter((l, i) => l.is_due !== false && loanChecks[i]).map(l => l.trace_id)
+                ? loanCollections.filter((l) => l.is_due !== false).map(l => l.trace_id)
                 : [];
 
               onSubmit(normalizedChecklist, maintenanceChecklist, collectedIds);

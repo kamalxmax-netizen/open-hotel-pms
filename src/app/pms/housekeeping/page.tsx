@@ -418,7 +418,22 @@ export default function HousekeepingPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const roomsById = useMemo(() => new Map(rooms.map((room) => [room.room_id, room])), [rooms]);
+  const roomsById = useMemo(() => {
+    const map = new Map<string, HkRoom>();
+    for (const room of rooms) {
+      const existing = map.get(room.room_id);
+      if (!existing) {
+        map.set(room.room_id, room);
+        continue;
+      }
+      // Keep actionable (non-prior) row as source of truth for assignment actions.
+      if (existing.is_prior_task && !room.is_prior_task) {
+        map.set(room.room_id, room);
+      }
+    }
+    return map;
+  }, [rooms]);
+  const planningRooms = useMemo(() => Array.from(roomsById.values()), [roomsById]);
   const laneNameByKey = useMemo(
     () => {
       const map = new Map<string, string>();
@@ -434,8 +449,8 @@ export default function HousekeepingPage() {
   );
 
   const baselineAssignments = useMemo(
-    () => buildBaselineDraftAssignments(rooms, laneNameByKey),
-    [rooms, laneNameByKey]
+    () => buildBaselineDraftAssignments(planningRooms, laneNameByKey),
+    [planningRooms, laneNameByKey]
   );
 
   useEffect(() => {
@@ -464,7 +479,7 @@ export default function HousekeepingPage() {
 
   const boardRooms = useMemo(
     () =>
-      rooms.map((room) => {
+      planningRooms.map((room) => {
         if (!isEditableDirtyRoom(room)) return room;
         const draft = draftAssignments[room.room_id] ?? { maid: null, priority: null };
         return {
@@ -475,7 +490,7 @@ export default function HousekeepingPage() {
           plan_priority: draft.priority,
         };
       }),
-    [rooms, draftAssignments]
+    [planningRooms, draftAssignments]
   );
 
   const extraTaskPool = useMemo(

@@ -74,6 +74,13 @@ function getThailandDateString(date = new Date()): string {
     return `${year}-${month}-${day}`;
 }
 
+function toBangkokWindow(dateString: string): { from: string; to: string } {
+    return {
+        from: `${dateString}T00:00:00+07:00`,
+        to: `${dateString}T24:00:00+07:00`,
+    };
+}
+
 function isCheckedInAtColumnMissing(message: string | null | undefined): boolean {
     return /checked_in_at/i.test(String(message ?? ""));
 }
@@ -889,6 +896,7 @@ export async function GET(request: NextRequest) {
         if (checkedOutTodayError) return NextResponse.json({ error: checkedOutTodayError.message }, { status: 500 });
 
         const checkedOutTodayRoomIds = new Set<string>();
+        const checkedOutTodayReservationByRoomId = new Map<string, RecentReservationRow>();
         for (const reservation of checkedOutTodayReservations ?? []) {
             const nights = Array.isArray((reservation as { reservation_nights?: unknown }).reservation_nights)
                 ? ((reservation as { reservation_nights?: Array<{ room_id?: string; stay_date?: string; cancelled_at?: string | null }> }).reservation_nights ?? [])
@@ -903,62 +911,189 @@ export async function GET(request: NextRequest) {
             const roomId = String(activeNights[0]?.room_id ?? "");
             if (!roomId || !roomIdSet.has(roomId)) continue;
             checkedOutTodayRoomIds.add(roomId);
+            if (!checkedOutTodayReservationByRoomId.has(roomId)) {
+                const reservationId = String((reservation as { id?: string | null }).id ?? "");
+                if (reservationId) {
+                    checkedOutTodayReservationByRoomId.set(roomId, {
+                        reservation_id: reservationId,
+                        status: "checked_out",
+                    });
+                }
+            }
         }
 
         const recentReservationByRoomId = new Map<string, RecentReservationRow>();
-        const { data: recentNightRows, error: recentNightError } = await supabase
-            .from("reservation_nights")
-            .select("room_id, reservation_id, stay_date")
-            .lte("stay_date", dateParam)
-            .is("cancelled_at", null)
-            .in("room_id", roomIds)
-            .order("stay_date", { ascending: false });
-        if (recentNightError) return NextResponse.json({ error: recentNightError.message }, { status: 500 });
+        // Reservation context used for loan collection + HK runtime surfaces.
+        // Intentionally excludes deep history fallback to avoid stale carry-over loan items.
+        const collectionReservationByRoomId = new Map<string, RecentReservationRow>();
+        // Priority source for room-linked runtime context:
+        // 1) active stay on date (incl. due-out active bookings),
+        // 2) checked-out today,
+        // 3) cancelled today.
+        for (const row of activeStayRows) {
+            if (!row.room_id || !row.reservation_id || recentReservationByRoomId.has(row.room_id)) continue;
+            const reservationRef: RecentReservationRow = {
+                reservation_id: row.reservation_id,
+                status: "active",
+            };
+            recentReservationByRoomId.set(row.room_id, reservationRef);
+            if (!collectionReservationByRoomId.has(row.room_id)) {
+                collectionReservationByRoomId.set(row.room_id, reservationRef);
+            }
+        }
+        for (const row of departuresTodayRows) {
+            if (!row.room_id || !row.reservation_id || recentReservationByRoomId.has(row.room_id)) continue;
+            const reservationRef: RecentReservationRow = {
+                reservation_id: row.reservation_id,
+                status: "active",
+            };
+            recentReservationByRoomId.set(row.room_id, reservationRef);
+            if (!collectionReservationByRoomId.has(row.room_id)) {
+                collectionReservationByRoomId.set(row.room_id, reservationRef);
+            }
+        }
+        checkedOutTodayReservationByRoomId.forEach((reservation, roomId) => {
+            const existingRecent = recentReservationByRoomId.get(roomId);
+            if (!existingRecent || existingRecent.status !== "active") {
+                recentReservationByRoomId.set(roomId, reservation);
+            }
+            const existingCollection = collectionReservationByRoomId.get(roomId);
+            if (!existingCollection || existingCollection.status !== "active") {
+                collectionReservationByRoomId.set(roomId, reservation);
+            }
+        });
 
-        const recentReservationIds = Array.from(
+        const { from: bangkokDayFrom, to: bangkokDayTo } = toBangkokWindow(dateParam);
+        const { data: cancelledAuditRows, error: cancelledAuditError } = await supabase
+            .from("audit_logs")
+            .select("entity_id")
+            .eq("entity_type", "reservation")
+            .eq("action", "booking_cancelled")
+            .gte("created_at", bangkokDayFrom)
+            .lt("created_at", bangkokDayTo);
+        if (cancelledAuditError) return NextResponse.json({ error: cancelledAuditError.message }, { status: 500 });
+
+        const cancelledTodayReservationIds = Array.from(
             new Set(
-                (recentNightRows ?? [])
-                    .map((row) => String((row as { reservation_id?: string | null }).reservation_id ?? ""))
-                    .filter((id) => id.length > 0)
+                (cancelledAuditRows ?? [])
+                    .map((row) => String((row as { entity_id?: string | null }).entity_id ?? ""))
+                    .filter(Boolean)
             )
         );
 
-        if (recentReservationIds.length > 0) {
-            const { data: recentReservations, error: recentReservationError } = await supabase
+        if (cancelledTodayReservationIds.length > 0) {
+            const { data: cancelledReservations, error: cancelledReservationsError } = await supabase
                 .from("reservations")
-                .select("id, status")
-                .in("id", recentReservationIds);
-            if (recentReservationError) {
-                return NextResponse.json({ error: recentReservationError.message }, { status: 500 });
+                .select("id")
+                .in("id", cancelledTodayReservationIds)
+                .eq("status", "cancelled");
+            if (cancelledReservationsError) {
+                return NextResponse.json({ error: cancelledReservationsError.message }, { status: 500 });
             }
 
-            const recentReservationLookup = new Map<string, RecentReservationRow>();
-            for (const row of recentReservations ?? []) {
-                const reservationId = String((row as { id?: string | null }).id ?? "");
-                if (!reservationId) continue;
-                recentReservationLookup.set(reservationId, {
-                    reservation_id: reservationId,
-                    status: ((row as { status?: string | null }).status ?? null),
+            const validCancelledIds = Array.from(
+                new Set(
+                    (cancelledReservations ?? [])
+                        .map((row) => String((row as { id?: string | null }).id ?? ""))
+                        .filter(Boolean)
+                )
+            );
+
+            if (validCancelledIds.length > 0) {
+                const { data: cancelledNightRows, error: cancelledNightRowsError } = await supabase
+                    .from("reservation_nights")
+                    .select("reservation_id, room_id, stay_date")
+                    .in("reservation_id", validCancelledIds)
+                    .in("room_id", roomIds)
+                    .order("stay_date", { ascending: false });
+                if (cancelledNightRowsError) {
+                    return NextResponse.json({ error: cancelledNightRowsError.message }, { status: 500 });
+                }
+
+                const cancelledRoomByReservationId = new Map<string, string>();
+                for (const row of cancelledNightRows ?? []) {
+                    const reservationId = String((row as { reservation_id?: string | null }).reservation_id ?? "");
+                    const roomId = String((row as { room_id?: string | null }).room_id ?? "");
+                    if (!reservationId || !roomId || cancelledRoomByReservationId.has(reservationId)) continue;
+                    cancelledRoomByReservationId.set(reservationId, roomId);
+                }
+
+                cancelledRoomByReservationId.forEach((roomId, reservationId) => {
+                    if (!roomIdSet.has(roomId)) return;
+                    const reservationRef: RecentReservationRow = {
+                        reservation_id: reservationId,
+                        status: "cancelled",
+                    };
+                    const existingRecent = recentReservationByRoomId.get(roomId);
+                    if (!existingRecent || existingRecent.status !== "active") {
+                        recentReservationByRoomId.set(roomId, reservationRef);
+                    }
+                    const existingCollection = collectionReservationByRoomId.get(roomId);
+                    if (!existingCollection || existingCollection.status !== "active") {
+                        // Cancelled on the same day should override older checked_out context.
+                        collectionReservationByRoomId.set(roomId, reservationRef);
+                    }
                 });
             }
+        }
 
-            for (const row of recentNightRows ?? []) {
-                const roomId = String((row as { room_id?: string | null }).room_id ?? "");
-                const reservationId = String((row as { reservation_id?: string | null }).reservation_id ?? "");
-                if (!roomId || !reservationId || recentReservationByRoomId.has(roomId)) continue;
-                const reservation = recentReservationLookup.get(reservationId);
-                if (!reservation) continue;
-                recentReservationByRoomId.set(roomId, reservation);
+        // Fallback for carry-forward / older unresolved HK tasks:
+        // resolve latest reservation by room (including cancelled nights).
+        const unresolvedRoomIds = roomIds.filter((roomId) => !recentReservationByRoomId.has(roomId));
+        if (unresolvedRoomIds.length > 0) {
+            const { data: fallbackNightRows, error: fallbackNightError } = await supabase
+                .from("reservation_nights")
+                .select("room_id, reservation_id, stay_date")
+                .lte("stay_date", dateParam)
+                .in("room_id", unresolvedRoomIds)
+                .order("stay_date", { ascending: false });
+            if (fallbackNightError) return NextResponse.json({ error: fallbackNightError.message }, { status: 500 });
+
+            const fallbackReservationIds = Array.from(
+                new Set(
+                    (fallbackNightRows ?? [])
+                        .map((row) => String((row as { reservation_id?: string | null }).reservation_id ?? ""))
+                        .filter(Boolean)
+                )
+            );
+
+            if (fallbackReservationIds.length > 0) {
+                const { data: fallbackReservations, error: fallbackReservationsError } = await supabase
+                    .from("reservations")
+                    .select("id, status")
+                    .in("id", fallbackReservationIds);
+                if (fallbackReservationsError) {
+                    return NextResponse.json({ error: fallbackReservationsError.message }, { status: 500 });
+                }
+
+                const fallbackReservationLookup = new Map<string, RecentReservationRow>();
+                for (const row of fallbackReservations ?? []) {
+                    const reservationId = String((row as { id?: string | null }).id ?? "");
+                    if (!reservationId) continue;
+                    fallbackReservationLookup.set(reservationId, {
+                        reservation_id: reservationId,
+                        status: ((row as { status?: string | null }).status ?? null),
+                    });
+                }
+
+                for (const row of fallbackNightRows ?? []) {
+                    const roomId = String((row as { room_id?: string | null }).room_id ?? "");
+                    const reservationId = String((row as { reservation_id?: string | null }).reservation_id ?? "");
+                    if (!roomId || !reservationId || recentReservationByRoomId.has(roomId)) continue;
+                    const reservation = fallbackReservationLookup.get(reservationId);
+                    if (!reservation) continue;
+                    recentReservationByRoomId.set(roomId, reservation);
+                }
             }
         }
 
         const loanCollectionsByReservationId = new Map<string, LoanCollectionSummary[]>();
         const loanCollectionReservationIds = Array.from(
-            new Set(Array.from(recentReservationByRoomId.values()).map((row) => row.reservation_id))
+            new Set(Array.from(collectionReservationByRoomId.values()).map((row) => row.reservation_id))
         );
         const runtimeSurfaceReservationIds = Array.from(
             new Set(
-                Array.from(recentReservationByRoomId.values())
+                Array.from(collectionReservationByRoomId.values())
                     .filter((row) => row.status === "active")
                     .map((row) => row.reservation_id)
             )
@@ -1053,6 +1188,7 @@ export async function GET(request: NextRequest) {
             const plan = planByRoomId.get(room.id) ?? null;
             const occupancy = occupancyByRoomId.get(room.id) ?? null;
             const recentReservation = recentReservationByRoomId.get(room.id) ?? null;
+            const collectionReservation = collectionReservationByRoomId.get(room.id) ?? null;
             const maintenanceAssignments = maintenanceByRoomId.get(room.id) ?? [];
             const maintenanceMinutesTotal = maintenanceAssignments.reduce(
                 (sum, item) => sum + Math.max(Number(item.estimated_minutes ?? 0), 0),
@@ -1080,12 +1216,12 @@ export async function GET(request: NextRequest) {
             const shouldShowCheckoutCollections =
                 isCollectionVisibleStatus &&
                 !hasVisibleGuest &&
-                (recentReservation?.status === "checked_out" || recentReservation?.status === "cancelled");
+                (collectionReservation?.status === "checked_out" || collectionReservation?.status === "cancelled");
             const shouldShowStayoverCollections =
                 isCollectionVisibleStatus &&
                 hasVisibleGuest;
-            const visibleLoanCollections = recentReservation
-                ? (loanCollectionsByReservationId.get(recentReservation.reservation_id) ?? []).filter((item) => {
+            const visibleLoanCollections = collectionReservation
+                ? (loanCollectionsByReservationId.get(collectionReservation.reservation_id) ?? []).filter((item) => {
                     if (shouldShowCheckoutCollections) return true;
                     if (shouldShowStayoverCollections) return true; // Badge visible daily for HK awareness (e.g. pillow case changes)
                     return false;
@@ -1107,11 +1243,11 @@ export async function GET(request: NextRequest) {
                 .sort((a, b) =>
                     a.item_name.localeCompare(b.item_name, undefined, { sensitivity: "base", numeric: true })
                 );
-            const hkAlertSummary = recentReservation
-                ? hkAlertSummaryByReservationId.get(recentReservation.reservation_id)
+            const hkAlertSummary = collectionReservation
+                ? hkAlertSummaryByReservationId.get(collectionReservation.reservation_id)
                 : null;
-            const hkTraceItems = recentReservation
-                ? (hkTraceItemsByReservationId.get(recentReservation.reservation_id) ?? [])
+            const hkTraceItems = collectionReservation
+                ? (hkTraceItemsByReservationId.get(collectionReservation.reservation_id) ?? [])
                 : [];
 
             return {

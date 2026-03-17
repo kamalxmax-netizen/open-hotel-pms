@@ -109,15 +109,18 @@ body {
   @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors;
   color: var(--text-secondary);
 }
+
 .nav-item:hover {
   background-color: var(--bg-surface-hover);
   color: var(--text-primary);
 }
+
 .nav-item.active {
   @apply font-semibold;
   background-color: rgba(201, 144, 58, 0.1);
   color: #C9903A;
 }
+
 .nav-item svg {
   @apply h-4 w-4 shrink-0;
 }
@@ -161,36 +164,68 @@ body {
 
 /* ─── Room status colours ─────────────────────── */
 /* available = emerald */
-.status-available  { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
-html.dark .status-available { @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20; }
+.status-available {
+  @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+html.dark .status-available {
+  @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20;
+}
 
 /* reserved / in-house = amber */
-.status-reserved   { @apply bg-amber-50 text-amber-700 border border-amber-200; }
-html.dark .status-reserved { @apply bg-amber-500/10 text-amber-400 border-amber-500/20; }
+.status-reserved {
+  @apply bg-amber-50 text-amber-700 border border-amber-200;
+}
+
+html.dark .status-reserved {
+  @apply bg-amber-500/10 text-amber-400 border-amber-500/20;
+}
 
 /* dirty = rose */
-.status-dirty      { @apply bg-rose-50 text-rose-700 border border-rose-200; }
-html.dark .status-dirty { @apply bg-rose-500/10 text-rose-400 border-rose-500/20; }
+.status-dirty {
+  @apply bg-rose-50 text-rose-700 border border-rose-200;
+}
+
+html.dark .status-dirty {
+  @apply bg-rose-500/10 text-rose-400 border-rose-500/20;
+}
 
 /* cleaning / in-progress = sky */
-.status-cleaning   { @apply bg-sky-50 text-sky-700 border border-sky-200; }
-html.dark .status-cleaning { @apply bg-sky-500/10 text-sky-400 border-sky-500/20; }
+.status-cleaning {
+  @apply bg-sky-50 text-sky-700 border border-sky-200;
+}
+
+html.dark .status-cleaning {
+  @apply bg-sky-500/10 text-sky-400 border-sky-500/20;
+}
 
 /* approved / clean = green */
-.status-approved   { @apply bg-green-50 text-green-700 border border-green-200; }
-html.dark .status-approved { @apply bg-green-500/10 text-green-400 border-green-500/20; }
+.status-approved {
+  @apply bg-green-50 text-green-700 border border-green-200;
+}
+
+html.dark .status-approved {
+  @apply bg-green-500/10 text-green-400 border-green-500/20;
+}
 
 /* closed / renovation = slate */
-.status-closed     { @apply bg-slate-100 text-slate-500 border border-slate-200; }
-html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; }
+.status-closed {
+  @apply bg-slate-100 text-slate-500 border border-slate-200;
+}
+
+html.dark .status-closed {
+  @apply bg-slate-800 text-slate-400 border-slate-700;
+}
 
 /* ─── Room Card (Board) ───────────────────────── */
 .room-card {
   @apply relative flex h-[100px] w-full cursor-pointer flex-col justify-between rounded-xl border p-2.5 text-left transition;
 }
+
 .room-card:hover {
   @apply -translate-y-0.5 shadow-md;
 }
+
 .room-card.selected {
   @apply ring-2 ring-brand-400;
 }
@@ -200,17 +235,21 @@ html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; 
   @apply fixed inset-0 z-40 backdrop-blur-[2px];
   background-color: var(--overlay-bg);
 }
+
 .drawer-panel {
   @apply fixed inset-y-0 right-0 z-50 flex w-full max-w-[480px] flex-col shadow-2xl;
   background-color: var(--bg-surface);
 }
+
 .drawer-header {
   @apply flex items-center justify-between border-b px-5 py-4;
   border-color: var(--border-default);
 }
+
 .drawer-body {
   @apply flex-1 overflow-y-auto p-5;
 }
+
 .drawer-footer {
   @apply border-t px-5 py-4;
   border-color: var(--border-default);
@@ -221,24 +260,46 @@ html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; 
   @apply fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px];
   background-color: var(--modal-overlay-bg);
 }
+
 .modal-panel {
   @apply relative w-full rounded-2xl shadow-2xl;
   background-color: var(--bg-surface);
 }
-.modal-panel.sm  { @apply max-w-sm; }
-.modal-panel.md  { @apply max-w-md; }
-.modal-panel.lg  { @apply max-w-lg; }
-.modal-panel.xl   { @apply max-w-2xl; }
-.modal-panel.wide { @apply max-w-6xl; }
-.modal-panel.folio { @apply max-w-[75.5rem]; }
+
+.modal-panel.sm {
+  @apply max-w-sm;
+}
+
+.modal-panel.md {
+  @apply max-w-md;
+}
+
+.modal-panel.lg {
+  @apply max-w-lg;
+}
+
+.modal-panel.xl {
+  @apply max-w-2xl;
+}
+
+.modal-panel.wide {
+  @apply max-w-6xl;
+}
+
+.modal-panel.folio {
+  @apply max-w-[75.5rem];
+}
+
 .modal-header {
   @apply flex items-center justify-between border-b px-5 py-3;
   border-color: var(--border-default);
 }
+
 .modal-body {
   @apply p-5 overflow-y-auto;
   max-height: calc(100vh - 180px);
 }
+
 .modal-footer {
   @apply flex justify-end gap-2 border-t px-5 py-4;
   border-color: var(--border-default);
@@ -249,6 +310,7 @@ html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; 
   @apply block text-xs font-semibold mb-1;
   color: var(--text-secondary);
 }
+
 .form-input {
   @apply w-full rounded-lg border px-3 py-2 text-sm shadow-sm outline-none transition;
   background-color: var(--bg-surface);
@@ -257,13 +319,16 @@ html.dark .status-closed { @apply bg-slate-800 text-slate-400 border-slate-700; 
   @apply focus:border-brand-400 focus:ring-2 focus:ring-brand-200;
   @apply disabled:cursor-not-allowed disabled:opacity-60;
 }
+
 html.dark .form-input:disabled {
   background-color: var(--bg-muted);
   color: var(--text-muted);
 }
+
 .form-select {
   @apply form-input;
 }
+
 .form-textarea {
   @apply form-input min-h-[72px] resize-none;
 }
@@ -278,6 +343,7 @@ html.dark .form-input:disabled {
   @apply !border-rose-300 !bg-rose-100;
   color: var(--text-primary);
 }
+
 .form-input:user-invalid:focus,
 .form-select:user-invalid:focus,
 .form-textarea:user-invalid:focus,
@@ -306,6 +372,7 @@ html.dark .form-select[aria-invalid="true"],
 html.dark .form-textarea[aria-invalid="true"] {
   @apply !border-rose-700 !bg-rose-950/40;
 }
+
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):user-invalid:focus,
 select:user-invalid:focus,
 textarea:user-invalid:focus,
@@ -319,27 +386,46 @@ textarea[aria-invalid="true"]:focus {
 .btn {
   @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
 }
-.btn-primary   { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
+
+.btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+}
+
 .btn-secondary {
   @apply btn border;
   border-color: var(--border-input);
   background-color: var(--bg-surface);
   color: var(--text-secondary);
 }
+
 .btn-secondary:hover {
   background-color: var(--bg-surface-hover);
 }
-.btn-danger    { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+
+.btn-danger {
+  @apply btn bg-rose-600 text-white hover:bg-rose-700;
+}
+
 .btn-ghost {
   @apply btn;
   color: var(--text-secondary);
 }
+
 .btn-ghost:hover {
   background-color: var(--bg-surface-hover);
 }
-.btn-success   { @apply btn bg-emerald-600 text-white hover:bg-emerald-700; }
-.btn-sm        { @apply px-2.5 py-1.5 text-xs; }
-.btn-icon      { @apply btn p-2; }
+
+.btn-success {
+  @apply btn bg-emerald-600 text-white hover:bg-emerald-700;
+}
+
+.btn-sm {
+  @apply px-2.5 py-1.5 text-xs;
+}
+
+.btn-icon {
+  @apply btn p-2;
+}
 
 /* ─── Toast ───────────────────────────────────── */
 .toast-bar {
@@ -348,31 +434,48 @@ textarea[aria-invalid="true"]:focus {
   border-color: var(--border-default);
   color: var(--text-primary);
 }
-.toast-success { @apply border-emerald-200 bg-emerald-50 text-emerald-800; }
-html.dark .toast-success { @apply border-emerald-500/30 bg-emerald-500/15 text-emerald-400; }
-.toast-error   { @apply border-rose-200 bg-rose-50 text-rose-800; }
-html.dark .toast-error { @apply border-rose-500/30 bg-rose-500/15 text-rose-400; }
+
+.toast-success {
+  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+}
+
+html.dark .toast-success {
+  @apply border-emerald-500/30 bg-emerald-500/15 text-emerald-400;
+}
+
+.toast-error {
+  @apply border-rose-200 bg-rose-50 text-rose-800;
+}
+
+html.dark .toast-error {
+  @apply border-rose-500/30 bg-rose-500/15 text-rose-400;
+}
 
 /* ─── Table ───────────────────────────────────── */
 .data-table {
   @apply w-full text-sm;
 }
+
 .data-table thead tr {
   @apply border-b;
   border-color: var(--border-default);
   background-color: var(--bg-muted);
 }
+
 .data-table thead th {
   @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide;
   color: var(--text-muted);
 }
+
 .data-table tbody tr {
   @apply border-b transition;
   border-color: var(--border-subtle);
 }
+
 .data-table tbody tr:hover {
   background-color: var(--bg-surface-hover);
 }
+
 .data-table tbody td {
   @apply px-4 py-3;
   color: var(--text-table-cell);
@@ -385,6 +488,7 @@ html.dark .toast-error { @apply border-rose-500/30 bg-rose-500/15 text-rose-400;
   background-color: var(--bg-muted);
   color: var(--text-secondary);
 }
+
 .floor-gap {
   @apply my-5 border-t-2 border-red-400/50 pt-4;
 }
@@ -393,6 +497,7 @@ html.dark .toast-error { @apply border-rose-500/30 bg-rose-500/15 text-rose-400;
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -400,25 +505,29 @@ html.dark .toast-error { @apply border-rose-500/30 bg-rose-500/15 text-rose-400;
 
 /* ─── Transfer Alert Pulse ────────────────────── */
 @keyframes transfer-alert-pulse-glow {
+
   0%,
-  44% {
+  30% {
     opacity: 0;
-    transform: scale(0.985);
-    filter: brightness(1);
+    transform: scale(0.97);
+    filter: brightness(1) saturate(1);
   }
-  58% {
+
+  50% {
     opacity: 1;
-    transform: scale(1.008);
-    filter: brightness(1.35);
+    transform: scale(1.04);
+    filter: brightness(2.5) saturate(1.5);
   }
-  72% {
-    opacity: 0.88;
-    transform: scale(1.003);
-    filter: brightness(1.2);
+
+  70% {
+    opacity: 0.98;
+    transform: scale(1.02);
+    filter: brightness(2) saturate(1.2);
   }
+
   100% {
     opacity: 0;
-    transform: scale(0.99);
+    transform: scale(0.98);
     filter: brightness(1);
   }
 }

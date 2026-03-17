@@ -247,11 +247,10 @@ export function ReservationFolioModal({
                   <button
                     key={item.key}
                     type="button"
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      filter === item.key
-                        ? "border-slate-900 bg-slate-900 text-white dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-400 shadow-[0_0_15px_rgba(var(--brand-500-rgb),0.2)]"
-                        : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] dark:border-white/5"
-                    }`}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${filter === item.key
+                      ? "border-slate-900 bg-slate-900 text-white dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-400 shadow-[0_0_15px_rgba(var(--brand-500-rgb),0.2)]"
+                      : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] dark:border-white/5"
+                      }`}
                     onClick={() => setFilter(item.key)}
                   >
                     {item.label}
@@ -286,8 +285,8 @@ export function ReservationFolioModal({
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-400">Deposit Held</div>
               <div className="mt-4 text-2xl font-semibold text-indigo-800 dark:text-indigo-200">฿{formatMoney(folio?.summary.deposit_held ?? 0)}</div>
             </div>
-            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-slate-900 bg-slate-900 p-4 text-white dark:border-indigo-500/30 dark:bg-indigo-950/40">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)] dark:text-indigo-300">Outstanding</div>
+            <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-[#312e81] bg-[#1e1b4b] p-4 text-white dark:border-indigo-500/30 dark:bg-indigo-900/40">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-200/60 dark:text-indigo-300">Outstanding</div>
               <div className="mt-4 text-2xl font-semibold dark:text-indigo-50">฿{formatMoney(folio?.summary.outstanding_balance ?? 0)}</div>
             </div>
           </div>

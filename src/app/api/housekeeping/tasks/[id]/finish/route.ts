@@ -155,7 +155,7 @@ async function collectLoanTracesNonBlocking(
   try {
     const { data: task, error: taskError } = await supabase
       .from("housekeeping_tasks")
-      .select("id, room_id")
+      .select("id, room_id, stay_date")
       .eq("id", taskId)
       .maybeSingle();
     if (taskError || !task) {
@@ -170,9 +170,9 @@ async function collectLoanTracesNonBlocking(
 
     const { data: roomNightRows, error: roomNightError } = await supabase
       .from("reservation_nights")
-      .select("reservation_id")
+      .select("reservation_id, stay_date")
       .eq("room_id", task.room_id)
-      .is("cancelled_at", null);
+      .lte("stay_date", task.stay_date);
     if (roomNightError) {
       return {
         attempted: true,
