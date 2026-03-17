@@ -1,4 +1,5 @@
 import { PlannedRoomMoveError } from "@/lib/planned-room-moves";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 export async function assertRoomTypeCapacityForDateRange(
   supabase: any,
@@ -13,14 +14,19 @@ export async function assertRoomTypeCapacityForDateRange(
 
   const { data: typeRooms, error: typeRoomsError } = await supabase
     .from("rooms")
-    .select("id, is_sellable, is_dayuse")
+    .select("id, room_number, is_sellable, is_dayuse")
     .eq("room_type_id", roomTypeId);
   if (typeRoomsError) {
     throw new Error(`Failed to check room type capacity: ${typeRoomsError.message}`);
   }
 
   const sellableRoomIds = (typeRooms ?? [])
-    .filter((row: any) => Boolean(row?.is_sellable) && !Boolean(row?.is_dayuse))
+    .filter(
+      (row: any) =>
+        Boolean(row?.is_sellable) &&
+        !Boolean(row?.is_dayuse) &&
+        !isLegacyDayUseRoom(String(row?.room_number ?? ""))
+    )
     .map((row: any) => (row?.id ? String(row.id) : ""))
     .filter(Boolean);
   if (sellableRoomIds.length <= 0) {
@@ -29,7 +35,7 @@ export async function assertRoomTypeCapacityForDateRange(
 
   const dayUseRoomIdSet = new Set(
     (typeRooms ?? [])
-      .filter((row: any) => Boolean(row?.is_dayuse))
+      .filter((row: any) => Boolean(row?.is_dayuse) || isLegacyDayUseRoom(String(row?.room_number ?? "")))
       .map((row: any) => String(row.id))
   );
 

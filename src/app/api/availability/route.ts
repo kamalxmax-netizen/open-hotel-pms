@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listNights, isValidDateString } from "@/lib/dates";
 import { expandPlannedMoveNights, listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 // GET /api/availability?checkin=YYYY-MM-DD&checkout=YYYY-MM-DD
 // Returns per-room-type availability count, rate/night, and total for stay
@@ -23,12 +24,13 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
 
     // 1. All sellable overnight rooms with type (exclude day-use inventory)
-    const { data: rooms, error: roomsErr } = await supabase
+    const { data: roomsRaw, error: roomsErr } = await supabase
         .from("rooms")
-        .select("id, room_type_id, room_number")
+        .select("id, room_type_id, room_number, is_dayuse")
         .eq("is_sellable", true)
         .eq("is_dayuse", false);
     if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
+    const rooms = (roomsRaw ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
 
     // 2. Count sellable overnight rooms per type
     const totalByType: Record<number, number> = {};

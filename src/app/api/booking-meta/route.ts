@@ -1,17 +1,35 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+
+function isMissingColumnError(error: { message?: string } | null | undefined, column: string): boolean {
+    const message = String(error?.message ?? "");
+    const pattern = new RegExp(`column\\s+.*${column}.*does not exist`, "i");
+    return pattern.test(message);
+}
 
 export async function GET() {
     try {
         const supabase = createServerSupabaseClient();
 
         // 1. Fetch Room Types
-        const { data: roomTypes, error: rtErr } = await supabase
+        let roomTypeRes = await supabase
             .from("room_types")
-            .select("id, name_en, sort_order")
+            .select("id, code, name_en, sort_order")
             .order("sort_order", { ascending: true });
 
-        if (rtErr) throw rtErr;
+        if (roomTypeRes.error && isMissingColumnError(roomTypeRes.error, "sort_order")) {
+            roomTypeRes = await supabase
+                .from("room_types")
+                .select("id, code, name_en");
+        }
+        if (roomTypeRes.error) throw roomTypeRes.error;
+
+        const roomTypes = (roomTypeRes.data ?? []).map((row: any) => ({
+            id: row.id,
+            name_en: row.name_en ?? row.code ?? `Type ${row.id}`,
+            sort_order: row.sort_order ?? 0,
+        }));
 
         // 2. Fetch Features
         const { data: features, error: fErr } = await supabase
@@ -20,21 +38,32 @@ export async function GET() {
             .order("category", { ascending: true })
             .order("name", { ascending: true });
 
-        if (fErr) throw fErr;
+        // room_features is optional for Booking create/edit; keep room type dropdown working even if this table is missing.
+        const safeFeatures = fErr ? [] : (features ?? []);
 
         // 3. Fetch Rooms (basic view to let frontend know which rooms map to which type)
-        const { data: rooms, error: rErr } = await supabase
+        let roomsRes = await supabase
             .from("rooms")
             .select("id, room_number, room_type_id")
             .eq("is_sellable", true)
-            .order("sort_order", { ascending: true });
+            .eq("is_dayuse", false)
+            .order("room_number", { ascending: true });
 
-        if (rErr) throw rErr;
+        if (roomsRes.error && isMissingColumnError(roomsRes.error, "is_dayuse")) {
+            roomsRes = await supabase
+                .from("rooms")
+                .select("id, room_number, room_type_id")
+                .eq("is_sellable", true)
+                .order("room_number", { ascending: true });
+        }
+
+        if (roomsRes.error) throw roomsRes.error;
+        const rooms = (roomsRes.data ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
 
         return NextResponse.json({
             success: true,
             roomTypes,
-            features,
+            features: safeFeatures,
             rooms
         });
     } catch (err: any) {

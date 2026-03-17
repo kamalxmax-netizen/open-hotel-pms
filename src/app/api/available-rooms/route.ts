@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isValidDateString, listNights } from "@/lib/dates";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +47,9 @@ export async function GET(request: NextRequest) {
         const supabase = createServerSupabaseClient();
 
         // 1. Get all sellable rooms of this type
-        const { data: allRooms, error: roomsError } = await supabase
+        const { data: allRoomsRaw, error: roomsError } = await supabase
             .from("rooms")
-            .select("id, room_number, room_type_id, is_sellable, room_types(name_en)")
+            .select("id, room_number, room_type_id, is_sellable, is_dayuse, room_types(name_en)")
             .eq("room_type_id", parsedRoomTypeId)
             .eq("is_sellable", true)
             .eq("is_dayuse", false)
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
         if (roomsError) {
             return NextResponse.json({ error: roomsError.message }, { status: 500 });
         }
+
+        const allRooms = (allRoomsRaw ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
 
         if (!allRooms || allRooms.length === 0) {
             return NextResponse.json({

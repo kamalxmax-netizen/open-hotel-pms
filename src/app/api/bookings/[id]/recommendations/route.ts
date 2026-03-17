@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { listSwapCandidatesForReservation, loadReservationSwapContext } from "@/lib/room-swap";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 function parseRoomTypeId(raw: string | null): number | null {
     if (!raw) return null;
@@ -81,7 +82,7 @@ export async function GET(
         const prefCodes = prefs.map(p => p.code);
 
         // 2. Find all rooms of this room_type_id
-        const { data: roomsData, error: roomsError } = await supabase
+        const { data: roomsRaw, error: roomsError } = await supabase
             .from("rooms")
             .select(`
                 id, room_number, is_sellable,
@@ -91,9 +92,10 @@ export async function GET(
             .eq("is_sellable", true)
             .eq("is_dayuse", false);
 
-        if (roomsError || !roomsData) {
+        if (roomsError || !roomsRaw) {
             return NextResponse.json({ error: "Error fetching rooms." }, { status: 500 });
         }
+        const roomsData = roomsRaw.filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
 
         // 3. Find conflicts directly on those specific dates (check for overlap)
         // using reservation_nights stay_date

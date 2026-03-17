@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 function addDays(date: string, n: number): string {
     const d = new Date(date + "T00:00:00");
@@ -20,6 +21,61 @@ function dateRange(start: string, end: string): string[] {
     return days;
 }
 
+function isMissingColumnError(error: { message?: string } | null | undefined, column: string): boolean {
+    const message = String(error?.message ?? "");
+    const pattern = new RegExp(`column\\s+.*${column}.*does not exist`, "i");
+    return pattern.test(message);
+}
+
+async function fetchRateGridRooms(supabase: ReturnType<typeof createServerSupabaseClient>) {
+    let roomsRes = await supabase
+        .from("rooms")
+        .select("id, room_number, room_type_id, is_sellable, room_types(id, name_en, code)")
+        .eq("is_visible_on_board", true)
+        .eq("is_sellable", true)
+        .eq("is_dayuse", false)
+        .order("room_number", { ascending: true });
+
+    if (roomsRes.error && isMissingColumnError(roomsRes.error, "is_dayuse")) {
+        roomsRes = await supabase
+            .from("rooms")
+            .select("id, room_number, room_type_id, is_sellable, room_types(id, name_en, code)")
+            .eq("is_visible_on_board", true)
+            .eq("is_sellable", true)
+            .order("room_number", { ascending: true });
+    }
+
+    if (roomsRes.error) throw new Error(roomsRes.error.message);
+
+    return (roomsRes.data ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
+}
+
+async function fetchOvernightRoomsByType(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    roomTypeId: string
+) {
+    let roomsRes = await supabase
+        .from("rooms")
+        .select("id, room_number")
+        .eq("room_type_id", roomTypeId)
+        .eq("is_sellable", true)
+        .eq("is_dayuse", false)
+        .order("room_number", { ascending: true });
+
+    if (roomsRes.error && isMissingColumnError(roomsRes.error, "is_dayuse")) {
+        roomsRes = await supabase
+            .from("rooms")
+            .select("id, room_number")
+            .eq("room_type_id", roomTypeId)
+            .eq("is_sellable", true)
+            .order("room_number", { ascending: true });
+    }
+
+    if (roomsRes.error) throw new Error(roomsRes.error.message);
+
+    return (roomsRes.data ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
+}
+
 /* ─── GET — fetch rate matrix ──────────────────── */
 export async function GET(request: NextRequest) {
     try {
@@ -30,14 +86,13 @@ export async function GET(request: NextRequest) {
         const startDate = sp.get("start") ?? today;
         const endDate = sp.get("end") ?? addDays(startDate, 29);
 
-        // All sellable rooms with their type
-        const { data: rooms, error: roomsErr } = await supabase
-            .from("rooms")
-            .select("id, room_number, is_sellable, room_types(id, name_en, code)")
-            .eq("is_visible_on_board", true)
-            .order("sort_order");
-
-        if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
+        // All sellable overnight rooms with their type (exclude day-use inventory).
+        let rooms: any[] = [];
+        try {
+            rooms = await fetchRateGridRooms(supabase);
+        } catch (error) {
+            return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+        }
 
         // All rate_template rows in range
         const { data: rates, error: ratesErr } = await supabase
@@ -127,13 +182,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Get all rooms of that type
-        const { data: rooms, error: roomsErr } = await supabase
-            .from("rooms")
-            .select("id")
-            .eq("room_type_id", room_type_id)
-            .eq("is_sellable", true);
-
-        if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
+        let rooms: Array<{ id: string; room_number?: string | null }> = [];
+        try {
+            rooms = await fetchOvernightRoomsByType(supabase, room_type_id);
+        } catch (error) {
+            return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+        }
         if (!rooms || rooms.length === 0) {
             return NextResponse.json({ error: "No sellable rooms found for this room type." }, { status: 404 });
         }
