@@ -318,6 +318,66 @@ export function BillingPanel({
         </div>
       </div>
 
+      {/* ADD PAYMENT ACTIONS (Moved to top) */}
+      {canShowAddForm && (
+        <div className="bg-[var(--bg-body)] p-4 border-b border-[var(--border-default)] flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-[300px] flex gap-2">
+            <select
+              className="form-select flex-[0.8] text-sm h-9 px-2"
+              value={newMethod}
+              onChange={(e) => setNewMethod(e.target.value)}
+              disabled={adding}
+            >
+              {PAYMENT_METHODS.map(m => (
+                 <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <div className="relative flex-1">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Amount"
+                className="form-input text-sm h-9 w-full font-mono"
+                value={newAmount}
+                onChange={(e) => setNewAmount(e.target.value)}
+                onKeyDown={handleAddPaymentEnter}
+                disabled={adding}
+              />
+            </div>
+            <input
+              type="text"
+              placeholder="Ref Note"
+              className="form-input flex-1 text-sm h-9 px-2"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              onKeyDown={handleAddPaymentEnter}
+              disabled={adding}
+            />
+            <button
+               type="button"
+               onClick={() => void handleAddPayment()}
+               disabled={adding || !newAmount}
+               className="btn btn-primary h-9 px-4 text-xs shrink-0"
+            >
+               {adding ? "..." : deferPersist ? "+ Queue" : "+ Add Payment"}
+            </button>
+          </div>
+          
+          {mode === "checkout" && onCheckoutClick && (
+            <div className="shrink-0 w-full md:w-auto md:ml-auto mt-4 md:mt-0">
+               <button
+                 type="button"
+                 onClick={onCheckoutClick}
+                 className="btn btn-primary w-full shadow-md py-2.5 text-sm font-bold bg-slate-900 border-slate-900 hover:bg-slate-800"
+               >
+                 Proceed to Checkout →
+               </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b border-[var(--border-default)] divide-[var(--border-default)]">
         {/* CHARGES PANEL */}
         <div className="p-5 space-y-4">
@@ -435,9 +495,9 @@ export function BillingPanel({
         </div>
       </div>
 
-      {/* DEPOSIT SUMMARY (Separate Section per B3) */}
+      {/* DEPOSIT SUMMARY (Moved to bottom) */}
       {depositTransactions.length > 0 && (
-        <div className="bg-indigo-50/50 dark:bg-indigo-500/10 px-5 py-3 border-b border-[var(--border-default)] flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+        <div className="bg-indigo-50/50 dark:bg-indigo-500/10 px-5 py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
            <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
              <span className="text-lg">🔒</span>
              <span className="text-xs font-bold uppercase tracking-widest">Deposit Held</span>
@@ -452,66 +512,6 @@ export function BillingPanel({
                  </div>
               ))}
             </div>
-        </div>
-      )}
-
-      {/* FOOTER ACTIONS */}
-      {canShowAddForm && (
-        <div className="bg-[var(--bg-body)] p-4 border-t border-[var(--border-default)] flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-[300px] flex gap-2">
-            <select
-              className="form-select flex-[0.8] text-sm h-9 px-2"
-              value={newMethod}
-              onChange={(e) => setNewMethod(e.target.value)}
-              disabled={adding}
-            >
-              {PAYMENT_METHODS.map(m => (
-                 <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-            <div className="relative flex-1">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Amount"
-                className="form-input text-sm h-9 w-full font-mono"
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
-                onKeyDown={handleAddPaymentEnter}
-                disabled={adding}
-              />
-            </div>
-            <input
-              type="text"
-              placeholder="Ref Note"
-              className="form-input flex-1 text-sm h-9 px-2"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={handleAddPaymentEnter}
-              disabled={adding}
-            />
-            <button
-               type="button"
-               onClick={() => void handleAddPayment()}
-               disabled={adding || !newAmount}
-               className="btn btn-primary h-9 px-4 text-xs shrink-0"
-            >
-               {adding ? "..." : deferPersist ? "+ Queue" : "+ Add Payment"}
-            </button>
-          </div>
-          
-          {mode === "checkout" && onCheckoutClick && (
-            <div className="shrink-0 w-full md:w-auto md:ml-auto mt-4 md:mt-0">
-               <button
-                 type="button"
-                 onClick={onCheckoutClick}
-                 className="btn btn-primary w-full shadow-md py-2.5 text-sm font-bold bg-slate-900 border-slate-900 hover:bg-slate-800"
-               >
-                 Proceed to Checkout →
-               </button>
-            </div>
-          )}
         </div>
       )}
     </div>
