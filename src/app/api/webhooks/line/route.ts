@@ -78,12 +78,12 @@ async function handleCheckoutQuery(replyToken: string) {
     .from("reservations")
     .select("id, booking_code, status, checkout_date, guest_name")
     .eq("checkout_date", today)
-    .in("status", ["checked_out", "checked_in", "confirmed", "active"])
+    .in("status", ["active", "checked_out"])
     .order("status", { ascending: true });
 
   if (error) {
     console.error("line checkout query failed", error);
-    await replyLineText(replyToken, `[debug] query error: ${error.message ?? JSON.stringify(error)}`);
+    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
     return;
   }
 
@@ -100,7 +100,7 @@ async function handleCheckoutQuery(replyToken: string) {
   const total = rows.length;
 
   if (total === 0) {
-    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่พบข้อมูล\n[debug: queried checkout_date=${today}, statuses=active,checked_out]`);
+    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่มีการ Check-out กำหนดวันนี้`);
     return;
   }
 
