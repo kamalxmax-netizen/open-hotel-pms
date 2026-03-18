@@ -76,9 +76,9 @@ async function handleCheckoutQuery(replyToken: string) {
 
   const { data, error } = await supabase
     .from("reservations")
-    .select("id, booking_code, status, checkout_date, checked_out_at, guest_name")
+    .select("id, booking_code, status, checkout_date, guest_name")
     .eq("checkout_date", today)
-    .in("status", ["checked_out", "checked_in", "confirmed"])
+    .in("status", ["checked_out", "checked_in", "confirmed", "active"])
     .order("status", { ascending: true });
 
   if (error) {
@@ -92,7 +92,6 @@ async function handleCheckoutQuery(replyToken: string) {
     booking_code: string | null;
     status: string | null;
     checkout_date: string | null;
-    checked_out_at: string | null;
     guest_name: string | null;
   }>;
 
