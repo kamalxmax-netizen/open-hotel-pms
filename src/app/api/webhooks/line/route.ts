@@ -100,7 +100,7 @@ async function handleCheckoutQuery(replyToken: string) {
   const total = rows.length;
 
   if (total === 0) {
-    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่มีการ Check-out กำหนดวันนี้`);
+    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่พบข้อมูล\n[debug: queried checkout_date=${today}, statuses=active,checked_out]`);
     return;
   }
 
