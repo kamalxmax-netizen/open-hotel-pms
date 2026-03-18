@@ -6,6 +6,7 @@ import {
     formatDepositMethodLabel,
     parseDepositSnapshotNote,
 } from "@/lib/deposit-ledger";
+import { fromSatang, toSatang } from "@/lib/money";
 import PmsModal from "./pms-modal";
 
 interface DepositModalProps {
@@ -33,7 +34,7 @@ export default function DepositModal({
     onClose,
     onSuccess
 }: DepositModalProps) {
-    const hasPaid = !!(existingDepositPaidAt && existingDeposit && existingDeposit > 0);
+    const hasPaid = Number(existingDeposit ?? 0) > 0;
     const modalTitle = hasPaid ? "💰 Top Up Deposit" : "💰 Collect Deposit";
     const parsedExistingDeposit = useMemo(
         () => parseDepositSnapshotNote(existingDepositNote),
@@ -48,9 +49,10 @@ export default function DepositModal({
     const [amount, setAmount] = useState(hasPaid ? "" : (existingDeposit ? String(existingDeposit) : ""));
     const [method, setMethod] = useState(existingMethodLabel);
     const [loading, setLoading] = useState(false);
-    const [clearing, setClearing] = useState(false);
+    const [refunding, setRefunding] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const refundMethodLockedToCash = method === "Cash";
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -88,18 +90,92 @@ export default function DepositModal({
         } finally { setLoading(false); }
     }
 
-    async function handleClear() {
-        setError(""); setSuccess(""); setClearing(true);
+    async function handleRefund() {
+        setError("");
+        setSuccess("");
+        if (!refundMethodLockedToCash) {
+            setError("Refund Deposit in this screen is Cash only.");
+            return;
+        }
+
+        const currentDepositSatang = toSatang(existingDeposit ?? 0);
+        if (currentDepositSatang <= 0) {
+            setError("No deposit to refund.");
+            return;
+        }
+
+        const entered = amount.trim();
+        const enteredValue = Number(entered);
+        const requestedRefundSatang =
+            entered.length > 0 && Number.isFinite(enteredValue) && enteredValue > 0
+                ? toSatang(enteredValue)
+                : currentDepositSatang;
+
+        if (requestedRefundSatang <= 0) {
+            setError("Please enter a valid refund amount.");
+            return;
+        }
+
+        const refundSatang = Math.min(requestedRefundSatang, currentDepositSatang);
+        const nextDepositSatang = Math.max(0, currentDepositSatang - refundSatang);
+
+        const baseLines = parsedExistingDeposit.lines.length > 0
+            ? parsedExistingDeposit.lines.map((line) => ({ ...line }))
+            : [{
+                method: "cash",
+                amount: fromSatang(currentDepositSatang),
+                note: null
+            }];
+
+        // Refund method is forced to cash on this page.
+        const preferredMethod = "cash";
+        const orderedLines = [
+            ...baseLines.filter((line) => line.method === preferredMethod),
+            ...baseLines.filter((line) => line.method !== preferredMethod),
+        ];
+
+        let remainingToDeduct = refundSatang;
+        for (const line of orderedLines) {
+            if (remainingToDeduct <= 0) break;
+            const lineSatang = toSatang(line.amount);
+            const deduct = Math.min(lineSatang, remainingToDeduct);
+            line.amount = fromSatang(lineSatang - deduct);
+            remainingToDeduct -= deduct;
+        }
+
+        const nextLines = orderedLines
+            .filter((line) => toSatang(line.amount) > 0)
+            .map((line) => ({
+                method: line.method,
+                amount: line.amount,
+                note: line.note ?? null,
+            }));
+
+        const nextDepositAmount = fromSatang(nextDepositSatang);
+        const nextNote = nextDepositSatang > 0
+            ? buildDepositSnapshotNote(nextLines, existingGeneralNote)
+            : null;
+
+        setRefunding(true);
         try {
-            const res = await fetch(`/api/bookings/${reservationId}/deposit`, { method: "DELETE" });
-            if (res.ok) {
-                setSuccess("Deposit cleared.");
-                setTimeout(() => { onSuccess(); onClose(); }, 1000);
-            } else {
-                const d = await res.json();
-                setError(d.error ?? "Could not clear deposit.");
+            const res = await fetch(`/api/bookings/${reservationId}/deposit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    deposit_amount: nextDepositAmount,
+                    deposit_note: nextNote,
+                }),
+            });
+            const d = await res.json().catch(() => null);
+            if (!res.ok || !d?.success) {
+                setError(d?.error ?? "Could not refund deposit.");
+                return;
             }
-        } finally { setClearing(false); }
+            setSuccess(`Refunded ฿${fromSatang(refundSatang).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} in cash successfully.`);
+            setTimeout(() => { onSuccess(); onClose(); }, 1000);
+        } finally {
+            setRefunding(false);
+        }
     }
 
     const depositPct = totalPrice > 0 && parseFloat(amount) > 0
@@ -115,8 +191,14 @@ export default function DepositModal({
                 <div className="flex gap-2 w-full">
                     <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>Cancel</button>
                     {hasPaid && (
-                        <button type="button" className="btn btn-danger flex-shrink-0" onClick={handleClear} disabled={clearing}>
-                            {clearing ? "…" : "Refund Deposit"}
+                        <button
+                            type="button"
+                            className="btn btn-danger flex-shrink-0"
+                            onClick={handleRefund}
+                            disabled={refunding || !refundMethodLockedToCash}
+                            title={refundMethodLockedToCash ? "Refund deposit in cash" : "Refund is allowed only when Payment Method is Cash"}
+                        >
+                            {refunding ? "…" : "Refund Deposit"}
                         </button>
                     )}
                     <button form="deposit-form" type="submit" className="btn btn-primary flex-1" disabled={loading}>
@@ -152,7 +234,7 @@ export default function DepositModal({
 
                 {/* Amount */}
                 <div>
-                    <label className="form-label">{hasPaid ? "Top Up Amount (THB) *" : "Deposit Amount (THB) *"}</label>
+                    <label className="form-label">{hasPaid ? "Amount (THB) *" : "Deposit Amount (THB) *"}</label>
                     <div className="relative">
                         <input
                             required
@@ -168,6 +250,16 @@ export default function DepositModal({
                     {depositPct > 0 && (
                         <p className="text-xs text-[var(--text-muted)] mt-1">
                             = {depositPct}% of total ฿{totalPrice.toLocaleString()}
+                        </p>
+                    )}
+                    {hasPaid && (
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                            Refund method is Cash only. Leave blank to refund all.
+                        </p>
+                    )}
+                    {hasPaid && !refundMethodLockedToCash && (
+                        <p className="text-xs text-rose-700 mt-1">
+                            Switch Payment Method to Cash before refund.
                         </p>
                     )}
                 </div>

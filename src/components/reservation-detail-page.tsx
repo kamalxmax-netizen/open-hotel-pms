@@ -591,6 +591,16 @@ function normalizePassportNumber(value: unknown): string {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+function normalizeIdentityNumberByType(value: string, idType: ProfileIdTypeValue): string {
+    if (idType === "thai_id") {
+        return String(value || "").replace(/\D+/g, "").slice(0, 13);
+    }
+    if (idType === "passport") {
+        return String(value || "").toUpperCase();
+    }
+    return String(value || "");
+}
+
 function createEmptyPartyDraft(): PartyDraft {
     return {
         linkedMemberId: null,
@@ -2188,6 +2198,10 @@ export default function ReservationDetailPage({
             setPartyDraftError("Guest name is required.");
             return;
         }
+        if (partyDraft.idType === "thai_id" && !/^\d{13}$/.test(partyDraft.idNumber.trim())) {
+            setPartyDraftError("Thai ID must be exactly 13 digits.");
+            return;
+        }
 
         const currentPartySize = reservationParty.length > 0
             ? reservationParty.length
@@ -2801,6 +2815,13 @@ export default function ReservationDetailPage({
     /* ─── Submit ─── */
     const handleSubmit = async (e?: FormEvent) => {
         if (e) e.preventDefault();
+        if (profileIdType === "thai_id" && !/^\d{13}$/.test(profileIdNumber.trim())) {
+            if (mode === "checkin") {
+                setShowCheckinFieldValidation(true);
+            }
+            setError("Thai ID must be exactly 13 digits.");
+            return;
+        }
         setLoading(true);
         setError("");
         setSuccessMessage("");
@@ -4109,7 +4130,13 @@ export default function ReservationDetailPage({
                                                         <select
                                                             className={`form-select h-10 text-sm ${checkinFieldErrorClass("id_type")}`}
                                                             value={profileIdType}
-                                                            onChange={(e) => setProfileIdType((e.target.value as "" | "thai_id" | "passport" | "other"))}
+                                                            onChange={(e) => {
+                                                                const nextType = e.target.value as "" | "thai_id" | "passport" | "other";
+                                                                setProfileIdType(nextType);
+                                                                const normalized = normalizeIdentityNumberByType(profileIdNumber, nextType);
+                                                                setProfileIdNumber(normalized);
+                                                                setIdentityText(normalized);
+                                                            }}
                                                             disabled={isReadonly}
                                                         >
                                                             <option value="">Select</option>
@@ -4122,15 +4149,23 @@ export default function ReservationDetailPage({
                                                         <label className="form-label">ID Number</label>
                                                         <input
                                                             type="text"
-                                                            className={`form-input h-10 text-sm ${checkinFieldErrorClass("id_number")}`}
+                                                            inputMode={profileIdType === "thai_id" ? "numeric" : undefined}
+                                                            maxLength={profileIdType === "thai_id" ? 13 : undefined}
+                                                            className={`form-input h-10 text-sm ${checkinFieldErrorClass("id_number")} ${profileIdType === "thai_id" && profileIdNumber.trim().length > 0 && !/^\d{13}$/.test(profileIdNumber.trim()) ? "!border-rose-300 !bg-rose-100 dark:!bg-rose-500/10 dark:!border-rose-500/30 text-[var(--text-primary)] dark:!text-rose-200" : ""}`}
                                                             value={profileIdNumber}
                                                             onChange={(e) => {
-                                                                setProfileIdNumber(e.target.value);
-                                                                setIdentityText(e.target.value);
+                                                                const normalized = normalizeIdentityNumberByType(e.target.value, profileIdType);
+                                                                setProfileIdNumber(normalized);
+                                                                setIdentityText(normalized);
                                                             }}
                                                             disabled={isReadonly}
-                                                            placeholder="ID / Passport Number"
+                                                            placeholder={profileIdType === "thai_id" ? "Thai ID (13 digits)" : "ID / Passport Number"}
                                                         />
+                                                        {profileIdType === "thai_id" && (
+                                                            <p className={`mt-1 text-[11px] ${/^\d{13}$/.test(profileIdNumber.trim()) ? "text-emerald-700" : "text-rose-600"}`}>
+                                                                Thai ID must be exactly 13 digits.
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <label className="form-label">DOB</label>
@@ -4954,7 +4989,16 @@ export default function ReservationDetailPage({
                                                 <select
                                                     className="form-select text-sm"
                                                     value={partyDraft.idType}
-                                                    onChange={(e) => setPartyDraft((current) => ({ ...current, idType: e.target.value as ProfileIdTypeValue }))}
+                                                    onChange={(e) =>
+                                                        setPartyDraft((current) => {
+                                                            const nextType = e.target.value as ProfileIdTypeValue;
+                                                            return {
+                                                                ...current,
+                                                                idType: nextType,
+                                                                idNumber: normalizeIdentityNumberByType(current.idNumber, nextType),
+                                                            };
+                                                        })
+                                                    }
                                                     disabled={isReadonly}
                                                 >
                                                     <option value="">Select</option>
@@ -4967,11 +5011,23 @@ export default function ReservationDetailPage({
                                                 <label className="form-label">ID Number</label>
                                                 <input
                                                     type="text"
-                                                    className="form-input text-sm uppercase"
+                                                    inputMode={partyDraft.idType === "thai_id" ? "numeric" : undefined}
+                                                    maxLength={partyDraft.idType === "thai_id" ? 13 : undefined}
+                                                    className={`form-input text-sm uppercase ${partyDraft.idType === "thai_id" && partyDraft.idNumber.trim().length > 0 && !/^\d{13}$/.test(partyDraft.idNumber.trim()) ? "!border-rose-300 !bg-rose-100 dark:!bg-rose-500/10 dark:!border-rose-500/30 text-[var(--text-primary)] dark:!text-rose-200" : ""}`}
                                                     value={partyDraft.idNumber}
-                                                    onChange={(e) => setPartyDraft((current) => ({ ...current, idNumber: e.target.value.toUpperCase() }))}
+                                                    onChange={(e) =>
+                                                        setPartyDraft((current) => ({
+                                                            ...current,
+                                                            idNumber: normalizeIdentityNumberByType(e.target.value, current.idType),
+                                                        }))
+                                                    }
                                                     disabled={isReadonly}
                                                 />
+                                                {partyDraft.idType === "thai_id" && (
+                                                    <p className={`mt-1 text-[11px] ${/^\d{13}$/.test(partyDraft.idNumber.trim()) ? "text-emerald-700" : "text-rose-600"}`}>
+                                                        Thai ID must be exactly 13 digits.
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 

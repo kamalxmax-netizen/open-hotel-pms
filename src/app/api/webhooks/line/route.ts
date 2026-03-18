@@ -123,6 +123,57 @@ async function handleCheckoutQuery(replyToken: string) {
   await replyLineText(replyToken, lines.join("\n"));
 }
 
+async function handleInHouseQuery(replyToken: string) {
+  const supabase = createServerSupabaseClient();
+  const today = bangkokToday();
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, room_id, rooms(room_number), checkin_date, checkout_date")
+    .eq("status", "active")
+    .order("checkin_date", { ascending: true });
+
+  if (error) {
+    console.error("line inhouse query failed", error);
+    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
+    return;
+  }
+
+  type InHouseRow = {
+    id: string;
+    room_id: string | null;
+    rooms: { room_number: string | null }[] | { room_number: string | null } | null;
+    checkin_date: string | null;
+    checkout_date: string | null;
+  };
+  const rows = (data ?? []) as unknown as InHouseRow[];
+
+  if (rows.length === 0) {
+    await replyLineText(replyToken, `🏨 In House วันนี้ (${today})\n\nไม่มีแขกพักอยู่ในโรงแรมขณะนี้`);
+    return;
+  }
+
+  // Sort room numbers naturally (101, 102, 201...)
+  const roomNumbers = rows
+    .map((r) => {
+      const roomsField = r.rooms;
+      if (!roomsField) return "?";
+      if (Array.isArray(roomsField)) return roomsField[0]?.room_number ?? "?";
+      return roomsField.room_number ?? "?";
+    })
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const lines = [
+    `🏨 In House (${today})`,
+    ``,
+    `จำนวน ${rows.length} ห้อง`,
+    ``,
+    roomNumbers.join(", "),
+  ];
+
+  await replyLineText(replyToken, lines.join("\n"));
+}
+
 async function handleBindCommand(params: {
   token: string;
   lineUserId: string;
@@ -269,12 +320,28 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // --- In-house query ---
+        const isInHouseQuery =
+          norm === "inhouse" ||
+          norm === "in house" ||
+          norm === "ih" ||
+          norm.includes("in house") ||
+          norm.includes("inhouse") ||
+          norm.includes("แขกพักอยู่") ||
+          norm.includes("ห้องที่พัก") ||
+          norm.includes("ใครพักอยู่");
+        if (isInHouseQuery) {
+          await handleInHouseQuery(replyToken);
+          continue;
+        }
+
         // --- Help ---
         if (norm === "help" || norm === "ช่วยเหลือ" || norm === "คำสั่ง" || norm === "?" || norm === "menu" || norm === "เมนู") {
           await replyLineText(
             replyToken,
             "📖 คำสั่งที่ใช้ได้:\n\n" +
             "• checkout / co / เช็คเอาท์\n  → ยอด Check-out วันนี้\n\n" +
+            "• inhouse / ih / in house\n  → ห้องที่มีแขกพักอยู่ตอนนี้\n\n" +
             "• BIND <token>\n  → ผูก LINE กับบัญชี Staff\n\n" +
             "พิมพ์ help เพื่อดูคำสั่งทั้งหมด"
           );

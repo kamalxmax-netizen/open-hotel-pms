@@ -240,6 +240,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         balance_due: number;
     } | null>(null);
     const [folioLoading, setFolioLoading] = useState(false);
+    const [folioRefreshToken, setFolioRefreshToken] = useState(0);
     const [plannedMoveCount, setPlannedMoveCount] = useState(0);
     const [plannedMoveLockedCount, setPlannedMoveLockedCount] = useState(0);
     const [showCancelFeeModal, setShowCancelFeeModal] = useState(false);
@@ -549,7 +550,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         return () => {
             cancelled = true;
         };
-    }, [res?.id]);
+    }, [res?.id, folioRefreshToken]);
 
     useEffect(() => {
         if (!res?.id) {
@@ -1370,6 +1371,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     onSuccess={() => {
                         setShowDepositModal(false);
                         setMsg("Deposit updated successfully!");
+                        setFolioRefreshToken((value) => value + 1);
                         onRefresh();
                     }}
                 />

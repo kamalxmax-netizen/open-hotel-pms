@@ -29,6 +29,9 @@ export function checkProfileCompleteness(profile: GuestProfileLike | null | unde
   const safeProfile: GuestProfileLike = profile ?? {};
   const nationalityCode = normalizeNationalityCode(String(safeProfile.nationality_code ?? "")) || "";
   const isThai = nationalityCode === "THA";
+  const idType = String(safeProfile.id_type ?? "").trim().toLowerCase();
+  const idNumber = String(safeProfile.id_number ?? "").trim();
+  const requireIdNumber = idType !== "passport";
 
   const required: Record<string, boolean> = {
     first_name: true,
@@ -36,7 +39,7 @@ export function checkProfileCompleteness(profile: GuestProfileLike | null | unde
     gender: true,
     nationality_code: true,
     id_type: true,
-    id_number: true,
+    id_number: requireIdNumber,
     country: true,
     province: isThai,
     phone: isThai,
@@ -49,6 +52,12 @@ export function checkProfileCompleteness(profile: GuestProfileLike | null | unde
       return isBlank((safeProfile as Record<string, unknown>)[key]);
     })
     .map(([key]) => key);
+
+  if (idType === "thai_id" && idNumber && !/^\d{13}$/.test(idNumber)) {
+    if (!missingFields.includes("id_number")) {
+      missingFields.push("id_number");
+    }
+  }
 
   return {
     is_complete: missingFields.length === 0,
