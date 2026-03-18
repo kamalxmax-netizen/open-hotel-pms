@@ -83,7 +83,7 @@ async function handleCheckoutQuery(replyToken: string) {
 
   if (error) {
     console.error("line checkout query failed", error);
-    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
+    await replyLineText(replyToken, `[debug] query error: ${error.message ?? JSON.stringify(error)}`);
     return;
   }
 
