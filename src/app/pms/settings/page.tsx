@@ -12,6 +12,11 @@ type Settings = {
     check_in_time: string;
     check_out_time: string;
     late_checkout_fee: number;
+    identity_alert_under18_thai_id_enabled: boolean;
+    identity_alert_under18_passport_enabled: boolean;
+    identity_alert_over18_thai_id_enabled: boolean;
+    identity_alert_over18_passport_enabled: boolean;
+    identity_alert_birthday_enabled: boolean;
 };
 
 type EodStatus = {
@@ -32,7 +37,12 @@ const DEFAULTS: Settings = {
     night_audit_popup_snooze_min: 30,
     check_in_time: "14:00",
     check_out_time: "12:00",
-    late_checkout_fee: 0
+    late_checkout_fee: 0,
+    identity_alert_under18_thai_id_enabled: true,
+    identity_alert_under18_passport_enabled: true,
+    identity_alert_over18_thai_id_enabled: true,
+    identity_alert_over18_passport_enabled: true,
+    identity_alert_birthday_enabled: true,
 };
 
 const TIMEZONES = ["Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore", "UTC"];
@@ -48,7 +58,12 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         night_audit_popup_snooze_min: Number(data?.night_audit_popup_snooze_min ?? 30),
         check_in_time: data?.check_in_time ?? "14:00",
         check_out_time: data?.check_out_time ?? "12:00",
-        late_checkout_fee: data?.late_checkout_fee ?? 0
+        late_checkout_fee: data?.late_checkout_fee ?? 0,
+        identity_alert_under18_thai_id_enabled: data?.identity_alert_under18_thai_id_enabled ?? true,
+        identity_alert_under18_passport_enabled: data?.identity_alert_under18_passport_enabled ?? true,
+        identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
+        identity_alert_over18_passport_enabled: data?.identity_alert_over18_passport_enabled ?? true,
+        identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
     };
 }
 
@@ -83,7 +98,7 @@ export default function SettingsPage() {
 
     useEffect(() => { load(); }, [load]);
 
-    function setField(field: keyof Settings, value: string | number) {
+    function setField(field: keyof Settings, value: string | number | boolean) {
         setSettings(prev => ({ ...prev, [field]: value }));
     }
 
@@ -288,6 +303,62 @@ export default function SettingsPage() {
                             <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                             <input type="number" min="0" step="0.01" className="form-input pl-7" value={settings.late_checkout_fee} onChange={(e) => setField("late_checkout_fee", parseFloat(e.target.value) || 0)} />
                         </div>
+                    </div>
+                </div>
+
+                {/* Guest Identity Alerts */}
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Guest Identity Alerts</h2>
+                    <p className="text-xs text-[var(--text-muted)]">
+                        Configure popup alerts when Thai ID / Passport OCR reads date of birth.
+                    </p>
+
+                    <div className="space-y-2">
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm">
+                            <span>Thai ID: Alert when age is under 18</span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={settings.identity_alert_under18_thai_id_enabled}
+                                onChange={(e) => setField("identity_alert_under18_thai_id_enabled", e.target.checked)}
+                            />
+                        </label>
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm">
+                            <span>Passport OCR: Alert when age is under 18</span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={settings.identity_alert_under18_passport_enabled}
+                                onChange={(e) => setField("identity_alert_under18_passport_enabled", e.target.checked)}
+                            />
+                        </label>
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm">
+                            <span>Thai ID: Alert when age is 18 or above</span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={settings.identity_alert_over18_thai_id_enabled}
+                                onChange={(e) => setField("identity_alert_over18_thai_id_enabled", e.target.checked)}
+                            />
+                        </label>
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm">
+                            <span>Passport OCR: Alert when age is 18 or above</span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={settings.identity_alert_over18_passport_enabled}
+                                onChange={(e) => setField("identity_alert_over18_passport_enabled", e.target.checked)}
+                            />
+                        </label>
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm">
+                            <span>Birthday alert near stay date (±3 days)</span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={settings.identity_alert_birthday_enabled}
+                                onChange={(e) => setField("identity_alert_birthday_enabled", e.target.checked)}
+                            />
+                        </label>
                     </div>
                 </div>
 

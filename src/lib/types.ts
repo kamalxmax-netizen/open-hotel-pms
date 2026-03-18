@@ -861,6 +861,30 @@ export interface StaffShift {
   };
 }
 
+export interface RosterStaffConfig {
+  staff_id: string;
+  nickname: string;
+  regular_day_off: number; // 0=Sun..6=Sat
+  shift_preference: "morning_fixed" | "rotate";
+  night_rotation_order: number | null;
+  extra_day_offs_per_month: number;
+}
+
+export interface GeneratedShiftEntry {
+  staff_id: string;
+  shift_date: string; // YYYY-MM-DD
+  shift_type: "morning" | "afternoon" | "night";
+}
+
+export interface RosterGenerateResult {
+  shifts: GeneratedShiftEntry[];
+  summary: Record<
+    string,
+    { work: number; off: number; morning: number; afternoon: number; night: number }
+  >;
+  warnings: string[];
+}
+
 // ── Phase 12C: Logbook ──
 
 export type LogbookNoteType = 'general' | 'task' | 'urgent' | 'stock' | 'vip';

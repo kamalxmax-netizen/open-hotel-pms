@@ -23,6 +23,19 @@ function roleToDepartmentCode(role: "admin" | "frontdesk" | "maid" | "supervisor
   return "FO";
 }
 
+async function hasAnyElevatedProfiles(
+  supabase: ReturnType<typeof createServerSupabaseClient>
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("user_id")
+    .in("role", ["admin", "supervisor"])
+    .limit(1);
+
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
+}
+
 function toEmployeeCode(userId: string): string {
   return `TMP-${String(userId).slice(0, 8).toUpperCase()}`;
 }
@@ -54,10 +67,14 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const user = await getAuthenticatedUser(supabase, request);
 
-    // Keep legacy-compatible behavior: if auth exists, enforce role check.
+    // Keep legacy-compatible behavior: if elevated profiles exist, enforce role check.
+    // In fresh/migrated databases that only have "staff" profiles, keep invite usable.
     if (user) {
       try {
-        await assertAdminOrSupervisor(supabase, user.id);
+        const elevatedProfilesExist = await hasAnyElevatedProfiles(supabase);
+        if (elevatedProfilesExist) {
+          await assertAdminOrSupervisor(supabase, user.id);
+        }
       } catch (guardError) {
         const message = guardError instanceof Error ? guardError.message : "Forbidden";
         const status = message === "Forbidden" ? 403 : 500;
@@ -196,4 +213,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-

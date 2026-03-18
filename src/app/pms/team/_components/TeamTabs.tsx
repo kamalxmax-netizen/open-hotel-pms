@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { StaffListTab } from "./StaffListTab"
 import { RosterTab } from "./RosterTab"
+import { ScheduleCalendarTab } from "./ScheduleCalendarTab"
 
 export function TeamTabs() {
-    const [activeTab, setActiveTab] = useState<"staff" | "roster">("staff")
+    const [activeTab, setActiveTab] = useState<"staff" | "roster" | "schedule">("staff")
 
     return (
         <div className="space-y-4">
@@ -29,12 +30,22 @@ export function TeamTabs() {
                 >
                     Daily Roster
                 </button>
+                <button
+                    onClick={() => setActiveTab("schedule")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "schedule"
+                            ? "border-brand-600 text-brand-700"
+                            : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--border-input)]"
+                        }`}
+                >
+                    Monthly Schedule
+                </button>
             </div>
 
             {/* Tab Content */}
             <div className="min-h-[400px]">
                 {activeTab === "staff" && <StaffListTab />}
                 {activeTab === "roster" && <RosterTab />}
+                {activeTab === "schedule" && <ScheduleCalendarTab />}
             </div>
         </div>
     )

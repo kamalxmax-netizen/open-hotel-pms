@@ -27,6 +27,7 @@ import { buildBookedNameNoteLine, classifyGuestNameMatch } from "@/lib/guest-nam
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
+import { suggestThaiProvinces } from "@/lib/thai-provinces";
 import type { ReservationGuestWithProfile } from "@/lib/types";
 
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
@@ -81,6 +82,261 @@ function splitGuestName(raw: string): { firstName: string; lastName: string } {
 
 function joinGuestName(firstName: string, lastName: string): string {
     return [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+}
+
+function parseYmdToDate(value: string): Date | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [y, m, d] = value.split("-").map(Number);
+    const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+    if (
+        Number.isNaN(date.getTime()) ||
+        date.getFullYear() !== y ||
+        date.getMonth() !== m - 1 ||
+        date.getDate() !== d
+    ) {
+        return null;
+    }
+    return date;
+}
+
+function normalizeDobYmd(value: unknown): string {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    const thaiDigitMap: Record<string, string> = {
+        "๐": "0",
+        "๑": "1",
+        "๒": "2",
+        "๓": "3",
+        "๔": "4",
+        "๕": "5",
+        "๖": "6",
+        "๗": "7",
+        "๘": "8",
+        "๙": "9",
+    };
+    const rawAsciiDigits = raw.replace(/[๐-๙]/g, (digit) => thaiDigitMap[digit] ?? digit);
+
+    const normalizeYear = (inputYear: number): number => {
+        if (inputYear >= 2400) return inputYear - 543; // Thai Buddhist Era -> Gregorian
+        return inputYear;
+    };
+
+    const safeBuild = (year: number, month: number, day: number): string => {
+        const yyyy = String(year).padStart(4, "0");
+        const mm = String(month).padStart(2, "0");
+        const dd = String(day).padStart(2, "0");
+        const ymd = `${yyyy}-${mm}-${dd}`;
+        return parseYmdToDate(ymd) ? ymd : "";
+    };
+
+    const isoDatePrefix = rawAsciiDigits.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    if (isoDatePrefix) {
+        return safeBuild(
+            normalizeYear(Number(isoDatePrefix[1])),
+            Number(isoDatePrefix[2]),
+            Number(isoDatePrefix[3])
+        );
+    }
+
+    const ymdDash = rawAsciiDigits.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymdDash) return safeBuild(normalizeYear(Number(ymdDash[1])), Number(ymdDash[2]), Number(ymdDash[3]));
+
+    const ymdSlash = rawAsciiDigits.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    if (ymdSlash) return safeBuild(normalizeYear(Number(ymdSlash[1])), Number(ymdSlash[2]), Number(ymdSlash[3]));
+
+    const dmySlash = rawAsciiDigits.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmySlash) return safeBuild(normalizeYear(Number(dmySlash[3])), Number(dmySlash[2]), Number(dmySlash[1]));
+
+    const dmyDash = rawAsciiDigits.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (dmyDash) return safeBuild(normalizeYear(Number(dmyDash[3])), Number(dmyDash[2]), Number(dmyDash[1]));
+
+    const ymdCompact = rawAsciiDigits.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (ymdCompact) return safeBuild(normalizeYear(Number(ymdCompact[1])), Number(ymdCompact[2]), Number(ymdCompact[3]));
+
+    const dmyCompact = rawAsciiDigits.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (dmyCompact) return safeBuild(normalizeYear(Number(dmyCompact[3])), Number(dmyCompact[2]), Number(dmyCompact[1]));
+
+    const yymmdd = rawAsciiDigits.match(/^(\d{2})(\d{2})(\d{2})$/);
+    if (yymmdd) {
+        const yy = Number(yymmdd[1]);
+        const currentYear2 = getBangkokTodayDate().getFullYear() % 100;
+        const fullYear = yy <= currentYear2 ? 2000 + yy : 1900 + yy;
+        return safeBuild(fullYear, Number(yymmdd[2]), Number(yymmdd[3]));
+    }
+
+    const monthMap: Record<string, number> = {
+        jan: 1, january: 1,
+        feb: 2, february: 2,
+        mar: 3, march: 3,
+        apr: 4, april: 4,
+        may: 5,
+        jun: 6, june: 6,
+        jul: 7, july: 7,
+        aug: 8, august: 8,
+        sep: 9, sept: 9, september: 9,
+        oct: 10, october: 10,
+        nov: 11, november: 11,
+        dec: 12, december: 12,
+        "ม.ค": 1, "มกราคม": 1,
+        "ก.พ": 2, "กุมภาพันธ์": 2,
+        "มี.ค": 3, "มีนาคม": 3,
+        "เม.ย": 4, "เมษายน": 4,
+        "พ.ค": 5, "พฤษภาคม": 5,
+        "มิ.ย": 6, "มิถุนายน": 6,
+        "ก.ค": 7, "กรกฎาคม": 7,
+        "ส.ค": 8, "สิงหาคม": 8,
+        "ก.ย": 9, "กันยายน": 9,
+        "ต.ค": 10, "ตุลาคม": 10,
+        "พ.ย": 11, "พฤศจิกายน": 11,
+        "ธ.ค": 12, "ธันวาคม": 12,
+    };
+    const normalizedWords = rawAsciiDigits
+        .toLowerCase()
+        .replace(/,/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const dmyWithWord = normalizedWords.match(/^(\d{1,2})\s+([a-zก-๙\.]+)\s+(\d{2,4})$/u);
+    if (dmyWithWord) {
+        const day = Number(dmyWithWord[1]);
+        const monthLabel = dmyWithWord[2].replace(/\.$/, "");
+        const month = monthMap[monthLabel] ?? 0;
+        const rawYear = Number(dmyWithWord[3]);
+        if (month > 0) {
+            const fullYear =
+                rawYear < 100
+                    ? (rawYear <= (getBangkokTodayDate().getFullYear() % 100) ? 2000 + rawYear : 1900 + rawYear)
+                    : normalizeYear(rawYear);
+            return safeBuild(fullYear, month, day);
+        }
+    }
+
+    const parsed = new Date(rawAsciiDigits);
+    if (!Number.isNaN(parsed.getTime())) {
+        return safeBuild(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+    }
+
+    return "";
+}
+
+function dateToYmd(value: Date): string {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function addDaysLocal(value: Date, days: number): Date {
+    const next = new Date(value);
+    next.setDate(next.getDate() + days);
+    next.setHours(12, 0, 0, 0);
+    return next;
+}
+
+function diffDays(later: Date, earlier: Date): number {
+    return Math.round((later.getTime() - earlier.getTime()) / 86400000);
+}
+
+function getBangkokTodayDate(): Date {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Bangkok",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(new Date());
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || "0");
+    return new Date(get("year"), get("month") - 1, get("day"), 12, 0, 0, 0);
+}
+
+function daysInMonth(year: number, month1to12: number): number {
+    return new Date(year, month1to12, 0).getDate();
+}
+
+function diffDateParts(fromDate: Date, toDate: Date): { years: number; months: number; days: number } {
+    let years = toDate.getFullYear() - fromDate.getFullYear();
+    let months = toDate.getMonth() - fromDate.getMonth();
+    let days = toDate.getDate() - fromDate.getDate();
+
+    if (days < 0) {
+        months -= 1;
+        const previousMonth = toDate.getMonth() === 0 ? 12 : toDate.getMonth();
+        const previousMonthYear = toDate.getMonth() === 0 ? toDate.getFullYear() - 1 : toDate.getFullYear();
+        days += daysInMonth(previousMonthYear, previousMonth);
+    }
+    if (months < 0) {
+        years -= 1;
+        months += 12;
+    }
+
+    return {
+        years: Math.max(0, years),
+        months: Math.max(0, months),
+        days: Math.max(0, days),
+    };
+}
+
+type BirthdayStayRelation = "during_stay" | "before_checkin" | "after_checkout";
+
+function findBirthdayNearStayWindow(
+    birthdayYmd: string,
+    checkinYmd: string,
+    checkoutYmd: string,
+    toleranceDays = 3
+): { birthdayDateYmd: string; relation: BirthdayStayRelation; distanceDays: number } | null {
+    const birthDate = parseYmdToDate(birthdayYmd);
+    const checkinDate = parseYmdToDate(checkinYmd);
+    const checkoutDate = parseYmdToDate(checkoutYmd);
+    if (!birthDate || !checkinDate || !checkoutDate) return null;
+
+    const stayStart = checkinDate <= checkoutDate ? checkinDate : checkoutDate;
+    const stayEnd = checkinDate <= checkoutDate ? checkoutDate : checkinDate;
+    const windowStart = addDaysLocal(stayStart, -Math.max(0, toleranceDays));
+    const windowEnd = addDaysLocal(stayEnd, Math.max(0, toleranceDays));
+
+    const birthMonth = birthDate.getMonth();
+    const birthDay = birthDate.getDate();
+    const yearStart = stayStart.getFullYear() - 1;
+    const yearEnd = stayEnd.getFullYear() + 1;
+    const candidates: Date[] = [];
+
+    for (let year = yearStart; year <= yearEnd; year += 1) {
+        const candidate = new Date(year, birthMonth, birthDay, 12, 0, 0, 0);
+        if (candidate.getMonth() !== birthMonth || candidate.getDate() !== birthDay) continue;
+        if (candidate < windowStart || candidate > windowEnd) continue;
+        candidates.push(candidate);
+    }
+    if (candidates.length === 0) return null;
+
+    const scored = candidates
+        .map((candidate) => {
+            if (candidate >= stayStart && candidate <= stayEnd) {
+                return {
+                    candidate,
+                    relation: "during_stay" as BirthdayStayRelation,
+                    distanceDays: 0,
+                };
+            }
+            if (candidate < stayStart) {
+                return {
+                    candidate,
+                    relation: "before_checkin" as BirthdayStayRelation,
+                    distanceDays: diffDays(stayStart, candidate),
+                };
+            }
+            return {
+                candidate,
+                relation: "after_checkout" as BirthdayStayRelation,
+                distanceDays: diffDays(candidate, stayEnd),
+            };
+        })
+        .sort((a, b) => {
+            if (a.distanceDays !== b.distanceDays) return a.distanceDays - b.distanceDays;
+            return a.candidate.getTime() - b.candidate.getTime();
+        });
+
+    const best = scored[0];
+    return {
+        birthdayDateYmd: dateToYmd(best.candidate),
+        relation: best.relation,
+        distanceDays: best.distanceDays,
+    };
 }
 
 const PAYMENT_METHODS = [
@@ -173,8 +429,57 @@ type PassportOcrImportPayload = {
 };
 
 type IdentityImportTarget = "main" | "accompany";
+type IdentityScanSource = "thai_id" | "passport_ocr";
 type ProfileGenderValue = "" | "M" | "F" | "Other";
 type ProfileIdTypeValue = "" | "thai_id" | "passport" | "other";
+type IdentityScanNoticeKind = "under18" | "over18" | "birthday";
+type IdentityScanNotice = {
+    severity: "warning" | "success";
+    kind: IdentityScanNoticeKind;
+    message: string;
+};
+
+type IdentityAlertSettings = {
+    identity_alert_under18_thai_id_enabled: boolean;
+    identity_alert_under18_passport_enabled: boolean;
+    identity_alert_over18_thai_id_enabled: boolean;
+    identity_alert_over18_passport_enabled: boolean;
+    identity_alert_birthday_enabled: boolean;
+};
+
+const DEFAULT_IDENTITY_ALERT_SETTINGS: IdentityAlertSettings = {
+    identity_alert_under18_thai_id_enabled: true,
+    identity_alert_under18_passport_enabled: true,
+    identity_alert_over18_thai_id_enabled: true,
+    identity_alert_over18_passport_enabled: true,
+    identity_alert_birthday_enabled: true,
+};
+
+function mergeIdentityAlertSettings(raw: unknown): IdentityAlertSettings {
+    const source = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
+    return {
+        identity_alert_under18_thai_id_enabled:
+            source.identity_alert_under18_thai_id_enabled == null
+                ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_under18_thai_id_enabled
+                : Boolean(source.identity_alert_under18_thai_id_enabled),
+        identity_alert_under18_passport_enabled:
+            source.identity_alert_under18_passport_enabled == null
+                ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_under18_passport_enabled
+                : Boolean(source.identity_alert_under18_passport_enabled),
+        identity_alert_over18_thai_id_enabled:
+            source.identity_alert_over18_thai_id_enabled == null
+                ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_over18_thai_id_enabled
+                : Boolean(source.identity_alert_over18_thai_id_enabled),
+        identity_alert_over18_passport_enabled:
+            source.identity_alert_over18_passport_enabled == null
+                ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_over18_passport_enabled
+                : Boolean(source.identity_alert_over18_passport_enabled),
+        identity_alert_birthday_enabled:
+            source.identity_alert_birthday_enabled == null
+                ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_birthday_enabled
+                : Boolean(source.identity_alert_birthday_enabled),
+    };
+}
 
 type PartyDraft = {
     linkedMemberId: string | null;
@@ -559,6 +864,7 @@ export default function ReservationDetailPage({
     const [reverseNoShowLoading, setReverseNoShowLoading] = useState(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [successMessage, setSuccessMessage] = useState("");
+    const [identityAlertSettings, setIdentityAlertSettings] = useState<IdentityAlertSettings>(DEFAULT_IDENTITY_ALERT_SETTINGS);
 
     // Print dialogs
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -866,8 +1172,8 @@ export default function ReservationDetailPage({
         const normalizedGender = normalizeThaiCardGender(payload.gender);
         if (normalizedGender) setProfileGender(normalizedGender);
 
-        const dob = String(payload.birthday || "").trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) setProfileDob(dob);
+        const dob = normalizeDobYmd(payload.birthday);
+        if (dob) setProfileDob(dob);
 
         const address = String(payload.address || "").replace(/#/g, " ").trim();
         if (address) setProfileAddress(address);
@@ -898,9 +1204,102 @@ export default function ReservationDetailPage({
         return data.profile ?? null;
     }, []);
 
+    const buildIdentityScanNotices = useCallback((
+        dobYmd: string,
+        target: "main" | "accompany",
+        source: IdentityScanSource
+    ) => {
+        const notices: IdentityScanNotice[] = [];
+        const rawDob = String(dobYmd || "").trim();
+        const normalizedDob = normalizeDobYmd(rawDob);
+        const birthDate = parseYmdToDate(normalizedDob);
+        const label = target === "main" ? "Main Guest" : "Accompanying Guest";
+        const showUnder18 =
+            source === "thai_id"
+                ? identityAlertSettings.identity_alert_under18_thai_id_enabled
+                : identityAlertSettings.identity_alert_under18_passport_enabled;
+        const showOver18 =
+            source === "thai_id"
+                ? identityAlertSettings.identity_alert_over18_thai_id_enabled
+                : identityAlertSettings.identity_alert_over18_passport_enabled;
+        const showBirthday = identityAlertSettings.identity_alert_birthday_enabled;
+
+        if (birthDate) {
+            const today = getBangkokTodayDate();
+            const age18Date = new Date(birthDate);
+            age18Date.setFullYear(age18Date.getFullYear() + 18);
+            age18Date.setHours(12, 0, 0, 0);
+
+            if (today < age18Date && showUnder18) {
+                const missing = diffDateParts(today, age18Date);
+                notices.push({
+                    severity: "warning",
+                    kind: "under18",
+                    message: `⚠️ ${label} อายุต่ำกว่า 18 ปี (ยังขาดอีก ${missing.years} ปี ${missing.months} เดือน ${missing.days} วัน)`,
+                });
+            } else if (showOver18) {
+                const ageNow = diffDateParts(birthDate, today);
+                notices.push({
+                    severity: "success",
+                    kind: "over18",
+                    message: `✅ ${label} อายุเกิน 18 ปีแล้ว (${ageNow.years} ปี ${ageNow.months} เดือน ${ageNow.days} วัน)`,
+                });
+            }
+
+            const nearBirthday = showBirthday
+                ? findBirthdayNearStayWindow(normalizedDob, checkinDate, checkoutDate, 3)
+                : null;
+            if (nearBirthday && showBirthday) {
+                const detail =
+                    nearBirthday.relation === "during_stay"
+                        ? "เกิดช่วงอยู่กับเรา"
+                        : nearBirthday.relation === "before_checkin"
+                            ? `เกิดก่อนเข้าพัก ${nearBirthday.distanceDays} วัน`
+                            : `เกิดหลังเช็กเอาต์ ${nearBirthday.distanceDays} วัน`;
+                notices.push({
+                    severity: "warning",
+                    kind: "birthday",
+                    message: `🎂 Birthday alert (${label}) วันที่ ${nearBirthday.birthdayDateYmd} — ${detail} (ช่วงแจ้งเตือน ±3 วัน)`,
+                });
+            }
+        }
+        if (!birthDate && rawDob) {
+            notices.push({
+                severity: "warning",
+                kind: "under18",
+                message: `⚠️ ${label} ไม่สามารถตีความวันเกิดจากข้อมูลที่อ่านได้ (${rawDob}) กรุณาตรวจสอบวันเกิดก่อนบันทึก`,
+            });
+        }
+
+        return notices;
+    }, [checkinDate, checkoutDate, identityAlertSettings]);
+
+    const showIdentityNoticesPopup = useCallback((
+        notices: IdentityScanNotice[],
+        source: IdentityScanSource,
+        target: "main" | "accompany"
+    ): boolean => {
+        if (notices.length === 0) return true;
+        const sourceLabel = source === "thai_id" ? "Thai ID" : "Passport OCR";
+        const targetLabel = target === "main" ? "Main Guest" : "Accompanying Guest";
+        const body = [
+            `Identity alerts (${sourceLabel} • ${targetLabel})`,
+            "",
+            ...notices.map((notice) => `• ${notice.message}`),
+            "",
+            "กด OK เพื่อรับทราบและดำเนินการต่อ",
+        ].join("\n");
+        return window.confirm(body);
+    }, []);
+
     const handlePartyThaiCardConfirmed = useCallback(async (payload: ThaiCardImportPayload) => {
         setError("");
         setPartyDraftError("");
+        const scannedDob = String(payload.birthday || "").trim();
+        const notices = buildIdentityScanNotices(scannedDob, "accompany", "thai_id");
+        if (!showIdentityNoticesPopup(notices, "thai_id", "accompany")) {
+            return;
+        }
         setPartyModalOpen(true);
         const citizenId = normalizeThaiCardCitizenId(payload.citizenId);
 
@@ -935,7 +1334,7 @@ export default function ReservationDetailPage({
         const englishLast = String(payload.lastNameEN || "").trim();
         const thaiFirst = String(payload.firstNameTH || "").trim();
         const thaiLast = String(payload.lastNameTH || "").trim();
-        const nextDob = String(payload.birthday || "").trim();
+        const nextDob = normalizeDobYmd(payload.birthday);
         const nextGender = normalizeThaiCardGender(payload.gender);
         setPartyDraft((current) => ({
             ...current,
@@ -947,13 +1346,18 @@ export default function ReservationDetailPage({
             nationalityCode: "THA",
             country: "Thailand",
             gender: nextGender || current.gender,
-            dob: /^\d{4}-\d{2}-\d{2}$/.test(nextDob) ? nextDob : current.dob,
+            dob: nextDob || current.dob,
             profileStatus: current.profileStatus || "draft",
         }));
-    }, [applyPartyDraftFromProfile, findProfileByThaiId, guestProfileId, reservationParty]);
+    }, [applyPartyDraftFromProfile, buildIdentityScanNotices, findProfileByThaiId, guestProfileId, reservationParty, showIdentityNoticesPopup]);
 
     const handleThaiCardConfirmed = useCallback(async (payload: ThaiCardImportPayload) => {
         setError("");
+        const scannedDob = String(payload.birthday || "").trim();
+        const notices = buildIdentityScanNotices(scannedDob, "main", "thai_id");
+        if (!showIdentityNoticesPopup(notices, "thai_id", "main")) {
+            return;
+        }
         const bookedMainGuestName = guestName.trim();
         const citizenId = normalizeThaiCardCitizenId(payload.citizenId);
         let forceDraftStatus = String(profileStatus || "").trim() !== "verified";
@@ -1018,7 +1422,9 @@ export default function ReservationDetailPage({
         guestName,
         guestProfileId,
         profileStatus,
-        selectProfileById
+        selectProfileById,
+        buildIdentityScanNotices,
+        showIdentityNoticesPopup
     ]);
 
     const applyPassportOcrPayload = useCallback((payload: PassportOcrImportPayload) => {
@@ -1047,8 +1453,8 @@ export default function ReservationDetailPage({
         const normalizedGender = normalizeThaiCardGender(payload.gender);
         if (normalizedGender) setProfileGender(normalizedGender);
 
-        const dob = String(payload.dateOfBirth || "").trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) setProfileDob(dob);
+        const dob = normalizeDobYmd(payload.dateOfBirth);
+        if (dob) setProfileDob(dob);
     }, [guestName]);
 
     const findProfileByPassport = useCallback(async (passportNumber: string) => {
@@ -1070,6 +1476,11 @@ export default function ReservationDetailPage({
 
     const handlePassportOcrConfirmed = useCallback(async (payload: PassportOcrImportPayload) => {
         setError("");
+        const scannedDob = String(payload.dateOfBirth || "").trim();
+        const notices = buildIdentityScanNotices(scannedDob, "main", "passport_ocr");
+        if (!showIdentityNoticesPopup(notices, "passport_ocr", "main")) {
+            return;
+        }
         const passportNumber = normalizePassportNumber(payload.passportNumber);
 
         if (passportNumber) {
@@ -1096,11 +1507,16 @@ export default function ReservationDetailPage({
         }
 
         applyPassportOcrPayload(payload);
-    }, [applyPassportOcrPayload, findProfileByPassport, guestProfileId, selectProfileById]);
+    }, [applyPassportOcrPayload, buildIdentityScanNotices, findProfileByPassport, guestProfileId, selectProfileById, showIdentityNoticesPopup]);
 
     const handlePartyPassportOcrConfirmed = useCallback(async (payload: PassportOcrImportPayload) => {
         setError("");
         setPartyDraftError("");
+        const scannedDob = String(payload.dateOfBirth || "").trim();
+        const notices = buildIdentityScanNotices(scannedDob, "accompany", "passport_ocr");
+        if (!showIdentityNoticesPopup(notices, "passport_ocr", "accompany")) {
+            return;
+        }
         setPartyModalOpen(true);
         const passportNumber = normalizePassportNumber(payload.passportNumber);
 
@@ -1134,7 +1550,7 @@ export default function ReservationDetailPage({
         const normalizedCode = normalizeNationalityCode(String(payload.nationality || "").trim());
         const mappedCountry = getCountryByCode(normalizedCode);
         const normalizedGender = normalizeThaiCardGender(payload.gender);
-        const dob = String(payload.dateOfBirth || "").trim();
+        const dob = normalizeDobYmd(payload.dateOfBirth);
         setPartyDraft((current) => ({
             ...current,
             guestProfileId: current.linkedMemberId ? current.guestProfileId : null,
@@ -1145,10 +1561,10 @@ export default function ReservationDetailPage({
             nationalityCode: normalizedCode || current.nationalityCode,
             country: mappedCountry || current.country,
             gender: normalizedGender || current.gender,
-            dob: /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : current.dob,
+            dob: dob || current.dob,
             profileStatus: current.profileStatus || "draft",
         }));
-    }, [applyPartyDraftFromProfile, findProfileByPassport, guestProfileId, reservationParty]);
+    }, [applyPartyDraftFromProfile, buildIdentityScanNotices, findProfileByPassport, guestProfileId, reservationParty, showIdentityNoticesPopup]);
 
     const openThaiCardReader = useCallback((target: IdentityImportTarget = "main") => {
         if (typeof window === "undefined") return;
@@ -1234,6 +1650,27 @@ export default function ReservationDetailPage({
     useEffect(() => {
         void loadReservationParty();
     }, [loadReservationParty]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/settings", { cache: "no-store" })
+            .then((response) => response.json().catch(() => null))
+            .then((data) => {
+                if (cancelled) return;
+                if (data?.success) {
+                    setIdentityAlertSettings(mergeIdentityAlertSettings(data.settings));
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setIdentityAlertSettings(DEFAULT_IDENTITY_ALERT_SETTINGS);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Load Metadata
     useEffect(() => {
@@ -2829,6 +3266,10 @@ export default function ReservationDetailPage({
     const guestNameParts = splitGuestName(guestName);
     const normalizedNationalityCode = normalizeNationalityCode(profileNationalityCode);
     const isThaiNationality = normalizedNationalityCode === "THA";
+    const thaiProvinceSuggestions = useMemo(
+        () => (isThaiNationality ? suggestThaiProvinces(profileProvince, 2, 20) : []),
+        [isThaiNationality, profileProvince]
+    );
     const formattedNationality = formatNationality(normalizedNationalityCode);
     const checkinProfileCompleteness = useMemo(
         () =>
@@ -3792,8 +4233,23 @@ export default function ReservationDetailPage({
                                                             value={profileProvince}
                                                             onChange={(e) => setProfileProvince(e.target.value)}
                                                             disabled={isReadonly}
-                                                            placeholder={isThaiNationality ? "Province (THA required)" : "Province"}
+                                                            list={isThaiNationality ? "thai-province-list" : undefined}
+                                                            placeholder={isThaiNationality ? "จังหวัด (จำเป็นสำหรับสัญชาติไทย)" : "Province"}
                                                         />
+                                                        {isThaiNationality ? (
+                                                            <>
+                                                                <datalist id="thai-province-list">
+                                                                    {thaiProvinceSuggestions.map((province) => (
+                                                                        <option key={province} value={province} />
+                                                                    ))}
+                                                                </datalist>
+                                                                {profileProvince.trim().length > 0 && profileProvince.trim().length < 2 ? (
+                                                                    <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                                                        พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหาจังหวัด
+                                                                    </p>
+                                                                ) : null}
+                                                            </>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                                 <div>

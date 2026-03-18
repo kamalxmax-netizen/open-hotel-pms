@@ -154,13 +154,12 @@ export default function DepositModal({
                 <div>
                     <label className="form-label">{hasPaid ? "Top Up Amount (THB) *" : "Deposit Amount (THB) *"}</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                         <input
                             required
                             type="number"
                             min="0"
                             step="0.01"
-                            className="form-input pl-7"
+                            className="form-input pl-3"
                             placeholder={hasPaid ? "e.g. 200" : "e.g. 500"}
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}

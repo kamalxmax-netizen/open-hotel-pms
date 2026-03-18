@@ -39,6 +39,11 @@ export async function GET() {
             dayuse_duration_min: Number(data?.dayuse_duration_min ?? 120),
             dayuse_extend_rate: Number(data?.dayuse_extend_rate ?? 100),
             dayuse_extend_min: Number(data?.dayuse_extend_min ?? 60),
+            identity_alert_under18_thai_id_enabled: data?.identity_alert_under18_thai_id_enabled ?? true,
+            identity_alert_under18_passport_enabled: data?.identity_alert_under18_passport_enabled ?? true,
+            identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
+            identity_alert_over18_passport_enabled: data?.identity_alert_over18_passport_enabled ?? true,
+            identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
         };
 
         return NextResponse.json(
@@ -60,7 +65,12 @@ export async function PUT(request: NextRequest) {
             "hotel_name", "hotel_timezone", "sellable_rooms",
             "eod_reminder_time", "check_in_time", "check_out_time",
             "late_checkout_fee", "night_audit_popup_snooze_min",
-            "dayuse_rate", "dayuse_duration_min", "dayuse_extend_rate", "dayuse_extend_min"
+            "dayuse_rate", "dayuse_duration_min", "dayuse_extend_rate", "dayuse_extend_min",
+            "identity_alert_under18_thai_id_enabled",
+            "identity_alert_under18_passport_enabled",
+            "identity_alert_over18_thai_id_enabled",
+            "identity_alert_over18_passport_enabled",
+            "identity_alert_birthday_enabled"
         ];
 
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

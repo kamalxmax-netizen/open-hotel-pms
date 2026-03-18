@@ -21,6 +21,7 @@ const ALL_PAGES = [
   { path: "/pms/pos", label: "POS", section: "Point of Sale" },
   { path: "/pms/inventory", label: "Inventory", section: "Inventory" },
   { path: "/pms/housekeeping", label: "HK Dashboard", section: "Housekeeping" },
+  { path: "/maid", label: "Maid App", section: "Housekeeping" },
   { path: "/pms/maintenance", label: "Maintenance", section: "Maintenance" },
   { path: "/pms/transportation", label: "Transportation", section: "Transportation" },
   { path: "/pms/night-audit", label: "Night Audit", section: "Admin" },

@@ -553,6 +553,19 @@ export default function TimelineView({
     didAutoScrollRef.current = true;
   }, [selectedIsToday, nowMinuteOfDay]);
 
+  // Convert vertical wheel scroll → horizontal scroll on the timeline lane area
+  useEffect(() => {
+    const el = timelineScrollRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return; // no horizontal overflow, let default run
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
   const maidTasks = useMemo(() => {
     const grouped: Record<string, TimelineRoom[]> = {};
     for (const room of rooms) {
