@@ -63,6 +63,67 @@ async function replyLineText(replyToken: string, text: string) {
   }
 }
 
+/** Bangkok UTC+7 date string "YYYY-MM-DD" */
+function bangkokToday(): string {
+  const now = new Date();
+  const bkk = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return bkk.toISOString().slice(0, 10);
+}
+
+async function handleCheckoutQuery(replyToken: string) {
+  const supabase = createServerSupabaseClient();
+  const today = bangkokToday();
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, booking_code, status, checkout_date, checked_out_at, guest_name")
+    .eq("checkout_date", today)
+    .in("status", ["checked_out", "checked_in", "confirmed"])
+    .order("status", { ascending: true });
+
+  if (error) {
+    console.error("line checkout query failed", error);
+    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
+    return;
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    booking_code: string | null;
+    status: string | null;
+    checkout_date: string | null;
+    checked_out_at: string | null;
+    guest_name: string | null;
+  }>;
+
+  const checkedOut = rows.filter((r) => r.status === "checked_out");
+  const remaining = rows.filter((r) => r.status !== "checked_out");
+  const total = rows.length;
+
+  if (total === 0) {
+    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่มีการ Check-out กำหนดวันนี้`);
+    return;
+  }
+
+  const lines = [
+    `📋 ยอด Check-Out วันนี้ (${today})`,
+    ``,
+    `✅ Check-out แล้ว: ${checkedOut.length} ห้อง`,
+    `⏳ ยังไม่ Check-out: ${remaining.length} ห้อง`,
+    `📊 รวม Due Out วันนี้: ${total} ห้อง`,
+  ];
+
+  if (remaining.length > 0 && remaining.length <= 10) {
+    lines.push(``);
+    lines.push(`ห้องที่ยังไม่ออก:`);
+    for (const r of remaining) {
+      lines.push(`• ${r.booking_code ?? r.id.slice(0, 8)} — ${r.guest_name ?? "ไม่ระบุชื่อ"}`);
+    }
+  }
+
+  await replyLineText(replyToken, lines.join("\n"));
+}
+
 async function handleBindCommand(params: {
   token: string;
   lineUserId: string;
@@ -179,6 +240,9 @@ export async function POST(request: NextRequest) {
         if (!replyToken || !lineUserId) continue;
 
         const upper = text.toUpperCase();
+        const norm = text.toLowerCase().replace(/\s+/g, " ").trim();
+
+        // --- BIND command ---
         if (upper.startsWith("BIND")) {
           // Accept both "BIND <token>" and "BIND<token>" to reduce operator mistakes.
           const token = text.slice(4).trim();
@@ -190,7 +254,39 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        await replyLineText(replyToken, "ระบบพร้อมใช้งานแล้ว ส่งคำสั่ง: BIND <token>");
+        // --- Checkout query ---
+        const isCheckoutQuery =
+          norm.includes("checkout") ||
+          norm.includes("check out") ||
+          norm.includes("check-out") ||
+          norm.includes("เช็คเอาท์") ||
+          norm.includes("เช็กเอาท์") ||
+          norm.includes("เช็คเอา") ||
+          norm.includes("c/o") ||
+          norm.startsWith("co ") ||
+          norm === "co";
+        if (isCheckoutQuery) {
+          await handleCheckoutQuery(replyToken);
+          continue;
+        }
+
+        // --- Help ---
+        if (norm === "help" || norm === "ช่วยเหลือ" || norm === "คำสั่ง" || norm === "?" || norm === "menu" || norm === "เมนู") {
+          await replyLineText(
+            replyToken,
+            "📖 คำสั่งที่ใช้ได้:\n\n" +
+            "• checkout / co / เช็คเอาท์\n  → ยอด Check-out วันนี้\n\n" +
+            "• BIND <token>\n  → ผูก LINE กับบัญชี Staff\n\n" +
+            "พิมพ์ help เพื่อดูคำสั่งทั้งหมด"
+          );
+          continue;
+        }
+
+        // --- Unknown ---
+        await replyLineText(
+          replyToken,
+          "ไม่เข้าใจคำสั่ง 🤔\nพิมพ์ help เพื่อดูคำสั่งที่ใช้ได้"
+        );
       } catch (eventErr) {
         console.error("line webhook event handler error", eventErr);
       }

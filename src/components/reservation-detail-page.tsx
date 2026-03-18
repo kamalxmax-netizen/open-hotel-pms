@@ -3309,17 +3309,17 @@ export default function ReservationDetailPage({
                                     </div>
 
                                     {(assignedRoomLockActive || canManageAssignedRoomLock) && (
-                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/30 dark:bg-rose-500/10">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="space-y-1">
-                                                    <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                                                    <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-400">
                                                         <span>🔒</span>
                                                         <span>Do Not Move</span>
                                                     </div>
-                                                    <p className="text-sm font-semibold text-rose-900">
+                                                    <p className="text-sm font-semibold text-rose-900 dark:text-rose-200">
                                                         Room {assignedRoomLockRoomNumber || roomNumber || "—"}
                                                     </p>
-                                                    <p className="text-sm text-rose-800">
+                                                    <p className="text-sm text-rose-800 dark:text-rose-300">
                                                         {assignedRoomLockActive
                                                             ? assignedRoomLockReason || "No reason provided."
                                                             : "This reservation can be locked from the Room Drawer before check-in."}

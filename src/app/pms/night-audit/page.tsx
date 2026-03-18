@@ -125,8 +125,8 @@ export default function NightAuditPage() {
     }
 
     return (
-        <div className="flex h-screen flex-col bg-[var(--bg-body)]">
-            <div className="flex-none border-b bg-[var(--bg-surface)] p-4 sm:p-6 shadow-sm z-10 relative dark:border-white/5">
+        <div className="min-h-screen flex flex-col bg-[var(--bg-body)]">
+            <div className="sticky top-0 z-20 border-b bg-[var(--bg-surface)] p-4 sm:p-6 shadow-sm relative dark:border-white/5">
                 <div className="mx-auto max-w-4xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                         <div>
@@ -159,7 +159,7 @@ export default function NightAuditPage() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 sm:p-6 pb-20">
+            <main className="flex-1 p-4 sm:p-6 pb-20">
                 <div className="mx-auto max-w-4xl">
                     {step === "noshow" && (
                         <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
@@ -329,7 +329,7 @@ export default function NightAuditPage() {
                     )}
 
                 </div>
-            </div>
+            </main>
         </div>
     )
 }
