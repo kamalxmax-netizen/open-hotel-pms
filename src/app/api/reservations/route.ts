@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { applyVisibleTotal, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 
 export async function GET(request: NextRequest) {
     try {
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
         id,
         booking_code,
         booking_group_id,
+        parent_reservation_id,
         guest_name,
         phone,
         source,
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
         id,
         booking_code,
         booking_group_id,
+        parent_reservation_id,
         guest_name,
         phone,
         source,
@@ -167,10 +170,13 @@ export async function GET(request: NextRequest) {
             });
         }
 
+        const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
+
         // Pick display room from active night first; fallback to first historical night (e.g. cancelled bookings).
-        const reservations = rows.map((r: any) => {
+        const reservations = await Promise.all(rows.map(async (r: any) => {
             const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
             const groupMeta = groupId ? groupMetaById.get(groupId) : null;
+            const linkedStay = await resolveLinkedStay(supabase, String(r.id), checkOutTimeHHmm).catch(() => null);
             const nights = (Array.isArray(r.reservation_nights)
                 ? r.reservation_nights
                 : r.reservation_nights
@@ -213,11 +219,16 @@ export async function GET(request: NextRequest) {
                 created_at: r.created_at,
                 room_number: roomNumber,
                 room_type: roomType,
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                linked_segments: linkedStay?.segments ?? null,
+                linked_full_checkin: linkedStay?.full_checkin ?? null,
+                linked_full_checkout: linkedStay?.full_checkout ?? null,
+                linked_active_segment_id: linkedStay?.active_segment_id ?? null,
                 nights: Math.round(
                     (new Date(r.checkout_date).getTime() - new Date(r.checkin_date).getTime()) / 86400000
                 )
             };
-        });
+        }));
 
         return NextResponse.json({
             success: true,

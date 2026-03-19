@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         // All rooms (visible on board), ordered
         const { data: rooms, error: roomsErr } = await supabase
             .from("rooms")
-            .select("id, room_number, is_sellable, closure_reason, is_dayuse, floor_number, wing, sort_order, room_types(name_en, code)")
+            .select("id, room_type_id, room_number, is_sellable, closure_reason, is_dayuse, floor_number, wing, sort_order, room_types(name_en, code)")
             .eq("is_visible_on_board", true)
             .order("floor_number", { ascending: true, nullsFirst: false })
             .order("wing", { ascending: true, nullsFirst: false })
@@ -43,10 +43,12 @@ export async function GET(request: NextRequest) {
                   id,
                   booking_code,
                   booking_group_id,
+                  parent_reservation_id,
                   guest_name,
                   phone,
                   source,
                   status,
+                  checked_in_at,
                   checkin_date,
                   checkout_date,
                   total_price,
@@ -70,13 +72,57 @@ export async function GET(request: NextRequest) {
 
         const { data: plannedMoves, error: plannedMovesError } = await supabase
             .from("reservation_room_plans")
-            .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id, move_reason, pricing_policy, do_not_move, status")
+            .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id, move_reason, pricing_policy, do_not_move, status, reservations!inner(id, status)")
             .eq("status", "planned")
             .lt("start_date", addDays(endDate, 1))
             .gt("end_date", startDate)
             .order("start_date", { ascending: true });
 
         if (plannedMovesError) return NextResponse.json({ error: plannedMovesError.message }, { status: 500 });
+
+        const plannedMoveRows = plannedMoves ?? [];
+        const plannedMoveReservationIds = Array.from(
+            new Set(
+                plannedMoveRows
+                    .map((row: any) => String(row?.reservation_id ?? ""))
+                    .filter(Boolean)
+            )
+        );
+        const activePlannedReservationIds = new Set<string>();
+        if (plannedMoveReservationIds.length > 0) {
+            const [{ data: plannedReservations, error: plannedReservationsError }, { data: plannedNights, error: plannedNightsError }] = await Promise.all([
+                supabase
+                    .from("reservations")
+                    .select("id, status")
+                    .in("id", plannedMoveReservationIds),
+                supabase
+                    .from("reservation_nights")
+                    .select("reservation_id")
+                    .in("reservation_id", plannedMoveReservationIds)
+                    .is("cancelled_at", null),
+            ]);
+
+            if (plannedReservationsError) return NextResponse.json({ error: plannedReservationsError.message }, { status: 500 });
+            if (plannedNightsError) return NextResponse.json({ error: plannedNightsError.message }, { status: 500 });
+
+            const activeByStatus = new Set(
+                (plannedReservations ?? [])
+                    .filter((row: any) => String(row?.status ?? "") === "active")
+                    .map((row: any) => String(row.id))
+                    .filter(Boolean)
+            );
+            const activeByNights = new Set(
+                (plannedNights ?? [])
+                    .map((row: any) => String(row?.reservation_id ?? ""))
+                    .filter(Boolean)
+            );
+
+            activeByStatus.forEach((reservationId) => {
+                if (activeByNights.has(reservationId)) {
+                    activePlannedReservationIds.add(reservationId);
+                }
+            });
+        }
 
         const groupIds = new Set<string>();
         (nights ?? []).forEach((n: any) => {
@@ -102,10 +148,13 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const plannedReservationIds = Array.from(new Set((plannedMoves ?? []).map((row: any) => String(row.reservation_id)).filter(Boolean)));
+        const visiblePlannedMoves = plannedMoveRows.filter((row: any) =>
+            activePlannedReservationIds.has(String(row?.reservation_id ?? ""))
+        );
+        const plannedReservationIds = Array.from(new Set(visiblePlannedMoves.map((row: any) => String(row.reservation_id)).filter(Boolean)));
         const plannedRoomIds = Array.from(
             new Set(
-                (plannedMoves ?? [])
+                visiblePlannedMoves
                     .flatMap((row: any) => [row?.to_room_id ? String(row.to_room_id) : "", row?.from_room_id_snapshot ? String(row.from_room_id_snapshot) : ""])
                     .filter(Boolean)
             )
@@ -211,6 +260,7 @@ export async function GET(request: NextRequest) {
                 phone: string | null;
                 source: string;
                 status: string;             // 'active' | 'checked_out'
+                checked_in_at: string | null;
                 checkin_date: string;
                 checkout_date: string;
                 total_price: number;
@@ -221,11 +271,19 @@ export async function GET(request: NextRequest) {
         const unassignedMap = new Map<string, any>();
 
         const seen = new Map<string, { roomId: string | null, dates: Set<string> }>();
+        const linkedRootIds = new Set<string>();
+        for (const nightRow of nights ?? []) {
+            const reservationRef = (nightRow as any)?.reservations as { id?: string; parent_reservation_id?: string | null } | null;
+            const parentReservationId = reservationRef?.parent_reservation_id ? String(reservationRef.parent_reservation_id) : null;
+            if (parentReservationId) {
+                linkedRootIds.add(parentReservationId);
+            }
+        }
 
         for (const n of nights ?? []) {
             const res = (n.reservations as unknown) as {
-                id: string; booking_code: string; booking_group_id: string | null; guest_name: string; phone: string | null;
-                source: string; status: string; checkin_date: string; checkout_date: string;
+                id: string; booking_code: string; booking_group_id: string | null; parent_reservation_id: string | null; guest_name: string; phone: string | null;
+                source: string; status: string; checked_in_at: string | null; checkin_date: string; checkout_date: string;
                 total_price: number; note: string | null;
             };
             if (!res) continue;
@@ -236,17 +294,22 @@ export async function GET(request: NextRequest) {
             if (!seen.has(key)) {
                 seen.set(key, { roomId, dates: new Set() });
                 const groupId = res.booking_group_id ? String(res.booking_group_id) : null;
+                const parentReservationId = res.parent_reservation_id ? String(res.parent_reservation_id) : null;
+                const linkedRootId = parentReservationId ?? (linkedRootIds.has(String(res.id)) ? String(res.id) : null);
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;
                 const entry = {
                     reservation_id: res.id,
                     booking_code: res.booking_code,
                     booking_group_id: groupId,
+                    parent_reservation_id: parentReservationId,
+                    linked_root_id: linkedRootId,
                     group_code: groupMeta?.group_code ?? null,
                     group_name: groupMeta?.group_name ?? null,
                     guest_name: res.guest_name,
                     phone: res.phone,
                     source: res.source,
                     status: res.status,
+                    checked_in_at: res.checked_in_at,
                     checkin_date: res.checkin_date,
                     checkout_date: res.checkout_date,
                     total_price: res.total_price,
@@ -284,6 +347,7 @@ export async function GET(request: NextRequest) {
             const rt = (room.room_types as unknown) as { name_en: string; code: string } | null;
             return {
                 room_id: room.id,
+                room_type_id: room.room_type_id ? String(room.room_type_id) : "",
                 room_number: room.room_number,
                 room_type: rt?.name_en ?? "Unknown",
                 room_type_code: rt?.code ?? "",
@@ -301,7 +365,7 @@ export async function GET(request: NextRequest) {
             rooms: data,
             unassigned: Array.from(unassignedMap.values()),
             blocks: blocks ?? [],
-            planned_moves: (plannedMoves ?? []).map((row: any) => {
+            planned_moves: visiblePlannedMoves.map((row: any) => {
                 const reservationMeta = reservationMetaById.get(String(row.reservation_id));
                 const groupId = reservationMeta?.booking_group_id ? String(reservationMeta.booking_group_id) : null;
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;

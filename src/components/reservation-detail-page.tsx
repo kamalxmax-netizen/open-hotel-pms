@@ -28,7 +28,9 @@ import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
-import type { ReservationGuestWithProfile } from "@/lib/types";
+import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import LinkedStayPanel from "./linked-stay-panel";
 
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
 type ReservationRecordStatus = "active" | "cancelled" | "checked_out" | "no_show" | "";
@@ -727,7 +729,7 @@ interface ReservationDetailPageProps {
 
 export default function ReservationDetailPage({
     mode,
-    reservationId,
+    reservationId: propReservationId,
     roomNumber,
     bookingGroupId,
     isDayUse = false,
@@ -738,6 +740,23 @@ export default function ReservationDetailPage({
     onSuccess
 }: ReservationDetailPageProps) {
 
+    const router = useRouter();
+    const [reservationId, setReservationId] = useState(propReservationId);
+    
+    useEffect(() => {
+        setReservationId(propReservationId);
+    }, [propReservationId]);
+
+    const handleSwitchLinkedTab = (newId: string) => {
+        setReservationId(newId);
+        if (typeof window !== "undefined" && window.location.pathname.includes("/reservations")) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("open", newId);
+            router.replace(url.pathname + url.search);
+        }
+    };
+
+    const [linkedStay, setLinkedStay] = useState<LinkedStay | null>(null);
     const [loading, setLoading] = useState(false);
     const [rateRefreshing, setRateRefreshing] = useState(false);
     const [fetching, setFetching] = useState(mode !== "create");
@@ -855,6 +874,7 @@ export default function ReservationDetailPage({
     const [assignedRoomLockActive, setAssignedRoomLockActive] = useState(false);
     const [assignedRoomLockReason, setAssignedRoomLockReason] = useState("");
     const [assignedRoomLockRoomNumber, setAssignedRoomLockRoomNumber] = useState("");
+    const [assignedRoomLockDraftReason, setAssignedRoomLockDraftReason] = useState("");
     const [assignedRoomLockLoading, setAssignedRoomLockLoading] = useState(false);
     const dayUseAmountOnlyMode = isDayUse && (mode === "edit" || mode === "inhouse");
 
@@ -1726,10 +1746,12 @@ export default function ReservationDetailPage({
             setPendingCheckinPayments([]);
             setPendingInhousePayments([]);
             setRoomMoveHistory([]);
+            setLinkedStay(null);
             setReservationStatus("");
             setAssignedRoomLockActive(false);
             setAssignedRoomLockReason("");
             setAssignedRoomLockRoomNumber("");
+            setAssignedRoomLockDraftReason("");
             setOriginalRoomTypeId("");
             setGuestProfileId(null);
             setIdentityText("");
@@ -1763,6 +1785,7 @@ export default function ReservationDetailPage({
                     setAssignedRoomLockActive(Boolean(res.do_not_move_assigned_room));
                     setAssignedRoomLockReason(String(res.do_not_move_reason || ""));
                     setAssignedRoomLockRoomNumber(String(res.do_not_move_room_number_snapshot || res.room_number || roomNumber || ""));
+                    setAssignedRoomLockDraftReason("");
                     setRoomTypeId(res.room_type_id || "");
                     setOriginalRoomTypeId(res.room_type_id || "");
                     setUseSelectedRoomTypeForCharge(true);
@@ -1794,6 +1817,7 @@ export default function ReservationDetailPage({
                     setPendingCheckinPayments([]);
                     setPendingInhousePayments([]);
                     setRoomMoveHistory(Array.isArray(res.room_moves) ? res.room_moves : []);
+                    setLinkedStay(d.linked_stay || res.linked_stay || null);
                     const normalizedCheckinTime = typeof res.checkin_time === "string" ? res.checkin_time.slice(0, 5) : "";
                     const checkinTimeFromDraft = /^\d{2}:\d{2}$/.test(normalizedCheckinTime)
                         ? normalizedCheckinTime
@@ -1883,6 +1907,35 @@ export default function ReservationDetailPage({
             setAssignedRoomLockActive(false);
             setAssignedRoomLockReason("");
             setAssignedRoomLockRoomNumber("");
+            setAssignedRoomLockDraftReason("");
+        } finally {
+            setAssignedRoomLockLoading(false);
+        }
+    }
+
+    async function handleLockAssignedRoom() {
+        if (!reservationId) return;
+        const reason = assignedRoomLockDraftReason.trim();
+        if (!reason) {
+            setError("Please enter a reason before locking this room.");
+            return;
+        }
+        setAssignedRoomLockLoading(true);
+        try {
+            const response = await fetch(`/api/bookings/${reservationId}/room-lock`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: true, reason }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload?.success === false) {
+                setError(payload?.error ?? "Failed to lock room.");
+                return;
+            }
+            setAssignedRoomLockActive(true);
+            setAssignedRoomLockReason(String(payload?.reason || reason));
+            setAssignedRoomLockRoomNumber(String(payload?.room_number_snapshot || roomNumber || assignedRoomLockRoomNumber || ""));
+            setAssignedRoomLockDraftReason("");
         } finally {
             setAssignedRoomLockLoading(false);
         }
@@ -3596,6 +3649,14 @@ export default function ReservationDetailPage({
                     </div>
                 )}
 
+                {linkedStay && reservationId && (
+                    <LinkedStayPanel 
+                        linkedStay={linkedStay} 
+                        currentReservationId={reservationId} 
+                        onSwitchTab={handleSwitchLinkedTab} 
+                    />
+                )}
+
                 <form id="res-form" ref={formRef} onSubmit={handleSubmit}>
                     <div className="relative">
                         {lockMessage && (
@@ -3784,8 +3845,29 @@ export default function ReservationDetailPage({
                                                     <p className="text-sm text-rose-800 dark:text-rose-300">
                                                         {assignedRoomLockActive
                                                             ? assignedRoomLockReason || "No reason provided."
-                                                            : "This reservation can be locked from the Room Drawer before check-in."}
+                                                            : "Lock this assigned room before check-in to prevent accidental moves."}
                                                     </p>
+                                                    {!assignedRoomLockActive && canManageAssignedRoomLock && (
+                                                        <div className="mt-2 space-y-2">
+                                                            <textarea
+                                                                className="form-input min-h-[72px] bg-[var(--bg-surface)]"
+                                                                value={assignedRoomLockDraftReason}
+                                                                onChange={(e) => setAssignedRoomLockDraftReason(e.target.value)}
+                                                                placeholder="Why must this reservation stay in this room?"
+                                                                disabled={assignedRoomLockLoading}
+                                                            />
+                                                            <div className="flex items-center justify-end">
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-secondary btn-sm text-rose-700 hover:bg-rose-100"
+                                                                    onClick={() => void handleLockAssignedRoom()}
+                                                                    disabled={assignedRoomLockLoading || !assignedRoomLockDraftReason.trim()}
+                                                                >
+                                                                    {assignedRoomLockLoading ? "Locking..." : "🔒 Lock Room"}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 {assignedRoomLockActive && (
                                                     <button
@@ -5226,6 +5308,7 @@ export default function ReservationDetailPage({
                         setShowFolioModal(false);
                         onSuccess();
                     }}
+                    onSwitchTab={handleSwitchLinkedTab}
                 />
             )}
 

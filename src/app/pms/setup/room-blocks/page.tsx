@@ -28,7 +28,7 @@ export default function RoomBlocksPage() {
     const [formSaving, setFormSaving] = useState(false);
 
     // Fetch lists
-    const [availableRooms, setAvailableRooms] = useState<{ id: string; room_number: string }[]>([]);
+    const [availableRooms, setAvailableRooms] = useState<{ id: string; room_number: string; is_dayuse?: boolean }[]>([]);
 
     useEffect(() => {
         loadData();
@@ -135,7 +135,9 @@ export default function RoomBlocksPage() {
                             >
                                 <option value="">-- Select Room --</option>
                                 {availableRooms.map(r => (
-                                    <option key={r.id} value={r.id}>Room {r.room_number}</option>
+                                    <option key={r.id} value={r.id}>
+                                        Room {r.room_number}{r.is_dayuse ? " (Day Use)" : ""}
+                                    </option>
                                 ))}
                             </select>
                         </div>

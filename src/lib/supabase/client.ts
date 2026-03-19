@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { navigatorLock, type LockFunc } from "@supabase/auth-js";
 
 // Use globalThis instead of a module-level variable so the singleton survives
 // Next.js HMR reloads. Without this, HMR resets the module variable to null
@@ -25,6 +26,23 @@ export function createBrowserSupabaseClient() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.");
   }
 
-  globalStore.__supabaseBrowserClient = createBrowserClient(url, anonKey);
+  const configuredTimeout = Number(process.env.NEXT_PUBLIC_SUPABASE_LOCK_TIMEOUT_MS ?? "");
+  const lockAcquireTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout >= 0
+    ? Math.trunc(configuredTimeout)
+    : 30000;
+  const lockWithExtendedTimeout: LockFunc = (name, acquireTimeout, fn) =>
+    navigatorLock(name, Math.max(acquireTimeout, lockAcquireTimeoutMs), fn);
+  const shouldBypassBrowserLock =
+    process.env.NODE_ENV !== "production" ||
+    process.env.NEXT_PUBLIC_SUPABASE_DISABLE_BROWSER_LOCK === "true";
+  const lockFunc: LockFunc = shouldBypassBrowserLock
+    ? async (_name, _acquireTimeout, fn) => fn()
+    : lockWithExtendedTimeout;
+
+  globalStore.__supabaseBrowserClient = createBrowserClient(url, anonKey, {
+    auth: {
+      lock: lockFunc,
+    },
+  });
   return globalStore.__supabaseBrowserClient;
 }

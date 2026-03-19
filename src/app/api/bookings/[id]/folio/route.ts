@@ -1,7 +1,8 @@
-import { computeFeeSummary, normalizePaymentMethod, toLocalDate } from "@/lib/folio-fees";
+import { computeFeeSummary, toLocalDate } from "@/lib/folio-fees";
 import { fromSatang, toSatang } from "@/lib/money";
 import { listNights } from "@/lib/dates";
-import type { ReservationFolioLedgerRow, ReservationFolioResponse } from "@/lib/types";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import type { ReservationFolioLedgerRow, ReservationFolioResponse, ReservationFolioSummary } from "@/lib/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -10,6 +11,7 @@ type RouteParams = { params: { id: string } };
 
 type PaymentRow = {
   id: string;
+  reservation_id: string;
   tx_type: "payment" | "refund" | "deposit";
   method: "cash" | "transfer" | "credit_card" | "other";
   amount: number | string;
@@ -27,6 +29,27 @@ type PaymentRow = {
     icon: string | null;
     category: string;
   } | null;
+};
+
+type ReservationRow = {
+  id: string;
+  booking_code: string | null;
+  guest_name: string | null;
+  source: string | null;
+  status: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+  checked_in_at: string | null;
+  checked_out_at?: string | null;
+  total_price: number | string | null;
+  discount_type: string | null;
+  discount_value: number | string | null;
+  discount_percent: number | string | null;
+  discount_reason: string | null;
+  deposit_amount: number | string | null;
+  deposit_note: string | null;
+  deposit_paid_at: string | null;
+  parent_reservation_id?: string | null;
 };
 
 function toNumber(value: unknown): number {
@@ -48,6 +71,12 @@ function isMissingFeeRelationError(error: { code?: string | null; message?: stri
   );
 }
 
+function isMissingReservationColumnError(error: { message?: string | null } | null | undefined): boolean {
+  if (!error) return false;
+  const message = String(error.message ?? "").toLowerCase();
+  return message.includes("checked_out_at") || message.includes("parent_reservation_id");
+}
+
 function normalizePaymentRows(rows: any[]): PaymentRow[] {
   return rows.map((row) => {
     const templateValue = Array.isArray(row.extra_fee_templates)
@@ -56,6 +85,7 @@ function normalizePaymentRows(rows: any[]): PaymentRow[] {
 
     return {
       id: String(row.id ?? ""),
+      reservation_id: String(row.reservation_id ?? ""),
       tx_type: row.tx_type,
       method: row.method,
       amount: row.amount,
@@ -77,6 +107,205 @@ function normalizePaymentRows(rows: any[]): PaymentRow[] {
         : null,
     };
   });
+}
+
+function buildReservationSummary(
+  reservation: Pick<
+    ReservationRow,
+    "total_price" | "deposit_amount" | "discount_type" | "discount_value" | "discount_percent" | "checkin_date" | "checkout_date" | "checked_in_at" | "discount_reason"
+  >,
+  payments: PaymentRow[]
+): ReservationFolioSummary {
+  const feeSummary = computeFeeSummary(
+    toNumber(reservation.total_price),
+    toNumber(reservation.deposit_amount),
+    payments
+  );
+
+  const nightCount = (() => {
+    try {
+      return listNights(
+        String(reservation.checkin_date ?? ""),
+        String(reservation.checkout_date ?? "")
+      ).length;
+    } catch {
+      return 0;
+    }
+  })();
+
+  const discountTotal = computeReservationDiscountAmount({
+    totalPrice: toNumber(reservation.total_price),
+    discountType: reservation.discount_type ?? "percent",
+    discountValue: toNumber(reservation.discount_value ?? reservation.discount_percent),
+    nightCount,
+  });
+
+  const paymentsTotal = payments.reduce((sum, row) => {
+    if (row.tx_type !== "payment") return sum;
+    if (row.revenue_category === "extra_charge" || row.revenue_category === "deposit") return sum;
+    return sum + fromSatang(toSatang(row.amount));
+  }, 0);
+
+  const refundsTotal = payments.reduce((sum, row) => {
+    if (row.tx_type !== "refund") return sum;
+    const note = String(row.note ?? "").toLowerCase();
+    if (row.revenue_category === "deposit" && note.includes("paid by deposit")) return sum;
+    return sum + fromSatang(toSatang(row.amount));
+  }, 0);
+
+  const grandTotalAfterDiscount = Math.max(
+    0,
+    fromSatang(toSatang(feeSummary.grand_total) - toSatang(discountTotal))
+  );
+  const outstandingAfterDiscount = fromSatang(
+    toSatang(feeSummary.balance) - toSatang(discountTotal)
+  );
+
+  return {
+    room_charges_total: feeSummary.room_charges_total,
+    discount_total: discountTotal,
+    extra_charges_total: feeSummary.extra_charges_total,
+    grand_total: grandTotalAfterDiscount,
+    payments_total: Number(paymentsTotal.toFixed(2)),
+    refunds_total: Number(refundsTotal.toFixed(2)),
+    deposit_held: feeSummary.deposit_held,
+    outstanding_balance: outstandingAfterDiscount,
+  };
+}
+
+async function fetchReservationRows(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  reservationIds: string[]
+): Promise<Map<string, PaymentRow[]>> {
+  const ids = Array.from(new Set(reservationIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+
+  const richSelect = `
+    id,
+    reservation_id,
+    tx_type,
+    method,
+    amount,
+    note,
+    paid_at,
+    paid_date,
+    created_at,
+    revenue_category,
+    fee_template_code,
+    cashier_name,
+    is_record_only,
+    extra_fee_templates(code, name, icon, category)
+  `;
+
+  const baseSelect = `
+    id,
+    reservation_id,
+    tx_type,
+    method,
+    amount,
+    note,
+    paid_at,
+    paid_date,
+    created_at,
+    revenue_category,
+    cashier_name,
+    is_record_only
+  `;
+
+  const richRes = await supabase
+    .from("folio_payments")
+    .select(richSelect)
+    .in("reservation_id", ids)
+    .order("paid_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  let paymentRows: PaymentRow[];
+  if (!richRes.error) {
+    paymentRows = normalizePaymentRows(richRes.data ?? []);
+  } else if (isMissingFeeRelationError(richRes.error)) {
+    const baseRes = await supabase
+      .from("folio_payments")
+      .select(baseSelect)
+      .in("reservation_id", ids)
+      .order("paid_at", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (baseRes.error) {
+      throw new Error(baseRes.error.message);
+    }
+    paymentRows = normalizePaymentRows(
+      (baseRes.data ?? []).map((row: any) => ({
+        ...row,
+        fee_template_code: null,
+        extra_fee_templates: null,
+      }))
+    );
+  } else {
+    throw new Error(richRes.error.message ?? "Failed to load folio payments.");
+  }
+
+  const grouped = new Map<string, PaymentRow[]>();
+  for (const row of paymentRows) {
+    const reservationId = String((row as any).reservation_id ?? "");
+    if (!reservationId) continue;
+    const current = grouped.get(reservationId);
+    if (current) current.push(row);
+    else grouped.set(reservationId, [row]);
+  }
+
+  return grouped;
+}
+
+async function resolveLinkedStayReservations(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  reservation: ReservationRow
+): Promise<ReservationRow[] | null> {
+  const parentReservationId = reservation.parent_reservation_id ? String(reservation.parent_reservation_id) : null;
+  const linkedRootId = parentReservationId ?? String(reservation.id);
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select(`
+      id,
+      booking_code,
+      source,
+      status,
+      checkin_date,
+      checkout_date,
+      checked_in_at,
+      checked_out_at,
+      total_price,
+      discount_type,
+      discount_value,
+      discount_percent,
+      discount_reason,
+      deposit_amount,
+      deposit_note,
+      deposit_paid_at,
+      parent_reservation_id
+    `)
+    .or(`id.eq.${linkedRootId},parent_reservation_id.eq.${linkedRootId}`);
+
+  if (error) {
+    if (isMissingReservationColumnError(error)) {
+      return null;
+    }
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as ReservationRow[];
+  const linkedRows = rows
+    .filter((row) => String(row.id) === linkedRootId || String(row.parent_reservation_id ?? "") === linkedRootId)
+    .sort((left, right) => {
+      const dateCmp = String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? ""));
+      if (dateCmp !== 0) return dateCmp;
+      return String(left.id).localeCompare(String(right.id));
+    });
+
+  if (linkedRows.length <= 1) {
+    return null;
+  }
+
+  return linkedRows;
 }
 
 async function fetchPaymentRowsWithOptionalFeeFields(
@@ -345,7 +574,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         discount_reason,
         deposit_amount,
         deposit_note,
-        deposit_paid_at
+        deposit_paid_at,
+        parent_reservation_id
       `;
 
     const baseSelect = `
@@ -364,7 +594,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         discount_reason,
         deposit_amount,
         deposit_note,
-        deposit_paid_at
+        deposit_paid_at,
+        parent_reservation_id
       `;
 
     const withCheckedOut = await supabase
@@ -373,8 +604,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       .eq("id", reservationId)
       .maybeSingle();
 
-    let reservation: any | null = null;
-    if (withCheckedOut.error && /checked_out_at/i.test(withCheckedOut.error.message)) {
+    let reservation: ReservationRow | null = null;
+    if (withCheckedOut.error && isMissingReservationColumnError(withCheckedOut.error)) {
       const fallback = await supabase
         .from("reservations")
         .select(baseSelect)
@@ -394,57 +625,51 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     const roomNumber = await resolveReservationRoomNumber(supabase, reservationId);
-
-    const payments = await fetchPaymentRowsWithOptionalFeeFields(supabase, reservationId);
-    const mergedPayments = [...payments].sort((a, b) => {
+    const linkedReservations = await resolveLinkedStayReservations(supabase, reservation);
+    const checkOutTime = await resolveHotelCheckOutTime(supabase as any, "12:00");
+    const linkedStay = await resolveLinkedStay(supabase as any, reservationId, checkOutTime);
+    const linkedStayPayload: ReservationFolioResponse["linked_stay"] = linkedStay
+      ? {
+          ...linkedStay,
+          segments: linkedStay.segments.map((segment) => ({
+            reservation_id: segment.reservation_id,
+            booking_code: segment.booking_code ?? null,
+            source: segment.source ?? "walkin",
+            checkin_date: segment.checkin_date,
+            checkout_date: segment.checkout_date,
+            status: segment.status ?? "active",
+            total_price: segment.total_price,
+            is_parent: segment.is_parent,
+          })),
+        }
+      : null;
+    const linkedReservationIds = linkedReservations?.map((row) => String(row.id)) ?? [String(reservation.id)];
+    const paymentMap = await fetchReservationRows(supabase, linkedReservationIds);
+    const mergedPayments = [...(paymentMap.get(String(reservation.id)) ?? [])].sort((a, b) => {
       const left = Date.parse(String(b.paid_at ?? ""));
       const right = Date.parse(String(a.paid_at ?? ""));
       if (Number.isFinite(left) && Number.isFinite(right) && left !== right) return left - right;
       return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
     });
-
-    const feeSummary = computeFeeSummary(
-      toNumber(reservation.total_price),
-      toNumber(reservation.deposit_amount),
-      mergedPayments
-    );
-    const nightCount = (() => {
-      try {
-        return listNights(
-          String(reservation.checkin_date ?? ""),
-          String(reservation.checkout_date ?? "")
-        ).length;
-      } catch {
-        return 0;
-      }
-    })();
-    const discountTotal = computeReservationDiscountAmount({
-      totalPrice: toNumber(reservation.total_price),
-      discountType: reservation.discount_type ?? "percent",
-      discountValue: toNumber(reservation.discount_value ?? reservation.discount_percent),
-      nightCount,
-    });
-
-    const paymentsTotal = mergedPayments.reduce((sum, row) => {
-      if (row.tx_type !== "payment") return sum;
-      if (row.revenue_category === "extra_charge" || row.revenue_category === "deposit") return sum;
-      return sum + fromSatang(toSatang(row.amount));
-    }, 0);
-
-    const refundsTotal = mergedPayments.reduce((sum, row) => {
-      if (row.tx_type !== "refund") return sum;
-      const note = String(row.note ?? "").toLowerCase();
-      if (row.revenue_category === "deposit" && note.includes("paid by deposit")) return sum;
-      return sum + fromSatang(toSatang(row.amount));
-    }, 0);
-
-    const grandTotalAfterDiscount = Math.max(
-      0,
-      fromSatang(toSatang(feeSummary.grand_total) - toSatang(discountTotal))
-    );
-    const outstandingAfterDiscount = fromSatang(
-      toSatang(feeSummary.balance) - toSatang(discountTotal)
-    );
+    const summary = buildReservationSummary(reservation, mergedPayments);
+    const linkedFolioSummaries = linkedReservations
+      ? linkedReservations.map((row) => {
+          const payments = [...(paymentMap.get(String(row.id)) ?? [])].sort((a, b) => {
+            const left = Date.parse(String(b.paid_at ?? ""));
+            const right = Date.parse(String(a.paid_at ?? ""));
+            if (Number.isFinite(left) && Number.isFinite(right) && left !== right) return left - right;
+            return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+          });
+          return {
+            reservation_id: String(row.id),
+            booking_code: row.booking_code ?? null,
+            source: row.source ?? null,
+            checkin_date: row.checkin_date ?? null,
+            checkout_date: row.checkout_date ?? null,
+            summary: buildReservationSummary(row, payments),
+          };
+        })
+      : null;
 
     const response: ReservationFolioResponse = {
       success: true,
@@ -461,20 +686,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         checked_in_at: reservation.checked_in_at ?? null,
         checked_out_at: reservation.checked_out_at ?? null,
       },
-      summary: {
-        room_charges_total: feeSummary.room_charges_total,
-        discount_total: discountTotal,
-        extra_charges_total: feeSummary.extra_charges_total,
-        grand_total: grandTotalAfterDiscount,
-        payments_total: Number(paymentsTotal.toFixed(2)),
-        refunds_total: Number(refundsTotal.toFixed(2)),
-        deposit_held: feeSummary.deposit_held,
-        outstanding_balance: outstandingAfterDiscount,
-      },
+      summary,
       ledger: normalizeLedgerRows(
         reservationId,
-        feeSummary.room_charges_total,
-        discountTotal,
+        summary.room_charges_total,
+        summary.discount_total,
         reservation.discount_reason ?? null,
         {
           checkin_date: reservation.checkin_date ?? null,
@@ -482,6 +698,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         },
         mergedPayments
       ),
+      linked_folios: linkedFolioSummaries,
+      linked_stay: linkedStayPayload,
     };
 
     return NextResponse.json(response);

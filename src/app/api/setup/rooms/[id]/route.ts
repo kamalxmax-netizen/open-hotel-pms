@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +16,7 @@ export async function GET(_req: Request, { params }: Params) {
         const { data: room, error: rErr } = await supabase
             .from("rooms")
             .select(`
-                id, room_number, is_sellable,
+                id, room_number, is_sellable, is_dayuse,
                 room_types(id, name_en, max_guests, extra_guest_charge, child_free_under_cm, child_extra_charge)
             `)
             .eq("id", id)
@@ -43,6 +44,7 @@ export async function GET(_req: Request, { params }: Params) {
             success: true,
             room: {
                 ...room,
+                is_dayuse: Boolean((room as any)?.is_dayuse) || isLegacyDayUseRoom(String((room as any)?.room_number ?? "")),
                 room_type: (room as any).room_types?.name_en,
                 max_guests: (room as any).room_types?.max_guests ?? 2,
                 features: (features ?? []).map((f: any) => f.feature_code),

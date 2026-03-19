@@ -4,6 +4,26 @@ export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 
 export type ReservationStatus = "active" | "cancelled" | "checked_out" | "no_show";
 
+export type LinkedStaySegment = {
+  reservation_id: string;
+  booking_code: string | null;
+  source: string;          // "ota" | "walkin" | "direct" | "agent"
+  checkin_date: string;
+  checkout_date: string;
+  status: string;          // "active" | "checked_out" | "cancelled"
+  total_price: number;
+  is_parent: boolean;
+};
+
+export type LinkedStay = {
+  segments: LinkedStaySegment[];
+  full_checkin: string;
+  full_checkout: string;
+  full_nights: number;
+  active_segment_id: string;
+  combined_total: number;
+};
+
 export type HousekeepingStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card" | "other";
@@ -54,6 +74,15 @@ export interface ReservationFolioResponse {
   };
   summary: ReservationFolioSummary;
   ledger: ReservationFolioLedgerRow[];
+  linked_folios?: Array<{
+    reservation_id: string;
+    booking_code: string | null;
+    source: string | null;
+    checkin_date: string | null;
+    checkout_date: string | null;
+    summary: ReservationFolioSummary;
+  }> | null;
+  linked_stay?: LinkedStay | null;
 }
 
 export type ExtraFeeCategory = "service" | "penalty" | "damage" | "policy";

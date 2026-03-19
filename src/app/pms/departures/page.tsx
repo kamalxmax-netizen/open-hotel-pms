@@ -6,8 +6,10 @@ import ReservationDetailPage from "@/components/reservation-detail-page";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { DayUseTimer } from "@/components/dayuse-timer";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
-import type { DayUseReservation } from "@/lib/types";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
+import { groupLinkedStays } from "@/lib/linked-stay-ui";
+import { LinkedStayBadge } from "@/components/linked-stay-badge";
+import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
 
 type NightlyItem = { date: string; price: number };
 
@@ -36,6 +38,11 @@ type Departure = {
     main_night_count?: number;
     accompanying_stay_count?: number;
     accompanying_night_count?: number;
+    parent_reservation_id?: string | null;
+    linked_segments?: LinkedStaySegment[] | null;
+    linked_full_checkin?: string | null;
+    linked_full_checkout?: string | null;
+    linked_active_segment_id?: string | null;
 };
 
 type DayUseDeparture = DayUseReservation & {
@@ -78,7 +85,7 @@ export default function DeparturesPage() {
             const res = await fetch("/api/departures");
             const d = await res.json();
             if (d.success) {
-                setDepartures(d.departures ?? []);
+                setDepartures((d.departures ?? []) as Departure[]);
                 setDayUseDepartures((d.dayuse_departures ?? []) as DayUseDeparture[]);
                 setBusinessDate(String(d.date ?? ""));
             }
@@ -126,6 +133,8 @@ export default function DeparturesPage() {
     const today = businessDate ? formatBusinessDate(businessDate) : new Date().toLocaleDateString("th-TH", {
         weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
+
+    const mergedDepartures = groupLinkedStays(departures);
 
     return (
         <div className="space-y-5 w-full max-w-[90rem]">
@@ -180,11 +189,17 @@ export default function DeparturesPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {departures.map((d) => {
+                                {mergedDepartures.map((merged) => {
+                                    const d = merged.active_reservation;
                                     const isCheckedOut = d.status === "checked_out" || doneIds.has(d.id);
                                     const loyaltyVisual = resolveGuestLoyaltyVisual(d);
+                                    
+                                    const displayCheckin = merged.is_linked ? merged.linked_full_checkin : d.checkin_date;
+                                    const displayCheckout = merged.is_linked ? merged.linked_full_checkout : d.checkout_date;
+                                    const displayNights = merged.is_linked ? merged.linked_nights_count : d.nights_count;
+                                    
                                     return (
-                                        <tr key={d.id} className={isCheckedOut ? "opacity-50 bg-[var(--bg-body)] [&>td]:bg-[var(--bg-body)]" : loyaltyVisual.rowClass}>
+                                        <tr key={merged.group_id} className={isCheckedOut ? "opacity-50 bg-[var(--bg-body)] [&>td]:bg-[var(--bg-body)]" : loyaltyVisual.rowClass}>
                                             <td>
                                                 <div className="font-bold text-[var(--text-primary)]">Room {d.room_number}</div>
                                                 <div className="text-xs text-[var(--text-muted)]">{d.room_type}</div>
@@ -215,11 +230,14 @@ export default function DeparturesPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <div className="text-sm">{d.checkin_date} → {d.checkout_date}</div>
-                                                <div className="text-xs text-[var(--text-muted)]">{d.nights_count} night{d.nights_count !== 1 ? "s" : ""}</div>
+                                                <div className="text-sm">{displayCheckin} → {displayCheckout}</div>
+                                                <div className="text-xs text-[var(--text-muted)] mt-0.5">{displayNights} night{displayNights !== 1 ? "s" : ""}</div>
+                                                {merged.is_linked && (
+                                                    <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />
+                                                )}
                                             </td>
                                             <td>
-                                                <span className={`font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>฿{fmt(d.total_price)}</span>
+                                                <span className={`font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>฿{fmt(merged.linked_total_price)}</span>
                                             </td>
                                             <td>
                                                 {isCheckedOut ? (

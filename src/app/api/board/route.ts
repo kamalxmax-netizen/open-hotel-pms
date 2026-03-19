@@ -3,12 +3,20 @@ import { isValidDateString } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { BoardRoomStatus } from "@/lib/board-layout";
 import { getBusinessDate } from "@/lib/fo-prepare";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
 
 type HousekeepingStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
 type GuestSummary = {
   reservation_id: string | null;
+  parent_reservation_id: string | null;
+  linked_root_id: string | null;
+  linked_full_checkin: string | null;
+  linked_full_checkout: string | null;
+  linked_full_nights: number | null;
+  linked_combined_total: number | null;
+  linked_active_segment_id: string | null;
   guest_profile_id: string | null;
   is_checked_in: boolean;
   guest_name: string | null;
@@ -97,12 +105,12 @@ export async function GET(request: NextRequest) {
       .order("sort_order", { ascending: true, nullsFirst: false }),
     supabase
       .from("reservation_nights")
-      .select(`room_id, reservations!reservation_nights_reservation_id_fkey(id, status, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source)`)
+      .select(`room_id, reservations!reservation_nights_reservation_id_fkey(id, parent_reservation_id, status, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source)`)
       .eq("stay_date", date)
       .is("cancelled_at", null),
     supabase
       .from("reservations")
-      .select(`id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source, reservation_nights(room_id, stay_date, cancelled_at)`)
+      .select(`id, parent_reservation_id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source, reservation_nights(room_id, stay_date, cancelled_at)`)
       .eq("status", "active")
       .eq("checkout_date", date),
     supabase
@@ -180,6 +188,8 @@ export async function GET(request: NextRequest) {
     if (reservation?.id) reservationIdsForCheckin.add(String(reservation.id));
   });
 
+  const hotelCheckOutTime = await resolveHotelCheckOutTime(supabase);
+
   // ── Wave 2: Dependent queries in parallel ───────────────────────────────
   const tW2Start = performance.now();
   const [groupsResult, plannedReservationsResult, checkedInLogsResult] = await Promise.all([
@@ -187,7 +197,7 @@ export async function GET(request: NextRequest) {
       ? supabase.from("booking_groups").select("id, group_code, group_name").in("id", Array.from(groupIds))
       : Promise.resolve({ data: [] as { id: string; group_code: string | null; group_name: string | null }[], error: null }),
     effectivePlanReservationIds.length > 0
-      ? supabase.from("reservations").select("id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source").in("id", effectivePlanReservationIds).eq("status", "active")
+      ? supabase.from("reservations").select("id, parent_reservation_id, guest_profile_id, guest_name, booking_code, specials, note, booking_group_id, checkin_date, checkout_date, source").in("id", effectivePlanReservationIds).eq("status", "active")
       : Promise.resolve({ data: [] as any[], error: null }),
     reservationIdsForCheckin.size > 0
       ? supabase.from("audit_logs").select("entity_id").eq("entity_type", "reservation").eq("action", "checked_in").in("entity_id", Array.from(reservationIdsForCheckin))
@@ -224,15 +234,41 @@ export async function GET(request: NextRequest) {
   (checkedInLogsResult.data ?? []).forEach((log: any) => {
     checkedInReservationSet.add(String(log.entity_id));
   });
+  const linkedRootReservationIds = new Set<string>();
+  (reservationNights ?? []).forEach((night: any) => {
+    const reservationRef = Array.isArray(night?.reservations) ? night.reservations[0] : night?.reservations;
+    if (reservationRef?.parent_reservation_id) {
+      linkedRootReservationIds.add(String(reservationRef.parent_reservation_id));
+    }
+  });
+  (departuresToday ?? []).forEach((reservation: any) => {
+    if (reservation?.parent_reservation_id) {
+      linkedRootReservationIds.add(String(reservation.parent_reservation_id));
+    }
+  });
+  effectivePlanReservationsRaw.forEach((reservation: any) => {
+    if (reservation?.parent_reservation_id) {
+      linkedRootReservationIds.add(String(reservation.parent_reservation_id));
+    }
+  });
 
   const effectivePlanReservationsById = new Map<string, GuestSummary>();
   effectivePlanReservationsRaw.forEach((reservation: any) => {
     const reservationId = reservation?.id ? String(reservation.id) : null;
+    const parentReservationId = reservation?.parent_reservation_id ? String(reservation.parent_reservation_id) : null;
+    const linkedRootId = parentReservationId ?? (reservationId && linkedRootReservationIds.has(reservationId) ? reservationId : null);
     const groupId = reservation.booking_group_id ? String(reservation.booking_group_id) : null;
     const groupMeta = groupId ? groupMetaById.get(groupId) : null;
     if (reservationId) {
       effectivePlanReservationsById.set(reservationId, {
         reservation_id: reservationId,
+        parent_reservation_id: parentReservationId,
+        linked_root_id: linkedRootId,
+        linked_full_checkin: null,
+        linked_full_checkout: null,
+        linked_full_nights: null,
+        linked_combined_total: null,
+        linked_active_segment_id: null,
         is_checked_in: checkedInReservationSet.has(reservationId),
         guest_profile_id: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
         guest_name: reservation.guest_name ?? null,
@@ -277,11 +313,20 @@ export async function GET(request: NextRequest) {
       : night.reservations;
     if (!reservationRef || reservationRef.status !== "active") return;
     const reservationId = reservationRef.id ? String(reservationRef.id) : null;
+    const parentReservationId = reservationRef.parent_reservation_id ? String(reservationRef.parent_reservation_id) : null;
+    const linkedRootId = parentReservationId ?? (reservationId && linkedRootReservationIds.has(reservationId) ? reservationId : null);
     const groupId = reservationRef.booking_group_id ? String(reservationRef.booking_group_id) : null;
     const groupMeta = groupId ? groupMetaById.get(groupId) : null;
 
     const guest: GuestSummary = {
       reservation_id: reservationId,
+      parent_reservation_id: parentReservationId,
+      linked_root_id: linkedRootId,
+      linked_full_checkin: null,
+      linked_full_checkout: null,
+      linked_full_nights: null,
+      linked_combined_total: null,
+      linked_active_segment_id: null,
       is_checked_in: reservationId ? checkedInReservationSet.has(reservationId) : false,
       guest_profile_id: reservationRef.guest_profile_id ? String(reservationRef.guest_profile_id) : null,
       guest_name: reservationRef.guest_name ?? null,
@@ -318,11 +363,20 @@ export async function GET(request: NextRequest) {
     const roomId = latestNight?.room_id ? String(latestNight.room_id) : "";
     if (!roomId) return;
     const reservationId = reservation.id ? String(reservation.id) : null;
+    const parentReservationId = reservation.parent_reservation_id ? String(reservation.parent_reservation_id) : null;
+    const linkedRootId = parentReservationId ?? (reservationId && linkedRootReservationIds.has(reservationId) ? reservationId : null);
     const groupId = reservation.booking_group_id ? String(reservation.booking_group_id) : null;
     const groupMeta = groupId ? groupMetaById.get(groupId) : null;
 
     departureGuestByRoomId.set(roomId, {
       reservation_id: reservationId,
+      parent_reservation_id: parentReservationId,
+      linked_root_id: linkedRootId,
+      linked_full_checkin: null,
+      linked_full_checkout: null,
+      linked_full_nights: null,
+      linked_combined_total: null,
+      linked_active_segment_id: null,
       is_checked_in: reservationId ? checkedInReservationSet.has(reservationId) : false,
       guest_profile_id: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
       guest_name: reservation.guest_name ?? null,
@@ -352,10 +406,61 @@ export async function GET(request: NextRequest) {
   arrivalGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
   plannedMoveSourceGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
   plannedMoveTargetGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
+  const reservationIdsArr = Array.from(reservationIdSet);
+
+  // Roots can still be linked even when today's row is the parent OTA segment.
+  // Detect guest reservations that own at least one child reservation.
+  const rootReservationsWithChildren = new Set<string>();
+  if (reservationIdsArr.length > 0) {
+    const { data: childLinkRows } = await supabase
+      .from("reservations")
+      .select("parent_reservation_id")
+      .in("parent_reservation_id", reservationIdsArr);
+
+    (childLinkRows ?? []).forEach((row: any) => {
+      if (row?.parent_reservation_id) {
+        rootReservationsWithChildren.add(String(row.parent_reservation_id));
+      }
+    });
+  }
+
+  const linkedStayReservationIds = new Set<string>();
+  const collectLinkedReservationIds = (guest: GuestSummary | null | undefined) => {
+    if (!guest?.reservation_id) return;
+    const reservationId = String(guest.reservation_id);
+    const isLinkedRoot = linkedRootReservationIds.has(reservationId);
+    const hasKnownChild = rootReservationsWithChildren.has(reservationId);
+    if (!guest.parent_reservation_id && !guest.linked_root_id && !isLinkedRoot && !hasKnownChild) return;
+    linkedStayReservationIds.add(guest.reservation_id);
+  };
+  occupiedGuestByRoomId.forEach((guest) => collectLinkedReservationIds(guest));
+  departureGuestByRoomId.forEach((guest) => collectLinkedReservationIds(guest));
+  arrivalGuestByRoomId.forEach((guest) => collectLinkedReservationIds(guest));
+  plannedMoveSourceGuestByRoomId.forEach((guest) => collectLinkedReservationIds(guest));
+  plannedMoveTargetGuestByRoomId.forEach((guest) => collectLinkedReservationIds(guest));
+
+  const linkedStayByReservationId = new Map<string, {
+    full_checkin: string;
+    full_checkout: string;
+    full_nights: number;
+    combined_total: number;
+    active_segment_id: string;
+  }>();
+  if (linkedStayReservationIds.size > 0) {
+    const linkedStayResults = await Promise.all(
+      Array.from(linkedStayReservationIds).map(async (reservationId) => {
+        const linkedStay = await resolveLinkedStay(supabase, reservationId, hotelCheckOutTime);
+        return [reservationId, linkedStay] as const;
+      })
+    );
+    for (const [reservationId, linkedStay] of linkedStayResults) {
+      if (!linkedStay) continue;
+      linkedStayByReservationId.set(reservationId, linkedStay);
+    }
+  }
 
   // ── Wave 3: loyalty + alerts + roomMoveLogs in parallel ────────────────
   const tW3Start = performance.now();
-  const reservationIdsArr = Array.from(reservationIdSet);
   const [loyaltyByReservationId, alertsResult, roomMoveLogsResult] = await Promise.all([
     buildReservationLoyaltyMap(supabase, reservationIdsArr, reservationProfileSeed),
     reservationIdSet.size > 0
@@ -622,6 +727,9 @@ export async function GET(request: NextRequest) {
     const alertSummary = guest?.reservation_id
       ? alertSummaryByReservationId.get(guest.reservation_id)
       : null;
+    const linkedStay = guest?.reservation_id
+      ? linkedStayByReservationId.get(guest.reservation_id)
+      : null;
 
     return {
       room_id: room.id,
@@ -637,8 +745,13 @@ export async function GET(request: NextRequest) {
       special_request: typeof guest?.specials === "string" && guest.specials.trim().length > 0
         ? guest.specials.trim()
         : null,
-      guest_checkin_date: guest?.checkin_date ?? null,
-      guest_checkout_date: guest?.checkout_date ?? null,
+      guest_checkin_date: linkedStay?.full_checkin ?? guest?.checkin_date ?? null,
+      guest_checkout_date: linkedStay?.full_checkout ?? guest?.checkout_date ?? null,
+      linked_full_checkin: linkedStay?.full_checkin ?? null,
+      linked_full_checkout: linkedStay?.full_checkout ?? null,
+      linked_full_nights: linkedStay?.full_nights ?? null,
+      linked_combined_total: linkedStay?.combined_total ?? null,
+      linked_active_segment_id: linkedStay?.active_segment_id ?? null,
       source: guest?.source ?? null,
       reservation_id: guest?.reservation_id ?? null,
       guest_profile_id: guest?.guest_profile_id ?? null,
@@ -656,6 +769,8 @@ export async function GET(request: NextRequest) {
       due_in_source: dueInGuest?.source ?? null,
       due_in_reservation_id: dueInGuest?.reservation_id ?? null,
       booking_group_id: guest?.booking_group_id ?? null,
+      parent_reservation_id: guest?.parent_reservation_id ?? null,
+      linked_root_id: guest?.linked_root_id ?? null,
       group_code: guest?.group_code ?? null,
       group_name: guest?.group_name ?? null,
       room_move_from: movedIntoCurrentRoom ? roomMove?.from_room_number ?? null : null,

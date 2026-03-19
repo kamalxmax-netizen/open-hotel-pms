@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,7 +14,7 @@ export async function GET() {
         // 1. Rooms with room type info (always available)
         const { data: rooms, error: rErr } = await supabase
             .from("rooms")
-            .select("id, room_number, is_sellable, sort_order, room_types(id, name_en, code)")
+            .select("id, room_number, is_sellable, is_dayuse, sort_order, room_types(id, name_en, code)")
             .order("sort_order", { ascending: true });
         if (rErr) throw rErr;
 
@@ -104,11 +105,13 @@ export async function GET() {
         for (const s of stayHistory) nightsMap[s.room_id] = (nightsMap[s.room_id] || 0) + 1;
 
         const formattedRooms = (rooms ?? []).map((r: any) => {
+            const roomNumber = String(r.room_number ?? "");
+            const isDayUse = Boolean(r.is_dayuse) || isLegacyDayUseRoom(roomNumber);
             const rtId = r.room_types?.id;
             const occ = rtOccupancy[rtId] ?? {};
             return {
                 id: r.id,
-                room_number: r.room_number,
+                room_number: roomNumber,
                 room_type: r.room_types?.name_en || "Unknown",
                 room_type_code: r.room_types?.code || "",
                 room_type_id: rtId,
@@ -117,6 +120,7 @@ export async function GET() {
                 child_free_under_cm: occ.child_free_under_cm ?? 110,
                 child_extra_charge: occ.child_extra_charge ?? 100,
                 is_sellable: r.is_sellable,
+                is_dayuse: isDayUse,
                 features: featureMap[r.id] || [],
                 beds: bedMap[r.id] || [],
                 detail: detailMap[r.id] || null,

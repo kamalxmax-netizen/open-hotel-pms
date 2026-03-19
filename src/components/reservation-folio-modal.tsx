@@ -5,6 +5,7 @@ import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock } from "lucide-
 import PmsModal from "./pms-modal";
 import { PostChargeModal } from "./post-charge-modal";
 import { SettlementDrawer } from "./settlement-drawer";
+import LinkedStayPanel from "./linked-stay-panel";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import type { PaymentMethod, ReservationFolioLedgerRow, ReservationFolioResponse } from "@/lib/types";
@@ -36,6 +37,7 @@ interface ReservationFolioModalProps {
   } | null;
   onInlineRefresh?: () => void;
   onCheckoutComplete: () => void;
+  onSwitchTab?: (id: string) => void;
 }
 
 type FolioFilter = "all" | "charges" | "payments" | "deposits";
@@ -112,6 +114,7 @@ export function ReservationFolioModal({
   policyFeePayload = null,
   onInlineRefresh,
   onCheckoutComplete,
+  onSwitchTab,
 }: ReservationFolioModalProps) {
   const [loading, setLoading] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -227,6 +230,13 @@ export function ReservationFolioModal({
         )}
 
         <div className="space-y-5">
+          {folio?.linked_stay && onSwitchTab && (
+            <LinkedStayPanel
+              linkedStay={folio.linked_stay}
+              currentReservationId={reservationId}
+              onSwitchTab={onSwitchTab}
+            />
+          )}
           <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-2">

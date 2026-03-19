@@ -26,6 +26,7 @@ type Room = {
     room_type_id: string | number;
     max_guests: number;
     is_sellable: boolean;
+    is_dayuse?: boolean;
     features: string[];
     beds: RoomBed[];
     detail: RoomDetail | null;
@@ -215,6 +216,7 @@ function RoomCard({
 
     const usagePct = avgNights > 0 ? Math.min(100, (room.total_nights / (avgNights * 1.5)) * 100) : 0;
     const usageDiff = room.total_nights - avgNights;
+    const isDayUseRoom = Boolean(room.is_dayuse);
 
     return (
         <div className="card overflow-hidden">
@@ -224,7 +226,13 @@ function RoomCard({
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-lg text-[var(--text-primary)]">{room.room_number}</span>
                         <span className="text-sm text-[var(--text-secondary)]">·</span>
-                        <span className="text-sm text-[var(--text-secondary)]">{room.room_type}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">{isDayUseRoom ? "Day Use" : room.room_type}</span>
+                        {isDayUseRoom && room.room_type && room.room_type !== "Unknown" && (
+                            <span className="text-[11px] text-[var(--text-muted)]">Base: {room.room_type}</span>
+                        )}
+                        {isDayUseRoom && (
+                            <span className="text-[10px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 px-2 py-0.5 rounded-full">DAY USE</span>
+                        )}
                         {beds.length > 0 && (
                             <span className="text-xs text-[var(--text-muted)] ml-1">
                                 🛏 {beds.map(b => `${b.quantity}×${BED_TYPES.find(bt => bt.code === b.bed_type_code)?.name ?? b.bed_type_code}`).join(", ")}
@@ -661,8 +669,11 @@ export default function RoomsSetupPage() {
         : 0;
 
     const filtered = rooms.filter(r =>
-        r.room_number.includes(search) || r.room_type.toLowerCase().includes(search.toLowerCase())
+        r.room_number.includes(search) ||
+        `${r.room_type} ${r.is_dayuse ? "day use dayuse" : ""}`.toLowerCase().includes(search.toLowerCase())
     );
+    const regularRooms = filtered.filter((room) => !room.is_dayuse);
+    const dayUseRooms = filtered.filter((room) => Boolean(room.is_dayuse));
 
     const roomTypeOptions = useMemo(() => {
         const map = new Map<string, string>();
@@ -863,9 +874,11 @@ export default function RoomsSetupPage() {
 
             {/* Summary stats */}
             {!loading && (
-                <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                     {[
                         { label: "Total Rooms", value: rooms.length },
+                        { label: "Regular Rooms", value: rooms.filter((room) => !room.is_dayuse).length },
+                        { label: "Day Use Rooms", value: rooms.filter((room) => Boolean(room.is_dayuse)).length },
                         { label: "Avg Nights/Room", value: Math.round(avgNights) },
                         { label: "Avg Quality Score", value: (rooms.reduce((s, r) => s + (r.quality_score ?? 5), 0) / Math.max(rooms.length, 1)).toFixed(1) + "/10" },
                     ].map(stat => (
@@ -961,18 +974,50 @@ export default function RoomsSetupPage() {
             {loading ? (
                 <div className="p-12 flex justify-center"><div className="btn-spinner border-brand-500" /></div>
             ) : (
-                <div className="space-y-3">
-                    {filtered.map(room => (
-                        <RoomCard
-                            key={room.id}
-                            room={room}
-                            features={features}
-                            deductTemplates={deductTemplates}
-                            amenitiesByRoomType={amenitiesByRoomType}
-                            avgNights={avgNights}
-                            onOpenAmenitySetup={openAmenitySidebar}
-                        />
-                    ))}
+                <div className="space-y-5">
+                    {regularRooms.length > 0 && (
+                        <section className="space-y-3">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-secondary)]">Regular Rooms</h2>
+                                <span className="text-xs text-[var(--text-muted)]">{regularRooms.length} rooms</span>
+                            </div>
+                            {regularRooms.map(room => (
+                                <RoomCard
+                                    key={room.id}
+                                    room={room}
+                                    features={features}
+                                    deductTemplates={deductTemplates}
+                                    amenitiesByRoomType={amenitiesByRoomType}
+                                    avgNights={avgNights}
+                                    onOpenAmenitySetup={openAmenitySidebar}
+                                />
+                            ))}
+                        </section>
+                    )}
+                    {dayUseRooms.length > 0 && (
+                        <section className="space-y-3">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">Day Use Rooms</h2>
+                                <span className="text-xs text-[var(--text-muted)]">{dayUseRooms.length} rooms</span>
+                            </div>
+                            {dayUseRooms.map(room => (
+                                <RoomCard
+                                    key={room.id}
+                                    room={room}
+                                    features={features}
+                                    deductTemplates={deductTemplates}
+                                    amenitiesByRoomType={amenitiesByRoomType}
+                                    avgNights={avgNights}
+                                    onOpenAmenitySetup={openAmenitySidebar}
+                                />
+                            ))}
+                        </section>
+                    )}
+                    {filtered.length === 0 && (
+                        <div className="card p-8 text-center text-sm text-[var(--text-secondary)]">
+                            No rooms match your search.
+                        </div>
+                    )}
                 </div>
             )}
 

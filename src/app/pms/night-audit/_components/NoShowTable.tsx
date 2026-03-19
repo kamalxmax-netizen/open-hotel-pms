@@ -142,7 +142,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                   <div className="text-[11px] text-[var(--text-muted)]">{ns.phone}</div>
                 </td>
                 <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-[var(--text-secondary)]">{ns.booking_code}</span>
+                  <span className="font-mono text-xs text-[var(--text-secondary)]">{ns.booking_code}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-rose-600 dark:text-rose-400 font-medium">{ns.checkin_date}</span>

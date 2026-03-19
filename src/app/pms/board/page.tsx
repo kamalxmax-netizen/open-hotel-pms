@@ -29,6 +29,13 @@ type ApiRoom = {
     specials?: string | null;
     special_request?: string | null;
     booking_group_id?: string | null;
+    parent_reservation_id?: string | null;
+    linked_root_id?: string | null;
+    linked_full_checkin?: string | null;
+    linked_full_checkout?: string | null;
+    linked_full_nights?: number | null;
+    linked_combined_total?: number | null;
+    linked_active_segment_id?: string | null;
     group_code?: string | null;
     group_name?: string | null;
     guest_checkin_date?: string | null;
@@ -199,6 +206,12 @@ function matchesAnyFilter(room: ApiRoom, selected: FilterKey[]): boolean {
 const SOURCE_LABEL: Record<string, string> = {
     walkin: "Walk-in", ota: "OTA", direct: "Direct", agent: "Agent"
 };
+
+function resolveRoomLinkKey(room: ApiRoom): string | null {
+    if (room.linked_root_id) return `linked:${room.linked_root_id}`;
+    if (room.booking_group_id) return `group:${room.booking_group_id}`;
+    return null;
+}
 
 const HK_STRIPE_COLOR_BY_STATUS: Partial<Record<HousekeepingRawStatus, string>> = {
     dirty: "rgba(239, 68, 68, 0.95)",
@@ -371,10 +384,16 @@ function RoomCard({
         : undefined;
     const loyaltyVisual = resolveGuestLoyaltyVisual(room);
     const returnStats = loyaltyVisual.returnStats;
+    const roomLinkKey = resolveRoomLinkKey(room);
+    const linkedStayCheckin = room.linked_full_checkin ?? room.guest_checkin_date ?? null;
+    const linkedStayCheckout = room.linked_full_checkout ?? room.guest_checkout_date ?? null;
+    const linkedStayNights = room.linked_full_nights ?? null;
+    const linkedStayCombinedTotal = room.linked_combined_total ?? null;
+    const hasLinkedStaySummary = Boolean(room.linked_full_checkin && room.linked_full_checkout);
 
     function openHoverPreview() {
         if (isMobile) return;
-        onGroupHoverChange(room.booking_group_id ?? null);
+        onGroupHoverChange(roomLinkKey);
         const rect = cardRef.current?.getBoundingClientRect();
         if (!rect) return;
 
@@ -530,9 +549,9 @@ function RoomCard({
                     )}
 
                     {/* Detail mode: dates */}
-                    {viewMode === "detail" && isReserved && room.guest_checkin_date && (
+                    {viewMode === "detail" && isReserved && linkedStayCheckin && (
                         <p className="text-[9px] text-[var(--text-muted)] leading-tight">
-                            {room.guest_checkin_date?.slice(5)} → {room.guest_checkout_date?.slice(5)}
+                            {linkedStayCheckin?.slice(5)} → {linkedStayCheckout?.slice(5)}
                         </p>
                     )}
 
@@ -640,10 +659,20 @@ function RoomCard({
                         <div className="mt-1.5 space-y-0.5">
                             {room.guest_name && <p className="text-xs font-semibold text-[var(--text-primary)]">{room.guest_name}</p>}
                             {room.booking_code && <p className="text-[10px] text-[var(--text-secondary)] font-mono">{room.booking_code}</p>}
-                            {room.guest_checkin_date && (
+                            {linkedStayCheckin && linkedStayCheckout && (
                                 <p className="text-[10px] text-[var(--text-muted)]">
-                                    {room.guest_checkin_date} → {room.guest_checkout_date}
+                                    {linkedStayCheckin} → {linkedStayCheckout}
+                                    {linkedStayNights !== null && (
+                                        <span className="ml-1">
+                                            ({linkedStayNights} night{linkedStayNights !== 1 ? "s" : ""})
+                                        </span>
+                                    )}
                                 </p>
+                            )}
+                            {hasLinkedStaySummary && linkedStayCombinedTotal !== null && (
+                                <div className="inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                    Linked Stay · ฿{linkedStayCombinedTotal.toLocaleString("th-TH")}
+                                </div>
                             )}
                             {room.source && (
                                 <span className="inline-block text-[9px] bg-[var(--bg-muted)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded-full">
@@ -708,11 +737,11 @@ function RoomCard({
                             )}
                         </div>
                     )}
-                    {room.booking_group_id && groupPeers.length > 0 && (
+                    {groupPeers.length > 1 && (
                         <div className="mt-2 border-t border-[var(--border-subtle)] pt-2">
                             <div className="flex items-center justify-between gap-2 mb-1">
                                 <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
-                                    {room.group_code ?? "Group"}
+                                    {room.group_code ?? (room.linked_root_id ? "Linked Stay" : "Group")}
                                 </span>
                                 <span className="text-[10px] text-[var(--text-muted)]">
                                     {groupPeers.length} room{groupPeers.length !== 1 ? "s" : ""}
@@ -720,7 +749,7 @@ function RoomCard({
                             </div>
                             <div className="max-h-20 overflow-auto space-y-0.5">
                                 {groupPeers.map((peer) => (
-                                    <div key={`${room.booking_group_id}-${peer.room_number}`} className="text-[10px] text-[var(--text-secondary)] flex items-center justify-between gap-2">
+                                    <div key={`${roomLinkKey ?? "single"}-${peer.room_number}`} className="text-[10px] text-[var(--text-secondary)] flex items-center justify-between gap-2">
                                         <span className="font-semibold text-[var(--text-table-cell)]">Room {peer.room_number}</span>
                                         <span className="truncate text-[var(--text-secondary)]">{peer.guest_name ?? "—"}</span>
                                     </div>
@@ -1020,6 +1049,7 @@ export default function BoardPage() {
             const res = await fetch(`/api/bookings/${room.reservation_id}`);
             const d = await res.json();
             const reservation = d?.success ? d.reservation : null;
+            const linkedStay = d?.success ? (d.linked_stay ?? reservation?.linked_stay ?? null) : null;
             setDrawerRoom({
                 room_id: room.room_id,
                 room_number: room.room_number,
@@ -1063,6 +1093,7 @@ export default function BoardPage() {
                         do_not_move_room_number_snapshot: reservation.do_not_move_room_number_snapshot ?? null,
                         do_not_move_set_at: reservation.do_not_move_set_at ?? null,
                         do_not_move_set_by: reservation.do_not_move_set_by ?? null,
+                        linked_stay: linkedStay,
                     }
                     : null
             });
@@ -1100,7 +1131,7 @@ export default function BoardPage() {
 
     const groupPeersById = new Map<string, ApiRoom[]>();
     (data?.rooms ?? []).forEach((room) => {
-        const groupId = room.booking_group_id ? String(room.booking_group_id) : null;
+        const groupId = resolveRoomLinkKey(room);
         if (!groupId) return;
         const peers = groupPeersById.get(groupId) ?? [];
         peers.push(room);
@@ -1112,7 +1143,7 @@ export default function BoardPage() {
 
     function resolveGroupHighlight(room: ApiRoom): "none" | "focus" | "fade" {
         if (!hoverGroupId) return "none";
-        const groupId = room.booking_group_id ? String(room.booking_group_id) : null;
+        const groupId = resolveRoomLinkKey(room);
         return groupId === hoverGroupId ? "focus" : "fade";
     }
 
@@ -1334,7 +1365,9 @@ export default function BoardPage() {
                                     {/* L wing row */}
                                     {floor.leftWing.length > 0 && (
                                         <div className={`flex flex-nowrap ${viewMode === "compact" ? "gap-1" : "gap-1.5"}`}>
-                                            {floor.leftWing.map(room => (
+                                            {floor.leftWing.map((room) => {
+                                                const roomLinkKey = resolveRoomLinkKey(room);
+                                                return (
                                                 <RoomCard
                                                     key={room.room_number}
                                                     room={room}
@@ -1345,8 +1378,8 @@ export default function BoardPage() {
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
                                                     groupHighlight={resolveGroupHighlight(room)}
                                                     groupPeers={
-                                                        room.booking_group_id
-                                                            ? (groupPeersById.get(String(room.booking_group_id)) ?? [])
+                                                        roomLinkKey
+                                                            ? (groupPeersById.get(roomLinkKey) ?? [])
                                                             : []
                                                     }
                                                     onGroupHoverChange={setHoverGroupId}
@@ -1357,7 +1390,8 @@ export default function BoardPage() {
                                                         isMobile ? setMobileSheet(room) : openDrawer(room);
                                                     }}
                                                 />
-                                            ))}
+                                                );
+                                            })}
                                             {attachDayUseToLeftRow && (
                                                 <>
                                                     <div className="mx-1 flex items-stretch">
@@ -1379,7 +1413,9 @@ export default function BoardPage() {
                                     {/* R wing row */}
                                     {(floor.rightWing.length > 0 || rightRowDayUseRooms.length > 0) && (
                                         <div className={`flex flex-nowrap ${viewMode === "compact" ? "gap-1" : "gap-1.5"}`}>
-                                            {floor.rightWing.map(room => (
+                                            {floor.rightWing.map((room) => {
+                                                const roomLinkKey = resolveRoomLinkKey(room);
+                                                return (
                                                 <RoomCard
                                                     key={room.room_number}
                                                     room={room}
@@ -1390,8 +1426,8 @@ export default function BoardPage() {
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
                                                     groupHighlight={resolveGroupHighlight(room)}
                                                     groupPeers={
-                                                        room.booking_group_id
-                                                            ? (groupPeersById.get(String(room.booking_group_id)) ?? [])
+                                                        roomLinkKey
+                                                            ? (groupPeersById.get(roomLinkKey) ?? [])
                                                             : []
                                                     }
                                                     onGroupHoverChange={setHoverGroupId}
@@ -1402,7 +1438,8 @@ export default function BoardPage() {
                                                         isMobile ? setMobileSheet(room) : openDrawer(room);
                                                     }}
                                                 />
-                                            ))}
+                                                );
+                                            })}
 
                                             {rightRowDayUseRooms.length > 0 && (
                                                 <>
@@ -1471,10 +1508,12 @@ export default function BoardPage() {
                                 r.status === "reserved"
                                     ? "inhouse"
                                     : r.status === "available"
-                                        ? "available"
+                                    ? "available"
                                         : null
                             );
                             const diary = diaryState ? DIARY_STYLE[diaryState] : null;
+                            const linkedStayCheckin = r.linked_full_checkin ?? r.guest_checkin_date ?? null;
+                            const linkedStayCheckout = r.linked_full_checkout ?? r.guest_checkout_date ?? null;
                             return (
                                 <>
                                     <div className="flex items-center gap-2 mb-3">
@@ -1492,9 +1531,9 @@ export default function BoardPage() {
                                         <div className="space-y-1 mb-4">
                                             {r.guest_name && <p className="text-sm font-semibold text-[var(--text-primary)]">{r.guest_name}</p>}
                                             {r.booking_code && <p className="text-xs font-mono text-[var(--text-secondary)]">{r.booking_code}</p>}
-                                            {r.guest_checkin_date && (
+                                            {linkedStayCheckin && linkedStayCheckout && (
                                                 <p className="text-xs text-[var(--text-muted)]">
-                                                    {r.guest_checkin_date} → {r.guest_checkout_date}
+                                                    {linkedStayCheckin} → {linkedStayCheckout}
                                                 </p>
                                             )}
                                             {r.source && <p className="text-xs text-[var(--text-secondary)]">{SOURCE_LABEL[r.source] ?? r.source}</p>}

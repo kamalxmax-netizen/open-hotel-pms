@@ -6,6 +6,7 @@ import { isValidDateString } from "@/lib/dates";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { applyVisibleTotal, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
 import { mapEffectiveReservationAlert } from "@/lib/reservation-alerts";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
             id,
             booking_code,
             booking_group_id,
+            parent_reservation_id,
             guest_name,
             phone,
             guest_profile_id,
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
             id,
             booking_code,
             booking_group_id,
+            parent_reservation_id,
             guest_name,
             phone,
             guest_profile_id,
@@ -173,13 +176,15 @@ export async function GET(request: NextRequest) {
             profileSeed
         );
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
+        const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
 
-        const rows = reservationData
-            .filter((r) => {
-                const checkedInAt = includesCheckedInAt ? (r.checked_in_at as string | null | undefined) : null;
-                return Boolean(checkedInAt) || checkedInLogByReservation.has(String(r.id));
-            })
-            .map((r) => {
+        const rows = (await Promise.all(
+            reservationData
+                .filter((r) => {
+                    const checkedInAt = includesCheckedInAt ? (r.checked_in_at as string | null | undefined) : null;
+                    return Boolean(checkedInAt) || checkedInLogByReservation.has(String(r.id));
+                })
+                .map(async (r) => {
                 const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;
                 const nights = Array.isArray(r.reservation_nights)
@@ -200,11 +205,13 @@ export async function GET(request: NextRequest) {
                 const checkedInAt = includesCheckedInAt ? (r.checked_in_at as string | null | undefined) : null;
                 const checkedInEvidence = checkedInAt ?? checkedInLogByReservation.get(String(r.id)) ?? null;
                 const loyalty = loyaltyByReservationId.get(String(r.id));
+                const linkedStay = await resolveLinkedStay(supabase, String(r.id), checkOutTimeHHmm);
 
                 return {
                     id: r.id,
                     booking_code: r.booking_code,
                     booking_group_id: groupId,
+                    parent_reservation_id: r.parent_reservation_id ?? null,
                     group_code: groupMeta?.group_code ?? null,
                     group_name: groupMeta?.group_name ?? null,
                     guest_name: r.guest_name,
@@ -233,9 +240,13 @@ export async function GET(request: NextRequest) {
                     open_traces_count: openTracesCount,
                     alert_count: alertRows.length,
                     first_alert_message: alertRows[0]?.message ?? null,
+                    linked_segments: linkedStay?.segments ?? null,
+                    linked_full_checkin: linkedStay?.full_checkin ?? null,
+                    linked_full_checkout: linkedStay?.full_checkout ?? null,
+                    linked_active_segment_id: linkedStay?.active_segment_id ?? null,
                 };
             })
-            .sort((a, b) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true }));
+        )).sort((a: any, b: any) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true }));
 
         const { data: dayUseData, error: dayUseError } = await supabase
             .from("reservations")

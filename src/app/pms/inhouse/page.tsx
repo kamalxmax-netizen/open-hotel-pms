@@ -10,8 +10,10 @@ import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import LinkedExtensionModal from "@/components/linked-extension-modal";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { DayUseTimer } from "@/components/dayuse-timer";
-import type { DayUseReservation } from "@/lib/types";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
+import { groupLinkedStays } from "@/lib/linked-stay-ui";
+import { LinkedStayBadge } from "@/components/linked-stay-badge";
+import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
 
 type InHouseReservation = {
     id: string;
@@ -40,6 +42,11 @@ type InHouseReservation = {
     open_traces_count: number;
     alert_count?: number;
     first_alert_message?: string | null;
+    parent_reservation_id?: string | null;
+    linked_segments?: LinkedStaySegment[] | null;
+    linked_full_checkin?: string | null;
+    linked_full_checkout?: string | null;
+    linked_active_segment_id?: string | null;
 };
 
 type InHouseDayUseReservation = DayUseReservation & {
@@ -205,6 +212,9 @@ export default function InHousePage() {
         weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
 
+    // Group linked stays using the shared utility
+    const mergedReservations = groupLinkedStays(reservations);
+
     return (
         <div className="space-y-5 w-full max-w-[90rem]">
             <NightAuditPendingPopup pageName="In-House" />
@@ -267,10 +277,15 @@ export default function InHousePage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {reservations.map((r) => {
+                            {mergedReservations.map((merged) => {
+                                const r = merged.active_reservation;
                                 const loyaltyVisual = resolveGuestLoyaltyVisual(r);
+                                
+                                const displayCheckin = merged.is_linked ? merged.linked_full_checkin : r.checkin_date;
+                                const displayCheckout = merged.is_linked ? merged.linked_full_checkout : r.checkout_date;
+                                
                                 return (
-                                <tr key={r.id} className={loyaltyVisual.rowClass}>
+                                <tr key={merged.group_id} className={loyaltyVisual.rowClass}>
                                     <td>
                                         <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
                                         <div className="text-xs text-[var(--text-muted)]">{r.room_type}</div>
@@ -307,18 +322,21 @@ export default function InHousePage() {
                                         {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                     </td>
                                     <td>
-                                        <div className="text-sm">{r.checkin_date}</div>
-                                        <div className="text-xs text-[var(--text-muted)]">→ {r.checkout_date}</div>
+                                        <div className="text-sm">{displayCheckin}</div>
+                                        <div className="text-xs text-[var(--text-muted)]">→ {displayCheckout}</div>
+                                        {merged.is_linked && (
+                                            <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />
+                                        )}
                                     </td>
                                     <td>
                                         <span
-                                            className={`font-semibold ${r.nights_remaining <= 1 ? "text-amber-700" : "text-[var(--text-table-cell)]"}`}
+                                            className={`font-semibold ${merged.linked_nights_remaining <= 1 ? "text-amber-700" : "text-[var(--text-table-cell)]"}`}
                                         >
-                                            {r.nights_remaining} night{r.nights_remaining !== 1 ? "s" : ""}
+                                            {merged.linked_nights_remaining} night{merged.linked_nights_remaining !== 1 ? "s" : ""}
                                         </span>
                                     </td>
                                     <td>
-                                        <span className="font-semibold text-[var(--text-primary)]">฿{fmt(r.total_price)}</span>
+                                        <span className="font-semibold text-[var(--text-primary)]">฿{fmt(merged.linked_total_price)}</span>
                                     </td>
                                     <td>
                                         <div className="flex gap-1 flex-wrap">

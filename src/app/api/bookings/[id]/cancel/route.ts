@@ -26,6 +26,85 @@ function isCheckedInColumnMissing(message?: string | null): boolean {
   return /checked_in_at/i.test(String(message ?? ""));
 }
 
+type CancelTarget = {
+  id: string;
+  booking_code: string | null;
+  booking_group_id: string | null;
+  parent_reservation_id: string | null;
+  status: string;
+  checked_in_at?: string | null;
+};
+
+async function loadLinkedCancelTargets(supabase: any, rootReservationId: string): Promise<CancelTarget[]> {
+  const withCheckedIn = await supabase
+    .from("reservations")
+    .select("id, booking_code, booking_group_id, parent_reservation_id, status, checked_in_at")
+    .or(`id.eq.${rootReservationId},parent_reservation_id.eq.${rootReservationId}`);
+
+  if (withCheckedIn.error && isCheckedInColumnMissing(withCheckedIn.error.message)) {
+    const fallback = await supabase
+      .from("reservations")
+      .select("id, booking_code, booking_group_id, parent_reservation_id, status")
+      .or(`id.eq.${rootReservationId},parent_reservation_id.eq.${rootReservationId}`);
+    if (fallback.error) {
+      throw new Error(fallback.error.message ?? "Failed to load linked cancel targets.");
+    }
+    return (fallback.data ?? []).map((row: any) => ({
+      id: String(row.id),
+      booking_code: row.booking_code ? String(row.booking_code) : null,
+      booking_group_id: row.booking_group_id ? String(row.booking_group_id) : null,
+      parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+      status: String(row.status ?? ""),
+      checked_in_at: null,
+    }));
+  }
+
+  if (withCheckedIn.error) {
+    throw new Error(withCheckedIn.error.message ?? "Failed to load linked cancel targets.");
+  }
+
+  return (withCheckedIn.data ?? []).map((row: any) => ({
+    id: String(row.id),
+    booking_code: row.booking_code ? String(row.booking_code) : null,
+    booking_group_id: row.booking_group_id ? String(row.booking_group_id) : null,
+    parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+    status: String(row.status ?? ""),
+    checked_in_at: row.checked_in_at ? String(row.checked_in_at) : null,
+  }));
+}
+
+async function resolveWasCheckedIn(supabase: any, target: CancelTarget): Promise<boolean> {
+  if (target.checked_in_at) return true;
+  const { data: checkinLog } = await supabase
+    .from("audit_logs")
+    .select("id")
+    .eq("entity_type", "reservation")
+    .eq("entity_id", target.id)
+    .eq("action", "checked_in")
+    .limit(1)
+    .maybeSingle();
+  return Boolean(checkinLog?.id);
+}
+
+async function resolveDirtyRoomIdForReservation(params: {
+  supabase: any;
+  reservationId: string;
+  localDate: string;
+}): Promise<string | null> {
+  const { supabase, reservationId, localDate } = params;
+  const { data: activeNights, error: activeNightsError } = await supabase
+    .from("reservation_nights")
+    .select("room_id, stay_date")
+    .eq("reservation_id", reservationId)
+    .is("cancelled_at", null)
+    .order("stay_date", { ascending: true });
+  if (activeNightsError) return null;
+  const nights = (activeNights ?? []).filter((row: any) => row?.room_id);
+  const roomForToday = nights.find((row: any) => String(row?.stay_date ?? "") === localDate);
+  const fallbackRoom = roomForToday ?? nights[0];
+  return fallbackRoom?.room_id ? String(fallbackRoom.room_id) : null;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
@@ -52,44 +131,48 @@ export async function POST(
   const feeNote = parsed.data.fee_note?.trim() || null;
   const refundNote = parsed.data.refund_note?.trim() || null;
 
-  let reservationRef: { id: string; booking_group_id: string | null; checked_in_at?: string | null } | null = null;
+  let reservationRef: {
+    id: string;
+    booking_code: string | null;
+    booking_group_id: string | null;
+    parent_reservation_id: string | null;
+    checked_in_at?: string | null;
+  } | null = null;
   const withCheckedIn = await supabase
     .from("reservations")
-    .select("id, booking_group_id, checked_in_at")
+    .select("id, booking_code, booking_group_id, parent_reservation_id, checked_in_at")
     .eq("id", reservationId)
     .maybeSingle();
 
   if (withCheckedIn.error && isCheckedInColumnMissing(withCheckedIn.error.message)) {
     const fallback = await supabase
       .from("reservations")
-      .select("id, booking_group_id")
+      .select("id, booking_code, booking_group_id, parent_reservation_id")
       .eq("id", reservationId)
       .maybeSingle();
     if (fallback.error) {
       return NextResponse.json({ error: fallback.error.message }, { status: 500 });
     }
-    reservationRef = fallback.data as { id: string; booking_group_id: string | null } | null;
+    reservationRef = fallback.data as {
+      id: string;
+      booking_code: string | null;
+      booking_group_id: string | null;
+      parent_reservation_id: string | null;
+    } | null;
   } else if (withCheckedIn.error) {
     return NextResponse.json({ error: withCheckedIn.error.message }, { status: 500 });
   } else {
-    reservationRef = withCheckedIn.data as { id: string; booking_group_id: string | null; checked_in_at?: string | null } | null;
+    reservationRef = withCheckedIn.data as {
+      id: string;
+      booking_code: string | null;
+      booking_group_id: string | null;
+      parent_reservation_id: string | null;
+      checked_in_at?: string | null;
+    } | null;
   }
 
   if (!reservationRef) {
     return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
-  }
-
-  let wasCheckedIn = Boolean((reservationRef as any)?.checked_in_at);
-  if (!wasCheckedIn) {
-    const { data: checkinLog } = await supabase
-      .from("audit_logs")
-      .select("id")
-      .eq("entity_type", "reservation")
-      .eq("entity_id", reservationId)
-      .eq("action", "checked_in")
-      .limit(1)
-      .maybeSingle();
-    wasCheckedIn = Boolean(checkinLog?.id);
   }
 
   const { data: paymentRows, error: paymentRowsError } = await supabase
@@ -136,22 +219,63 @@ export async function POST(
 
   const nowIso = new Date().toISOString();
   const localDate = toLocalDate(new Date(nowIso));
+  const rootReservationId = reservationRef.parent_reservation_id
+    ? String(reservationRef.parent_reservation_id)
+    : reservationId;
+  const cancellationWarnings: string[] = [];
 
-  let roomIdForDirtyAfterCancel: string | null = null;
-  if (wasCheckedIn) {
-    const { data: activeNightsBeforeCancel, error: activeNightsError } = await supabase
-      .from("reservation_nights")
-      .select("room_id, stay_date")
-      .eq("reservation_id", reservationId)
-      .is("cancelled_at", null)
-      .order("stay_date", { ascending: true });
-    if (!activeNightsError) {
-      const nights = (activeNightsBeforeCancel ?? []).filter((row: any) => row?.room_id);
-      const roomForToday = nights.find((row: any) => String(row?.stay_date ?? "") === localDate);
-      const fallbackRoom = roomForToday ?? nights[0];
-      roomIdForDirtyAfterCancel = fallbackRoom?.room_id ? String(fallbackRoom.room_id) : null;
-    }
+  let linkedTargets: CancelTarget[] = [];
+  try {
+    linkedTargets = await loadLinkedCancelTargets(supabase, rootReservationId);
+  } catch (error) {
+    cancellationWarnings.push(
+      `Failed to load linked chain for cascade cancel: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
+  if (linkedTargets.length === 0) {
+    linkedTargets = [
+      {
+        id: reservationId,
+        booking_code: reservationRef.booking_code ?? null,
+        booking_group_id: reservationRef.booking_group_id ?? null,
+        parent_reservation_id: reservationRef.parent_reservation_id ?? null,
+        status: "active",
+        checked_in_at: reservationRef.checked_in_at ?? null,
+      },
+    ];
+  }
+
+  const activeCancelTargets = linkedTargets.filter((row) => row.status === "active");
+  if (!activeCancelTargets.some((row) => row.id === reservationId)) {
+    activeCancelTargets.unshift({
+      id: reservationId,
+      booking_code: reservationRef.booking_code ?? null,
+      booking_group_id: reservationRef.booking_group_id ?? null,
+      parent_reservation_id: reservationRef.parent_reservation_id ?? null,
+      status: "active",
+      checked_in_at: reservationRef.checked_in_at ?? null,
+    });
+  }
+
+  const secondaryCancelTargets = activeCancelTargets.filter((row) => row.id !== reservationId);
+  const checkinByReservationId = new Map<string, boolean>();
+  const dirtyRoomIdByReservationId = new Map<string, string | null>();
+  await Promise.all(
+    activeCancelTargets.map(async (target) => {
+      const wasCheckedInTarget = await resolveWasCheckedIn(supabase, target);
+      checkinByReservationId.set(target.id, wasCheckedInTarget);
+      if (!wasCheckedInTarget) return;
+      const dirtyRoomId = await resolveDirtyRoomIdForReservation({
+        supabase,
+        reservationId: target.id,
+        localDate,
+      });
+      dirtyRoomIdByReservationId.set(target.id, dirtyRoomId);
+    })
+  );
+  const wasCheckedIn = checkinByReservationId.get(reservationId) ?? false;
+  const roomIdForDirtyAfterCancel = dirtyRoomIdByReservationId.get(reservationId) ?? null;
+
   try {
     await assertBusinessDayOpen(supabase, localDate);
   } catch (error) {
@@ -238,34 +362,122 @@ export async function POST(
     return NextResponse.json({ error: "Cancel reservation failed." }, { status: 500 });
   }
 
-  // If reservation was already checked in, room must become dirty immediately after cancellation.
-  let hkDirtyMarked = false;
-  let hkDirtyWarning: string | null = null;
+  const linkedCancelled: Array<{ id: string; booking_code: string | null }> = [];
+  const linkedCancelFailed: Array<{ id: string; booking_code: string | null; error: string }> = [];
+  for (const target of secondaryCancelTargets) {
+    const { error: linkedCancelError } = await supabase.rpc("booking_cancel_reservation", {
+      p_reservation_id: target.id,
+      p_cancel_reason: cancelReason ?? "Cancelled via linked stay cascade",
+    });
+    if (linkedCancelError) {
+      const reason = linkedCancelError.message ?? "Unknown error";
+      linkedCancelFailed.push({
+        id: target.id,
+        booking_code: target.booking_code ?? null,
+        error: reason,
+      });
+      cancellationWarnings.push(
+        `Linked reservation ${target.booking_code ?? target.id} could not be cancelled: ${reason}`
+      );
+      continue;
+    }
+    linkedCancelled.push({
+      id: target.id,
+      booking_code: target.booking_code ?? null,
+    });
+  }
 
-  if (wasCheckedIn) {
-    if (roomIdForDirtyAfterCancel) {
-      try {
-        await markRoomDirtyTask(supabase as any, {
-          roomId: roomIdForDirtyAfterCancel,
-          stayDate: localDate,
-          assignedMaidName: null,
-          clearDailyPlanWhenUnassigned: true,
-          logNote: "Marked dirty after cancellation (post check-in)",
-        });
-        hkDirtyMarked = true;
-      } catch (dirtyError: any) {
-        hkDirtyWarning = `Cancellation succeeded, but failed to mark room dirty: ${String(dirtyError?.message ?? dirtyError)}`;
-      }
-    } else {
-      hkDirtyWarning = "Cancellation succeeded, but room_id not found for HK dirty mark.";
+  const cancelledReservationIds = [reservationId, ...linkedCancelled.map((row) => row.id)];
+
+  let cancelledPlannedMoveCount = 0;
+  let plannedMoveCleanupWarning: string | null = null;
+  const { data: plannedMoves, error: plannedMovesError } = await supabase
+    .from("reservation_room_plans")
+    .select("id, reservation_id")
+    .in("reservation_id", cancelledReservationIds)
+    .eq("status", "planned");
+
+  if (plannedMovesError) {
+    plannedMoveCleanupWarning = `Cancellation succeeded, but failed to load planned moves: ${plannedMovesError.message}`;
+    cancellationWarnings.push(plannedMoveCleanupWarning);
+  } else if ((plannedMoves ?? []).length > 0) {
+    const planIds = (plannedMoves ?? []).map((row: any) => String(row.id)).filter(Boolean);
+    cancelledPlannedMoveCount = planIds.length;
+    const { error: cancelPlansError } = await supabase
+      .from("reservation_room_plans")
+      .update({
+        status: "cancelled",
+        cancelled_at: nowIso,
+        updated_by: null,
+      })
+      .in("id", planIds);
+
+    if (cancelPlansError) {
+      plannedMoveCleanupWarning = `Cancellation succeeded, but failed to cancel planned moves: ${cancelPlansError.message}`;
+      cancellationWarnings.push(plannedMoveCleanupWarning);
+      cancelledPlannedMoveCount = 0;
     }
   }
 
-  if (reservationRef.booking_group_id) {
+  // If reservation was already checked in, room must become dirty immediately after cancellation.
+  let hkDirtyMarked = false;
+  let hkDirtyWarning: string | null = null;
+  let linkedDirtyMarkedCount = 0;
+
+  for (const cancelledReservationId of cancelledReservationIds) {
+    const wasCheckedInTarget = checkinByReservationId.get(cancelledReservationId) ?? false;
+    if (!wasCheckedInTarget) continue;
+
+    const dirtyRoomId = dirtyRoomIdByReservationId.get(cancelledReservationId) ?? null;
+    if (!dirtyRoomId) {
+      const warningMessage = `Cancellation succeeded, but room_id not found for HK dirty mark (${cancelledReservationId}).`;
+      if (cancelledReservationId === reservationId) {
+        hkDirtyWarning = warningMessage;
+      }
+      cancellationWarnings.push(warningMessage);
+      continue;
+    }
+
     try {
-      await syncBookingGroupStatusById(supabase, String(reservationRef.booking_group_id));
+      await markRoomDirtyTask(supabase as any, {
+        roomId: dirtyRoomId,
+        stayDate: localDate,
+        assignedMaidName: null,
+        clearDailyPlanWhenUnassigned: true,
+        logNote: "Marked dirty after cancellation (post check-in)",
+      });
+      if (cancelledReservationId === reservationId) {
+        hkDirtyMarked = true;
+      } else {
+        linkedDirtyMarkedCount += 1;
+      }
+    } catch (dirtyError: any) {
+      const warningMessage = `Cancellation succeeded, but failed to mark room dirty (${cancelledReservationId}): ${String(dirtyError?.message ?? dirtyError)}`;
+      if (cancelledReservationId === reservationId) {
+        hkDirtyWarning = warningMessage;
+      }
+      cancellationWarnings.push(warningMessage);
+    }
+  }
+
+  const cancelTargetById = new Map<string, CancelTarget>();
+  activeCancelTargets.forEach((target) => {
+    cancelTargetById.set(target.id, target);
+  });
+  const bookingGroupIdsToSync = Array.from(
+    new Set(
+      cancelledReservationIds
+        .map((id) => cancelTargetById.get(id)?.booking_group_id ?? null)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+  for (const groupId of bookingGroupIdsToSync) {
+    try {
+      await syncBookingGroupStatusById(supabase, String(groupId));
     } catch (syncError) {
-      console.error("group status sync after cancel failed:", reservationRef.booking_group_id, syncError);
+      const warningMessage = `Group status sync after cancel failed (${groupId}): ${String((syncError as any)?.message ?? syncError)}`;
+      cancellationWarnings.push(warningMessage);
+      console.error("group status sync after cancel failed:", groupId, syncError);
     }
   }
 
@@ -285,7 +497,20 @@ export async function POST(
         was_checked_in: wasCheckedIn,
         dirty_marked: hkDirtyMarked,
         warning: hkDirtyWarning,
+        linked_dirty_marked_count: linkedDirtyMarkedCount,
       },
+      planned_move_cleanup: {
+        cancelled_count: cancelledPlannedMoveCount,
+        warning: plannedMoveCleanupWarning,
+      },
+      linked_chain: {
+        root_reservation_id: rootReservationId,
+        cancelled_count: linkedCancelled.length,
+        cancelled: linkedCancelled,
+        failed_count: linkedCancelFailed.length,
+        failed: linkedCancelFailed,
+      },
+      warnings: cancellationWarnings,
     },
     { status: 200 }
   );

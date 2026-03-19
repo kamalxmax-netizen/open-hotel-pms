@@ -51,6 +51,21 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ success: false, error: "Another planned move is effective today. Resolve that move first." }, { status: 409 });
     }
 
+    const { data: reservationMeta, error: reservationMetaError } = await supabase
+      .from("reservations")
+      .select("source")
+      .eq("id", reservationId)
+      .maybeSingle();
+    if (reservationMetaError) {
+      return NextResponse.json({ success: false, error: reservationMetaError.message }, { status: 500 });
+    }
+
+    const isOtaReservation = String(reservationMeta?.source ?? "").toLowerCase() === "ota";
+    const effectivePricingPolicy = isOtaReservation ? "keep_rtc" : move.pricing_policy;
+    const effectiveDiscountType = isOtaReservation ? "percent" : (move.discount_type ?? "percent");
+    const effectiveDiscountValue = isOtaReservation ? 0 : Number(move.discount_value ?? 0);
+    const effectiveDiscountReason = isOtaReservation ? null : (move.discount_reason ?? null);
+
     const executeFrom = today > move.start_date ? today : move.start_date;
     const lateNote = today > move.start_date ? `Executed late from ${today}` : null;
     const sourceRoomNumber = await resolveRoomNumber(supabase, move.from_room_id_snapshot);
@@ -60,14 +75,14 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       reservationId,
       newRoomId: move.to_room_id,
       reason: move.move_reason,
-      pricingPolicy: move.pricing_policy,
-      discountType: move.discount_type ?? "percent",
-      discountValue: Number(move.discount_value ?? 0),
-      discountReason: move.discount_reason ?? null,
+      pricingPolicy: effectivePricingPolicy,
+      discountType: effectiveDiscountType,
+      discountValue: effectiveDiscountValue,
+      discountReason: effectiveDiscountReason,
       startDate: executeFrom,
       endDate: addDays(move.end_date, -1),
       notePrefix: "Planned Room Move",
-      noteSuffix: lateNote,
+      noteSuffix: `${lateNote ?? ""}${isOtaReservation ? `${lateNote ? " | " : ""}OTA keep_rtc safeguard` : ""}` || null,
       auditAction: "planned_room_move_executed",
       appendNoteLine: true,
       markOldRoomDirty: true,
@@ -93,6 +108,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       move_result: result,
       plan_id: planId,
       executed_from: executeFrom,
+      effective_pricing_policy: effectivePricingPolicy,
     });
   } catch (error) {
     if (error instanceof PlannedRoomMoveError || error instanceof RoomMoveError) {

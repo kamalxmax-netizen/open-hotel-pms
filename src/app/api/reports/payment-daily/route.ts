@@ -53,6 +53,8 @@ type PaymentRow = {
 
 type ReservationRow = {
   id: string;
+  parent_reservation_id: string | null;
+  source: string | null;
   guest_name: string | null;
   booking_code: string | null;
   checkin_date: string | null;
@@ -79,6 +81,24 @@ type PosOrderItemRow = {
   order_id: string | null;
   product_name: string | null;
   quantity: number | null;
+};
+
+type LinkedReservationRow = {
+  id: string;
+  parent_reservation_id: string | null;
+  booking_code: string | null;
+  source: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+};
+
+type LinkedStaySegment = {
+  reservation_id: string;
+  booking_code: string | null;
+  source: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+  is_parent: boolean;
 };
 
 function isPosDepositRecord(txType: TxType, category: string, note: string): boolean {
@@ -233,6 +253,114 @@ function isHiddenByReason(reason: string | null): boolean {
   const text = String(reason ?? "").toLowerCase();
   if (!text) return false;
   return /block|reno|renovat|ปรับปรุง|ซ่อม/.test(text);
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  walkin: "Walk-in",
+  ota: "OTA",
+  direct: "Direct",
+  agent: "Agent",
+};
+
+function formatSourceLabel(source: string | null | undefined): string {
+  const raw = String(source ?? "").trim();
+  if (!raw) return "unknown";
+  return SOURCE_LABELS[raw.toLowerCase()] ?? raw;
+}
+
+function formatCompactStayRange(checkinDate: string | null, checkoutDate: string | null): string {
+  const checkin = String(checkinDate ?? "").trim();
+  const checkout = String(checkoutDate ?? "").trim();
+  if (!checkin || !checkout) return `${checkin || "—"}-${checkout || "—"}`;
+
+  const start = new Date(`${checkin}T00:00:00`);
+  const end = new Date(`${checkout}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${checkin}-${checkout}`;
+  }
+
+  const startDay = start.getDate();
+  const startMonth = start.getMonth() + 1;
+  const endDay = end.getDate();
+  const endMonth = end.getMonth() + 1;
+
+  if (start.getFullYear() === end.getFullYear() && startMonth === endMonth) {
+    return `${startDay}-${endDay}/${endMonth}`;
+  }
+  return `${startDay}/${startMonth}-${endDay}/${endMonth}`;
+}
+
+function buildLinkedStayRemark(segments: LinkedStaySegment[]): string | null {
+  if (segments.length <= 1) return null;
+
+  const ordered = [...segments].sort((left, right) => {
+    const dateCmp = String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? ""));
+    if (dateCmp !== 0) return dateCmp;
+    if (left.is_parent !== right.is_parent) return left.is_parent ? -1 : 1;
+    return String(left.booking_code ?? "").localeCompare(String(right.booking_code ?? ""));
+  });
+
+  const parts = ordered.map((segment) => {
+    const source = formatSourceLabel(segment.source);
+    const bookingCode = String(segment.booking_code ?? segment.reservation_id);
+    const range = formatCompactStayRange(segment.checkin_date, segment.checkout_date);
+    return `${source}(${bookingCode} ${range})`;
+  });
+
+  return `Linked Stay: ${parts.join(" → ")}`;
+}
+
+function buildLinkedStayRemarkMap(rows: LinkedReservationRow[]): Map<string, string> {
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const childIdsByParentId = new Map<string, string[]>();
+
+  for (const row of rows) {
+    if (!row.parent_reservation_id) continue;
+    const parentId = String(row.parent_reservation_id);
+    const children = childIdsByParentId.get(parentId) ?? [];
+    children.push(row.id);
+    childIdsByParentId.set(parentId, children);
+  }
+
+  const remarkByReservationId = new Map<string, string>();
+
+  for (const row of rows) {
+    const parentId = row.parent_reservation_id ? String(row.parent_reservation_id) : null;
+    const groupId = parentId || (childIdsByParentId.has(row.id) ? row.id : null);
+    if (!groupId) continue;
+
+    const parentRow = rowsById.get(groupId);
+    if (!parentRow) continue;
+
+    const childIds = childIdsByParentId.get(groupId) ?? [];
+    const relatedRows = [
+      parentRow,
+      ...childIds
+        .map((childId) => rowsById.get(childId))
+        .filter((item): item is LinkedReservationRow => Boolean(item)),
+    ];
+
+    const uniqueRows = Array.from(new Map(relatedRows.map((item) => [item.id, item])).values());
+    if (uniqueRows.length <= 1) continue;
+
+    const remark = buildLinkedStayRemark(
+      uniqueRows.map((item) => ({
+        reservation_id: item.id,
+        booking_code: item.booking_code,
+        source: item.source,
+        checkin_date: item.checkin_date,
+        checkout_date: item.checkout_date,
+        is_parent: item.id === groupId,
+      }))
+    );
+    if (!remark) continue;
+
+    for (const item of uniqueRows) {
+      remarkByReservationId.set(item.id, remark);
+    }
+  }
+
+  return remarkByReservationId;
 }
 
 function resolveRoomForDate(
@@ -406,6 +534,7 @@ export async function GET(request: NextRequest) {
     const reservationIdList = Array.from(reservationIds);
 
     let reservationMap = new Map<string, ReservationRow>();
+    let linkedRemarkByReservationId = new Map<string, string>();
     let nightsByReservation = new Map<string, ReservationNightRoom[]>();
     let cumulativePaidMap = new Map<string, number>();
 
@@ -413,7 +542,7 @@ export async function GET(request: NextRequest) {
       const [reservationRes, nightsRes, cumulativeRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -440,6 +569,16 @@ export async function GET(request: NextRequest) {
 
       reservationMap = new Map(
         ((reservationRes.data ?? []) as ReservationRow[]).map((row) => [row.id, row])
+      );
+      linkedRemarkByReservationId = buildLinkedStayRemarkMap(
+        ((reservationRes.data ?? []) as LinkedReservationRow[]).map((row) => ({
+          id: String(row.id),
+          parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+          booking_code: row.booking_code ?? null,
+          source: row.source ?? null,
+          checkin_date: row.checkin_date ?? null,
+          checkout_date: row.checkout_date ?? null,
+        }))
       );
 
       for (const row of (nightsRes.data ?? []) as any[]) {
@@ -626,6 +765,8 @@ export async function GET(request: NextRequest) {
           current.total_net = round2(current.total_net + (txType === "refund" ? -amount : amount));
         }
         if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
+        const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
+        if (linkedRemark) current.notes.add(linkedRemark);
 
         const paidToDate = current.total_paid_to_date;
         if (current.total_price > 0 && paidToDate >= current.total_price - 0.01) current.payment_status = "full";
@@ -659,6 +800,8 @@ export async function GET(request: NextRequest) {
           else if (txType === "refund") current.total_net = round2(current.total_net - amount);
         }
         if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
+        const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
+        if (linkedRemark) current.notes.add(linkedRemark);
         todayGroup.set(key, current);
       }
     }

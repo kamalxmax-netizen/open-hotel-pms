@@ -16,12 +16,15 @@ type Reservation = {
     reservation_id: string;
     booking_code: string;
     booking_group_id?: string | null;
+    parent_reservation_id?: string | null;
+    linked_root_id?: string | null;
     group_code?: string | null;
     group_name?: string | null;
     guest_name: string;
     phone: string | null;
     source: string;
     status: string;           // 'active' | 'checked_out'
+    checked_in_at?: string | null;
     checkin_date: string;
     checkout_date: string;
     total_price: number;
@@ -36,6 +39,7 @@ type Reservation = {
 
 type CalendarRoom = {
     room_id: string;
+    room_type_id: string;
     room_number: string;
     room_type: string;
     room_type_code: string;
@@ -161,18 +165,26 @@ function getRoomTypeLabel(room: CalendarRoom): string {
     return String(room.room_type ?? room.room_type_code ?? "Unknown");
 }
 
+function resolveLinkHoverKey(res: Reservation): string | null {
+    if (res.linked_root_id) return `linked:${res.linked_root_id}`;
+    if (res.booking_group_id) return `group:${res.booking_group_id}`;
+    return null;
+}
+
 /* ─── Reservation Detail Modal ────────────────── */
 function ReservationDetail({
     res,
     roomNumber,
     onClose,
     onEdit,
+    onSwap,
     onRefresh
 }: {
     res: Reservation;
     roomNumber: string;
     onClose: () => void;
     onEdit: () => void;
+    onSwap: () => void;
     onRefresh: () => void;
 }) {
     const [cancelling, setCancelling] = useState(false);
@@ -225,6 +237,8 @@ function ReservationDetail({
     const sc = SOURCE_COLOR[res.source] ?? DEFAULT_COLOR;
 
     const isCheckedOut = res.status === "checked_out";
+    const isCheckedIn = Boolean(res.checked_in_at);
+    const canSwap = !isCheckedOut && !isCheckedIn && Boolean(roomNumber && roomNumber !== "—");
 
     return (
         <>
@@ -243,12 +257,16 @@ function ReservationDetail({
                         >
                             ⋯ Options
                         </button>
-                        <button className="btn btn-secondary flex-1" onClick={onClose}>Close</button>
+                        {canSwap && (
+                            <button className="btn btn-secondary flex-1" onClick={onSwap}>
+                                Swap
+                            </button>
+                        )}
                         {!isCheckedOut && (
                             <button className="btn btn-primary flex-1" onClick={onEdit}>Edit</button>
                         )}
                         {isCheckedOut && (
-                            <span className="flex-1 flex items-center justify-center text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200">
+                            <span className="flex-1 flex items-center justify-center text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">
                                 ✓ Checked Out
                             </span>
                         )}
@@ -256,7 +274,7 @@ function ReservationDetail({
                 }
             >
                 <div className="space-y-4">
-                    {msg && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
+                    {msg && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">{msg}</div>}
 
                     <div className="flex items-start justify-between gap-3">
                         <div>
@@ -265,7 +283,7 @@ function ReservationDetail({
                             {res.booking_group_id && (
                                 <Link
                                     href={`/pms/groups?group_id=${res.booking_group_id}`}
-                                    className="inline-flex mt-1 badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                    className="inline-flex mt-1 badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors dark:bg-indigo-500/20 dark:text-indigo-300 dark:hover:bg-indigo-500/30"
                                     title={res.group_name ?? "Open Group Booking"}
                                 >
                                     {formatShortGroupCode(res.group_code)}
@@ -274,7 +292,7 @@ function ReservationDetail({
                         </div>
                         <div className="flex items-center gap-1.5">
                             {isCheckedOut && (
-                                <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5">✓ CO</span>
+                                <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 dark:bg-emerald-500/20 dark:text-emerald-400">✓ CO</span>
                             )}
                             <span className={`badge ${sc.bar} ${sc.text} px-3 py-1 ${isCheckedOut ? "opacity-50" : ""}`}>
                                 {SOURCE_LABEL[res.source] ?? res.source}
@@ -300,7 +318,7 @@ function ReservationDetail({
 
                     <div className="text-xs text-[var(--text-muted)]">Code: {res.booking_code}</div>
                     {res.note && (
-                        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700">📝 {res.note}</div>
+                        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400">📝 {res.note}</div>
                     )}
                 </div>
             </PmsModal>
@@ -358,7 +376,11 @@ function CalendarPageInner() {
     const [detailMode, setDetailMode] = useState<"create" | "edit" | null>(null);
     const [detailResId, setDetailResId] = useState<string | undefined>();
     const [detailRoomNumber, setDetailRoomNumber] = useState<string | undefined>();
+    const [detailInitialRoomTypeId, setDetailInitialRoomTypeId] = useState<string | undefined>();
+    const [detailInitialCheckinDate, setDetailInitialCheckinDate] = useState<string | undefined>();
+    const [detailInitialCheckoutDate, setDetailInitialCheckoutDate] = useState<string | undefined>();
     const [assignModal, setAssignModal] = useState<Reservation | null>(null);
+    const [swapModal, setSwapModal] = useState<{ res: Reservation; roomNumber: string } | null>(null);
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -570,7 +592,19 @@ function CalendarPageInner() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
                     <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Booking Calendar</h1>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => { setDetailMode("create"); setDetailResId(undefined); setDetailRoomNumber(undefined); }}>+ New Booking</button>
+                <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                        setDetailMode("create");
+                        setDetailResId(undefined);
+                        setDetailRoomNumber(undefined);
+                        setDetailInitialRoomTypeId(undefined);
+                        setDetailInitialCheckinDate(undefined);
+                        setDetailInitialCheckoutDate(undefined);
+                    }}
+                >
+                    + New Booking
+                </button>
             </div>
 
             {/* Controls */}
@@ -674,19 +708,19 @@ function CalendarPageInner() {
                         </span>
                     ))}
                     <span className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-                        <span className="inline-block h-2.5 w-5 rounded-sm bg-rose-200 border border-rose-400" />
+                        <span className="inline-block h-2.5 w-5 rounded-sm bg-rose-200 border border-rose-400 dark:bg-rose-500/30 dark:border-rose-500/50" />
                         Blocked (OOO)
                     </span>
                 </div>
             </div>
 
             {focusReservationId && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3 dark:bg-indigo-500/10 dark:border-indigo-500/20">
                     <div>
-                        <p className="text-sm font-semibold text-indigo-900">
+                        <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-300">
                             Focused Move Path{focusedMove?.booking_code ? ` — ${focusedMove.booking_code}` : ""}
                         </p>
-                        <p className="text-xs text-indigo-700 mt-1">
+                        <p className="text-xs text-indigo-700 mt-1 dark:text-indigo-400">
                             {focusedMove
                                 ? `${focusedMove.guest_name ?? "Guest"} · planned move path is highlighted across room rows and dates.`
                                 : "Reservation focus is active. Other reservations are faded for path review."}
@@ -703,19 +737,19 @@ function CalendarPageInner() {
             )}
 
             {!error && data?.unassigned && data.unassigned.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between dark:bg-amber-500/10 dark:border-amber-500/20">
                     <div className="flex items-center gap-3">
                         <span className="text-xl">⚠️</span>
                         <div>
-                            <p className="text-sm font-bold text-amber-800">
+                            <p className="text-sm font-bold text-amber-800 dark:text-amber-400">
                                 {data.unassigned.length} reservation{data.unassigned.length !== 1 ? "s" : ""} need{data.unassigned.length === 1 ? "s" : ""} room assignment
                             </p>
-                            <p className="text-xs text-amber-700">These bookings are floating. Please assign them a specific physical room.</p>
+                            <p className="text-xs text-amber-700 dark:text-amber-500/80">These bookings are floating. Please assign them a specific physical room.</p>
                         </div>
                     </div>
                     <div className="flex flex-col gap-1.5 ml-4">
                         {data.unassigned.map(res => (
-                            <div key={res.reservation_id} className="flex items-center gap-3 bg-[var(--bg-surface)] px-3 py-1.5 rounded border border-amber-100 shadow-sm text-sm">
+                            <div key={res.reservation_id} className="flex items-center gap-3 bg-[var(--bg-surface)] px-3 py-1.5 rounded border border-amber-100 shadow-sm text-sm dark:border-amber-500/30">
                                 <span className="font-bold text-[var(--text-primary)]">{res.guest_name}</span>
                                 <span className="text-[var(--text-muted)]">·</span>
                                 <span className="text-brand-600 font-semibold">{res.room_type}</span>
@@ -845,6 +879,9 @@ function CalendarPageInner() {
                                                             setDetailMode("create");
                                                             setDetailResId(undefined);
                                                             setDetailRoomNumber(room.room_number);
+                                                            setDetailInitialRoomTypeId(room.room_type_id || undefined);
+                                                            setDetailInitialCheckinDate(day);
+                                                            setDetailInitialCheckoutDate(addDays(day, 1));
                                                         }}
                                                         title={room.is_sellable ? `New booking in Room ${room.room_number} on ${day}` : undefined}
                                                     />
@@ -852,7 +889,7 @@ function CalendarPageInner() {
 
                                                 {roomBlocks.map(({ block, startIdx, spanCount }) => {
                                                     const isOOO = block.block_type === "OOO";
-                                                    const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800" : "bg-amber-100 border-amber-300 text-amber-800";
+                                                    const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
                                                     const left = startIdx * COL_W;
                                                     const width = spanCount * COL_W;
                                                     return (
@@ -883,7 +920,7 @@ function CalendarPageInner() {
                                                                 event.stopPropagation();
                                                                 syncFocus(move.reservation_id);
                                                             }}
-                                                            className={`absolute rounded-md border-2 border-dashed px-2 text-[10px] font-semibold text-indigo-700 transition z-20 ${move.do_not_move ? "border-rose-400 bg-rose-100/85 text-rose-700" : "border-indigo-400 bg-indigo-100/85"} ${shouldFade ? "opacity-10" : "opacity-95"} ${isFocused ? "shadow-[0_0_0_2px_rgba(99,102,241,0.18)]" : ""}`}
+                                                            className={`absolute rounded-md border-2 border-dashed px-2 text-[10px] font-semibold text-indigo-700 transition z-20 ${move.do_not_move ? "border-rose-400 bg-rose-100/85 text-rose-700 dark:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300" : "border-indigo-400 bg-indigo-100/85 dark:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"} ${shouldFade ? "opacity-10" : "opacity-95"} ${isFocused ? "shadow-[0_0_0_2px_rgba(99,102,241,0.18)]" : ""}`}
                                                             style={{ left, width, top: 2, height: ROW_H - 4 }}
                                                             title={`${move.guest_name ?? "Guest"} · planned ${move.start_date} → ${move.end_date} · Room ${move.to_room_number ?? "?"}`}
                                                         >
@@ -907,8 +944,8 @@ function CalendarPageInner() {
                                                             }}
                                                             className={`absolute rounded-md border-2 border-dashed px-2 text-[10px] font-semibold transition z-[15] ${
                                                                 move.do_not_move
-                                                                    ? "border-orange-400 bg-orange-100/85 text-orange-800"
-                                                                    : "border-amber-400 bg-amber-100/80 text-amber-800"
+                                                                    ? "border-orange-400 bg-orange-100/85 text-orange-800 dark:bg-orange-500/20 dark:border-orange-500/40 dark:text-orange-300"
+                                                                    : "border-amber-400 bg-amber-100/80 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-300"
                                                             } ${shouldFade ? "opacity-10" : "opacity-95"} ${isFocused ? "shadow-[0_0_0_2px_rgba(251,191,36,0.18)]" : ""}`}
                                                             style={{ left, width, top: 2, height: ROW_H - 4 }}
                                                             title={`${move.guest_name ?? "Guest"} · release Room ${move.from_room_number ?? "?"} for planned move ${move.start_date} → ${move.end_date} · target Room ${move.to_room_number ?? "?"}`}
@@ -921,11 +958,11 @@ function CalendarPageInner() {
                                                 {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight }) => {
                                                     const isCheckedOut = res.status === "checked_out";
                                                     const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
-                                                    const groupId = res.booking_group_id ? String(res.booking_group_id) : null;
-                                                    const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && groupId === hoverGroupId;
+                                                    const linkHoverKey = resolveLinkHoverKey(res);
+                                                    const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && linkHoverKey === hoverGroupId;
                                                     const shouldFadeGroup = focusReservationId
                                                         ? res.reservation_id !== focusReservationId
-                                                        : Boolean(hoverGroupId) && groupId !== hoverGroupId;
+                                                        : Boolean(hoverGroupId) && linkHoverKey !== hoverGroupId;
                                                     const left = startIdx * COL_W + (clippedLeft ? 0 : 2);
                                                     const width = spanCount * COL_W - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
                                                     return (
@@ -935,9 +972,9 @@ function CalendarPageInner() {
                                                                 e.stopPropagation();
                                                                 setSelectedRes({ res, roomNumber: room.room_number });
                                                             }}
-                                                            onMouseEnter={() => setHoverGroupId(groupId)}
+                                                            onMouseEnter={() => setHoverGroupId(linkHoverKey)}
                                                             onMouseLeave={() => setHoverGroupId(null)}
-                                                            onFocus={() => setHoverGroupId(groupId)}
+                                                            onFocus={() => setHoverGroupId(linkHoverKey)}
                                                             onBlur={() => setHoverGroupId(null)}
                                                             className={`absolute top-1.5 rounded-md ${sc.bar} ${sc.text} text-[10px] font-semibold overflow-hidden whitespace-nowrap px-2 shadow-sm transition z-10 ${
                                                                 shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-60 cursor-default" : "hover:brightness-110"
@@ -998,7 +1035,7 @@ function CalendarPageInner() {
 
                                                         {roomBlocks.map(({ block, startIdx, spanCount }) => {
                                                             const isOOO = block.block_type === "OOO";
-                                                            const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800" : "bg-amber-100 border-amber-300 text-amber-800";
+                                                            const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
                                                             const left = startIdx * COL_W;
                                                             const width = spanCount * COL_W;
                                                             return (
@@ -1052,7 +1089,16 @@ function CalendarPageInner() {
                     setDetailMode("edit");
                     setDetailResId(selectedRes.res.reservation_id);
                     setDetailRoomNumber(selectedRes.roomNumber);
+                    setDetailInitialRoomTypeId(undefined);
+                    setDetailInitialCheckinDate(undefined);
+                    setDetailInitialCheckoutDate(undefined);
                     setSelectedRes(null);
+                }}
+                onSwap={() => {
+                    const payload = selectedRes;
+                    setSelectedRes(null);
+                    if (!payload) return;
+                    setSwapModal({ res: payload.res, roomNumber: payload.roomNumber });
                 }}
                 onRefresh={load}
             />
@@ -1066,8 +1112,26 @@ function CalendarPageInner() {
                 mode={detailMode}
                 reservationId={detailResId}
                 roomNumber={detailRoomNumber}
-                onClose={() => { setDetailMode(null); setDetailResId(undefined); setDetailRoomNumber(undefined); }}
-                onSuccess={() => { setDetailMode(null); setDetailResId(undefined); setDetailRoomNumber(undefined); load(); }}
+                initialRoomTypeId={detailInitialRoomTypeId}
+                initialCheckinDate={detailInitialCheckinDate}
+                initialCheckoutDate={detailInitialCheckoutDate}
+                onClose={() => {
+                    setDetailMode(null);
+                    setDetailResId(undefined);
+                    setDetailRoomNumber(undefined);
+                    setDetailInitialRoomTypeId(undefined);
+                    setDetailInitialCheckinDate(undefined);
+                    setDetailInitialCheckoutDate(undefined);
+                }}
+                onSuccess={() => {
+                    setDetailMode(null);
+                    setDetailResId(undefined);
+                    setDetailRoomNumber(undefined);
+                    setDetailInitialRoomTypeId(undefined);
+                    setDetailInitialCheckinDate(undefined);
+                    setDetailInitialCheckoutDate(undefined);
+                    load();
+                }}
             />
         )
     }
@@ -1085,6 +1149,26 @@ function CalendarPageInner() {
                 onClose={() => setAssignModal(null)}
                 onSuccess={() => {
                     setAssignModal(null);
+                    load();
+                }}
+            />
+        )
+    }
+
+    {
+        swapModal && (
+            <AssignRoomModal
+                reservationId={swapModal.res.reservation_id}
+                roomTypeId={swapModal.res.room_type_id}
+                roomTypeName={swapModal.res.room_type}
+                guestName={swapModal.res.guest_name}
+                checkinDate={swapModal.res.checkin_date}
+                checkoutDate={swapModal.res.checkout_date}
+                mode="swap"
+                currentRoomNumber={swapModal.roomNumber}
+                onClose={() => setSwapModal(null)}
+                onSuccess={() => {
+                    setSwapModal(null);
                     load();
                 }}
             />

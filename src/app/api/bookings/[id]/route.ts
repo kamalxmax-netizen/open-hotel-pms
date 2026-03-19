@@ -22,6 +22,7 @@ import {
 } from "@/lib/planned-room-moves";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError, getAssignedRoomLockContext } from "@/lib/assigned-room-lock";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -34,7 +35,7 @@ function isLegacyUpdateRpcMismatch(message?: string | null): boolean {
 
 function isMissingColumnError(message?: string | null): boolean {
   if (!message) return false;
-  return /checked_in_at|discount_type|discount_value/i.test(message);
+  return /checked_in_at|discount_type|discount_value|parent_reservation_id/i.test(message);
 }
 
 async function resolveRoomNumberById(supabase: any, roomId?: string | null): Promise<string | null> {
@@ -230,6 +231,7 @@ export async function GET(
     guest_profile_id,
     rate_plan_id,
     booking_group_id,
+    parent_reservation_id,
     reservation_nights(
       stay_date,
       nightly_price,
@@ -265,6 +267,7 @@ export async function GET(
     guest_profile_id,
     rate_plan_id,
     booking_group_id,
+    parent_reservation_id,
     reservation_nights(
       stay_date,
       nightly_price,
@@ -303,6 +306,7 @@ export async function GET(
     guest_profile_id,
     rate_plan_id,
     booking_group_id,
+    parent_reservation_id,
     reservation_nights(
       stay_date,
       nightly_price,
@@ -339,6 +343,9 @@ export async function GET(
   if (!row) {
     return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
   }
+
+  const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
+  const linkedStay = await resolveLinkedStay(supabase, reservationId, checkOutTimeHHmm);
 
   const activeNights = Array.isArray(row.reservation_nights)
     ? row.reservation_nights
@@ -424,6 +431,7 @@ export async function GET(
       guest_profile_id: row.guest_profile_id ?? null,
       rate_plan_id: row.rate_plan_id ?? null,
       booking_group_id: row.booking_group_id ?? null,
+      parent_reservation_id: row.parent_reservation_id ?? null,
       room_id: roomId,
       room_type_id: roomTypeId,
       total_nights: activeNights.length,
@@ -434,7 +442,8 @@ export async function GET(
         room_type_id: n.room_type_id ?? null
       })),
       room_moves: roomMoves
-    }
+    },
+    linked_stay: linkedStay
   });
 }
 
@@ -541,7 +550,8 @@ export async function PUT(
         Number(night.room_type_id ?? 0) === incomingRoomTypeId
       );
     });
-  const skipNightRebuild = unchangedDateScope && unchangedSource && unchangedAssignment;
+  const shouldForceNightRebuild = payload.source === "ota";
+  const skipNightRebuild = !shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment;
 
   let capacityRoomTypeId: number | null = null;
   try {

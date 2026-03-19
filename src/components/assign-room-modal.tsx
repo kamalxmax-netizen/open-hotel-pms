@@ -213,7 +213,7 @@ export default function AssignRoomModal({
                         <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Guest Preferences</h4>
                         <div className="flex flex-wrap gap-1.5">
                             {preferences.map((p) => (
-                                <span key={p.code} className="badge bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <span key={p.code} className="badge bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400">
                                     {p.name}
                                 </span>
                             ))}
@@ -222,7 +222,7 @@ export default function AssignRoomModal({
                 )}
 
                 {error && (
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
                         {error}
                     </div>
                 )}
@@ -249,7 +249,7 @@ export default function AssignRoomModal({
                                 <div
                                     key={room.room_id}
                                     className={`flex items-center justify-between p-3 rounded-lg border transition-all ${room.status === "conflict"
-                                        ? "bg-rose-50 border-rose-200 opacity-60"
+                                        ? "bg-rose-50 border-rose-200 opacity-60 dark:bg-rose-500/10 dark:border-rose-500/20"
                                         : "bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
                                         }`}
                                 >
@@ -257,7 +257,7 @@ export default function AssignRoomModal({
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-lg text-[var(--text-primary)]">Room {room.room_number}</span>
                                             {room.score > 0 && (
-                                                <span className="badge bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                                                <span className="badge bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
                                                     Match {Math.round((room.score / (preferences.length || 1)) * 100)}%
                                                 </span>
                                             )}
@@ -265,12 +265,12 @@ export default function AssignRoomModal({
 
                                         <div className="flex gap-4 mt-1 flex-wrap">
                                             {room.matched_features.length > 0 && (
-                                                <div className="text-[11px] text-emerald-600">
+                                                <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
                                                     <span className="font-semibold">✓ Has:</span> {room.matched_features.join(", ")}
                                                 </div>
                                             )}
                                             {room.missing_features.length > 0 && (
-                                                <div className="text-[11px] text-rose-500">
+                                                <div className="text-[11px] text-rose-500 dark:text-rose-400">
                                                     <span className="font-semibold">✗ Missing:</span> {room.missing_features.join(", ")}
                                                 </div>
                                             )}
@@ -280,7 +280,7 @@ export default function AssignRoomModal({
                                         </div>
 
                                         {room.status === "conflict" && (
-                                            <div className="text-xs text-rose-600 font-semibold mt-1">Dates conflict with another booking</div>
+                                            <div className="text-xs text-rose-600 font-semibold mt-1 dark:text-rose-400">Dates conflict with another booking</div>
                                         )}
                                     </div>
 
@@ -320,15 +320,15 @@ export default function AssignRoomModal({
                         ) : (
                             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                                 {(swapSource?.do_not_move_assigned_room || swapCandidates.some((candidate) => candidate.do_not_move_assigned_room)) && (
-                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 space-y-2">
-                                        <p className="text-sm font-semibold text-rose-800">Room Lock Active</p>
+                                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 space-y-2 dark:bg-rose-500/10 dark:border-rose-500/20">
+                                        <p className="text-sm font-semibold text-rose-800 dark:text-rose-400">Room Lock Active</p>
                                         {swapSource?.do_not_move_assigned_room && (
-                                            <p className="text-xs text-rose-700">
+                                            <p className="text-xs text-rose-700 dark:text-rose-500/80">
                                                 Source reservation is locked to Room {swapSource.room_number ?? currentRoomNumber ?? "?"}
                                                 {swapSource.do_not_move_reason ? ` · ${swapSource.do_not_move_reason}` : ""}
                                             </p>
                                         )}
-                                        <label className="form-label !text-rose-800">Override Note</label>
+                                        <label className="form-label !text-rose-800 dark:!text-rose-400">Override Note</label>
                                         <textarea
                                             className="form-input min-h-[72px]"
                                             value={swapOverrideNote}
@@ -343,7 +343,7 @@ export default function AssignRoomModal({
                                         key={candidate.reservation_id}
                                         className={`rounded-lg border p-3 transition-all ${candidate.can_swap
                                             ? "bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
-                                            : "bg-rose-50 border-rose-200 opacity-50"
+                                            : "bg-rose-50 border-rose-200 opacity-50 dark:bg-rose-500/10 dark:border-rose-500/20"
                                             }`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
@@ -356,17 +356,17 @@ export default function AssignRoomModal({
                                                 </div>
                                                 {candidate.can_swap ? (
                                                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                                                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
                                                             ✓ Can Swap
                                                         </span>
                                                         {candidate.do_not_move_assigned_room && (
-                                                            <span className="inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                                                            <span className="inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
                                                                 🔒 Do Not Move
                                                             </span>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                                                    <div className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
                                                         ✗ Blocked: {candidate.reason ?? "Unavailable"}
                                                     </div>
                                                 )}

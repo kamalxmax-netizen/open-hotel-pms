@@ -8,6 +8,9 @@ import RoomMoveModal from "./room-move-modal";
 import LinkedExtensionModal from "./linked-extension-modal";
 import CancelFeeModal, { CancelFeePayload } from "./cancel-fee-modal";
 import { DayUseTimer } from "./dayuse-timer";
+import type { LinkedStay } from "@/lib/types";
+import { LinkedStayBadge } from "./linked-stay-badge";
+import { Link as LinkIcon } from "lucide-react";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 type DiaryState = "available" | "due_in" | "inhouse" | "back_to_back" | "due_out";
@@ -43,6 +46,7 @@ export type RoomDrawerRoom = {
         do_not_move_room_number_snapshot?: string | null;
         do_not_move_set_at?: string | null;
         do_not_move_set_by?: string | null;
+        linked_stay?: LinkedStay | null;
     } | null;
     is_dayuse?: boolean;
     hk_status?: string | null;
@@ -218,6 +222,7 @@ type InlineReservationAlert = {
 export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }: RoomDrawerProps) {
     const panelRef = useRef<HTMLDivElement>(null);
     const [detailMode, setDetailMode] = useState<"create" | "edit" | "checkin" | "inhouse" | "checkout" | null>(null);
+    const [activeDetailResId, setActiveDetailResId] = useState<string | null>(null);
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [showOptionsPanel, setShowOptionsPanel] = useState(false);
     const [showMoveRoomModal, setShowMoveRoomModal] = useState(false);
@@ -501,12 +506,18 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const transferAlertEnabled = transferAlertEnabledLocal;
     const transferAlertToggleReady = canToggleTransferAlertNow(room.transfer_pickup_at);
     const editMode: "edit" | "inhouse" = diaryState === "due_in" ? "edit" : "inhouse";
-    const nights = res
-        ? Math.round(
-            (new Date(res.checkout_date).getTime() - new Date(res.checkin_date).getTime()) /
-            86400000
-        )
-        : 0;
+    const linkedStay = res?.linked_stay ?? null;
+    const displayCheckinDate = linkedStay?.full_checkin ?? res?.checkin_date ?? "";
+    const displayCheckoutDate = linkedStay?.full_checkout ?? res?.checkout_date ?? "";
+    const nights = linkedStay?.full_nights ?? (
+        res
+            ? Math.round(
+                (new Date(res.checkout_date).getTime() - new Date(res.checkin_date).getTime()) /
+                86400000
+            )
+            : 0
+    );
+    const stayTotalPrice = linkedStay?.combined_total ?? res?.total_price ?? 0;
     const depositHeld = Number(folioSummary?.deposit_amount ?? res?.deposit_amount ?? 0);
     const balanceDue = Number(folioSummary?.balance_due ?? res?.total_price ?? 0);
 
@@ -794,6 +805,37 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
                                 Current Reservation
                             </h3>
+                            {res?.linked_stay && (
+                                <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 pt-2 text-sm dark:border-indigo-500/20 dark:bg-indigo-500/10">
+                                    <div className="mb-2 flex items-center gap-2 font-semibold text-indigo-900 dark:text-indigo-300">
+                                        <LinkIcon className="h-4 w-4" />
+                                        Linked Stay
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                        <LinkedStayBadge segments={res.linked_stay.segments} activeSegmentId={res.linked_stay.active_segment_id || res.id} />
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs mt-1 border-t border-indigo-200/50 pt-2 dark:border-indigo-500/20">
+                                        <span className="text-indigo-700 dark:text-indigo-300">
+                                            Active: {SOURCE_LABEL[res.source] ?? res.source} booking
+                                        </span>
+                                        {res.linked_stay.segments.find((s) => s.reservation_id !== res.id) && (
+                                            <button 
+                                                type="button"
+                                                className="text-indigo-600 font-semibold hover:underline dark:text-indigo-400"
+                                                onClick={() => {
+                                                    const other = res.linked_stay!.segments.find(s => s.reservation_id !== res.id);
+                                                    if (other) {
+                                                        setActiveDetailResId(other.reservation_id);
+                                                        setDetailMode("inhouse");
+                                                    }
+                                                }}
+                                            >
+                                                View Other →
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {res ? (
                                 <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-3">
                                     <div className="flex items-start justify-between gap-2">
@@ -809,17 +851,17 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     <div className="grid grid-cols-2 gap-2 text-sm">
                                         <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
                                             <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-in</p>
-                                            <p className="font-semibold text-[var(--text-primary)]">{res.checkin_date}</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{displayCheckinDate}</p>
                                         </div>
                                         <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
                                             <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-out</p>
-                                            <p className="font-semibold text-[var(--text-primary)]">{res.checkout_date}</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{displayCheckoutDate}</p>
                                         </div>
                                     </div>
 
                                     <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
                                         <div className="text-sm text-[var(--text-secondary)]">
-                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(res.total_price)}</span>
+                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(stayTotalPrice)}</span>
                                             <span className="text-[var(--text-muted)]"> · {nights} night{nights !== 1 ? "s" : ""}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -1295,15 +1337,17 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             {detailMode && (
                 <ReservationDetailPage
                     mode={detailMode}
-                    reservationId={detailMode === "create" ? undefined : res?.id}
+                    reservationId={activeDetailResId ?? (detailMode === "create" ? undefined : res?.id)}
                     roomNumber={room.room_number}
                     isDayUse={Boolean(room.is_dayuse)}
                     onClose={() => {
                         setDetailMode(null);
+                        setActiveDetailResId(null);
                         onClose();
                     }}
                     onSuccess={() => {
                         setDetailMode(null);
+                        setActiveDetailResId(null);
                         setMsg("Booking saved successfully!");
                         onRefresh();
                     }}

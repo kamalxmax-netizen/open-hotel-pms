@@ -6,6 +6,8 @@ import ReservationDetailPage from "@/components/reservation-detail-page";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import { formatShortGroupCode } from "@/lib/group-label";
 import CancelFeeModal, { type CancelFeePayload } from "@/components/cancel-fee-modal";
+import { LinkedStayBadge } from "@/components/linked-stay-badge";
+import type { LinkedStaySegment } from "@/lib/types";
 
 /* ─── Types ───────────────────────────────────── */
 type ResStatus = "active" | "cancelled" | "checked_out" | "no_show";
@@ -14,6 +16,7 @@ type Reservation = {
     id: string;
     booking_code: string;
     booking_group_id?: string | null;
+    parent_reservation_id?: string | null;
     group_code?: string | null;
     group_name?: string | null;
     guest_name: string;
@@ -31,6 +34,10 @@ type Reservation = {
     room_number: string;
     room_type: string;
     nights: number;
+    linked_segments?: LinkedStaySegment[] | null;
+    linked_full_checkin?: string | null;
+    linked_full_checkout?: string | null;
+    linked_active_segment_id?: string | null;
 };
 
 /* ─── Display helpers ─────────────────────────── */
@@ -389,6 +396,12 @@ export default function ReservationsPage() {
                                                 </Link>
                                             )}
                                         </div>
+                                        {r.linked_segments && r.linked_segments.length > 0 && (
+                                            <LinkedStayBadge
+                                                segments={r.linked_segments}
+                                                activeSegmentId={r.linked_active_segment_id ?? r.id}
+                                            />
+                                        )}
                                         {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                     </td>
                                     <td>
