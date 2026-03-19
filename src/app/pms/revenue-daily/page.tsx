@@ -153,7 +153,7 @@ export default function RevenueDailyPage() {
                 </div>
             </div>
 
-            {error && <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200">{error}</div>}
+            {error && <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">{error}</div>}
 
             {/* Controls */}
             <div className="card p-3 flex flex-wrap items-center gap-6">
@@ -291,7 +291,7 @@ export default function RevenueDailyPage() {
                                     return (
                                         <>
                                             <tr>
-                                                <td colSpan={5} className="px-4 py-2 bg-rose-50/50 font-bold text-rose-800 border-b border-rose-100">
+                                                <td colSpan={5} className="px-4 py-2 bg-rose-50/50 font-bold text-rose-800 border-b border-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/25">
                                                     DAY USE
                                                 </td>
                                             </tr>
@@ -304,7 +304,7 @@ export default function RevenueDailyPage() {
                                                     <td className="px-4 py-3 font-semibold text-[var(--text-primary)] text-sm">Day Use Daily Revenue</td>
                                                 </tr>
                                             ))}
-                                            <tr className="bg-rose-50/30 text-xs text-rose-600/70">
+                                            <tr className="bg-rose-50/30 text-xs text-rose-600/70 dark:bg-rose-500/5 dark:text-rose-400/60">
                                                 <td colSpan={5} className="px-4 py-2 pl-6">
                                                     (subtotal: <span className="font-semibold">{fmtMoney(data.summary.dayuse_revenue)}</span>)
                                                 </td>
@@ -317,7 +317,7 @@ export default function RevenueDailyPage() {
                                     return (
                                         <>
                                             <tr>
-                                                <td colSpan={5} className="px-4 py-2 bg-amber-50/50 font-bold text-amber-800 border-b border-amber-100">
+                                                <td colSpan={5} className="px-4 py-2 bg-amber-50/50 font-bold text-amber-800 border-b border-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/25">
                                                     POS / F&B
                                                 </td>
                                             </tr>

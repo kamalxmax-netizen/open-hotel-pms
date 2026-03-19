@@ -356,6 +356,7 @@ type DepositLine = {
 type DepositParseResult = {
     lines: DepositLine[];
     note: string;
+    warning: string;
 };
 
 type PendingCheckinPayment = {
@@ -648,20 +649,22 @@ function parseDepositState(rawNote: unknown, depositAmount: number): DepositPars
     const totalAmount = Number(depositAmount) || 0;
     const rawText = typeof rawNote === "string" ? rawNote.trim() : "";
     let parsedNoteFromJson = "";
+    let parsedJson = false;
 
-    const fallbackMethod =
-        rawText.length > 0 ? rawText : "cash";
+    const fallbackMethod = rawText.length > 0 ? rawText : "cash";
     const fallbackLine: DepositLine = { method: fallbackMethod, amount: totalAmount };
 
     if (!rawText) {
         return {
             lines: totalAmount > 0 ? [fallbackLine] : [],
-            note: ""
+            note: "",
+            warning: ""
         };
     }
 
     try {
         const parsed = JSON.parse(rawText);
+        parsedJson = true;
         const parsedLinesRaw = Array.isArray(parsed)
             ? parsed
             : Array.isArray(parsed?.lines)
@@ -687,14 +690,16 @@ function parseDepositState(rawNote: unknown, depositAmount: number): DepositPars
         if (totalAmount <= 0) {
             return {
                 lines: [],
-                note: parsedNote
+                note: parsedNote,
+                warning: parsedJson ? "Deposit note stored as a snapshot." : ""
             };
         }
 
-        if (parsedLines.length > 0 && Math.abs(parsedTotal - totalAmount) <= 0.01) {
+        if (parsedLines.length > 0) {
             return {
                 lines: parsedLines,
-                note: parsedNote
+                note: parsedNote,
+                warning: parsedJson ? "Deposit note stored as a snapshot." : ""
             };
         }
     } catch {
@@ -704,13 +709,23 @@ function parseDepositState(rawNote: unknown, depositAmount: number): DepositPars
     if (totalAmount <= 0) {
         return {
             lines: [],
-            note: rawText
+            note: rawText,
+            warning: ""
+        };
+    }
+
+    if (parsedJson) {
+        return {
+            lines: totalAmount > 0 ? [{ method: "cash", amount: totalAmount }] : [],
+            note: parsedNoteFromJson,
+            warning: "Deposit note stored as a snapshot."
         };
     }
 
     return {
         lines: [fallbackLine],
-        note: parsedNoteFromJson
+        note: parsedNoteFromJson,
+        warning: ""
     };
 }
 
@@ -826,6 +841,7 @@ export default function ReservationDetailPage({
     const [manualGuestSearchQ, setManualGuestSearchQ] = useState("");
     const [manualGuestResults, setManualGuestResults] = useState<any[]>([]);
     const [manualGuestSearching, setManualGuestSearching] = useState(false);
+    const [guestMatchEnabled, setGuestMatchEnabled] = useState(false);
     const [reservationParty, setReservationParty] = useState<ReservationGuestWithProfile[]>([]);
     const [partyLoading, setPartyLoading] = useState(false);
     const [partyModalOpen, setPartyModalOpen] = useState(false);
@@ -851,6 +867,7 @@ export default function ReservationDetailPage({
     const [depositAmount, setDepositAmount] = useState(0);
     const [depositLines, setDepositLines] = useState<DepositLine[]>([]);
     const [depositGeneralNote, setDepositGeneralNote] = useState("");
+    const [depositWarning, setDepositWarning] = useState("");
     const [depositMethod, setDepositMethod] = useState("cash");
     const [depositInputAmount, setDepositInputAmount] = useState("");
     const [depositInputNote, setDepositInputNote] = useState("");
@@ -1740,6 +1757,8 @@ export default function ReservationDetailPage({
             setDepositAmount(0);
             setDepositLines([]);
             setDepositGeneralNote("");
+            setDepositWarning("");
+            setGuestMatchEnabled(false);
             setDepositInputAmount(mode === "checkin" ? DEFAULT_CHECKIN_DEPOSIT_INPUT : "");
             setDepositInputNote("");
             setDepositInlineError("");
@@ -1807,6 +1826,7 @@ export default function ReservationDetailPage({
                     setDepositAmount(currentDepositAmount);
                     setDepositLines(parsedDeposit.lines);
                     setDepositGeneralNote(parsedDeposit.note);
+                    setDepositWarning(parsedDeposit.warning);
                     setDepositInputAmount(
                         mode === "checkin" && !hasSavedDepositState
                             ? DEFAULT_CHECKIN_DEPOSIT_INPUT
@@ -2553,6 +2573,7 @@ export default function ReservationDetailPage({
             setDepositAmount(depositTotal);
             setDepositLines(lines);
             setDepositGeneralNote(normalizedGeneralNote);
+            setDepositWarning(lines.length > 0 || normalizedGeneralNote.length > 0 ? "Deposit note stored as a snapshot." : "");
             setDepositInlineError("");
             return true;
         } catch (error) {
@@ -2708,6 +2729,7 @@ export default function ReservationDetailPage({
             setDepositAmount(0);
             setDepositLines([]);
             setDepositGeneralNote("");
+            setDepositWarning("");
             setDepositInputAmount(mode === "checkin" ? DEFAULT_CHECKIN_DEPOSIT_INPUT : "");
             setDepositInputNote("");
             setDepositInlineError("");
@@ -3832,54 +3854,61 @@ export default function ReservationDetailPage({
                                     </div>
 
                                     {(assignedRoomLockActive || canManageAssignedRoomLock) && (
-                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/30 dark:bg-rose-500/10">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="space-y-1">
-                                                    <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-400">
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 dark:border-rose-500/30 dark:bg-rose-500/10">
+                                            {/* Lane 1: Room, Message, Capsule, Button */}
+                                            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                    <span className="text-sm font-bold text-rose-900 dark:text-rose-200 whitespace-nowrap">
+                                                        Room {assignedRoomLockRoomNumber || roomNumber || "—"}
+                                                    </span>
+                                                    <span className="text-xs text-rose-800 dark:text-rose-300">
+                                                        {assignedRoomLockActive
+                                                            ? assignedRoomLockReason || "No reason provided."
+                                                            : "Lock before check-in"}
+                                                    </span>
+                                                    <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-400">
                                                         <span>🔒</span>
                                                         <span>Do Not Move</span>
                                                     </div>
-                                                    <p className="text-sm font-semibold text-rose-900 dark:text-rose-200">
-                                                        Room {assignedRoomLockRoomNumber || roomNumber || "—"}
-                                                    </p>
-                                                    <p className="text-sm text-rose-800 dark:text-rose-300">
-                                                        {assignedRoomLockActive
-                                                            ? assignedRoomLockReason || "No reason provided."
-                                                            : "Lock this assigned room before check-in to prevent accidental moves."}
-                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
                                                     {!assignedRoomLockActive && canManageAssignedRoomLock && (
-                                                        <div className="mt-2 space-y-2">
-                                                            <textarea
-                                                                className="form-input min-h-[72px] bg-[var(--bg-surface)]"
-                                                                value={assignedRoomLockDraftReason}
-                                                                onChange={(e) => setAssignedRoomLockDraftReason(e.target.value)}
-                                                                placeholder="Why must this reservation stay in this room?"
-                                                                disabled={assignedRoomLockLoading}
-                                                            />
-                                                            <div className="flex items-center justify-end">
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-secondary btn-sm text-rose-700 hover:bg-rose-100"
-                                                                    onClick={() => void handleLockAssignedRoom()}
-                                                                    disabled={assignedRoomLockLoading || !assignedRoomLockDraftReason.trim()}
-                                                                >
-                                                                    {assignedRoomLockLoading ? "Locking..." : "🔒 Lock Room"}
-                                                                </button>
-                                                            </div>
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary text-rose-700 hover:bg-rose-100 text-[10px] px-2 py-1 h-auto min-h-0"
+                                                            onClick={() => void handleLockAssignedRoom()}
+                                                            disabled={assignedRoomLockLoading || !assignedRoomLockDraftReason.trim()}
+                                                        >
+                                                            {assignedRoomLockLoading ? "…" : "🔒 Lock Room"}
+                                                        </button>
+                                                    )}
+                                                    {assignedRoomLockActive && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary text-[10px] px-2 py-1 h-auto min-h-0"
+                                                            onClick={() => void handleUnlockAssignedRoom()}
+                                                            disabled={assignedRoomLockLoading}
+                                                        >
+                                                            {assignedRoomLockLoading ? "…" : "Unlock"}
+                                                        </button>
                                                     )}
                                                 </div>
-                                                {assignedRoomLockActive && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => void handleUnlockAssignedRoom()}
-                                                        disabled={assignedRoomLockLoading}
-                                                    >
-                                                        {assignedRoomLockLoading ? "Unlocking..." : "Unlock"}
-                                                    </button>
-                                                )}
                                             </div>
+
+                                            {/* Lane 2: Single-line Note Input */}
+                                            {!assignedRoomLockActive && canManageAssignedRoomLock && (
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        className="form-input text-xs h-8 bg-[var(--bg-surface)] py-1"
+                                                        value={assignedRoomLockDraftReason}
+                                                        onChange={(e) => setAssignedRoomLockDraftReason(e.target.value)}
+                                                        placeholder="Why must this reservation stay in this room?"
+                                                        disabled={assignedRoomLockLoading}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -3910,6 +3939,7 @@ export default function ReservationDetailPage({
                                                             className={`form-input text-[15px] font-medium ${checkinFieldErrorClass(["first_name", "last_name"])}`}
                                                             value={guestName}
                                                             onChange={(e) => setGuestName(e.target.value)}
+                                                            onFocus={() => setGuestMatchEnabled(true)}
                                                             disabled={isReadonly}
                                                             required
                                                             placeholder="Guest Name *"
@@ -3917,6 +3947,7 @@ export default function ReservationDetailPage({
                                                         {!isReadonly && (
                                                             <GuestMatchDropdown
                                                                 guestName={guestName}
+                                                                enabled={guestMatchEnabled}
                                                                 className="xl:w-[calc(100%+240px)] xl:max-w-[760px]"
                                                                 onSelect={(match) => { void handleSelectMatchedProfile(match); }}
                                                                 onCreate={() => {

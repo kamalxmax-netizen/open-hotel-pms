@@ -21,6 +21,8 @@ export interface MatchResult {
 interface GuestMatchDropdownProps {
     /** Current value of guest name input */
     guestName: string;
+    /** Enables auto-search/open after the user interacts with the name field. */
+    enabled?: boolean;
     /** Called when user selects an existing profile */
     onSelect: (match: MatchResult) => void;
     /** Called when user clicks "+ Create New Profile" */
@@ -36,6 +38,7 @@ const MIN_CHARS = 2;
 
 export default function GuestMatchDropdown({
     guestName,
+    enabled = true,
     onSelect,
     onCreate,
     onMatchResults,
@@ -85,6 +88,12 @@ export default function GuestMatchDropdown({
 
     // Debounced search on guestName change
     useEffect(() => {
+        if (!enabled) {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            setMatches([]);
+            setOpen(false);
+            return;
+        }
         if (timerRef.current) clearTimeout(timerRef.current);
         if (guestName.trim().length < MIN_CHARS) {
             setMatches([]);
@@ -93,7 +102,7 @@ export default function GuestMatchDropdown({
         }
         timerRef.current = setTimeout(() => search(guestName), DEBOUNCE_MS);
         return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    }, [guestName, search]);
+    }, [enabled, guestName, search]);
 
     if (!open) return null;
 

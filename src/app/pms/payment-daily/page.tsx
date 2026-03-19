@@ -111,6 +111,12 @@ function fmtMoney(n: number) {
     return `฿${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function noteBadgeClass(note: string) {
+    return note === "Cancelled"
+        ? "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30"
+        : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
+}
+
 /* ─── Column border constants ──────────────────────── */
 // Group separator (between Cash/Transfer/Card groups)
 const B = "border-r border-[var(--border-default)]";
@@ -392,7 +398,9 @@ export default function PaymentDailyPage() {
                                                                 <PaymentCells m={tr.methods} />
                                                                 <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                                     {tr.notes.map((n, i) => (
-                                                                        <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
+                                                                        <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
+                                                                            {n}
+                                                                        </span>
                                                                     ))}
                                                                 </td>
                                                             </tr>
@@ -444,7 +452,9 @@ export default function PaymentDailyPage() {
                                                         <PaymentCells m={tr.methods} />
                                                         <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
                                                             {tr.notes.map((n, i) => (
-                                                                <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full">{n}</span>
+                                                                <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
+                                                                    {n}
+                                                                </span>
                                                             ))}
                                                         </td>
                                                     </tr>
@@ -474,8 +484,12 @@ export default function PaymentDailyPage() {
                                                             {fmtMoney(tr.total_net)}
                                                         </td>
                                                         <PaymentCells m={tr.methods} />
-                                                        <td className="px-3 py-2 text-xs">
-                                                            {tr.notes.map((n, i) => <span key={i} className="inline-block bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 rounded px-1.5 py-0.5 mr-1 mb-0.5">{n}</span>)}
+                                                        <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
+                                                            {tr.notes.map((n, i) => (
+                                                                <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
+                                                                    {n}
+                                                                </span>
+                                                            ))}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -571,12 +585,20 @@ export default function PaymentDailyPage() {
                                                 {fmtMoney(adv.total_net)}
                                             </td>
                                             <PaymentCells m={adv.methods} />
-                                            <td className="px-3 py-2 text-xs flex flex-col items-start gap-1 justify-center min-h-[50px]">
+                                            <td className="px-3 py-2 text-xs flex flex-col items-start gap-1 justify-center min-h-[50px] text-[var(--text-secondary)]">
                                                 <span className="font-semibold text-[var(--text-secondary)]">CI: {adv.checkin_date.split('-').slice(1).reverse().join('/')}</span>
                                                 {adv.payment_status === "deposit" && <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-1.5 py-0.5 rounded">มัดจำ</span>}
                                                 {adv.payment_status === "partial" && <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-1.5 py-0.5 rounded">บางส่วน</span>}
                                                 {adv.payment_status === "full" && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-1.5 py-0.5 rounded">เต็ม</span>}
-                                                {adv.notes.length > 0 && <div className="text-[var(--text-muted)] mt-0.5 truncate max-w-[150px]" title={adv.notes.join(" | ")}>{adv.notes[0]}</div>}
+                                                {adv.notes.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-0.5 max-w-[170px]" title={adv.notes.join(" | ")}>
+                                                        {adv.notes.map((n, i) => (
+                                                            <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
+                                                                {n}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

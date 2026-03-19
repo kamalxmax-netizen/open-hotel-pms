@@ -54,6 +54,7 @@ type PaymentRow = {
 type ReservationRow = {
   id: string;
   parent_reservation_id: string | null;
+  status: string | null;
   source: string | null;
   guest_name: string | null;
   booking_code: string | null;
@@ -542,7 +543,7 @@ export async function GET(request: NextRequest) {
       const [reservationRes, nightsRes, cumulativeRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source, status")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -619,6 +620,7 @@ export async function GET(request: NextRequest) {
         checkout_date: string | null;
         stay_flow: StayFlow;
         is_dayuse: boolean;
+        is_cancelled: boolean;
         methods: MethodsMap;
         total_net: number;
         notes: Set<string>;
@@ -636,6 +638,7 @@ export async function GET(request: NextRequest) {
         total_price: number;
         total_paid_to_date: number;
         payment_status: "deposit" | "partial" | "full";
+        is_cancelled: boolean;
         methods: MethodsMap;
         total_net: number;
         notes: Set<string>;
@@ -756,6 +759,7 @@ export async function GET(request: NextRequest) {
           total_price: Number(reservation.total_price ?? 0),
           total_paid_to_date: round2(cumulativePaidMap.get(reservationId) ?? 0),
           payment_status: "deposit" as const,
+          is_cancelled: String(reservation.status ?? "").toLowerCase() === "cancelled",
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Set<string>(),
@@ -767,6 +771,9 @@ export async function GET(request: NextRequest) {
         if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) current.notes.add(linkedRemark);
+        if (String(reservation.status ?? "").toLowerCase() === "cancelled") {
+          current.notes.add("Cancelled");
+        }
 
         const paidToDate = current.total_paid_to_date;
         if (current.total_price > 0 && paidToDate >= current.total_price - 0.01) current.payment_status = "full";
@@ -790,6 +797,7 @@ export async function GET(request: NextRequest) {
           checkout_date: reservation?.checkout_date ?? null,
           stay_flow: stayFlow,
           is_dayuse: Boolean(reservation?.is_dayuse),
+          is_cancelled: String(reservation?.status ?? "").toLowerCase() === "cancelled",
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Set<string>(),
@@ -802,6 +810,9 @@ export async function GET(request: NextRequest) {
         if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) current.notes.add(linkedRemark);
+        if (String(reservation?.status ?? "").toLowerCase() === "cancelled") {
+          current.notes.add("Cancelled");
+        }
         todayGroup.set(key, current);
       }
     }
@@ -817,6 +828,7 @@ export async function GET(request: NextRequest) {
         checkout_date: row.checkout_date,
         stay_flow: row.stay_flow,
         is_dayuse: row.is_dayuse,
+        is_cancelled: row.is_cancelled,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes),
@@ -840,6 +852,7 @@ export async function GET(request: NextRequest) {
         total_price: round2(row.total_price),
         total_paid_to_date: round2(row.total_paid_to_date),
         payment_status: row.payment_status,
+        is_cancelled: row.is_cancelled,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes),
