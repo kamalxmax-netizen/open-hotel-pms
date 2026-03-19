@@ -125,8 +125,8 @@ export default function PermissionsPage() {
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                       hasAllAccess
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                     }`}>
                       {hasAllAccess ? "All Access" : `${pages.length} pages`}
                     </span>

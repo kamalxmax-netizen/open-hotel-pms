@@ -22,6 +22,16 @@ const bodySchema = z.object({
   copy_preferences: z.coerce.boolean().optional().default(true),
 });
 
+function addDaysYmd(dateYmd: string, days: number): string {
+  const d = new Date(`${dateYmd}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateYmd;
+  d.setDate(d.getDate() + days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const parsedParams = paramsSchema.safeParse(params);
@@ -44,9 +54,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const nights = listNights(payload.checkin_date, payload.checkout_date);
-    if (!payload.room_id && !payload.room_type_id) {
-      return NextResponse.json({ success: false, error: "Either room_id or room_type_id is required." }, { status: 400 });
-    }
 
     const supabase = createServerSupabaseClient();
 
@@ -62,55 +69,99 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ success: false, error: "Original reservation not found." }, { status: 404 });
     }
 
-    if (payload.room_id) {
-      try {
-        await assertRoomAvailableForDateRange(supabase as any, {
-          roomId: payload.room_id,
-          checkinDate: payload.checkin_date,
-          checkoutDate: payload.checkout_date,
-        });
-      } catch (error) {
-        if (error instanceof PlannedRoomMoveError) {
-          return NextResponse.json({ success: false, error: error.message }, { status: error.status });
-        }
-        throw error;
-      }
+    const previousStayDate = addDaysYmd(payload.checkin_date, -1);
+
+    const { data: lastAssignedNight, error: lastAssignedNightError } = await supabase
+      .from("reservation_nights")
+      .select("room_id, room_type_id, stay_date, rooms(room_number)")
+      .eq("reservation_id", originalReservationId)
+      .is("cancelled_at", null)
+      .lte("stay_date", previousStayDate)
+      .order("stay_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastAssignedNightError) {
+      return NextResponse.json({ success: false, error: lastAssignedNightError.message }, { status: 500 });
     }
 
-    let capacityRoomTypeId: number | null = payload.room_type_id ?? null;
-    if (payload.room_id) {
-      const { data: selectedRoom, error: selectedRoomError } = await supabase
-        .from("rooms")
-        .select("room_type_id")
-        .eq("id", payload.room_id)
-        .maybeSingle();
-      if (selectedRoomError) {
-        return NextResponse.json({ success: false, error: selectedRoomError.message }, { status: 500 });
-      }
-      const resolvedRoomTypeId = Number(selectedRoom?.room_type_id ?? 0);
-      if (Number.isFinite(resolvedRoomTypeId) && resolvedRoomTypeId > 0) {
-        capacityRoomTypeId = resolvedRoomTypeId;
-      }
+    const lockedRoomId = String(lastAssignedNight?.room_id ?? "");
+    const lockedRoomTypeId = Number(lastAssignedNight?.room_type_id ?? 0);
+    const lockedRoomNumber = String((lastAssignedNight as any)?.rooms?.room_number ?? "");
+
+    if (!lockedRoomId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cannot extend stay: current assigned room is missing. Please assign room first.",
+        },
+        { status: 409 }
+      );
+    }
+    if (!Number.isFinite(lockedRoomTypeId) || lockedRoomTypeId <= 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cannot extend stay: current room type is missing.",
+        },
+        { status: 409 }
+      );
     }
 
-    if (capacityRoomTypeId !== null) {
-      try {
-        await assertRoomTypeCapacityForDateRange(supabase as any, {
-          roomTypeId: capacityRoomTypeId,
-          nights,
-        });
-      } catch (error) {
-        if (error instanceof PlannedRoomMoveError) {
-          return NextResponse.json({ success: false, error: error.message }, { status: error.status });
-        }
-        throw error;
+    if (payload.room_id && payload.room_id !== lockedRoomId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Linked extension is locked to the current room. Use Plan Move / Move Room after extension.",
+        },
+        { status: 409 }
+      );
+    }
+    if (payload.room_type_id && Number(payload.room_type_id) !== lockedRoomTypeId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Linked extension is locked to the current room type. Use Plan Move / Move Room after extension.",
+        },
+        { status: 409 }
+      );
+    }
+
+    try {
+      await assertRoomAvailableForDateRange(supabase as any, {
+        roomId: lockedRoomId,
+        checkinDate: payload.checkin_date,
+        checkoutDate: payload.checkout_date,
+      });
+    } catch (error) {
+      if (error instanceof PlannedRoomMoveError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `${error.message} (Linked extension uses current room only. Use Plan Move / Move Room after extension.)`,
+          },
+          { status: error.status }
+        );
       }
+      throw error;
+    }
+
+    try {
+      await assertRoomTypeCapacityForDateRange(supabase as any, {
+        roomTypeId: lockedRoomTypeId,
+        nights,
+      });
+    } catch (error) {
+      if (error instanceof PlannedRoomMoveError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+      }
+      throw error;
     }
 
     const { data: reservation, error } = await supabase.rpc("booking_create_reservation", {
       p_guest_name: String(originalReservation.guest_name ?? "").trim(),
-      p_room_id: payload.room_id || null,
-      p_room_type_id: payload.room_type_id ?? null,
+      p_room_id: lockedRoomId,
+      p_room_type_id: lockedRoomTypeId,
       p_checkin_date: payload.checkin_date,
       p_checkout_date: payload.checkout_date,
       p_source: payload.source,
@@ -205,8 +256,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         source: payload.source,
         checkin_date: payload.checkin_date,
         checkout_date: payload.checkout_date,
-        room_id: payload.room_id || null,
-        room_type_id: payload.room_type_id ?? null,
+        room_id: lockedRoomId,
+        room_type_id: lockedRoomTypeId,
+        room_number: lockedRoomNumber || null,
         copy_accompanying: payload.copy_accompanying,
         copy_preferences: payload.copy_preferences,
       },
@@ -216,6 +268,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       success: true,
       reservation_id: newReservationId,
       parent_reservation_id: originalReservationId,
+      locked_room_id: lockedRoomId,
+      locked_room_type_id: lockedRoomTypeId,
+      locked_room_number: lockedRoomNumber || null,
       reservation,
     });
   } catch (error) {

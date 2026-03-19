@@ -162,7 +162,7 @@ export default function NightAuditPage() {
             <main className="flex-1 p-4 sm:p-6 pb-20">
                 <div className="mx-auto max-w-4xl">
                     {step === "noshow" && (
-                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border border-[var(--border-default)] dark:border-white/5 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Pending No-Shows</h2>
                                 <p className="text-sm text-[var(--text-secondary)] mb-6 border-b border-[var(--border-subtle)] pb-4">
@@ -171,11 +171,11 @@ export default function NightAuditPage() {
                                 {/* Lead P1-4 & P3-1: Connect component API and pass state */}
                                 <NoShowTable onAllClear={handleNoShowsClear} />
                             </div>
-                            <div className="flex justify-end pt-6 border-t mt-6">
+                            <div className="flex justify-end pt-6 border-t border-[var(--border-subtle)] dark:border-white/5 mt-6">
                                 <button
                                     onClick={() => setStep("precheck")}
                                     disabled={hasPendingNoShows} // Lead P3-1 fix
-                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${hasPendingNoShows ? "bg-[var(--bg-muted)] cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
+                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${hasPendingNoShows ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed" : "text-white bg-brand-600 hover:bg-brand-700"}`}
                                 >
                                     Proceed to Pre-Check →
                                 </button>
@@ -184,12 +184,12 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "precheck" && (
-                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border border-[var(--border-default)] dark:border-white/5 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Pre-Check System Status</h2>
                                 <PreCheckStatus onReadyChange={setIsPreCheckReady} />
                             </div>
-                            <div className="flex gap-3 items-center justify-end pt-6 border-t mt-6">
+                            <div className="flex gap-3 items-center justify-end pt-6 border-t border-[var(--border-subtle)] dark:border-white/5 mt-6">
                                 <button
                                     onClick={() => setStep("noshow")}
                                     className="rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] focus:outline-none"
@@ -199,7 +199,7 @@ export default function NightAuditPage() {
                                 <button
                                     onClick={() => setStep("preview")}
                                     disabled={!isPreCheckReady}
-                                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${!isPreCheckReady ? "bg-[var(--bg-muted)] cursor-not-allowed" : "bg-brand-600 hover:bg-brand-700"}`}
+                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${!isPreCheckReady ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed" : "text-white bg-brand-600 hover:bg-brand-700"}`}
                                 >
                                     Proceed to Preview →
                                 </button>
@@ -208,7 +208,7 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "preview" && (
-                        <div className="rounded-xl border bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                        <div className="rounded-xl border border-[var(--border-default)] dark:border-white/5 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Preview Audit Snapshot</h2>
                                 <AuditPreviewCards onLoad={handlePreviewLoad} />
@@ -223,7 +223,7 @@ export default function NightAuditPage() {
                                     />
                                 </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3 items-center justify-end pt-6 border-t mt-6">
+                            <div className="flex flex-col sm:flex-row gap-3 items-center justify-end pt-6 border-t border-[var(--border-subtle)] dark:border-white/5 mt-6">
                                 <button
                                     onClick={() => setStep("precheck")}
                                     className="w-full sm:w-auto rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] focus:outline-none"
@@ -245,9 +245,9 @@ export default function NightAuditPage() {
                     )}
 
                     {step === "confirm" && (
-                        <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)] p-8 shadow-sm flex flex-col items-center text-center max-w-lg mx-auto mt-6">
-                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4 ring-8 ring-amber-50">
-                                <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)] p-8 shadow-sm flex flex-col items-center text-center max-w-lg mx-auto mt-6 dark:border-amber-500/30">
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4 ring-8 ring-amber-50 dark:bg-amber-500/20 dark:ring-amber-500/10">
+                                <svg className="h-7 w-7 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
                             </div>
@@ -257,7 +257,7 @@ export default function NightAuditPage() {
                             </p>
 
                             {runError && (
-                                <div className="w-full rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700 font-medium mb-6">
+                                <div className="w-full rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700 font-medium mb-6 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
                                     {runError}
                                 </div>
                             )}

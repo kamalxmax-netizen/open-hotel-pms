@@ -70,6 +70,21 @@ export async function POST(request: NextRequest, context: { params: { id: string
     const charge = round2(parsed.data.payment_amount ?? extendRate);
     const previousExpiry = reservation.dayuse_expires_at ? String(reservation.dayuse_expires_at) : null;
     const previousTotal = round2(Number(reservation.total_price ?? 0));
+    const { data: activeNightRow, error: activeNightError } = await supabase
+      .from("reservation_nights")
+      .select("id, nightly_price")
+      .eq("reservation_id", reservationId)
+      .is("cancelled_at", null)
+      .order("stay_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeNightError) {
+      return NextResponse.json({ success: false, error: activeNightError.message }, { status: 500 });
+    }
+
+    const activeNightId = activeNightRow?.id ? String(activeNightRow.id) : null;
+    const previousNightlyPrice = round2(Number(activeNightRow?.nightly_price ?? previousTotal));
     const baseExpiry = reservation.dayuse_expires_at
       ? new Date(String(reservation.dayuse_expires_at))
       : new Date();
@@ -92,6 +107,26 @@ export async function POST(request: NextRequest, context: { params: { id: string
 
     if (updateError) {
       return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+    }
+
+    if (activeNightId) {
+      const { error: syncNightError } = await supabase
+        .from("reservation_nights")
+        .update({
+          nightly_price: newTotal,
+        })
+        .eq("id", activeNightId);
+
+      if (syncNightError) {
+        await supabase
+          .from("reservations")
+          .update({
+            dayuse_expires_at: previousExpiry,
+            total_price: previousTotal,
+          })
+          .eq("id", reservationId);
+        return NextResponse.json({ success: false, error: syncNightError.message }, { status: 500 });
+      }
     }
 
     const { error: paymentError } = await supabase.from("folio_payments").insert({
@@ -123,6 +158,12 @@ export async function POST(request: NextRequest, context: { params: { id: string
           },
           { status: 500 }
         );
+      }
+      if (activeNightId) {
+        await supabase
+          .from("reservation_nights")
+          .update({ nightly_price: previousNightlyPrice })
+          .eq("id", activeNightId);
       }
       return NextResponse.json({ success: false, error: paymentError.message }, { status: 500 });
     }

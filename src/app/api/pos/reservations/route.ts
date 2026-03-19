@@ -28,6 +28,14 @@ function thailandDateString(): string {
   return `${y}-${m}-${d}`;
 }
 
+function normalizeForSearch(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[-\s]/g, "");
+}
+
 export async function GET(request: NextRequest) {
   try {
     const parsed = querySchema.safeParse({
@@ -49,20 +57,18 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    let reservationsQuery = supabase
+    const fetchLimit = query.length > 0
+      ? Math.min(Math.max(limit * 8, 120), 500)
+      : Math.min(limit * 2, 400);
+
+    const reservationsQuery = supabase
       .from("reservations")
       .select("id, booking_code, guest_name, phone, checkin_date, checkout_date, status, deposit_amount")
       .eq("status", "active")
       .lte("checkin_date", targetDate)
       .gt("checkout_date", targetDate)
       .order("guest_name", { ascending: true })
-      .limit(limit * 2);
-
-    if (query.length > 0) {
-      reservationsQuery = reservationsQuery.or(
-        `guest_name.ilike.%${query}%,booking_code.ilike.%${query}%,phone.ilike.%${query}%`
-      );
-    }
+      .limit(fetchLimit);
 
     const { data: reservations, error: reservationError } = await reservationsQuery;
     if (reservationError) {
@@ -120,12 +126,20 @@ export async function GET(request: NextRequest) {
       })
       .filter((row) => {
         if (!query.length) return true;
-        const q = query.toLowerCase();
+        const q = query.toLowerCase().trim();
+        const qCompact = normalizeForSearch(query);
+        const matches = (value: unknown) => {
+          const text = String(value ?? "").toLowerCase();
+          if (text.includes(q)) return true;
+          if (!qCompact) return false;
+          return normalizeForSearch(value).includes(qCompact);
+        };
         return (
-          row.guest_name?.toLowerCase().includes(q) ||
-          row.booking_code?.toLowerCase().includes(q) ||
-          row.phone?.toLowerCase().includes(q) ||
-          row.room_label.toLowerCase().includes(q)
+          matches(row.guest_name) ||
+          matches(row.booking_code) ||
+          matches(row.phone) ||
+          matches(row.room_label) ||
+          (row.room_numbers ?? []).some((room: string) => matches(room))
         );
       })
       .slice(0, limit);

@@ -99,13 +99,13 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
   }
 
   if (error) {
-    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
+    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">{error}</div>
   }
 
   if (noShows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-emerald-500/20 mb-4">
           <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
@@ -145,13 +145,13 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                     <span className="font-mono text-xs text-[var(--text-secondary)]">{ns.booking_code}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-rose-600 font-medium">{ns.checkin_date}</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-medium">{ns.checkin_date}</span>
                 </td>
                 <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{ns.room_number || "Unassigned"}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
-                      className="rounded bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200"
+                      className="rounded bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border dark:border-rose-500/20 dark:hover:bg-rose-500/20"
                       onClick={() => {
                         setChargeAmountInput("0")
                         setPaymentMethod("cash")
@@ -174,7 +174,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
       {markItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-xl bg-[var(--bg-surface)] p-6 shadow-lg">
-            <h3 className="text-lg font-bold text-rose-700 mb-2">Mark as No-Show?</h3>
+            <h3 className="text-lg font-bold text-rose-700 dark:text-rose-400 mb-2">Mark as No-Show?</h3>
             <div className="mb-6 space-y-3">
               <p className="text-sm text-[var(--text-secondary)]">
                 Enter charge amount for <span className="font-semibold text-[var(--text-primary)]">{markItem.guest_name}</span>. Default is 0 (no charge).
@@ -197,7 +197,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                   aria-invalid={showMarkValidation && parseMoneyInput(chargeAmountInput) === null}
                 />
                 {showMarkValidation && parseMoneyInput(chargeAmountInput) === null && (
-                  <p className="mt-1 text-xs text-rose-600">Enter a valid charge amount (0 or higher).</p>
+                  <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">Enter a valid charge amount (0 or higher).</p>
                 )}
               </div>
               <label className="block text-xs font-semibold text-[var(--text-table-cell)] mb-1">Charge From</label>
@@ -211,7 +211,7 @@ export function NoShowTable({ onAllClear }: NoShowTableProps) {
                 <option value="credit_card">Credit Card</option>
               </select>
               {markValidationError && (
-                <p className="mt-1 text-xs text-rose-600">{markValidationError}</p>
+                <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{markValidationError}</p>
               )}
             </div>
 

@@ -83,7 +83,7 @@ async function handleCheckoutQuery(replyToken: string) {
 
   if (error) {
     console.error("line checkout query failed", error);
-    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
+    await replyLineText(replyToken, `[DEBUG co] ${error.code ?? "?"}: ${error.message ?? String(error)}`);
     return;
   }
 
@@ -127,24 +127,26 @@ async function handleInHouseQuery(replyToken: string) {
   const supabase = createServerSupabaseClient();
   const today = bangkokToday();
 
+  // Room assignment lives on reservation_nights, not reservations directly.
+  // Query today's occupied nights → join rooms for room_number → join reservations to filter status=active.
   const { data, error } = await supabase
-    .from("reservations")
-    .select("id, room_id, rooms(room_number), checkin_date, checkout_date")
-    .eq("status", "active")
-    .order("checkin_date", { ascending: true });
+    .from("reservation_nights")
+    .select("room_id, rooms(room_number), reservations!inner(status)")
+    .eq("stay_date", today)
+    .is("cancelled_at", null)
+    .not("room_id", "is", null)
+    .eq("reservations.status", "active");
 
   if (error) {
-    console.error("line inhouse query failed", error);
-    await replyLineText(replyToken, "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง");
+    console.error("line inhouse query failed", error.message, error.code);
+    await replyLineText(replyToken, `[DEBUG ih] ${error.code ?? "?"}: ${error.message ?? String(error)}`);
     return;
   }
 
   type InHouseRow = {
-    id: string;
     room_id: string | null;
     rooms: { room_number: string | null }[] | { room_number: string | null } | null;
-    checkin_date: string | null;
-    checkout_date: string | null;
+    reservations: { status: string | null }[] | { status: string | null } | null;
   };
   const rows = (data ?? []) as unknown as InHouseRow[];
 
@@ -157,16 +159,17 @@ async function handleInHouseQuery(replyToken: string) {
   const roomNumbers = rows
     .map((r) => {
       const roomsField = r.rooms;
-      if (!roomsField) return "?";
-      if (Array.isArray(roomsField)) return roomsField[0]?.room_number ?? "?";
-      return roomsField.room_number ?? "?";
+      if (!roomsField) return null;
+      if (Array.isArray(roomsField)) return roomsField[0]?.room_number ?? null;
+      return roomsField.room_number ?? null;
     })
+    .filter((n): n is string => n !== null)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const lines = [
     `🏨 In House (${today})`,
     ``,
-    `จำนวน ${rows.length} ห้อง`,
+    `จำนวน ${roomNumbers.length} ห้อง`,
     ``,
     roomNumbers.join(", "),
   ];
@@ -282,10 +285,10 @@ export async function POST(request: NextRequest) {
 
     const events = Array.isArray(body.events) ? body.events : [];
     for (const event of events) {
+      let replyToken = event.replyToken ? String(event.replyToken) : "";
       try {
         if (event.type !== "message" || event.message?.type !== "text") continue;
         const text = String(event.message.text ?? "").trim();
-        const replyToken = event.replyToken ? String(event.replyToken) : "";
         const lineUserId = event.source?.userId ? String(event.source.userId) : "";
         if (!replyToken || !lineUserId) continue;
 
@@ -355,6 +358,8 @@ export async function POST(request: NextRequest) {
         );
       } catch (eventErr) {
         console.error("line webhook event handler error", eventErr);
+        const msg = eventErr instanceof Error ? eventErr.message : String(eventErr);
+        await replyLineText(replyToken, `[DEBUG exception] ${msg}`).catch(() => undefined);
       }
     }
 

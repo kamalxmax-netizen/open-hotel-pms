@@ -37,19 +37,17 @@ export default function LinkedExtensionModal({
     onSuccess,
 }: LinkedExtensionModalProps) {
     const [roomTypes, setRoomTypes] = useState<RoomTypeOption[]>([]);
-    const [roomTypeId, setRoomTypeId] = useState(currentRoomTypeId);
     const [roomId, setRoomId] = useState("");
-    const [rooms, setRooms] = useState<RoomOption[]>([]);
     const [checkoutDate, setCheckoutDate] = useState(addDays(currentCheckoutDate, 1));
     const [extensionNights, setExtensionNights] = useState(1);
     const [copyAccompanying, setCopyAccompanying] = useState(true);
     const [copyPreferences, setCopyPreferences] = useState(true);
     const [note, setNote] = useState("");
     const [loadingMeta, setLoadingMeta] = useState(true);
-    const [loadingRooms, setLoadingRooms] = useState(true);
+    const [loadingRoomLock, setLoadingRoomLock] = useState(true);
+    const [sameRoomAvailable, setSameRoomAvailable] = useState<boolean>(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
-    const [showValidation, setShowValidation] = useState(false);
 
     useEffect(() => {
         setExtensionNights(1);
@@ -60,6 +58,10 @@ export default function LinkedExtensionModal({
         () => `${extensionNights} night${extensionNights !== 1 ? "s" : ""}`,
         [extensionNights]
     );
+    const currentRoomTypeName = useMemo(() => {
+        const found = roomTypes.find((row) => row.id === currentRoomTypeId);
+        return found?.name_en ?? `Room Type #${currentRoomTypeId}`;
+    }, [roomTypes, currentRoomTypeId]);
 
     useEffect(() => {
         let active = true;
@@ -88,14 +90,14 @@ export default function LinkedExtensionModal({
 
     useEffect(() => {
         let active = true;
-        async function loadRooms() {
-            setLoadingRooms(true);
+        async function validateLockedRoom() {
+            setLoadingRoomLock(true);
             setError("");
             try {
                 const query = new URLSearchParams({
                     checkin: currentCheckoutDate,
                     checkout: checkoutDate,
-                    room_type_id: roomTypeId,
+                    room_type_id: currentRoomTypeId,
                 });
                 const res = await fetch(`/api/available-rooms?${query.toString()}`);
                 const payload = await res.json().catch(() => ({}));
@@ -110,32 +112,41 @@ export default function LinkedExtensionModal({
                     .map((row: any): RoomOption => ({
                         id: String(row.id ?? row.room_id ?? ""),
                         room_number: String(row.room_number ?? ""),
-                        room_type_id: String(row.room_type_id ?? roomTypeId),
+                        room_type_id: String(row.room_type_id ?? currentRoomTypeId),
                         room_type_name: row.room_type_name ?? row.room_type ?? row.room_types?.name_en ?? null,
                     }))
                     .filter((row: RoomOption) => Boolean(row.id && row.room_number));
                 if (active) {
-                    setRooms(parsed);
-                    const sameRoom = parsed.find((row: RoomOption) => row.room_number === currentRoomNumber);
-                    setRoomId((current) => (parsed.some((row: RoomOption) => row.id === current) ? current : sameRoom?.id ?? parsed[0]?.id ?? ""));
+                    const normalizedCurrentRoom = String(currentRoomNumber ?? "").trim().toLowerCase();
+                    const sameRoom = parsed.find(
+                        (row: RoomOption) => String(row.room_number ?? "").trim().toLowerCase() === normalizedCurrentRoom
+                    );
+                    setRoomId(sameRoom?.id ?? "");
+                    setSameRoomAvailable(Boolean(sameRoom?.id));
                 }
             } catch {
-                if (active) setError("Network error while loading available rooms.");
+                if (active) {
+                    setSameRoomAvailable(false);
+                    setRoomId("");
+                    setError("Network error while validating current room availability.");
+                }
             } finally {
-                if (active) setLoadingRooms(false);
+                if (active) setLoadingRoomLock(false);
             }
         }
 
-        void loadRooms();
+        void validateLockedRoom();
         return () => {
             active = false;
         };
-    }, [currentCheckoutDate, checkoutDate, roomTypeId, currentRoomNumber]);
+    }, [currentCheckoutDate, checkoutDate, currentRoomTypeId, currentRoomNumber]);
 
     async function handleSubmit() {
-        setShowValidation(true);
-        if (!roomId) {
-            setError("Please select room for the extension reservation.");
+        if (!roomId || !sameRoomAvailable) {
+            setError(
+                `Room ${currentRoomNumber} is not available for the selected extension date range. ` +
+                "Linked extension is locked to current room/type. Use Plan Move or Move Room after extension."
+            );
             return;
         }
         if (checkoutDate <= currentCheckoutDate) {
@@ -153,7 +164,7 @@ export default function LinkedExtensionModal({
                     checkin_date: currentCheckoutDate,
                     checkout_date: checkoutDate,
                     source: "walkin",
-                    room_type_id: Number(roomTypeId),
+                    room_type_id: Number(currentRoomTypeId),
                     room_id: roomId,
                     note: note.trim() || undefined,
                     copy_accompanying: copyAccompanying,
@@ -183,7 +194,7 @@ export default function LinkedExtensionModal({
                     <button className="btn btn-secondary flex-1" onClick={onClose} disabled={saving}>
                         Cancel
                     </button>
-                    <button className="btn btn-primary flex-1" onClick={handleSubmit} disabled={saving || loadingRooms || !roomId}>
+                    <button className="btn btn-primary flex-1" onClick={handleSubmit} disabled={saving || loadingRoomLock || !sameRoomAvailable || !roomId}>
                         {saving ? "Creating…" : "Create Linked Extension"}
                     </button>
                 </div>
@@ -219,43 +230,31 @@ export default function LinkedExtensionModal({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label className="form-label">Room Type</label>
-                            <select className="form-select" value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)} disabled={loadingMeta || saving}>
-                                {roomTypes.map((roomType) => (
-                                    <option key={roomType.id} value={roomType.id}>
-                                        {roomType.name_en}{roomType.id === currentRoomTypeId ? " (Current)" : ""}
-                                </option>
-                            ))}
-                        </select>
+                        <label className="form-label">Locked Room Type</label>
+                        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-primary)]">
+                            {loadingMeta ? "Loading..." : currentRoomTypeName}
+                        </div>
                     </div>
                     <div>
-                        <label className="form-label">Room</label>
-                        {loadingRooms ? (
-                            <div className="h-10 rounded-lg bg-[var(--bg-muted)] animate-pulse" />
-                        ) : rooms.length === 0 ? (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                                No available rooms for selected extension stay.
-                            </div>
-                        ) : (
-                            <select
-                                className="form-select"
-                                value={roomId}
-                                onChange={(e) => setRoomId(e.target.value)}
-                                disabled={saving}
-                                required
-                                aria-invalid={showValidation && !roomId}
-                            >
-                                {rooms.map((room) => (
-                                    <option key={room.id} value={room.id}>
-                                        Room {room.room_number}{room.room_type_name ? ` · ${room.room_type_name}` : ""}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        {showValidation && !roomId && (
-                            <p className="mt-1 text-xs text-rose-600">Please select a room.</p>
-                        )}
+                        <label className="form-label">Locked Room</label>
+                        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-primary)]">
+                            Room {currentRoomNumber}
+                        </div>
                     </div>
+                </div>
+
+                <div className={`rounded-lg px-3 py-2 text-sm ${
+                    loadingRoomLock
+                        ? "border border-[var(--border-default)] bg-[var(--bg-body)] text-[var(--text-muted)]"
+                        : sameRoomAvailable
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border border-amber-200 bg-amber-50 text-amber-700"
+                }`}>
+                    {loadingRoomLock
+                        ? "Validating current room availability..."
+                        : sameRoomAvailable
+                            ? `Room ${currentRoomNumber} is available for the selected extension stay.`
+                            : `Room ${currentRoomNumber} is not available for selected extension range. Linked extension stays locked to this room/type; use Plan Move or Move Room after extension.`}
                 </div>
 
                 <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-table-cell)]">

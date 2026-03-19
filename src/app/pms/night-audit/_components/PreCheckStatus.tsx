@@ -41,7 +41,7 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
   }
 
   if (error) {
-    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
+    return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">{error}</div>
   }
 
   if (!result) return null
@@ -53,7 +53,7 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
   if (isReady && warnings.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-emerald-500/20 mb-4">
                 <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -67,15 +67,15 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
   return (
     <div className="flex flex-col gap-4">
       {blockers.length > 0 && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/20 p-4">
           <div className="flex items-start gap-3">
              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
                 {blockers.length}
              </div>
              <div>
-               <h3 className="text-sm font-bold text-rose-800">Blockers detected</h3>
-               <p className="text-[13px] text-rose-600 mb-2">Must be resolved before you can run the audit.</p>
-               <ul className="list-inside list-disc text-[13px] text-rose-700 font-medium space-y-1">
+               <h3 className="text-sm font-bold text-rose-800 dark:text-rose-400">Blockers detected</h3>
+               <p className="text-[13px] text-rose-600 dark:text-rose-500 mb-2">Must be resolved before you can run the audit.</p>
+               <ul className="list-inside list-disc text-[13px] text-rose-700 dark:text-rose-400 font-medium space-y-1">
                  {blockers.map((b, i) => (
                    <li key={i}>{b.message}</li>
                  ))}
@@ -86,15 +86,15 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
       )}
 
       {warnings.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/20 p-4">
           <div className="flex items-start gap-3">
              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
                 {warnings.length}
              </div>
              <div>
-               <h3 className="text-sm font-bold text-amber-800">Warnings</h3>
-               <p className="text-[13px] text-amber-700 mb-2">These will not stop the audit, but please review.</p>
-               <ul className="list-inside list-disc text-[13px] text-amber-700 space-y-1">
+               <h3 className="text-sm font-bold text-amber-800 dark:text-amber-400">Warnings</h3>
+               <p className="text-[13px] text-amber-700 dark:text-amber-500 mb-2">These will not stop the audit, but please review.</p>
+               <ul className="list-inside list-disc text-[13px] text-amber-700 dark:text-amber-400 space-y-1">
                  {warnings.map((w, i) => (
                    <li key={i}>{w.message}</li>
                  ))}

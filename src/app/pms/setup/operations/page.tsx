@@ -5,25 +5,25 @@ const MODULES = [
     href: "/pms/setup/operations/alerts",
     title: "Alert Templates",
     description: "Persistent warning templates with configurable display surfaces and severity.",
-    accent: "bg-rose-50 border-rose-200 text-rose-800",
+    accent: "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-300",
   },
   {
     href: "/pms/setup/operations/traces",
     title: "Trace Templates",
     description: "Quick text templates for FD and HK operational trace workflows.",
-    accent: "bg-amber-50 border-amber-200 text-amber-800",
+    accent: "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300",
   },
   {
     href: "/pms/setup/operations/loan-items",
     title: "Loan Items",
     description: "Control stock, HK collection behavior, and extra charge reminders for borrowed items.",
-    accent: "bg-sky-50 border-sky-200 text-sky-800",
+    accent: "bg-sky-50 border-sky-200 text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/30 dark:text-sky-300",
   },
   {
     href: "/pms/setup/operations/fees",
     title: "Extra Charge Templates",
     description: "Manage extra fee, damage, policy, and penalty templates from Operations Setup.",
-    accent: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    accent: "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300",
   },
 ];
 

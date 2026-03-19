@@ -4608,7 +4608,7 @@ export default function ReservationDetailPage({
                                         <div className="space-y-4">
                                             <BillingPanel
                                                 reservationId={reservationId}
-                                                totalPrice={mode === "checkout" ? totalPrice : fromSatang(computedTotalSatang)}
+                                                totalPrice={mode === "checkout" || dayUseAmountOnlyMode ? totalPrice : fromSatang(computedTotalSatang)}
                                                 discountAmount={fromSatang(discountSatang)}
                                                 discountReason={discountReason}
                                                 mode={mode}

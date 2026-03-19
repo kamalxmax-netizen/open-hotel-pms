@@ -5,13 +5,13 @@ const CARDS = [
     href: "/pms/rates/plans",
     title: "Rate Plans",
     description: "Manage public, tier-based, and special profile pricing plans.",
-    accent: "bg-sky-50 border-sky-200 text-sky-800",
+    accent: "bg-sky-50 border-sky-200 text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/30 dark:text-sky-300",
   },
   {
     href: "/pms/rates",
     title: "Rate Grid",
     description: "Review daily room-type pricing and availability rules.",
-    accent: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    accent: "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300",
   },
 ];
 
