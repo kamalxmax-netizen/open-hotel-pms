@@ -1,4 +1,5 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
+import { normalizeAuditSource, toBangkokDateString, type AuditSource } from "@/lib/audit-utils";
 import {
   assertNoOverlapWithinReservation,
   assertRoomAvailableForDateRange,
@@ -51,6 +52,7 @@ export type OtaExtendCommitInput = OtaExtendPreviewInput & {
   note?: string | null;
   copyAccompanying?: boolean;
   copyPreferences?: boolean;
+  auditSource?: AuditSource;
 };
 
 type OrchestratorContext = {
@@ -1186,14 +1188,17 @@ async function writeOrchestratorAudit(params: {
   supabase: SupabaseLike;
   reservationId: string;
   payload: Record<string, unknown>;
+  auditSource?: AuditSource;
 }) {
-  const { supabase, reservationId, payload } = params;
+  const { supabase, reservationId, payload, auditSource } = params;
   await supabase.from("audit_logs").insert({
     action: "ota_extend_orchestrator_commit",
     entity_type: "reservation",
     entity_id: reservationId,
     before_json: null,
     after_json: payload,
+    business_date: toBangkokDateString(),
+    source: normalizeAuditSource(auditSource ?? "manual"),
   });
 }
 
@@ -1209,6 +1214,7 @@ async function commitOptionBShortenFlow(params: {
   const warnings = [...preview.warnings];
   let pendingFixAction: string | null = null;
   let extensionReservationId: string | null = null;
+  const auditSource = normalizeAuditSource(input.auditSource ?? "manual");
 
   const shortenCheckoutDate = resolveOptionBShortenCheckoutDate(ctx, input);
   validateOptionBShortenDate({ ctx, shortenCheckoutDate });
@@ -1227,6 +1233,7 @@ async function commitOptionBShortenFlow(params: {
     reservationId: ctx.reservation.id,
     newCheckoutDate: shortenCheckoutDate,
     reason: "OTA early room-change Option B",
+    auditSource,
   });
   executedActions.push({
     action: "shorten_ota",
@@ -1252,6 +1259,7 @@ async function commitOptionBShortenFlow(params: {
         note: asString(input.note) || "Option B: shortened OTA segment; update OTA platform manually.",
         rate_plan_id: null,
       },
+      auditSource,
     });
     extensionReservationId = extensionCreate.reservation_id;
     executedActions.push({
@@ -1295,6 +1303,7 @@ async function commitOptionBShortenFlow(params: {
     await writeOrchestratorAudit({
       supabase,
       reservationId: ctx.reservation.id,
+      auditSource,
       payload: {
         strategy: input.strategy,
         move_mode: input.moveMode,
@@ -1343,6 +1352,7 @@ async function commitOptionBShortenFlow(params: {
       notePrefix: "OTA Option B",
       auditAction: "ota_option_b_extension_moved",
       appendNoteLine: true,
+      auditSource,
     });
     executedActions.push({
       action: "move_extension",
@@ -1361,6 +1371,7 @@ async function commitOptionBShortenFlow(params: {
     await writeOrchestratorAudit({
       supabase,
       reservationId: ctx.reservation.id,
+      auditSource,
       payload: {
         strategy: input.strategy,
         move_mode: input.moveMode,
@@ -1390,6 +1401,7 @@ async function commitOptionBShortenFlow(params: {
   await writeOrchestratorAudit({
     supabase,
     reservationId: ctx.reservation.id,
+    auditSource,
     payload: {
       strategy: input.strategy,
       move_mode: input.moveMode,
@@ -1429,6 +1441,7 @@ export async function commitOtaExtendOrchestrator(params: {
   const ctx = await loadOrchestratorContext(supabase, input);
   const otaModificationOption = resolveOtaModificationOption(input);
   const preview = await previewOtaExtendOrchestrator({ supabase, input });
+  const auditSource = normalizeAuditSource(input.auditSource ?? "manual");
 
   if (!preview.can_commit) {
     throw new OtaExtendOrchestratorError(preview.warnings[0] ?? "Precheck failed.", 409);
@@ -1507,6 +1520,7 @@ export async function commitOtaExtendOrchestrator(params: {
       note: asString(input.note) || null,
       rate_plan_id: null,
     },
+    auditSource,
   });
   extensionReservationId = extensionCreate.reservation_id;
   executedActions.push({
@@ -1567,6 +1581,7 @@ export async function commitOtaExtendOrchestrator(params: {
         notePrefix: "OTA Extend Orchestrator",
         auditAction: "ota_extend_original_moved",
         appendNoteLine: true,
+        auditSource,
       });
       executedActions.push({
         action: "move_original",
@@ -1584,6 +1599,7 @@ export async function commitOtaExtendOrchestrator(params: {
       await writeOrchestratorAudit({
         supabase,
         reservationId: ctx.reservation.id,
+        auditSource,
         payload: {
           strategy: input.strategy,
           move_mode: input.moveMode,
@@ -1621,6 +1637,7 @@ export async function commitOtaExtendOrchestrator(params: {
         notePrefix: "OTA Extend Orchestrator",
         auditAction: "ota_extend_extension_moved",
         appendNoteLine: true,
+        auditSource,
       });
       executedActions.push({
         action: "move_extension",
@@ -1639,6 +1656,7 @@ export async function commitOtaExtendOrchestrator(params: {
       await writeOrchestratorAudit({
         supabase,
         reservationId: ctx.reservation.id,
+        auditSource,
         payload: {
           strategy: input.strategy,
           move_mode: input.moveMode,
@@ -1744,6 +1762,7 @@ export async function commitOtaExtendOrchestrator(params: {
   await writeOrchestratorAudit({
     supabase,
     reservationId: ctx.reservation.id,
+    auditSource,
     payload: {
       strategy: input.strategy,
       move_mode: input.moveMode ?? null,

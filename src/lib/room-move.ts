@@ -1,4 +1,5 @@
 import { addDays, compareDateStrings, isValidDateString } from "@/lib/dates";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import {
   appendReservationNoteLine,
   assertRoomAvailableForDateRange,
@@ -193,6 +194,7 @@ export type ExecuteRoomMoveParams = {
   notePrefix?: string;
   noteSuffix?: string | null;
   auditAction?: string;
+  auditSource?: "manual" | "system" | "api" | "night_audit";
   appendNoteLine?: boolean;
   markOldRoomDirty?: boolean;
   sourceRoomIdOverride?: string | null;
@@ -227,6 +229,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
     notePrefix = "Room Move",
     noteSuffix = null,
     auditAction = "room_moved",
+    auditSource = "manual",
     appendNoteLine = true,
     markOldRoomDirty = true,
     sourceRoomIdOverride = null,
@@ -480,6 +483,8 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       discount_value: pricingPolicy === "reprice_grid_discount" ? discountValue : null,
       discount_reason: pricingPolicy === "reprice_grid_discount" ? String(discountReason ?? "").trim() || null : null,
     },
+    business_date: toBangkokDateString(),
+    source: normalizeAuditSource(auditSource),
   });
 
   return {

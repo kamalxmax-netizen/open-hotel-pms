@@ -8,6 +8,7 @@ import { fromSatang, toSatang } from "@/lib/money";
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
 import { clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
@@ -509,7 +510,13 @@ export async function POST(
             });
         }
 
-        await supabase.from("audit_logs").insert(auditRows);
+        await supabase.from("audit_logs").insert(
+            auditRows.map((row) => ({
+                ...row,
+                business_date: localDate,
+                source: normalizeAuditSource("manual"),
+            }))
+        );
 
         try {
             await clearAssignedRoomLock({

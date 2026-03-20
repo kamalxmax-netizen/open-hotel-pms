@@ -110,6 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         startDate: move.start_date,
         endDate: move.end_date,
         excludeReservationId: reservationId,
+        auditSource: "system",
       });
     }
 

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -82,6 +83,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const targetDate = toBangkokDateStringFromIso(String(current.created_at));
     await assertBusinessDayOpen(supabase, targetDate);
+    const currentBusinessDate = toBangkokDateStringFromIso(new Date().toISOString());
 
     const action = parsedBody.data.action;
     const updates: Record<string, unknown> = {};
@@ -142,6 +144,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       before_json: current,
       after_json: updated,
       change_reason: reason,
+      business_date: currentBusinessDate,
+      source: normalizeAuditSource("manual"),
     });
     if (auditError) {
       console.error("tip patch audit log insert failed", auditError);

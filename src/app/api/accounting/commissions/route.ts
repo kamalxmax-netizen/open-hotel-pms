@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -189,6 +190,8 @@ export async function POST(request: NextRequest) {
       entity_id: String(inserted?.id ?? ""),
       after_json: inserted,
       change_reason: "manual_create",
+      business_date: businessDate,
+      source: normalizeAuditSource("manual"),
     });
     if (auditError) {
       console.error("commission audit log insert failed", auditError);

@@ -1,4 +1,5 @@
 import { isValidDateString, listNights } from "@/lib/dates";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { assertRoomAvailableForDateRange, PlannedRoomMoveError } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
@@ -30,6 +31,8 @@ export type CreateLinkedExtensionPayload = {
   copy_preferences?: boolean;
 };
 
+type AuditSource = "manual" | "system" | "api" | "night_audit";
+
 export type CreateLinkedExtensionResult = {
   success: true;
   reservation_id: string;
@@ -54,9 +57,11 @@ export async function createLinkedExtensionReservation(params: {
   supabase: SupabaseLike;
   originalReservationId: string;
   payload: CreateLinkedExtensionPayload;
+  auditSource?: AuditSource;
 }): Promise<CreateLinkedExtensionResult> {
   const { supabase, originalReservationId } = params;
   const payload = params.payload;
+  const auditSource = normalizeAuditSource(params.auditSource ?? "manual");
 
   if (!isValidDateString(payload.checkin_date) || !isValidDateString(payload.checkout_date)) {
     throw new LinkedExtensionError("Invalid date format. Use YYYY-MM-DD.", 400);
@@ -237,6 +242,8 @@ export async function createLinkedExtensionReservation(params: {
       copy_accompanying: Boolean(payload.copy_accompanying),
       copy_preferences: Boolean(payload.copy_preferences),
     },
+    business_date: toBangkokDateString(),
+    source: auditSource,
   });
 
   return {

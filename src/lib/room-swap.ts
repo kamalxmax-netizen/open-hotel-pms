@@ -7,6 +7,7 @@ import {
   PlannedRoomMoveError,
   syncReservationNightDependencyMetadata,
 } from "@/lib/planned-room-moves";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 
 type SupabaseLike = {
@@ -479,6 +480,8 @@ export async function executeWholeStayRoomSwap(
         swap_with_reservation_id: targetReservationId,
         swap_with_booking_code: target.booking_code,
       },
+      business_date: toBangkokDateString(),
+      source: normalizeAuditSource("manual"),
     },
     {
       action: "room_swapped",
@@ -496,6 +499,8 @@ export async function executeWholeStayRoomSwap(
         swap_with_reservation_id: sourceReservationId,
         swap_with_booking_code: source.booking_code,
       },
+      business_date: toBangkokDateString(),
+      source: normalizeAuditSource("manual"),
     },
   ]);
 

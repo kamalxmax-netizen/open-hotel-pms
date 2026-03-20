@@ -4,6 +4,7 @@ import { assertRoomAvailableForDateRange, PlannedRoomMoveError } from "@/lib/pla
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listNights } from "@/lib/dates";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 type PaymentRow = {
@@ -239,6 +240,8 @@ export async function POST(
         refunded_rows: reverseRefundRows.length,
         reversed_at: nowIso,
       },
+      business_date: businessDate,
+      source: normalizeAuditSource("manual"),
     });
 
     if (auditError) {

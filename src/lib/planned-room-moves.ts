@@ -1,4 +1,5 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 
 export type PlannedMoveStatus = "planned" | "executed" | "cancelled";
 export type PricingPolicy = "keep_rtc" | "reprice_grid" | "reprice_grid_discount";
@@ -851,6 +852,7 @@ export async function floatPlanDependentAssignments(
   params: {
     planId: string;
     excludeReservationId?: string | null;
+    auditSource?: "manual" | "system" | "api" | "night_audit";
   }
 ) {
   const dependentAssignments = await listPlanDependentAssignments(supabase, params);
@@ -890,6 +892,8 @@ export async function floatPlanDependentAssignments(
         room_number: null,
         note: "Auto-unassigned because planned move dependency was removed.",
       },
+      business_date: toBangkokDateString(),
+      source: normalizeAuditSource(params.auditSource ?? "manual"),
     });
   }
 
@@ -904,6 +908,7 @@ export async function floatPlanImpactAssignments(
     startDate: string;
     endDate: string;
     excludeReservationId?: string | null;
+    auditSource?: "manual" | "system" | "api" | "night_audit";
   }
 ) {
   const impactedAssignments = await listPlanImpactAssignments(supabase, params);
@@ -954,6 +959,8 @@ export async function floatPlanImpactAssignments(
         room_number: null,
         note: "Auto-unassigned because planned move dependency was removed.",
       },
+      business_date: toBangkokDateString(),
+      source: normalizeAuditSource(params.auditSource ?? "manual"),
     });
   }
 

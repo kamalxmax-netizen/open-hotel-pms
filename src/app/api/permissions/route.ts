@@ -25,6 +25,7 @@ const ALL_PAGES = [
   { path: "/pms/maintenance", label: "Maintenance", section: "Maintenance" },
   { path: "/pms/transportation", label: "Transportation", section: "Transportation" },
   { path: "/pms/night-audit", label: "Night Audit", section: "Admin" },
+  { path: "/pms/audit", label: "Audit Explorer", section: "Admin" },
   { path: "/pms/settings", label: "Settings", section: "Admin" },
   { path: "/pms/team", label: "Team & Shifts", section: "Admin" },
   { path: "/pms/logbook", label: "Logbook", section: "Admin" },

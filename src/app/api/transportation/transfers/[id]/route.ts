@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -705,6 +706,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         changed_fields: changedFields,
       },
       change_reason: payload.cancel_reason ?? null,  // ★ Phase 11A
+      business_date: toBangkokDateString(),
+      source: normalizeAuditSource("manual"),
     });
     if (auditError) {
       console.error("transport transfer audit_logs insert failed", auditError);

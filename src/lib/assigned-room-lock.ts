@@ -1,4 +1,5 @@
 import { appendReservationNoteLine } from "@/lib/planned-room-moves";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -211,6 +212,8 @@ export async function setAssignedRoomLock(params: {
       reason,
       actor,
     },
+    business_date: toBangkokDateString(),
+    source: normalizeAuditSource("manual"),
   });
 
   return {
@@ -284,6 +287,8 @@ export async function clearAssignedRoomLock(params: {
       actor,
       note: reason,
     },
+    business_date: toBangkokDateString(),
+    source: normalizeAuditSource("manual"),
   });
 
   return { success: true as const, cleared: true };

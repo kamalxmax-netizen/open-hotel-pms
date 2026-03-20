@@ -1,4 +1,5 @@
 import { fromSatang, toSatang } from "@/lib/money";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card";
@@ -505,6 +506,8 @@ export async function runGroupMassCheckin(params: {
           deposit_policy: item.depositPolicy,
           deposit_amount: item.depositPolicy === "set" ? item.depositAmount : null,
         },
+        business_date: localDate,
+        source: normalizeAuditSource("manual"),
       });
 
     if (auditError) {

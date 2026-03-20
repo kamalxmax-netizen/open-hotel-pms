@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -181,6 +182,8 @@ export async function POST(request: NextRequest, context: { params: { id: string
         payment_method: parsed.data.payment_method,
         extended_at: nowIso,
       },
+      business_date: businessDate,
+      source: normalizeAuditSource("manual"),
     });
 
     return NextResponse.json({

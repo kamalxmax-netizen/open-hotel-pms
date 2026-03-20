@@ -92,18 +92,18 @@ export default function NightAuditPendingPopup({
         setOpen(true);
       }}
     >
-      <DialogContent className="max-w-xl overflow-hidden border-2 border-amber-300 bg-amber-50 p-0">
-        <DialogHeader className="border-b border-amber-200 bg-amber-100 px-6 py-5">
-          <DialogTitle className="text-xl font-bold text-amber-950">
+      <DialogContent className="max-w-xl overflow-hidden border-2 border-amber-300 bg-amber-50 p-0 dark:border-amber-500/30 dark:bg-zinc-950">
+        <DialogHeader className="border-b border-amber-200 bg-amber-100 px-6 py-5 dark:border-amber-500/20 dark:bg-amber-950/40">
+          <DialogTitle className="text-xl font-bold text-amber-950 dark:text-amber-300">
             Night Audit not done yet
           </DialogTitle>
-          <DialogDescription className="mt-2 text-sm text-amber-900">
+          <DialogDescription className="mt-2 text-sm text-amber-900 dark:text-amber-400">
             {pageName} is showing information of yesterday until Night Audit is completed.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 px-6 py-5 text-sm text-amber-950">
-          <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)]/80 px-4 py-3">
+        <div className="space-y-4 px-6 py-5 text-sm text-amber-950 dark:text-amber-500">
+          <div className="rounded-xl border border-amber-200 bg-[var(--bg-surface)]/80 px-4 py-3 dark:border-amber-500/20">
             <p className="font-semibold">
               Business Date: <span className="font-bold">{status.business_date}</span>
             </p>
@@ -116,13 +116,13 @@ export default function NightAuditPendingPopup({
             </p>
           </div>
 
-          <p className="leading-6 text-amber-900">
+          <p className="leading-6 text-amber-900 dark:text-amber-400/80">
             If you need today&apos;s correct status, run Night Audit first. This popup will
             appear every time you enter this page until Night Audit is done.
           </p>
         </div>
 
-        <DialogFooter className="border-t border-amber-200 bg-amber-50 px-6 py-4">
+        <DialogFooter className="border-t border-amber-200 bg-amber-50 px-6 py-4 dark:border-amber-500/20 dark:bg-amber-950/40">
           <button
             type="button"
             className="btn btn-secondary"

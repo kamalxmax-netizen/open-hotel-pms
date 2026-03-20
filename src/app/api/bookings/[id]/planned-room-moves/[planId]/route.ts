@@ -203,6 +203,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         startDate: targetMove.start_date,
         endDate: targetMove.end_date,
         excludeReservationId: reservationId,
+        auditSource: "system",
       });
     }
 

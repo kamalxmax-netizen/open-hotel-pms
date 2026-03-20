@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { mapBookingErrorToStatus, normalizeMoney, sumMoney } from "@/lib/bookings";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { isValidDateString, listNights } from "@/lib/dates";
 import {
   applyNightlyRatesToReservation,
@@ -20,6 +21,7 @@ import {
   syncReservationNightDependencyMetadata,
 } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function isLegacyCreateRpcMismatch(message?: string | null): boolean {
@@ -70,6 +72,20 @@ async function resolveRoomTypeIdForPricing(
   const resolved = Number(data?.room_type_id);
   if (Number.isFinite(resolved) && resolved > 0) return resolved;
   return null;
+}
+
+async function resolveAuditBusinessDate(supabase: any): Promise<string> {
+  const { data, error } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (!error && typeof data?.business_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.business_date)) {
+    return data.business_date;
+  }
+
+  return toBangkokDateString();
 }
 
 const createBookingSchema = z.object({
@@ -192,7 +208,7 @@ export async function GET(request: NextRequest) {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const json = await request.json().catch(() => null);
   const parsed = createBookingSchema.safeParse(json);
 
@@ -482,6 +498,58 @@ export async function POST(request: Request) {
   await syncReservationNightDependencyMetadata(supabase as any, {
     reservationId: String(reservation.id),
   });
+
+  try {
+    const businessDate = await resolveAuditBusinessDate(supabase);
+    const user = await getAuthenticatedUser(supabase, request);
+    const reservationEntityId = String(reservation.id);
+    const createdAtThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    const { data: backfilledRows, error: backfillError } = await supabase
+      .from("audit_logs")
+      .update({
+        business_date: businessDate,
+        source: normalizeAuditSource("manual"),
+      })
+      .eq("entity_type", "reservation")
+      .eq("entity_id", reservationEntityId)
+      .is("business_date", null)
+      .gte("created_at", createdAtThreshold)
+      .select("id");
+
+    if (backfillError) {
+      console.error("booking create audit backfill failed", backfillError);
+    }
+
+    if (!backfillError && (backfilledRows?.length ?? 0) === 0) {
+      const { error: insertAuditError } = await supabase.from("audit_logs").insert({
+        actor_user_id: user?.id ?? null,
+        action: "reservation_created",
+        entity_type: "reservation",
+        entity_id: reservationEntityId,
+        before_json: null,
+        after_json: {
+          booking_code: (reservation as any)?.booking_code ?? null,
+          guest_name: payload.guest_name.trim(),
+          source: payload.source,
+          checkin_date: payload.checkin_date,
+          checkout_date: payload.checkout_date,
+          room_id: payload.room_id || null,
+          room_type_id: normalizedRoomTypeId,
+          booking_group_id: payload.booking_group_id || null,
+          rate_plan_id: payload.rate_plan_id || null,
+        },
+        business_date: businessDate,
+        source: normalizeAuditSource("manual"),
+      });
+
+      if (insertAuditError) {
+        console.error("booking create audit insert failed", insertAuditError);
+      }
+    }
+  } catch (auditError) {
+    console.error("booking create audit ensure failed", auditError);
+  }
 
   return NextResponse.json(
     {

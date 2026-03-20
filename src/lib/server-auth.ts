@@ -1,9 +1,30 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest } from "next/server";
 
 export type AuthUser = { id: string };
 
 type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
+
+function createCookieAuthClient(request: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    return null;
+  }
+
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      // Route handlers do not need to persist refreshed cookies for this read-only auth check.
+      setAll() {
+        // no-op
+      },
+    },
+  });
+}
 
 export async function getAuthenticatedUser(
   supabase: SupabaseServerClient,
@@ -12,10 +33,22 @@ export async function getAuthenticatedUser(
   const authHeader = request.headers.get("authorization");
   const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null;
 
-  const { data, error } = bearerToken
-    ? await supabase.auth.getUser(bearerToken)
-    : await supabase.auth.getUser();
+  if (bearerToken) {
+    const { data, error } = await supabase.auth.getUser(bearerToken);
+    if (!error && data.user) {
+      return { id: data.user.id };
+    }
+  }
 
+  const cookieAuthClient = createCookieAuthClient(request);
+  if (cookieAuthClient) {
+    const { data, error } = await cookieAuthClient.auth.getUser();
+    if (!error && data.user) {
+      return { id: data.user.id };
+    }
+  }
+
+  const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
   return { id: data.user.id };
 }
@@ -31,7 +64,8 @@ export async function getUserRole(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return data?.role ? String(data.role) : null;
+  if (!data?.role) return null;
+  return String(data.role).trim().toLowerCase();
 }
 
 export async function assertAdminOrSupervisor(

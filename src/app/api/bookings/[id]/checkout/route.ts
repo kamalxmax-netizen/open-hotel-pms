@@ -9,6 +9,7 @@ import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
@@ -486,7 +487,9 @@ export async function POST(
                 } : null,
                 guest_counter_update: checkoutCounterResult,
                 checked_out_at: now
-            }
+            },
+            business_date: localDate,
+            source: normalizeAuditSource("manual"),
         });
 
         if (reservation.booking_group_id) {

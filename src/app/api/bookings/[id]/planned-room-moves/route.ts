@@ -16,6 +16,7 @@ import {
   validatePlannedMoveDateRange,
 } from "@/lib/planned-room-moves";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Invalid reservation id."),
@@ -244,6 +245,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         pricing_policy: pricingPolicy,
         do_not_move: doNotMove,
       },
+      business_date: today,
+      source: normalizeAuditSource("manual"),
     });
 
     return NextResponse.json({

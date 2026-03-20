@@ -1,4 +1,5 @@
 import { compareDateStrings, isValidDateString } from "@/lib/dates";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { syncReservationNightDependencyMetadata } from "@/lib/planned-room-moves";
 
 type SupabaseLike = {
@@ -112,8 +113,10 @@ export async function shortenOtaReservationForEarlyMove(params: {
   reservationId: string;
   newCheckoutDate: string;
   reason?: string | null;
+  auditSource?: "manual" | "system" | "api" | "night_audit";
 }) {
   const { supabase, reservationId, newCheckoutDate, reason } = params;
+  const auditSource = normalizeAuditSource(params.auditSource ?? "manual");
 
   if (!isValidDateString(newCheckoutDate)) {
     throw new OtaModificationError("Invalid OTA shorten date. Use YYYY-MM-DD.", 400);
@@ -208,6 +211,8 @@ export async function shortenOtaReservationForEarlyMove(params: {
       reason: String(reason ?? "").trim() || null,
       ota_platform_update_required: true,
     },
+    business_date: toBangkokDateString(),
+    source: auditSource,
   });
   if (auditError) {
     throw new OtaModificationError(auditError.message ?? "Failed to write OTA shorten audit log.", 500);

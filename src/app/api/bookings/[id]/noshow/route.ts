@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
@@ -38,7 +39,9 @@ export async function POST(
                 guest_name: reservation.guest_name,
                 checkin_date: reservation.checkin_date,
                 marked_at: new Date().toISOString()
-            }
+            },
+            business_date: toBangkokDateString(),
+            source: normalizeAuditSource("manual"),
         });
 
         if (reservation.booking_group_id) {

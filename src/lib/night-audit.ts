@@ -1,4 +1,5 @@
 import type { BookingSource, NoShowPending } from "@/lib/types";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -126,6 +127,8 @@ export async function normalizePendingGroupCheckinWizardDrafts(
           current_step: Number(row.current_step ?? 0),
           reason: "all_due_in_rooms_already_checked_in",
         },
+        business_date: row.business_date ?? businessDate,
+        source: normalizeAuditSource("night_audit"),
       }))
       .filter((row: { entity_id: string }) => row.entity_id);
 

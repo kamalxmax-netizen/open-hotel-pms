@@ -15,6 +15,7 @@ import RegistrationCard from "./registration-card";
 import ReservationOptionsPanel from "./reservation-options-panel";
 import { ReservationFolioModal } from "./reservation-folio-modal";
 import AssignRoomModal from "./assign-room-modal";
+import { ReservationHistoryModal } from "./reservation-history-modal";
 import GuestMatchDropdown, { MatchResult } from "./guest-match-dropdown";
 import CollapsibleSection from "./collapsible-section";
 import EarlyCheckinFeeModal, { PolicyFeePayload } from "./early-checkin-fee-modal";
@@ -921,6 +922,7 @@ export default function ReservationDetailPage({
     // Options panel (Traces, Alerts, Loans etc.)
     const [showOptions, setShowOptions] = useState(false);
     const [showFolioModal, setShowFolioModal] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Modals & Policy Fees
     const [originalCheckoutDate, setOriginalCheckoutDate] = useState(tomorrow);
@@ -2530,6 +2532,10 @@ export default function ReservationDetailPage({
         readonlyClosedReservation ||
         (dayUseAmountOnlyMode && dayUseExtendSettingsLoading) ||
         (mode === "checkout" && !preCheckoutLoaded);
+    const lockCheckinDate =
+        reservationStatus === "active" &&
+        mode !== "checkin" &&
+        Boolean(checkedInAt);
     const lockMessage = loading ? "Saving changes..." : rateRefreshing ? "Updating rates..." : "";
     const canEditDeposit =
         !dayUseAmountOnlyMode &&
@@ -3562,6 +3568,9 @@ export default function ReservationDetailPage({
                                     <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowOptions(true)}>
                                         Options
                                     </button>
+                                    <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowHistoryModal(true)}>
+                                        History
+                                    </button>
                                     <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowConfirmation(true)}>
                                         Print
                                     </button>
@@ -3717,6 +3726,7 @@ export default function ReservationDetailPage({
                                         nights={nights}
                                         onChange={handleDatesChange}
                                         disabled={isReadonly}
+                                        lockCheckin={lockCheckinDate}
                                     />
 
                                     {/* Room / Channel Row */}
@@ -5340,6 +5350,13 @@ export default function ReservationDetailPage({
                         onSuccess();
                     }}
                     onSwitchTab={handleSwitchLinkedTab}
+                />
+            )}
+
+            {showHistoryModal && reservationId && (
+                <ReservationHistoryModal
+                    reservationId={reservationId}
+                    onClose={() => setShowHistoryModal(false)}
                 />
             )}
 

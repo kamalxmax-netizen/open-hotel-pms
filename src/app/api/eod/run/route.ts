@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listPendingNoShows, normalizePendingGroupCheckinWizardDrafts } from "@/lib/night-audit";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 function isMissingRelationError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -142,6 +143,8 @@ export async function POST(request: NextRequest) {
                     current_step: Number(draft.current_step ?? 0),
                     reason: "force_eod",
                 },
+                business_date: draft.business_date ?? businessDate,
+                source: normalizeAuditSource("night_audit"),
             })).filter((row) => row.entity_id);
 
             if (draftAuditRows.length > 0) {
