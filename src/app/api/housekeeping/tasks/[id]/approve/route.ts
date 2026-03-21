@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -83,7 +84,22 @@ export async function POST(
       console.error("Failed to insert housekeeping log:", logError.message);
     }
 
-    // 5. Return success
+    // 5. Audit log (non-blocking)
+    try {
+      await supabase.from("audit_logs").insert({
+        action: "approve",
+        entity_type: "housekeeping_task",
+        entity_id: id,
+        before_json: { status: "cleaned" },
+        after_json: { status: "approved", approved_by: body.approved_by ?? "unknown" },
+        business_date: toBangkokDateString(),
+        source: normalizeAuditSource("manual"),
+      });
+    } catch (auditErr) {
+      console.error("HK approve audit log failed:", auditErr);
+    }
+
+    // 6. Return success
     return NextResponse.json({
       success: true,
     });

@@ -510,6 +510,7 @@ export async function POST(request: NextRequest) {
       .update({
         business_date: businessDate,
         source: normalizeAuditSource("manual"),
+        actor_user_id: user?.id ?? null,
       })
       .eq("entity_type", "reservation")
       .eq("entity_id", reservationEntityId)

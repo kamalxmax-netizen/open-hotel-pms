@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { mapBookingErrorToStatus, normalizeMoney } from "@/lib/bookings";
 import { isValidDateString, listNights } from "@/lib/dates";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import {
   applyNightlyRatesToReservation,
   calculateAppliedRateNights,
@@ -937,4 +938,94 @@ export async function PUT(
     },
     { status: 200 }
   );
+}
+
+/* ─── PATCH /api/bookings/[id] ───────────────────
+   Lightweight field-level update (e.g. tax_invoice_requested toggle).
+   Only whitelisted fields are accepted.
+*/
+const patchBookingSchema = z.object({
+  tax_invoice_requested: z.boolean().optional(),
+});
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const reservationId = params.id;
+  if (!reservationId) {
+    return NextResponse.json({ error: "Missing reservation id." }, { status: 400 });
+  }
+
+  const json = await request.json().catch(() => null);
+  const parsed = patchBookingSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid payload", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.tax_invoice_requested !== undefined) {
+    patch.tax_invoice_requested = parsed.data.tax_invoice_requested;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "No fields to update." }, { status: 400 });
+  }
+
+  const supabase = createServerSupabaseClient();
+  const user = await getAuthenticatedUser(supabase, request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: existingReservation, error: existingReservationError } = await supabase
+    .from("reservations")
+    .select("id, tax_invoice_requested")
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (existingReservationError) {
+    return NextResponse.json({ error: existingReservationError.message }, { status: 500 });
+  }
+  if (!existingReservation) {
+    return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
+  }
+
+  const previousTaxInvoiceRequested = Boolean(existingReservation.tax_invoice_requested ?? false);
+
+  const { error } = await supabase
+    .from("reservations")
+    .update(patch)
+    .eq("id", reservationId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const nextTaxInvoiceRequested =
+    typeof patch.tax_invoice_requested === "boolean"
+      ? patch.tax_invoice_requested
+      : previousTaxInvoiceRequested;
+
+  if (previousTaxInvoiceRequested !== nextTaxInvoiceRequested) {
+    try {
+      await supabase.from("audit_logs").insert({
+        actor_user_id: user.id,
+        action: "tax_invoice_toggled",
+        entity_type: "reservation",
+        entity_id: reservationId,
+        before_json: { tax_invoice_requested: previousTaxInvoiceRequested },
+        after_json: { tax_invoice_requested: nextTaxInvoiceRequested },
+        business_date: toLocalDate(new Date()),
+        source: "manual",
+      });
+    } catch (auditError) {
+      console.error("Failed to write audit log for tax invoice toggle:", auditError);
+    }
+  }
+
+  return NextResponse.json({ success: true });
 }

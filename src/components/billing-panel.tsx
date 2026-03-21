@@ -33,6 +33,7 @@ interface BillingPanelProps {
   totalPrice: number; // Room charges total
   discountAmount?: number;
   discountReason?: string;
+  depositNote?: string;
   mode: "create" | "edit" | "checkin" | "inhouse" | "checkout";
   deferPersist?: boolean;
   pendingPayments?: PendingPayment[];
@@ -52,6 +53,7 @@ export function BillingPanel({
   totalPrice,
   discountAmount = 0,
   discountReason,
+  depositNote = "",
   mode,
   deferPersist = false,
   pendingPayments = [],
@@ -237,6 +239,7 @@ export function BillingPanel({
   const depositSourceNote =
     depositSourceRows.find((p) => typeof p.note === "string" && p.note.trim().length > 0)?.note ?? "";
   const depositHeldAmount = fromSatang(Math.max(0, depositNetSatang));
+  const trimmedDepositNote = depositNote.trim();
   const depositLines = depositTransactions.length > 0
     ? [{
         method: depositSourceMethods.length === 1 ? depositSourceMethods[0] : "mixed",
@@ -244,6 +247,8 @@ export function BillingPanel({
         amount: depositHeldAmount,
       }]
     : [];
+  const shouldShowDepositSummary =
+    depositTransactions.length > 0 || (depositHeldAmount <= 0 && trimmedDepositNote.length > 0);
 
   // Total Charges = Room - Discount + Extra
   const totalChargesSatang =
@@ -496,7 +501,7 @@ export function BillingPanel({
       </div>
 
       {/* DEPOSIT SUMMARY (Moved to bottom) */}
-      {depositTransactions.length > 0 && (
+      {shouldShowDepositSummary && (
         <div className="bg-indigo-50/50 dark:bg-indigo-500/10 px-5 py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
            <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300">
              <span className="text-lg">🔒</span>
@@ -504,6 +509,11 @@ export function BillingPanel({
            </div>
            
             <div className="flex flex-col gap-1 items-end">
+              {depositLines.length === 0 && trimmedDepositNote.length > 0 && (
+                 <div className="text-xs text-indigo-700 dark:text-indigo-300">
+                    Note: {trimmedDepositNote}
+                 </div>
+              )}
               {depositLines.map((p, idx) => (
                  <div key={`dep-${p.method}-${idx}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
                     <span className="uppercase opacity-70 bg-indigo-100 dark:bg-indigo-500/20 px-1 py-0.5 rounded">{p.method}</span>

@@ -124,7 +124,7 @@ function buildAuditQuery(params: {
 
 function getEntityLink(row: AuditRow): string | null {
   if (!isUuidLike(row.entity_id)) return null;
-  if (row.entity_type === "reservation") return `/pms/reservations/${row.entity_id}`;
+  // guest_profile has a dedicated route; reservation detail is inline (no route)
   if (row.entity_type === "guest_profile") return `/pms/guests/${row.entity_id}`;
   return null;
 }
@@ -454,12 +454,20 @@ export default function AuditExplorerPage() {
                               className="font-semibold text-brand-600 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {row.entity_id}
+                              {row.entity_id.length > 12 ? `${row.entity_id.slice(0, 8)}...` : row.entity_id}
                             </Link>
                           ) : (
-                            <span className="font-mono text-xs bg-[var(--bg-muted)] px-1.5 py-0.5 rounded text-[var(--text-secondary)]">
-                              {row.entity_id}
-                            </span>
+                            <button
+                              type="button"
+                              className="font-mono text-xs bg-[var(--bg-muted)] px-1.5 py-0.5 rounded text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] transition-colors cursor-copy"
+                              title={`Click to copy: ${row.entity_id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void navigator.clipboard.writeText(row.entity_id);
+                              }}
+                            >
+                              {row.entity_id.length > 12 ? `${row.entity_id.slice(0, 8)}...` : row.entity_id}
+                            </button>
                           )}
                           <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
                             {humanizeAction(row.entity_type)}

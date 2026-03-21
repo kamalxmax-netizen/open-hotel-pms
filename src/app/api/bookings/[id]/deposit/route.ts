@@ -93,10 +93,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
         const depositLines = parseDepositPayloadLines(deposit_note, normalizedDepositAmount);
         const generalNote = extractDepositGeneralNote(deposit_note);
+        const effectiveGeneralNote = normalizedDepositAmount > 0 ? null : generalNote;
         const { data, error } = await supabase.rpc("apply_deposit_snapshot_lines", {
             p_reservation_id: params.id,
             p_lines: depositLines,
-            p_general_note: generalNote,
+            p_general_note: effectiveGeneralNote,
             p_cashier_name: typeof cashier_name === "string" && cashier_name.trim() ? cashier_name.trim() : "FO",
         });
 

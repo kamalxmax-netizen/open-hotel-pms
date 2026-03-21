@@ -317,7 +317,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                             .slice(-1)[0]?.paid_at ?? new Date().toISOString()
                     )
                     : null;
-            const nextDepositNote = buildDepositSnapshotNote(lines, generalNote);
+            const nextDepositNote = buildDepositSnapshotNote(
+                lines,
+                nextDepositAmount > 0 ? null : generalNote
+            );
 
             const { error: syncReservationDepositError } = await supabase
                 .from("reservations")

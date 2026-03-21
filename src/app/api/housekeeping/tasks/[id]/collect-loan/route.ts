@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { restoreLoanItemStock } from "@/lib/loan-item-stock";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -85,6 +86,26 @@ export async function POST(
 
       if (updateError) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+    }
+
+    // Audit log (non-blocking)
+    if (openLoanTraces.length > 0) {
+      try {
+        await supabase.from("audit_logs").insert({
+          action: "collect_loan",
+          entity_type: "housekeeping_task",
+          entity_id: taskId,
+          after_json: {
+            collected_count: openLoanTraces.length,
+            trace_ids: openLoanTraces.map((trace: any) => String(trace.id)),
+            resolved_by: resolvedBy,
+          },
+          business_date: toBangkokDateString(),
+          source: normalizeAuditSource("manual"),
+        });
+      } catch (auditErr) {
+        console.error("HK collect-loan audit log failed:", auditErr);
       }
     }
 

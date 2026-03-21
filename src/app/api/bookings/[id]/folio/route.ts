@@ -2,6 +2,7 @@ import { computeFeeSummary, toLocalDate } from "@/lib/folio-fees";
 import { fromSatang, toSatang } from "@/lib/money";
 import { listNights } from "@/lib/dates";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import type { ReservationFolioLedgerRow, ReservationFolioResponse, ReservationFolioSummary } from "@/lib/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -50,6 +51,7 @@ type ReservationRow = {
   deposit_note: string | null;
   deposit_paid_at: string | null;
   parent_reservation_id?: string | null;
+  tax_invoice_requested?: boolean | null;
 };
 
 function toNumber(value: unknown): number {
@@ -575,7 +577,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         deposit_amount,
         deposit_note,
         deposit_paid_at,
-        parent_reservation_id
+        parent_reservation_id,
+        tax_invoice_requested
       `;
 
     const baseSelect = `
@@ -595,7 +598,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         deposit_amount,
         deposit_note,
         deposit_paid_at,
-        parent_reservation_id
+        parent_reservation_id,
+        tax_invoice_requested
       `;
 
     const withCheckedOut = await supabase
@@ -685,6 +689,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         checkout_date: reservation.checkout_date ?? null,
         checked_in_at: reservation.checked_in_at ?? null,
         checked_out_at: reservation.checked_out_at ?? null,
+        deposit_note: extractDepositGeneralNote(reservation.deposit_note),
+        tax_invoice_requested: Boolean(reservation.tax_invoice_requested ?? false),
       },
       summary,
       ledger: normalizeLedgerRows(

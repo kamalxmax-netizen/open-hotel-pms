@@ -2,11 +2,11 @@ export const AUDIT_SOURCE_VALUES = ["manual", "system", "api", "night_audit"] as
 export type AuditSource = (typeof AUDIT_SOURCE_VALUES)[number];
 
 export const AUDIT_GROUPS = {
-  reservation: { label: "Reservation", entityTypes: ["reservation"] },
+  reservation: { label: "Reservation", entityTypes: ["reservation"], actions: ["tax_invoice_toggled"] },
   payment: { label: "Payment", entityTypes: ["commission_ledger", "tip_ledger", "transfer_transaction"] },
-  housekeeping: { label: "Housekeeping", actions: ["assign", "approve", "clock_in", "dismiss", "dismissed", "done"] },
+  housekeeping: { label: "Housekeeping", entityTypes: ["housekeeping_task", "extra_task"], actions: ["assign", "approve", "clock_in", "dismiss", "dismissed", "done", "start", "resume", "pause", "collect_loan", "cancelled", "update"] },
   night_audit: { label: "Night Audit", actionPrefixes: ["night_audit_"], actions: ["document_match"] },
-  staff: { label: "Staff", entityTypes: ["transfer"], actions: ["clock_in"] },
+  staff: { label: "Staff", entityTypes: ["transfer", "staff"], actions: ["clock_in", "staff_created", "staff_updated"] },
   configuration: { label: "Configuration", fallback: true },
 } as const;
 
@@ -101,12 +101,19 @@ function isNightAuditAction(action: string): boolean {
   );
 }
 
+function isReservationAction(action: string): boolean {
+  const actions = (AUDIT_GROUPS.reservation as { actions?: readonly string[] }).actions ?? [];
+  return actions.includes(action);
+}
+
 export function classifyAuditGroup(entry: AuditLikeRow): AuditGroupKey {
   const entityType = String(entry.entity_type ?? "").trim();
   const action = String(entry.action ?? "").trim();
 
+  if (action && isReservationAction(action)) return "reservation";
   if ((AUDIT_GROUPS.reservation.entityTypes as readonly string[]).includes(entityType)) return "reservation";
   if ((AUDIT_GROUPS.payment.entityTypes as readonly string[]).includes(entityType)) return "payment";
+  if ((AUDIT_GROUPS.housekeeping.entityTypes as readonly string[]).includes(entityType)) return "housekeeping";
   if (action && isHousekeepingAction(action)) return "housekeeping";
   if (action && isNightAuditAction(action)) return "night_audit";
   if ((AUDIT_GROUPS.staff.entityTypes as readonly string[]).includes(entityType)) return "staff";

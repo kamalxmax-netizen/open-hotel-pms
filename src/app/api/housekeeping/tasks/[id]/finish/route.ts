@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { restoreLoanItemStock } from "@/lib/loan-item-stock";
 import { NextResponse } from "next/server";
@@ -483,6 +484,29 @@ export async function POST(
       body.collected_loan_trace_ids,
       body.maid_name ?? null
     );
+
+    // Audit log (non-blocking)
+    try {
+      const finalStatus = String(row?.final_status ?? "cleaned");
+      await supabase.from("audit_logs").insert({
+        action: finalStatus === "approved" ? "done" : "done",
+        entity_type: "housekeeping_task",
+        entity_id: id,
+        before_json: { status: "in_progress" },
+        after_json: {
+          status: finalStatus,
+          maid_name: body.maid_name ?? null,
+          auto_approved: Boolean(row?.auto_approved),
+          duration_ms: Number(row?.duration_ms ?? 0),
+          room_number: roomCtx.room_number,
+        },
+        business_date: toBangkokDateString(),
+        source: normalizeAuditSource("manual"),
+      });
+    } catch (auditErr) {
+      console.error("HK finish audit log failed:", auditErr);
+    }
+
     return NextResponse.json({
       success: true,
       duration_ms: Number(row?.duration_ms ?? 0),

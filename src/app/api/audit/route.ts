@@ -69,10 +69,13 @@ async function requireAuditAccess(
   return { ok: true as const, user };
 }
 
-function getActorName(raw: unknown): string {
+function getActorName(raw: unknown, hasActorUserId: boolean): string {
   const profile = Array.isArray(raw) ? raw[0] : raw;
   const name = String((profile as { full_name?: string | null } | null)?.full_name ?? "").trim();
-  return name || "System";
+  if (name) return name;
+  // actor_user_id exists but full_name is empty → real user with no name set
+  // actor_user_id is null → system/trigger action
+  return hasActorUserId ? "User (unnamed)" : "System";
 }
 
 function toBusinessDateOrFallback(value: unknown, createdAt: string): string {
@@ -88,7 +91,7 @@ function shapeAuditRows(rows: any[]): AuditRow[] {
     return {
       id: String(row.id),
       actor_user_id: row.actor_user_id ? String(row.actor_user_id) : null,
-      actor_name: getActorName(row.profiles),
+      actor_name: getActorName(row.profiles, Boolean(row.actor_user_id)),
       action: String(row.action ?? ""),
       entity_type: String(row.entity_type ?? ""),
       entity_id: String(row.entity_id ?? ""),

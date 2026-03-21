@@ -127,6 +127,8 @@ export function ReservationFolioModal({
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showPostCharge, setShowPostCharge] = useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxInvoiceLoading, setTaxInvoiceLoading] = useState(false);
 
   const loadFolio = useCallback(async () => {
     if (!reservationId) return;
@@ -152,6 +154,32 @@ export function ReservationFolioModal({
     void loadFolio();
   }, [open, loadFolio]);
 
+  // Sync tax invoice state from folio response
+  useEffect(() => {
+    if (folio?.reservation?.tax_invoice_requested !== undefined) {
+      setTaxInvoiceRequested(Boolean(folio.reservation.tax_invoice_requested));
+    }
+  }, [folio]);
+
+  const handleToggleTaxInvoice = async () => {
+    const next = !taxInvoiceRequested;
+    setTaxInvoiceLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${reservationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tax_invoice_requested: next }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to update");
+      setTaxInvoiceRequested(next);
+    } catch {
+      // revert on error
+    } finally {
+      setTaxInvoiceLoading(false);
+    }
+  };
+
   const visibleLedger = useMemo(() => {
     const rows = folio?.ledger ?? [];
     if (filter === "all") return rows;
@@ -163,6 +191,11 @@ export function ReservationFolioModal({
   const canAddPayment = open && !!reservationId && !isReadonly && mode !== "create";
   const canPostCharge = open && !!reservationId && !isReadonly && mode === "inhouse";
   const canOpenSettlement = open && !!reservationId && !isReadonly && mode === "checkout";
+  const depositHeld = folio?.summary.deposit_held ?? 0;
+  const depositHeldNote =
+    depositHeld <= 0
+      ? (folio?.reservation.deposit_note ?? "").trim() || null
+      : null;
 
   const handlePaymentSubmit = async () => {
     const amount = Number(paymentAmount);
@@ -293,7 +326,12 @@ export function ReservationFolioModal({
             </div>
             <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:bg-indigo-500/10 dark:border-indigo-500/20">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-400">Deposit Held</div>
-              <div className="mt-4 text-2xl font-semibold text-indigo-800 dark:text-indigo-200">฿{formatMoney(folio?.summary.deposit_held ?? 0)}</div>
+              <div className="mt-4 text-2xl font-semibold text-indigo-800 dark:text-indigo-200">฿{formatMoney(depositHeld)}</div>
+              {depositHeldNote && (
+                <div className="mt-1 text-xs leading-snug text-indigo-700 dark:text-indigo-300">
+                  Note: {depositHeldNote}
+                </div>
+              )}
             </div>
             <div className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-[#312e81] bg-[#1e1b4b] p-4 text-white dark:border-indigo-500/30 dark:bg-indigo-900/40">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-200/60 dark:text-indigo-300">Outstanding</div>
@@ -521,6 +559,30 @@ export function ReservationFolioModal({
                     <span className="font-semibold text-[var(--text-primary)]">
                       ฿{formatMoney(fromSatang(billingData?.outstandingSatang ?? toSatang(folio?.summary.outstanding_balance ?? 0)))}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] pt-2 mt-1">
+                    <label htmlFor="tax-invoice-toggle" className="cursor-pointer select-none">
+                      Tax Invoice
+                    </label>
+                    <button
+                      id="tax-invoice-toggle"
+                      type="button"
+                      role="switch"
+                      aria-checked={taxInvoiceRequested}
+                      disabled={taxInvoiceLoading}
+                      onClick={() => void handleToggleTaxInvoice()}
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 ${
+                        taxInvoiceRequested
+                          ? "bg-[var(--accent)]"
+                          : "bg-[var(--border-default)]"
+                      } ${taxInvoiceLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                          taxInvoiceRequested ? "translate-x-[18px]" : "translate-x-[3px]"
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>

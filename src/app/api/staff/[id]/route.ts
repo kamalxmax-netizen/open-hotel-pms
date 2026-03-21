@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { syncStaffFromProfiles } from "@/lib/staff-sync";
@@ -233,6 +234,22 @@ export async function PATCH(
       const sync = await syncRenamedAssignments(supabase, currentName, nextName);
       const updated = (updatedResult.data ?? null) as Record<string, unknown> | null;
       const relation = Array.isArray(updated?.department) ? updated?.department[0] : updated?.department;
+
+      // Audit log (non-blocking)
+      try {
+        await supabase.from("audit_logs").insert({
+          actor_user_id: user?.id ?? null,
+          action: "staff_updated",
+          entity_type: "staff",
+          entity_id: staffId,
+          before_json: { display_name: currentName },
+          after_json: updatePayload,
+          business_date: toBangkokDateString(),
+          source: normalizeAuditSource("manual"),
+        });
+      } catch (auditErr) {
+        console.error("Staff update audit log failed:", auditErr);
+      }
 
       return NextResponse.json({
         success: true,

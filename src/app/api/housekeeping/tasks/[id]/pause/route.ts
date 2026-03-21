@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -101,7 +102,23 @@ export async function POST(
       console.error("Failed to insert housekeeping log:", logError.message);
     }
 
-    // 6. Return success
+    // 6. Audit log (non-blocking)
+    try {
+      await supabase.from("audit_logs").insert({
+        action: "pause",
+        entity_type: "housekeeping_task",
+        entity_id: id,
+        before_json: { status: "in_progress" },
+        after_json: { status: "paused", accumulated_ms: newAccumulated },
+        business_date: toBangkokDateString(),
+        source: normalizeAuditSource("manual"),
+        note: pauseNote || null,
+      });
+    } catch (auditErr) {
+      console.error("HK pause audit log failed:", auditErr);
+    }
+
+    // 7. Return success
     return NextResponse.json({
       success: true,
       accumulated_ms: newAccumulated,

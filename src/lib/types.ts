@@ -71,6 +71,8 @@ export interface ReservationFolioResponse {
     checkout_date: string | null;
     checked_in_at: string | null;
     checked_out_at: string | null;
+    deposit_note?: string | null;
+    tax_invoice_requested?: boolean;
   };
   summary: ReservationFolioSummary;
   ledger: ReservationFolioLedgerRow[];

@@ -1,3 +1,4 @@
+import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -73,6 +74,22 @@ export async function PUT(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Audit log (non-blocking)
+    try {
+      const auditAction = updates.status === "cancelled" ? "cancelled" : "update";
+      await supabase.from("audit_logs").insert({
+        action: auditAction,
+        entity_type: "extra_task",
+        entity_id: assignmentId,
+        before_json: { status: existing.status },
+        after_json: updates,
+        business_date: toBangkokDateString(),
+        source: normalizeAuditSource("manual"),
+      });
+    } catch (auditErr) {
+      console.error("Extra task update audit log failed:", auditErr);
     }
 
     return NextResponse.json({ success: true });

@@ -2549,12 +2549,13 @@ export default function ReservationDetailPage({
         const depositTotalSatang = lines.reduce((sum, line) => sum + toSatang(line.amount), 0);
         const depositTotal = fromSatang(depositTotalSatang);
         const normalizedGeneralNote = (generalNote ?? depositGeneralNote).trim();
+        const effectiveGeneralNote = depositTotalSatang > 0 ? "" : normalizedGeneralNote;
         const payload = {
             deposit_amount: depositTotal,
-            deposit_note: (lines.length > 0 || normalizedGeneralNote.length > 0)
+            deposit_note: (lines.length > 0 || effectiveGeneralNote.length > 0)
                 ? JSON.stringify({
                     lines,
-                    note: normalizedGeneralNote || undefined
+                    note: effectiveGeneralNote || undefined
                 })
                 : null,
             allow_during_checkin: mode === "checkin",
@@ -2578,8 +2579,8 @@ export default function ReservationDetailPage({
 
             setDepositAmount(depositTotal);
             setDepositLines(lines);
-            setDepositGeneralNote(normalizedGeneralNote);
-            setDepositWarning(lines.length > 0 || normalizedGeneralNote.length > 0 ? "Deposit note stored as a snapshot." : "");
+            setDepositGeneralNote(effectiveGeneralNote);
+            setDepositWarning(lines.length > 0 || effectiveGeneralNote.length > 0 ? "Deposit note stored as a snapshot." : "");
             setDepositInlineError("");
             return true;
         } catch (error) {
@@ -4734,6 +4735,7 @@ export default function ReservationDetailPage({
                                                 totalPrice={mode === "checkout" || dayUseAmountOnlyMode ? totalPrice : fromSatang(computedTotalSatang)}
                                                 discountAmount={fromSatang(discountSatang)}
                                                 discountReason={discountReason}
+                                                depositNote={depositGeneralNote}
                                                 mode={mode}
                                                 policyFeePreview={
                                                     mode === "checkout"

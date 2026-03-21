@@ -871,7 +871,11 @@ function CalendarPageInner() {
                                                     <div
                                                         key={day}
                                                         className={`flex-shrink-0 border-r border-[var(--border-subtle)] cursor-pointer transition-colors ${
-                                                            day === today ? "bg-brand-50/30 dark:bg-brand-900/30" : isWeekend(day) ? "bg-rose-50/20 dark:bg-rose-900/15" : "hover:bg-[var(--bg-body)]"
+                                                            day === today 
+                                                                ? "bg-brand-50/40 hover:bg-brand-200/50 dark:bg-brand-900/30 dark:hover:bg-brand-900/50" 
+                                                                : isWeekend(day) 
+                                                                    ? "bg-rose-50/30 hover:bg-rose-200/40 dark:bg-rose-900/15 dark:hover:bg-rose-900/30" 
+                                                                    : "hover:bg-slate-200/50 dark:hover:bg-white/5"
                                                         } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                         style={{ width: COL_W, height: ROW_H }}
                                                         onClick={() => {
@@ -1018,7 +1022,7 @@ function CalendarPageInner() {
                                             {dayUseRooms.map((room) => {
                                                 const roomBlocks = getBlocksForRoom(room);
                                                 return (
-                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-50/20 dark:bg-rose-900/10 dark:hover:bg-rose-900/15 transition-colors" style={{ height: ROW_H }}>
+                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-200/30 dark:bg-rose-900/10 dark:hover:bg-rose-900/25 transition-colors" style={{ height: ROW_H }}>
                                                         {days.map((day) => {
                                                             const hasRes = room.reservations.some((r) => r.nights.includes(day));
                                                             return (
