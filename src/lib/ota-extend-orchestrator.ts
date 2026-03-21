@@ -484,10 +484,6 @@ async function loadOrchestratorContext(supabase: SupabaseLike, input: OtaExtendP
   if (String(reservation.status) !== "active") {
     throw new OtaExtendOrchestratorError("Only active reservations can use OTA extend orchestrator.", 400);
   }
-  if (String(reservation.source) !== "ota") {
-    throw new OtaExtendOrchestratorError("OTA extend orchestrator is available for OTA reservations only.", 400);
-  }
-
   const extensionCheckinDate = String(reservation.checkout_date);
   if (compareDateStrings(newCheckoutDate, extensionCheckinDate) <= 0) {
     throw new OtaExtendOrchestratorError("new_checkout_date must be after current checkout date.", 400);

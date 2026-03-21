@@ -11,6 +11,7 @@ import { DayUseTimer } from "./dayuse-timer";
 import type { LinkedStay } from "@/lib/types";
 import { LinkedStayBadge } from "./linked-stay-badge";
 import { Link as LinkIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 type DiaryState = "available" | "due_in" | "inhouse" | "back_to_back" | "due_out";
@@ -227,6 +228,9 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [showOptionsPanel, setShowOptionsPanel] = useState(false);
     const [showMoveRoomModal, setShowMoveRoomModal] = useState(false);
     const [showLinkedExtensionModal, setShowLinkedExtensionModal] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showEarlyCheckoutConfirm, setShowEarlyCheckoutConfirm] = useState(false);
+    const moreMenuRef = useRef<HTMLDivElement>(null);
     const [cancelLoading, setCancelLoading] = useState(false);
     const [msg, setMsg] = useState("");
     const [transferAlertToggleLoading, setTransferAlertToggleLoading] = useState(false);
@@ -285,20 +289,33 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 !showDepositModal &&
                 !showOptionsPanel &&
                 !showMoveRoomModal &&
-                !showLinkedExtensionModal
+                !showLinkedExtensionModal &&
+                !showEarlyCheckoutConfirm
             ) {
                 onClose();
             }
         }
         document.addEventListener("keydown", handleKey);
         return () => document.removeEventListener("keydown", handleKey);
-    }, [onClose, detailMode, showDepositModal, showOptionsPanel, showMoveRoomModal, showLinkedExtensionModal]);
+    }, [onClose, detailMode, showDepositModal, showOptionsPanel, showMoveRoomModal, showLinkedExtensionModal, showEarlyCheckoutConfirm]);
 
     // Scroll lock
     useEffect(() => {
         document.body.style.overflow = "hidden";
         return () => { document.body.style.overflow = ""; };
     }, []);
+
+    // Close action menu on outside click
+    useEffect(() => {
+        if (!showMoreMenu) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+                setShowMoreMenu(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showMoreMenu]);
 
     async function handleCancelClick() {
         if (!room.reservation) return;
@@ -482,7 +499,21 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const canInHouseActions = Boolean(res && (diaryState === "inhouse" || diaryState === "due_out" || diaryState === "back_to_back"));
     const canOptions = Boolean(res);
     const canMoveRoom = Boolean(canInHouseActions && res?.room_type_id);
+    const assignedLockActive = Boolean(res?.do_not_move_assigned_room);
+    const assignedLockReason = res?.do_not_move_reason ?? null;
+    const assignedLockRoomNumber = res?.do_not_move_room_number_snapshot ?? room.room_number;
+    const canLockRoom = Boolean(res && res.id && room.room_id && !res.checked_in_at);
+    const canEarlyCheckout = Boolean(res && diaryState === "inhouse");
     const canManageDeposit = Boolean(res?.checked_in_at);
+    const canShowMore = Boolean(
+        canManageDeposit || 
+        canMoveRoom || 
+        (canInHouseActions && res?.room_type_id) || 
+        (canLockRoom && !assignedLockActive) || 
+        (canLockRoom && assignedLockActive) || 
+        canEarlyCheckout || 
+        canCancel
+    );
     const canControlTransferAlert =
         Boolean(room.transfer_id) &&
         (room.transfer_status === "pending" ||
@@ -603,11 +634,6 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         setLockReasonInput("");
         setLockLoading(false);
     }, [room.room_id]);
-
-    const assignedLockActive = Boolean(res?.do_not_move_assigned_room);
-    const assignedLockReason = res?.do_not_move_reason ?? null;
-    const assignedLockRoomNumber = res?.do_not_move_room_number_snapshot ?? room.room_number;
-    const canLockRoom = Boolean(res && res.id && room.room_id && !res.checked_in_at);
 
     async function handleSaveAssignedLock() {
         if (!res?.id) return;
@@ -757,6 +783,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     !showOptionsPanel &&
                     !showMoveRoomModal &&
                     !showLinkedExtensionModal &&
+                    !showEarlyCheckoutConfirm &&
                     onClose()
                 }
             />
@@ -981,84 +1008,32 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                             )}
                                             {canCheckOut && (
                                                 <button
-                                                    className="btn btn-success btn-sm flex items-center gap-1"
+                                                    className="btn btn-sm flex items-center gap-1 bg-rose-600 text-white hover:bg-rose-700"
                                                     onClick={() => setDetailMode("checkout")}
                                                 >
                                                     Check-out
                                                 </button>
                                             )}
-                                            <button
-                                                className="btn btn-secondary btn-sm flex items-center gap-1 bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
-                                                onClick={() => {
-                                                    if (!canManageDeposit) return;
-                                                    setShowDepositModal(true);
-                                                }}
-                                                disabled={!canManageDeposit}
-                                                title={canManageDeposit ? "Manage deposit" : "Deposit locked before check-in"}
-                                            >
-                                                <svg className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                                                    <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
-                                                </svg>
-                                                Deposit
-                                            </button>
-                                            <button
-                                                className="btn btn-secondary btn-sm flex items-center gap-1"
-                                                onClick={() => setDetailMode(editMode)}
-                                            >
-                                                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                                </svg>
-                                                Edit
-                                            </button>
-                                            {canMoveRoom && (
+                                            {res && (
                                                 <button
-                                                    className="btn btn-primary btn-sm"
-                                                    onClick={() => setShowMoveRoomModal(true)}
+                                                    className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                    onClick={() => setDetailMode(editMode)}
                                                 >
-                                                    Move Room
-                                                </button>
-                                            )}
-                                            {canLockRoom && !assignedLockActive && (
-                                                <button
-                                                    className="btn btn-secondary btn-sm text-rose-700 hover:bg-rose-50"
-                                                    onClick={() => setShowLockEditor((value) => !value)}
-                                                    disabled={lockLoading}
-                                                >
-                                                    🔒 Lock Room
-                                                </button>
-                                            )}
-                                            {canLockRoom && assignedLockActive && (
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={handleUnlockAssignedLock}
-                                                    disabled={lockLoading}
-                                                >
-                                                    🔓 Unlock
-                                                </button>
-                                            )}
-                                            {res && plannedMoveCount > 0 && (
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => window.location.assign(`/pms/calendar?focus_reservation_id=${res.id}`)}
-                                                >
-                                                    View Path
-                                                </button>
-                                            )}
-                                            {canInHouseActions && res?.source === "ota" && (
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setShowLinkedExtensionModal(true)}
-                                                >
-                                                    Extend Stay
+                                                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                                    </svg>
+                                                    Edit
                                                 </button>
                                             )}
                                             {canOptions && (
                                                 <button
-                                                    className="btn btn-secondary btn-sm"
+                                                    className="btn btn-secondary btn-sm flex items-center gap-1"
                                                     onClick={() => setShowOptionsPanel(true)}
                                                 >
-                                                    ⋯ Options
+                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                                    </svg>
+                                                    Options
                                                     {inlineAlerts.length > 0 && (
                                                         <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
                                                             🔴 {inlineAlerts.length}
@@ -1071,13 +1046,106 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                     )}
                                                 </button>
                                             )}
-                                            {canCancel && (
+                                            {canShowMore && (
+                                                <div className="relative" ref={moreMenuRef}>
+                                                    <button
+                                                        className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                                                    >
+                                                        More
+                                                        <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                    {showMoreMenu && (
+                                                        <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg py-1">
+                                                            {canManageDeposit && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowDepositModal(true); }}
+                                                                >
+                                                                    <svg className="h-4 w-4 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+                                                                        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Deposit
+                                                                </button>
+                                                            )}
+                                                            {canMoveRoom && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-blue-600 dark:text-blue-400"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowMoveRoomModal(true); }}
+                                                                >
+                                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Move Room
+                                                                </button>
+                                                            )}
+                                                            {canInHouseActions && res?.room_type_id && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowLinkedExtensionModal(true); }}
+                                                                >
+                                                                    <svg className="h-4 w-4 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                                    </svg>
+                                                                    Extend Stay
+                                                                </button>
+                                                            )}
+                                                            {canLockRoom && !assignedLockActive && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowLockEditor(true); }}
+                                                                >
+                                                                    <span>🔒</span>
+                                                                    Lock Room
+                                                                </button>
+                                                            )}
+                                                            {canLockRoom && assignedLockActive && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(false); handleUnlockAssignedLock(); }}
+                                                                >
+                                                                    <span>🔓</span>
+                                                                    Unlock Room
+                                                                </button>
+                                                            )}
+                                                            
+                                                            {(canEarlyCheckout || canCancel) && <hr className="my-1 border-[var(--border-default)]" />}
+                                                            
+                                                            {canEarlyCheckout && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-amber-600"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowEarlyCheckoutConfirm(true); }}
+                                                                >
+                                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Early Check-out
+                                                                </button>
+                                                            )}
+                                                            {canCancel && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-rose-600"
+                                                                    onClick={() => { setShowMoreMenu(false); handleCancelClick(); }}
+                                                                >
+                                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Cancel Booking
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {res && plannedMoveCount > 0 && (
                                                 <button
-                                                    className="btn btn-danger btn-sm"
-                                                    onClick={handleCancelClick}
-                                                    disabled={cancelLoading}
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => window.location.assign(`/pms/calendar?focus_reservation_id=${res.id}`)}
                                                 >
-                                                    {cancelLoading ? "Cancelling…" : "Cancel"}
+                                                    View Path
                                                 </button>
                                             )}
                                         </>
@@ -1386,9 +1454,53 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 />
             )}
 
+            {showEarlyCheckoutConfirm && res && (
+                <Dialog open onOpenChange={() => setShowEarlyCheckoutConfirm(false)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-amber-600">
+                                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                </svg>
+                                Early Check-out
+                            </DialogTitle>
+                            <div className="space-y-2 pt-2 text-sm text-[var(--text-secondary)]">
+                                <div className="font-medium text-[var(--text-primary)]">
+                                    {res.guest_name} — Room {room.room_number}
+                                </div>
+                                <div>
+                                    Original departure: <span className="font-semibold">{res.checkout_date}</span>
+                                </div>
+                                <div className="text-amber-600">
+                                    Guest is checking out early (before departure date). Unused nights will be removed.
+                                </div>
+                            </div>
+                        </DialogHeader>
+                        <DialogFooter className="flex gap-2 sm:gap-0">
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setShowEarlyCheckoutConfirm(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-sm bg-amber-500 text-white hover:bg-amber-600"
+                                onClick={() => {
+                                    setShowEarlyCheckoutConfirm(false);
+                                    setDetailMode("checkout");
+                                }}
+                            >
+                                Proceed to Check-out
+                            </button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+
             {showLinkedExtensionModal && res && res.room_type_id && (
                 <LinkedExtensionModal
                     reservationId={res.id}
+                    source={res.source}
                     guestName={res.guest_name}
                     currentCheckoutDate={res.checkout_date}
                     currentRoomTypeId={String(res.room_type_id)}

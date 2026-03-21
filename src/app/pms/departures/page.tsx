@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ReservationDetailPage from "@/components/reservation-detail-page";
+import ReservationOptionsPanel from "@/components/reservation-options-panel";
+import LinkedExtensionModal from "@/components/linked-extension-modal";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { DayUseTimer } from "@/components/dayuse-timer";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
@@ -26,9 +28,11 @@ type Departure = {
     checkin_date: string;
     checkout_date: string;
     total_price: number;
+    outstanding_balance?: number;
     note?: string | null;
     room_number: string;
     room_type: string;
+    room_type_id?: string | null;
     nights_count: number;
     nightly_breakdown: NightlyItem[];
     vip_tier?: string | null;
@@ -75,6 +79,19 @@ export default function DeparturesPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [checkoutResId, setCheckoutResId] = useState<string | null>(null);
+    const [optionsState, setOptionsState] = useState<{ reservation: Departure; initialTab?: "traces" | "alerts" | "guest" | "loans" } | null>(null);
+    const [linkedExtensionReservation, setLinkedExtensionReservation] = useState<Departure | null>(null);
+    const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (!(event.target as Element).closest(".more-menu-container")) {
+                setShowMoreMenu(null);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
     const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
     const [toast, setToast] = useState("");
 
@@ -176,22 +193,23 @@ export default function DeparturesPage() {
                         <span className="text-amber-600 font-semibold">{departures.length - doneIds.size} pending</span>
                     </div>
 
-                    <div className="card overflow-hidden">
+                    <div className="card overflow-visible">
                         <table className="data-table table-fixed w-full">
                             <thead>
                                 <tr>
                                     <th className="w-[12%]">Room</th>
                                     <th className="w-[21%]">Guest</th>
                                     <th className="w-[10%]">Source</th>
-                                    <th className="w-[26%]">Stay</th>
-                                    <th className="w-[13%]">Total</th>
-                                    <th className="w-[18%]">Action</th>
+                                    <th className="w-[21%]">Stay</th>
+                                    <th className="w-[10%]">Total</th>
+                                    <th className="w-[26%]">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {mergedDepartures.map((merged) => {
                                     const d = merged.active_reservation;
                                     const isCheckedOut = d.status === "checked_out" || doneIds.has(d.id);
+                                    const hasOutstandingBalance = merged.all_reservations.some((item) => Number(item.outstanding_balance ?? 0) > 0);
                                     const loyaltyVisual = resolveGuestLoyaltyVisual(d);
                                     
                                     const displayCheckin = merged.is_linked ? merged.linked_full_checkin : d.checkin_date;
@@ -207,7 +225,7 @@ export default function DeparturesPage() {
                                             <td>
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <div
-                                                        className={`font-semibold min-w-0 flex-1 truncate ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}
+                                                        className={`font-semibold min-w-0 flex-1 truncate ${hasOutstandingBalance ? "text-rose-600 dark:text-rose-400" : isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}
                                                         title={d.guest_name}
                                                     >
                                                         {d.guest_name}
@@ -243,12 +261,50 @@ export default function DeparturesPage() {
                                                 {isCheckedOut ? (
                                                     <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">✓ Checked Out</span>
                                                 ) : (
-                                                    <button
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => setCheckoutResId(d.id)}
-                                                    >
-                                                        Check-out
-                                                    </button>
+                                                    <div className="flex gap-1 flex-wrap items-center">
+                                                        <button
+                                                            className="btn btn-primary btn-sm bg-rose-600 hover:bg-rose-700 border-none min-w-[100px]"
+                                                            onClick={() => setCheckoutResId(d.id)}
+                                                        >
+                                                            Check-out
+                                                        </button>
+                                                        
+                                                        <button
+                                                            className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                            onClick={() => setOptionsState({ reservation: d })}
+                                                        >
+                                                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                                            </svg>
+                                                            Options
+                                                        </button>
+                                                        {d.room_type && (
+                                                            <div className="relative more-menu-container">
+                                                                <button 
+                                                                    className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                                    onClick={() => setShowMoreMenu(prev => prev === d.id ? null : d.id)}
+                                                                >
+                                                                    More
+                                                                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </button>
+                                                                {showMoreMenu === d.id && (
+                                                                    <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg py-1">
+                                                                        <button
+                                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                            onClick={() => { setShowMoreMenu(null); setLinkedExtensionReservation(d); }}
+                                                                        >
+                                                                            <svg className="h-4 w-4 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+                                                                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                                            </svg>
+                                                                            Extend Stay
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
@@ -332,6 +388,37 @@ export default function DeparturesPage() {
                     reservationId={checkoutResId}
                     onClose={() => setCheckoutResId(null)}
                     onSuccess={handleCheckoutSuccess}
+                />
+            )}
+
+            {optionsState && (
+                <ReservationOptionsPanel
+                    reservationId={optionsState.reservation.id}
+                    guestName={optionsState.reservation.guest_name}
+                    checkinDate={optionsState.reservation.checkin_date}
+                    checkoutDate={optionsState.reservation.checkout_date}
+                    initialTab={optionsState.initialTab}
+                    onClose={() => {
+                        setOptionsState(null);
+                        load();
+                    }}
+                />
+            )}
+
+            {linkedExtensionReservation && (
+                <LinkedExtensionModal
+                    reservationId={linkedExtensionReservation.id}
+                    source={linkedExtensionReservation.source}
+                    guestName={linkedExtensionReservation.guest_name}
+                    currentCheckoutDate={linkedExtensionReservation.checkout_date}
+                    currentRoomTypeId={String(linkedExtensionReservation.room_type_id ?? "")}
+                    currentRoomNumber={linkedExtensionReservation.room_number}
+                    onClose={() => setLinkedExtensionReservation(null)}
+                    onSuccess={() => {
+                        showToast(`✓ Linked walk-in extension created for ${linkedExtensionReservation.guest_name}`);
+                        setLinkedExtensionReservation(null);
+                        load();
+                    }}
                 />
             )}
 

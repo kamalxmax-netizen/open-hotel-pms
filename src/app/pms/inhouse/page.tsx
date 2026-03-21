@@ -8,6 +8,7 @@ import ReservationDetailPage from "@/components/reservation-detail-page";
 import DayUseExtendModal from "@/components/dayuse-extend-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import LinkedExtensionModal from "@/components/linked-extension-modal";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { DayUseTimer } from "@/components/dayuse-timer";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
@@ -32,6 +33,7 @@ type InHouseReservation = {
     checked_in_at?: string | null;
     nights_remaining: number;
     total_price: number;
+    outstanding_balance?: number;
     vip_tier?: string | null;
     stay_count?: number;
     night_count?: number;
@@ -83,6 +85,19 @@ export default function InHousePage() {
     const [optionsState, setOptionsState] = useState<OptionsState | null>(null);
     const [moveReservation, setMoveReservation] = useState<InHouseReservation | null>(null);
     const [detailResId, setDetailResId] = useState<string | null>(null);
+    const [detailMode, setDetailMode] = useState<"inhouse" | "checkout">("inhouse");
+    const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+    const [earlyCoTarget, setEarlyCoTarget] = useState<InHouseReservation | null>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (!(event.target as Element).closest(".more-menu-container")) {
+                setShowMoreMenu(null);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
     const [dayUseExtendTarget, setDayUseExtendTarget] = useState<InHouseDayUseReservation | null>(null);
     const [linkedExtensionReservation, setLinkedExtensionReservation] = useState<InHouseReservation | null>(null);
     const [toast, setToast] = useState("");
@@ -264,7 +279,7 @@ export default function InHousePage() {
             )}
 
             {!loading && reservations.length > 0 && (
-                <div className="card overflow-hidden">
+                <div className="card overflow-visible">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -279,106 +294,157 @@ export default function InHousePage() {
                         <tbody>
                             {mergedReservations.map((merged) => {
                                 const r = merged.active_reservation;
+                                const hasOutstandingBalance = merged.all_reservations.some((item) => Number(item.outstanding_balance ?? 0) > 0);
                                 const loyaltyVisual = resolveGuestLoyaltyVisual(r);
-                                
+
                                 const displayCheckin = merged.is_linked ? merged.linked_full_checkin : r.checkin_date;
                                 const displayCheckout = merged.is_linked ? merged.linked_full_checkout : r.checkout_date;
-                                
+
                                 return (
-                                <tr key={merged.group_id} className={loyaltyVisual.rowClass}>
-                                    <td>
-                                        <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
-                                        <div className="text-xs text-[var(--text-muted)]">{r.room_type}</div>
-                                    </td>
-                                    <td>
-                                        <div className="flex items-center gap-2">
-                                            <div className="font-semibold text-[var(--text-primary)]">{r.guest_name}</div>
-                                            {r.booking_group_id && (
-                                                <Link
-                                                    href={`/pms/groups?group_id=${r.booking_group_id}`}
-                                                    className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400 hover:bg-indigo-200 transition-colors"
-                                                    title={r.group_name ?? "Open Group Booking"}
+                                    <tr key={merged.group_id} className={loyaltyVisual.rowClass}>
+                                        <td>
+                                            <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">{r.room_type}</div>
+                                        </td>
+                                        <td>
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className={`font-semibold ${hasOutstandingBalance ? "text-rose-600 dark:text-rose-400" : "text-[var(--text-primary)]"}`}
                                                 >
-                                                    {formatShortGroupCode(r.group_code)}
-                                                </Link>
+                                                    {r.guest_name}
+                                                </div>
+                                                {r.booking_group_id && (
+                                                    <Link
+                                                        href={`/pms/groups?group_id=${r.booking_group_id}`}
+                                                        className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400 hover:bg-indigo-200 transition-colors"
+                                                        title={r.group_name ?? "Open Group Booking"}
+                                                    >
+                                                        {formatShortGroupCode(r.group_code)}
+                                                    </Link>
+                                                )}
+                                                {r.open_traces_count > 0 && (
+                                                    <span
+                                                        className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400"
+                                                        title="Open Traces"
+                                                    >
+                                                        🟠 {r.open_traces_count}
+                                                    </span>
+                                                )}
+                                                {(r.alert_count ?? 0) > 0 && (
+                                                    <span
+                                                        className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400"
+                                                        title={r.first_alert_message ?? "Alerts Present"}
+                                                    >
+                                                        🔴 {r.alert_count}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
+                                        </td>
+                                        <td>
+                                            <div className="text-sm">{displayCheckin}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">→ {displayCheckout}</div>
+                                            {merged.is_linked && (
+                                                <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />
                                             )}
-                                            {r.open_traces_count > 0 && (
-                                                <span
-                                                    className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400"
-                                                    title="Open Traces"
-                                                >
-                                                    🟠 {r.open_traces_count}
-                                                </span>
-                                            )}
-                                            {(r.alert_count ?? 0) > 0 && (
-                                                <span
-                                                    className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400"
-                                                    title={r.first_alert_message ?? "Alerts Present"}
-                                                >
-                                                    🔴 {r.alert_count}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
-                                    </td>
-                                    <td>
-                                        <div className="text-sm">{displayCheckin}</div>
-                                        <div className="text-xs text-[var(--text-muted)]">→ {displayCheckout}</div>
-                                        {merged.is_linked && (
-                                            <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />
-                                        )}
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={`font-semibold ${merged.linked_nights_remaining <= 1 ? "text-amber-700" : "text-[var(--text-table-cell)]"}`}
-                                        >
-                                            {merged.linked_nights_remaining} night{merged.linked_nights_remaining !== 1 ? "s" : ""}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className="font-semibold text-[var(--text-primary)]">฿{fmt(merged.linked_total_price)}</span>
-                                    </td>
-                                    <td>
-                                        <div className="flex gap-1 flex-wrap">
-                                            <button
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setDetailResId(r.id)}
+                                        </td>
+                                        <td>
+                                            <span
+                                                className={`font-semibold ${merged.linked_nights_remaining <= 1 ? "text-amber-700" : "text-[var(--text-table-cell)]"}`}
                                             >
-                                                View Details
-                                            </button>
-                                            <button
-                                                className="btn btn-primary btn-sm"
-                                                onClick={() => setMoveReservation(r)}
-                                                disabled={!r.room_type_id || r.room_number === "—"}
-                                            >
-                                                Move Room
-                                            </button>
-                                            {plannedMoveCounts[r.id] > 0 && (
+                                                {merged.linked_nights_remaining} night{merged.linked_nights_remaining !== 1 ? "s" : ""}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="font-semibold text-[var(--text-primary)]">฿{fmt(merged.linked_total_price)}</span>
+                                        </td>
+                                        <td>
+                                            <div className="flex gap-1 flex-wrap items-center">
                                                 <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => window.location.assign(`/pms/calendar?focus_reservation_id=${r.id}`)}
+                                                    className="btn btn-secondary btn-sm min-w-[100px]"
+                                                    onClick={() => {
+                                                        setDetailMode("inhouse");
+                                                        setDetailResId(r.id);
+                                                    }}
                                                 >
-                                                    Path ({plannedMoveCounts[r.id]})
+                                                    View Details
                                                 </button>
-                                            )}
-                                            {r.room_type_id && r.source === "ota" && (
+
                                                 <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setLinkedExtensionReservation(r)}
+                                                    className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                    onClick={() => setOptionsState({ reservation: r })}
                                                 >
-                                                    Extend Stay
+                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                                    </svg>
+                                                    Options
                                                 </button>
-                                            )}
-                                            <button
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setOptionsState({ reservation: r })}
-                                            >
-                                                ⋯ Options
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )})}
+
+                                                <div className="relative more-menu-container">
+                                                    <button
+                                                        className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                        onClick={() => setShowMoreMenu(prev => prev === r.id ? null : r.id)}
+                                                    >
+                                                        More
+                                                        <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                    {showMoreMenu === r.id && (
+                                                        <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg py-1">
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-blue-600 dark:text-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                onClick={() => { setShowMoreMenu(null); setMoveReservation(r); }}
+                                                                disabled={!r.room_type_id || r.room_number === "—"}
+                                                            >
+                                                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                                                                </svg>
+                                                                Move Room
+                                                            </button>
+                                                            {plannedMoveCounts[r.id] > 0 && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(null); window.location.assign(`/pms/calendar?focus_reservation_id=${r.id}`); }}
+                                                                >
+                                                                    <svg className="h-4 w-4 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Path ({plannedMoveCounts[r.id]})
+                                                                </button>
+                                                            )}
+                                                            {r.room_type_id && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(null); setLinkedExtensionReservation(r); }}
+                                                                >
+                                                                    <svg className="h-4 w-4 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                                    </svg>
+                                                                    Extend Stay
+                                                                </button>
+                                                            )}
+                                                            <hr className="my-1 border-[var(--border-default)]" />
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-amber-600"
+                                                                onClick={() => {
+                                                                    setShowMoreMenu(null);
+                                                                    setEarlyCoTarget(r);
+                                                                }}
+                                                            >
+                                                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                                                </svg>
+                                                                Early Check-out
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -490,9 +556,36 @@ export default function InHousePage() {
                 />
             )}
 
+            {/* Early Check-out Confirmation Dialog */}
+            <Dialog open={!!earlyCoTarget} onOpenChange={(open) => { if (!open) setEarlyCoTarget(null); }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-amber-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                            Early Check-out
+                        </DialogTitle>
+                        <DialogDescription className="space-y-2 pt-2">
+                            <p><strong>{earlyCoTarget?.guest_name}</strong> — Room {earlyCoTarget?.room_number}</p>
+                            <p>Original departure: <strong>{earlyCoTarget?.checkout_date}</strong></p>
+                            <p className="text-amber-600">Guest is checking out early (before departure date). Unused nights will be removed.</p>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEarlyCoTarget(null)}>Cancel</button>
+                        <button className="btn btn-warning btn-sm" onClick={() => {
+                            if (earlyCoTarget) {
+                                setDetailMode("checkout");
+                                setDetailResId(earlyCoTarget.id);
+                            }
+                            setEarlyCoTarget(null);
+                        }}>Proceed to Check-out</button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {detailResId && (
                 <ReservationDetailPage
-                    mode="inhouse"
+                    mode={detailMode}
                     reservationId={detailResId}
                     onClose={() => setDetailResId(null)}
                     onSuccess={() => {

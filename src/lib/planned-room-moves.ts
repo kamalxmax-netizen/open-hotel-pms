@@ -203,6 +203,13 @@ export function buildDoNotMoveNoteLine(params: {
   return `${prefix}[${params.startDate} → ${params.endDate}][Room ${params.roomNumber}] ${params.note.trim()}`;
 }
 
+function normalizeReservationNoteLine(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+  if (/^[-*•]\s/u.test(trimmed)) return trimmed;
+  return `- ${trimmed}`;
+}
+
 export async function appendReservationNoteLine(
   supabase: SupabaseLike,
   reservationId: string,
@@ -222,7 +229,9 @@ export async function appendReservationNoteLine(
   }
 
   const current = typeof reservation.note === "string" ? reservation.note.trimEnd() : "";
-  const nextNote = current ? `${current}\n${line}` : line;
+  const formattedLine = normalizeReservationNoteLine(line);
+  if (!formattedLine) return;
+  const nextNote = current ? `${current}\n${formattedLine}` : formattedLine;
   const { error: updateError } = await supabase
     .from("reservations")
     .update({ note: nextNote })

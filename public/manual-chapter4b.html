@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>หมวด 4ข: การจัดการกรณีพิเศษ Front Desk | Hotel PMS คู่มือพนักงาน</title>
+  <style>
+    /* ─── Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent: #4f46e5;
+      --accent-light: #eef2ff;
+      --accent-mid: #6366f1;
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --amber: #b45309;
+      --amber-light: #fef9c3;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --blue: #1d4ed8;
+      --blue-light: #dbeafe;
+      --gray: #374151;
+      --gray-light: #f9fafb;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --radius: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Sarabun', 'Segoe UI', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text);
+      background: #f3f4f6;
+    }
+
+    /* ─── Layout ──────────────────────────────────────────── */
+    .page-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 80px; }
+    .chapter-header {
+      background: linear-gradient(135deg, #312e81 0%, #4f46e5 60%, #6366f1 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 36px 32px 28px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .chapter-header::after {
+      content: "⚡";
+      font-size: 120px;
+      position: absolute;
+      right: -10px;
+      top: -20px;
+      opacity: 0.08;
+      pointer-events: none;
+    }
+    .chapter-header .tag {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 99px;
+      font-size: 12px;
+      padding: 3px 12px;
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+    .chapter-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .chapter-header .subtitle { font-size: 15px; opacity: 0.85; }
+
+    /* ─── Navigation ──────────────────────────────────────── */
+    .toc {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 28px;
+    }
+    .toc h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 10px; }
+    .toc ul { list-style: none; }
+    .toc ul li { margin-bottom: 6px; }
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toc a:hover { text-decoration: underline; }
+    .toc-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ─── Sections ────────────────────────────────────────── */
+    .section {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .section-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .section-icon.red { background: var(--red-light); }
+    .section-icon.amber { background: var(--amber-light); }
+    .section-icon.blue { background: var(--blue-light); }
+    .section-icon.green { background: var(--green-light); }
+    .section-icon.purple { background: var(--accent-light); }
+    .section-title { font-size: 19px; font-weight: 700; color: var(--text); }
+    .section-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .section-body { padding: 22px 24px; }
+
+    /* ─── Subsection ──────────────────────────────────────── */
+    .subsection { margin-bottom: 22px; }
+    .subsection-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    /* ─── Cards ───────────────────────────────────────────── */
+    .card {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: var(--gray-light);
+    }
+    .card.accent { border-color: #c7d2fe; background: var(--accent-light); }
+    .card.green { border-color: #bbf7d0; background: var(--green-light); }
+    .card.amber { border-color: #fde68a; background: var(--amber-light); }
+    .card.red { border-color: #fecaca; background: var(--red-light); }
+    .card.blue { border-color: #bfdbfe; background: var(--blue-light); }
+
+    /* ─── Steps ───────────────────────────────────────────── */
+    .steps { counter-reset: step; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .step::before {
+      content: counter(step);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #374151; }
+    .step-note { font-size: 13px; color: var(--muted); margin-top: 4px; font-style: italic; }
+
+    /* ─── Tip / Warning boxes ─────────────────────────────── */
+    .tip-box {
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .tip-box .tip-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .tip-box.tip { background: var(--blue-light); border: 1px solid #93c5fd; color: var(--blue); }
+    .tip-box.warn { background: var(--amber-light); border: 1px solid #fcd34d; color: var(--amber); }
+    .tip-box.success { background: var(--green-light); border: 1px solid #86efac; color: var(--green); }
+    .tip-box.danger { background: var(--red-light); border: 1px solid #fca5a5; color: var(--red); }
+
+    /* ─── Table ───────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 14px; }
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      padding: 9px 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f9fafb; }
+
+    /* ─── Badges / Tags ───────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      letter-spacing: 0.03em;
+    }
+    .badge.green { background: #dcfce7; color: #15803d; }
+    .badge.blue { background: #dbeafe; color: #1d4ed8; }
+    .badge.amber { background: #fef9c3; color: #92400e; }
+    .badge.red { background: #fee2e2; color: #b91c1c; }
+    .badge.purple { background: #ede9fe; color: #6d28d9; }
+    .badge.gray { background: #f1f5f9; color: #475569; }
+
+    /* ─── Flow Diagram ────────────────────────────────────── */
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .flow-node {
+      background: #fff;
+      border: 1.5px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .flow-node.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .flow-node.warn { background: var(--amber-light); color: var(--amber); border-color: #fcd34d; }
+    .flow-node.danger { background: var(--red-light); color: var(--red); border-color: #fca5a5; }
+    .flow-node.success { background: var(--green-light); color: var(--green); border-color: #86efac; }
+    .flow-arrow { font-size: 16px; color: var(--muted); }
+
+    /* ─── Price Box ───────────────────────────────────────── */
+    .price-box {
+      background: #f8faff;
+      border: 1.5px solid #c7d2fe;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 12px;
+    }
+    .price-box .price-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 6px; }
+    .price-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 3px 0; }
+    .price-row.total { font-weight: 700; font-size: 15px; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px; }
+    .price-row .label { color: var(--gray); }
+    .price-row .value { font-weight: 600; color: var(--accent); }
+
+    /* ─── Scenario Box ────────────────────────────────────── */
+    .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+    @media (max-width: 620px) { .scenario-grid { grid-template-columns: 1fr; } }
+    .scenario-card {
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      padding: 14px;
+      background: #fff;
+    }
+    .scenario-card .s-num {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+      letter-spacing: 0.06em;
+    }
+    .scenario-card .s-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .scenario-card .s-body { font-size: 13px; color: var(--gray); }
+
+    /* ─── Iframe ──────────────────────────────────────────── */
+    .iframe-wrap {
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1.5px solid var(--border);
+      margin: 14px 0;
+      background: #f8faff;
+    }
+    .iframe-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 12px;
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.05em;
+    }
+    .iframe-wrap iframe {
+      width: 100%;
+      height: 540px;
+      display: block;
+      border: none;
+    }
+
+    /* ─── Glossary ────────────────────────────────────────── */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .glossary-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #fff;
+    }
+    .glossary-item .term { font-weight: 700; font-size: 14px; color: var(--accent); }
+    .glossary-item .definition { font-size: 13px; color: var(--gray); margin-top: 3px; }
+
+    /* ─── Checklist ───────────────────────────────────────── */
+    .checklist { list-style: none; }
+    .checklist li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .checklist li::before {
+      content: "☐";
+      font-size: 16px;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ─── Utility ─────────────────────────────────────────── */
+    strong { color: #1e1b4b; }
+    p { margin-bottom: 10px; }
+    ul { padding-left: 20px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-4 { margin-top: 16px; }
+    .mb-2 { margin-bottom: 8px; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    /* ─── Print ───────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; font-size: 13px; }
+      .iframe-wrap { display: none; }
+      .page-wrap { max-width: 100%; padding: 0; }
+      .section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Header -->
+  <div class="chapter-header">
+    <div class="tag">หมวดที่ 4ข · SPECIAL OPERATIONS</div>
+    <h1>การจัดการกรณีพิเศษ Front Desk</h1>
+    <div class="subtitle">Early C/O · Late Arrival · Room Move / Plan Move · Extend Stay (OTA & Walk-in)</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>เนื้อหาในหมวดนี้</h2>
+    <ul>
+      <li><a href="#sec-earlyco"><span class="toc-num">1</span> Early Check-out (ออกก่อนกำหนด)</a></li>
+      <li><a href="#sec-lateArr"><span class="toc-num">2</span> Very Late Arrival (เช็คอินดึกมาก)</a></li>
+      <li><a href="#sec-roommove"><span class="toc-num">3</span> Room Move &amp; Plan Room Move (ย้ายห้อง)</a></li>
+      <li><a href="#sec-extend"><span class="toc-num">4</span> Extend Stay — OTA &amp; Walk-in (ต่ออายุ)</a></li>
+      <li><a href="#sec-glossary"><span class="toc-num">5</span> คำศัพท์ที่ต้องรู้</a></li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 1: EARLY CHECK-OUT
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-earlyco">
+    <div class="section-header">
+      <div class="section-icon red">🚪</div>
+      <div>
+        <div class="section-title">1. Early Check-out (Early C/O)</div>
+        <div class="section-subtitle">แขกต้องการออกก่อนวันที่จองไว้</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">สถานการณ์</div>
+        <p>แขก In-house โทรมาบอกจะออกวันนี้ ทั้งที่จองถึงอีก 2–3 คืน ระบบจะเรียก <strong>Shorten Flow</strong> อัตโนมัติ เพื่อคำนวณว่าต้องเก็บค่าปรับ (<strong>Shorten Fee</strong>) หรือไม่ และมีเงินคืนเท่าไหร่</p>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">หลักการคิดราคา</div>
+        <div class="card accent">
+          <strong>📌 กฎทอง:</strong> คิดค่าห้องเฉพาะคืนที่แขก <u>พักจริง</u> เท่านั้น
+          <ul class="mt-2" style="font-size:14px">
+            <li>พักคืนเดียว → คิดแค่คืนนั้น</li>
+            <li>พัก 2 คืนจาก 4 คืนที่จอง → คิด 2 คืน</li>
+            <li>ถ้า Pre-paid เกิน → คืนเงินส่วนต่าง (หักค่าปรับก่อน ถ้ามี)</li>
+          </ul>
+        </div>
+
+        <div class="price-box">
+          <div class="price-label">สูตรคำนวณ Shorten Fee</div>
+          <div class="price-row"><span class="label">ยอดที่จ่ายมาแล้ว (Prepaid Net)</span><span class="value">บาท A</span></div>
+          <div class="price-row"><span class="label">ค่าห้องที่พักจริง (New Total)</span><span class="value">บาท B</span></div>
+          <div class="price-row"><span class="label">ส่วนเกิน (Overpaid = A − B)</span><span class="value">บาท C</span></div>
+          <div class="price-row"><span class="label">ค่าปรับสูงสุด (Fee Cap)</span><span class="value">บาท D</span></div>
+          <div class="price-row total"><span class="label">เงินคืนแขก = C − ค่าปรับที่เก็บจริง</span><span class="value" style="color:var(--green)">บาท</span></div>
+        </div>
+
+        <div class="tip-box warn">
+          <span class="tip-icon">⚠️</span>
+          <span>ค่าปรับ (Shorten Fee) เก็บได้ไม่เกิน <strong>Fee Cap</strong> ที่ระบบแสดง — ห้ามเก็บเกินนั้น</span>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนการทำ Early C/O</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เปิด Reservation ของแขก → แก้ไขวันเช็คเอาท์</div>
+              <div class="step-desc">ไปที่ Reservations → ค้นหาชื่อแขก → คลิก Edit → เปลี่ยน Checkout Date เป็นวันที่แขกจะออกจริง</div>
+              <div class="step-note">ตัวอย่าง: จองถึง 25 มี.ค. แต่จะออก 23 มี.ค. → เปลี่ยนเป็น 23 มี.ค.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ระบบดึง Settlement Preview อัตโนมัติ</div>
+              <div class="step-desc">หลังจากบันทึกวันออกใหม่ ระบบจะเรียก API <code>/settlement-preview?action=shorten</code> และแสดง <strong>Shorten Fee Modal</strong> พร้อมตัวเลขครบถ้วน</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ตรวจสอบตัวเลขใน Shorten Fee Modal</div>
+              <div class="step-desc">ระบบแสดง: Prepaid Net / Old Total / New Total / Overpaid / Fee Cap — ตรวจสอบให้ถูกต้อง</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือกนโยบายค่าปรับ</div>
+              <div class="step-desc">
+                <strong>ตัวเลือก A:</strong> เก็บค่าปรับ — ใส่จำนวนเงินค่าปรับ (ไม่เกิน Fee Cap) และเลือกวิธีรับ (Cash / Transfer / Card)<br>
+                <strong>ตัวเลือก B:</strong> ยกเว้น (Waive) — ติ๊ก "No fee — Waive shorten stay penalty" ถ้าผู้จัดการอนุมัติ
+              </div>
+              <div class="step-note">เงินคืนที่แขกได้ = Overpaid − ค่าปรับ (แสดงใต้ modal อัตโนมัติ)</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือกวิธีคืนเงิน (Refund Method)</div>
+              <div class="step-desc">เลือก Cash / Transfer / Card แล้วกด <strong>Confirm Shorten</strong></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ดำเนินการ Check-out ตามปกติ</div>
+              <div class="step-desc">หลัง Shorten สำเร็จ → Check-out ตามขั้นตอนปกติ → คืนกุญแจ → อัปเดตสถานะห้อง HK</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Flow สรุป</div>
+        <div class="flow">
+          <div class="flow-node">แขกแจ้งออกก่อน</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node active">แก้ไข Checkout Date</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node warn">Shorten Fee Modal</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node">เก็บ/ยกเว้น Fee</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node success">Check-out สำเร็จ</div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">กรณีตัวอย่าง</div>
+        <div class="scenario-grid">
+          <div class="scenario-card">
+            <div class="s-num">กรณี A — Prepaid</div>
+            <div class="s-title">จ่ายล่วงหน้า 3 คืน แต่ออกหลัง 1 คืน</div>
+            <div class="s-body">
+              Prepaid = 3,000 บาท | New Total = 1,000 บาท<br>
+              Overpaid = 2,000 บาท | Fee Cap = 500 บาท<br>
+              <strong>เก็บค่าปรับ 500 บาท → คืนแขก 1,500 บาท</strong>
+            </div>
+          </div>
+          <div class="scenario-card">
+            <div class="s-num">กรณี B — Waive</div>
+            <div class="s-title">VIP Guest ขอออกก่อน — ผู้จัดการยกเว้นค่าปรับ</div>
+            <div class="s-body">
+              Overpaid = 2,000 บาท | Fee Cap = 500 บาท<br>
+              ติ๊ก "No fee — Waive"<br>
+              <strong>ค่าปรับ 0 บาท → คืนแขกเต็ม 2,000 บาท</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ลองดูหน้า Reservations — ค้นหาจอง In-house แล้วกด Edit</div>
+        <iframe src="http://localhost:3000/pms/reservations" title="Reservations List" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 2: VERY LATE ARRIVAL
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-lateArr">
+    <div class="section-header">
+      <div class="section-icon amber">🌙</div>
+      <div>
+        <div class="section-title">2. Very Late Arrival (แขกมาดึกมาก)</div>
+        <div class="section-subtitle">แขกมาหลังเที่ยงคืน หรือใกล้รุ่งสาง</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">แบ่งเป็น 2 กลุ่มหลัก</div>
+        <div class="scenario-grid">
+          <div class="scenario-card">
+            <div class="s-num">กลุ่ม A — จองมาล่วงหน้า (Pre-booked)</div>
+            <div class="s-title">มีการ์ดจอง / OTA / Phone booking</div>
+            <div class="s-body">
+              ระบบมีข้อมูลอยู่แล้ว — เช็คอินตามปกติ<br>
+              ถ้ามี <strong>Pre-payment</strong> → ตรวจยอดใน Billing Panel ก่อน<br>
+              ถ้ายังไม่ได้ชำระ → เก็บเงินตอนเช็คอิน<br>
+              <strong>⚠️ วันเช็คเอาท์ยึดตามที่จอง</strong> ไม่ใช่นับจากเวลาเช็คอินจริง
+            </div>
+          </div>
+          <div class="scenario-card">
+            <div class="s-num">กลุ่ม B — Walk-in (ไม่ได้จอง)</div>
+            <div class="s-title">มาถึงแผนกหน้าเลยตอนดึก</div>
+            <div class="s-body">
+              ทำเหมือน Walk-in ปกติ (ดูหมวด 2)<br>
+              <strong>⚠️ วัน Check-out คือ 12:00 น. ของวันเดียวกัน (Business Date ปัจจุบัน)</strong><br>
+              เช่น Walk-in ตี 2 คืน 22 มี.ค. → Check-out 12:00 น. 23 มี.ค.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">เรื่อง Business Date ที่ต้องระวัง</div>
+        <div class="card amber">
+          <strong>Business Date ≠ Calendar Date เสมอไป</strong><br>
+          <span style="font-size:14px">
+            ระบบ PMS จะรันช่วง Night Audit เพื่อเปลี่ยน Business Date เป็นวันถัดไป<br>
+            ถ้า Night Audit <u>ยังไม่รัน</u> → Business Date ยังเป็นเมื่อวาน<br>
+            ถ้า Night Audit <u>รันแล้ว</u> → Business Date เป็นวันนี้แล้ว<br><br>
+            <strong>ผลที่เห็น:</strong> Arrivals List จะแสดงการจองตาม Business Date ที่ active — ตรวจสอบ Business Date ที่มุมบนขวาของระบบก่อนเสมอ
+          </span>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนสำหรับแขก Pre-booked มาดึก</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ค้นหาการจองในระบบ</div>
+              <div class="step-desc">Reservations → ค้นหาชื่อ / Booking Code — ตรวจสอบสถานะเป็น "Active" และวันเช็คอินตรงกัน</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ตรวจสอบ Pre-payment</div>
+              <div class="step-desc">เปิด Billing Panel — ดูว่ามียอดชำระมาแล้วหรือไม่ ถ้ายังค้างอยู่ → เก็บก่อนให้ห้องพัก</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">กด Check-in ตามปกติ</div>
+              <div class="step-desc">ดูขั้นตอนใน หมวด 2 (Check-in) — ไม่มีความแตกต่างจากการเช็คอินทั่วไป</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">แจ้งแขกเรื่องวัน Check-out</div>
+              <div class="step-desc"><strong>ย้ำเสมอว่าต้องออกก่อน 12:00 น. ตามวันที่จอง</strong> — การมาดึกไม่ได้ขยายเวลาเช็คเอาท์</div>
+              <div class="step-note">ถ้าแขกต้องการขยายเวลา → แจ้งไปที่ LCO (Late Check-out) มี fee เพิ่มเติม</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนสำหรับ Walk-in มาดึก</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">สร้าง Reservation ใหม่</div>
+              <div class="step-desc">New Reservation → เลือก Source = Walk-in → วัน Check-in = Business Date ปัจจุบัน → Check-out = วันถัดไป 12:00 น. (= 1 คืน)</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ตรวจสอบห้องว่างที่เหมาะสม</div>
+              <div class="step-desc">เช็ค Room Board ก่อนเลือกห้อง — ห้องที่กำลังจะ Check-out วันนี้อาจยังไม่พร้อม</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เก็บเงิน / เปิดใบเสร็จ</div>
+              <div class="step-desc">เก็บค่าห้อง 1 คืนตาม Rate ปัจจุบัน → Check-in → แจ้งแขกว่าต้องออก 12:00 น. วันนี้</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip-box danger">
+        <span class="tip-icon">🚨</span>
+        <div>
+          <strong>ข้อควรระวัง:</strong> อย่าตั้ง Check-out หลัง 12:00 น. ของวันถัดไปสำหรับ Walk-in ดึก
+          เพราะระบบจะคิดเป็น 2 คืน ทั้งที่แขกพักไม่ครบ
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 3: ROOM MOVE & PLAN ROOM MOVE
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-roommove">
+    <div class="section-header">
+      <div class="section-icon blue">🔄</div>
+      <div>
+        <div class="section-title">3. Room Move &amp; Plan Room Move</div>
+        <div class="section-subtitle">ย้ายห้องทันที หรือวางแผนล่วงหน้า — 3 แบบราคา</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">ภาพรวม: 2 โหมดหลัก</div>
+        <div class="scenario-grid">
+          <div class="scenario-card">
+            <div class="s-num">โหมด A</div>
+            <div class="s-title">Move Now (ย้ายทันที)</div>
+            <div class="s-body">ย้ายห้องวันนี้เลย เหมาะสำหรับกรณีแขกร้องเรียนเรื่องห้อง หรืออัปเกรดตอนนี้</div>
+          </div>
+          <div class="scenario-card">
+            <div class="s-num">โหมด B</div>
+            <div class="s-title">Plan Move (วางแผนล่วงหน้า)</div>
+            <div class="s-body">กำหนดวันเริ่มและวันสิ้นสุดของการย้าย ระบบจะย้ายอัตโนมัติเมื่อถึงวันนั้น เหมาะสำหรับแขกที่พักยาวและต้องการเปลี่ยนห้องบางช่วง</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">3 นโยบายราคา (Pricing Policy) — สำคัญมาก</div>
+
+        <div class="card green">
+          <strong>แบบที่ 1: Keep RTC (ราคาเดิม / Complimentary Upgrade)</strong><br>
+          <span style="font-size:14px">ใช้เมื่อ: อัปเกรดฟรี / ย้ายเพราะห้องมีปัญหา ไม่คิดเงินเพิ่ม<br>
+          ราคาต่อคืนของแขกไม่เปลี่ยน — จ่ายเท่าเดิมทุกอย่าง</span>
+        </div>
+
+        <div class="card amber">
+          <strong>แบบที่ 2: Rate Grid (คิดราคาใหม่ตาม Rate Grid)</strong><br>
+          <span style="font-size:14px">ใช้เมื่อ: แขกขอย้ายไปห้องที่แพงกว่า โดยจ่าย Top-up ตามราคาตลาด<br>
+          ระบบดึงราคาจาก Availability Grid → แสดงส่วนต่าง (Diff) ให้เห็นก่อนยืนยัน<br>
+          <strong>ตัวอย่าง:</strong> ห้องเดิม 1,000 บาท/คืน → ห้องใหม่ตาม Grid = 1,400 บาท/คืน → แขกจ่ายเพิ่ม 400 บาท/คืน</span>
+        </div>
+
+        <div class="card accent">
+          <strong>แบบที่ 3: Rate Grid + Discount (คิดราคาใหม่ + ส่วนลด)</strong><br>
+          <span style="font-size:14px">ใช้เมื่อ: ย้ายไปห้องแพงกว่า แต่ให้ส่วนลดพิเศษ<br>
+          เลือกประเภทส่วนลด: <span class="badge purple">เปอร์เซ็นต์ (%)</span> หรือ <span class="badge blue">จำนวนเงิน (Fixed)</span><br>
+          ต้องใส่เหตุผลส่วนลด (Discount Reason)<br>
+          <strong>ตัวอย่าง:</strong> Grid = 1,400 บาท/คืน → ลด 10% → แขกจ่าย 1,260 บาท/คืน</span>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนการทำ Room Move (Move Now)</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เปิด Reservation แขก → กด "Room Move"</div>
+              <div class="step-desc">ใน Reservation Detail Page → ปุ่ม Room Move / Change Room → เปิด Room Move Modal</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ตรวจสอบ Assigned Room Lock (ถ้ามี)</div>
+              <div class="step-desc">ถ้าห้องมี Lock สีเหลือง (Do Not Move) → ต้องใส่หมายเหตุ Override ก่อนดำเนินการต่อ</div>
+              <div class="step-note">Lock นี้ป้องกันการย้ายแขกโดยไม่ตั้งใจ — ให้ระบุเหตุผลให้ชัดเจน</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือก Room Type ปลายทาง</div>
+              <div class="step-desc">ระบบแสดง Rate Grid อัตโนมัติ → ดูส่วนต่างราคา (Current vs New) ก่อนตัดสินใจ</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือกห้องที่ต้องการ</div>
+              <div class="step-desc">ระบบดึงรายการห้องว่างใน Room Type ที่เลือกให้อัตโนมัติ</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือก Pricing Policy</div>
+              <div class="step-desc">
+                ▸ Keep RTC = ราคาเดิม (ฟรี หรือย้ายเพราะห้องมีปัญหา)<br>
+                ▸ Rate Grid = คิดตลาด (แขกขอเอง จ่าย Top-up)<br>
+                ▸ Rate Grid + Discount = คิดตลาดพร้อมส่วนลด (ใส่ % หรือจำนวนเงิน + เหตุผล)
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ใส่เหตุผลการย้าย (Move Reason)</div>
+              <div class="step-desc">บังคับใส่ — เช่น "Guest request upgrade" / "AC malfunction" / "Maintenance issue"</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">กด Confirm Move</div>
+              <div class="step-desc">ระบบบันทึก Room Move History และอัปเดตห้องในระบบ → แจ้ง HK ทำความสะอาดห้องเก่า</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอน Plan Room Move (วางแผนล่วงหน้า)</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">Room Move Modal → แท็บ "Plan Move"</div>
+              <div class="step-desc">เลือกแท็บ Plan Move (ด้านบนของ Modal)</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">กำหนด Start Date และ End Date</div>
+              <div class="step-desc">
+                <strong>Start Date:</strong> วันที่แขกจะย้ายเข้าห้องใหม่ (ต้องเป็นวันถัดจาก Check-in หรือหลังจากนั้น)<br>
+                <strong>End Date:</strong> วันที่กลับมาใช้ห้องเดิม หรือ Check-out
+              </div>
+              <div class="step-note">ตัวอย่าง: แขกพัก 1–10 มี.ค. ต้องการห้องดีกว่า 5–8 มี.ค. → Plan 5–8 มี.ค.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือก Room Type / ห้อง / Pricing Policy</div>
+              <div class="step-desc">เหมือนกับ Move Now — ระบบดึง Rate Grid ตาม Plan Start/End Date</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือก Do Not Move (ถ้าต้องการล็อค)</div>
+              <div class="step-desc">ติ๊ก "Do Not Move" + ใส่หมายเหตุ เพื่อป้องกันให้ระบบไม่สามารถย้ายห้องออกไปโดยไม่ตั้งใจ</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">บันทึก Planned Move</div>
+              <div class="step-desc">กด Save → ระบบสร้าง Planned Move Entry → แสดงในรายการ Planned Moves ด้านล่าง Modal</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ตัวอย่างการใส่ราคาทั้ง 3 แบบ</div>
+        <table>
+          <thead>
+            <tr>
+              <th>สถานการณ์</th>
+              <th>Pricing Policy</th>
+              <th>วิธีใส่ราคา</th>
+              <th>ผลลัพธ์</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>แอร์เสีย — ย้ายให้ฟรี</td>
+              <td><span class="badge green">Keep RTC</span></td>
+              <td>ไม่ต้องใส่อะไร — ใช้ราคาเดิม</td>
+              <td>ราคาไม่เปลี่ยน</td>
+            </tr>
+            <tr>
+              <td>แขกขอห้องดีขึ้น</td>
+              <td><span class="badge amber">Rate Grid</span></td>
+              <td>ระบบดึง Rate ใหม่อัตโนมัติ แสดงส่วนต่าง</td>
+              <td>แขกจ่าย Top-up ส่วนต่าง</td>
+            </tr>
+            <tr>
+              <td>Upgrade พร้อมลด 10%</td>
+              <td><span class="badge purple">Grid + Discount</span></td>
+              <td>เลือก % → ใส่ 10 → ใส่เหตุผล</td>
+              <td>Rate Grid × 0.90</td>
+            </tr>
+            <tr>
+              <td>Upgrade ลด 200 บาท/คืน</td>
+              <td><span class="badge purple">Grid + Discount</span></td>
+              <td>เลือก Fixed → ใส่ 200 → ใส่เหตุผล</td>
+              <td>Rate Grid − 200 บาท/คืน</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tip-box tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>เคล็ดลับ:</strong> ระบบแสดงตัวเลขสรุปก่อนยืนยันเสมอ — ตรวจสอบ "Current Total" vs "New Total" ให้แน่ใจก่อนกด Confirm
+        </div>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ลองดู Room Board — เห็นห้องว่างและสถานะ</div>
+        <iframe src="http://localhost:3000/pms/board" title="Room Board" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 4: EXTEND STAY
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-extend">
+    <div class="section-header">
+      <div class="section-icon green">📅</div>
+      <div>
+        <div class="section-title">4. Extend Stay — OTA &amp; Walk-in</div>
+        <div class="section-subtitle">แขกต้องการพักต่อ — กฎราคาต่างกันตามแหล่งที่มา</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">กฎทองเรื่องราคา Extend Stay</div>
+        <div class="card accent">
+          <strong>📌 จำให้ขึ้นใจ:</strong>
+          <ul style="font-size:14px; margin-top:6px">
+            <li><span class="badge blue">OTA</span> → ราคา Extend ยึดตาม <strong>OTA rate เดิม</strong> (ไม่เปลี่ยน)</li>
+            <li><span class="badge green">Walk-in</span> → ราคา Extend ยึดตาม <strong>Rate Grid (ราคาตลาดวันนั้น)</strong></li>
+            <li>ราคา OTA > Walk-in เสมอในระบบ — ถ้า OTA ต่อ แขกจ่าย OTA rate ต่อไป</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">4 สถานการณ์ Extend Stay ที่พบบ่อย</div>
+
+        <!-- Scenario A -->
+        <div class="card green" style="margin-bottom:18px">
+          <strong>สถานการณ์ A: OTA — อยู่ห้องเดิมต่อ (Same Room)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            แขก OTA ต้องการอยู่ต่อในห้องเดิม และห้องยังว่างอยู่<br><br>
+            <strong>วิธีทำ:</strong>
+            <ol style="margin-top:4px; padding-left:16px">
+              <li>เปิด Reservation → กด "OTA Extend Stay" หรือ "Extend"</li>
+              <li>Modal "OTA Extend Stay Orchestrator" เปิดขึ้น</li>
+              <li>เลือก Strategy = <strong>Same Room</strong></li>
+              <li>ตั้งวัน Checkout ใหม่</li>
+              <li>ระบบ Preview → ถ้าไม่มี Blocker → กด <strong>Commit Extension Plan</strong></li>
+            </ol>
+            <div class="tip-box success" style="margin-top:10px">
+              <span class="tip-icon">✅</span>
+              <span>ราคาส่วน Extension ใช้ Rate Grid — ไม่ใช่ OTA rate (เพราะ Extension เป็น Walk-in segment)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario B -->
+        <div class="card amber" style="margin-bottom:18px">
+          <strong>สถานการณ์ B: OTA — ห้องเดิมถูกจองโดยคนอื่น (Blocker)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            แขก OTA ต้องการอยู่ต่อ แต่ห้องเดิมมีการจองคนอื่นเข้ามา<br><br>
+            <strong>ระบบจะแสดง Blocking Item</strong> — ต้องเลือกว่าจะทำอย่างไรกับ Blocker<br><br>
+            <strong>ทางเลือก:</strong>
+            <ul style="margin-top:4px; padding-left:16px">
+              <li><strong>Swap Blocker:</strong> ระบบจะหา Swap Candidate — เลือกห้องอื่นสำหรับ Blocker แล้วขยาย OTA ต่อ</li>
+              <li><strong>เปลี่ยน Strategy เป็น Different Room:</strong> ย้ายแขก OTA ไปห้องอื่นแทน (สร้าง Linked Booking)</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Scenario C -->
+        <div class="card blue" style="margin-bottom:18px">
+          <strong>สถานการณ์ C: OTA — ย้ายไป Room Type อื่น (Linked Booking)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            แขก OTA ต้องการต่อ แต่ขอย้ายไป Room Type ที่ต่างออกไป<br><br>
+            <strong>วิธีทำ:</strong>
+            <ol style="margin-top:4px; padding-left:16px">
+              <li>กด OTA Extend Stay → เลือก Strategy = <strong>Different Room</strong></li>
+              <li>เลือก Move Mode: <strong>Move Now</strong> (ย้ายทันที) หรือ <strong>Plan Move</strong> (กำหนดวัน)</li>
+              <li>เลือก Target Room Type + Target Room</li>
+              <li>ถ้า "Move Now" ก่อน Checkout OTA — จะมีตัวเลือก:
+                <ul>
+                  <li><strong>Option A: Keep OTA as-is</strong> — ย้ายทันที เก็บวัน OTA ไว้เดิม</li>
+                  <li><strong>Option B: Shorten OTA first</strong> — ย่อ OTA ก่อน แล้วสร้าง Walk-in segment ต่อ</li>
+                </ul>
+              </li>
+              <li>กด Commit → ระบบสร้าง <strong>Linked Booking</strong> (OTA + Walk-in ใหม่)</li>
+            </ol>
+            <div class="tip-box warn" style="margin-top:10px">
+              <span class="tip-icon">⚠️</span>
+              <span>หลัง Commit → FO ต้องอัปเดตวันใน OTA Platform เอง ระบบไม่ได้อัปโดยอัตโนมัติ</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario D -->
+        <div class="card" style="margin-bottom:18px">
+          <strong>สถานการณ์ D: Walk-in — ต่อพักเพิ่ม (Extend)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            แขก Walk-in ในบ้านต้องการอยู่ต่อ<br><br>
+            <strong>วิธีทำ:</strong>
+            <ol style="margin-top:4px; padding-left:16px">
+              <li>เปิด Reservation → เปลี่ยน Checkout Date เป็นวันใหม่ → บันทึก</li>
+              <li>ระบบคำนวณราคาตาม <strong>Rate Grid</strong> ของวันที่ขยายออกไป</li>
+              <li>เพิ่มยอดในบิล → เก็บเงินเพิ่ม หรือ Post to Room</li>
+            </ol>
+            <div class="tip-box tip" style="margin-top:10px">
+              <span class="tip-icon">💡</span>
+              <span>ถ้าห้องว่าง → ขยายง่ายมาก แค่เปลี่ยนวันออก ถ้าห้องไม่ว่าง → ต้องทำ Room Move ก่อน</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ตารางสรุป: Extend Stay ทำแบบไหน?</div>
+        <table>
+          <thead>
+            <tr>
+              <th>กรณี</th>
+              <th>Source</th>
+              <th>Room Type</th>
+              <th>ราคาที่ใช้</th>
+              <th>ระบบสร้างอะไร</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ต่อห้องเดิม, ห้องว่าง</td>
+              <td><span class="badge blue">OTA</span></td>
+              <td>เดิม</td>
+              <td>Rate Grid (Extension = WI segment)</td>
+              <td>Linked Stay (OTA+WI)</td>
+            </tr>
+            <tr>
+              <td>ต่อห้องเดิม, ห้องว่าง</td>
+              <td><span class="badge green">Walk-in</span></td>
+              <td>เดิม</td>
+              <td>Rate Grid</td>
+              <td>ขยาย Checkout ปกติ</td>
+            </tr>
+            <tr>
+              <td>ย้ายไป Type เดิม, Swap ได้</td>
+              <td><span class="badge blue">OTA</span></td>
+              <td>เดิม</td>
+              <td>Rate Grid</td>
+              <td>Swap + Linked Stay</td>
+            </tr>
+            <tr>
+              <td>ย้ายไป Type ใหม่</td>
+              <td><span class="badge blue">OTA</span></td>
+              <td>ใหม่</td>
+              <td>Rate Grid ของ Type ใหม่</td>
+              <td>Linked Booking ใหม่</td>
+            </tr>
+            <tr>
+              <td>ย้ายไป Type ใหม่</td>
+              <td><span class="badge green">Walk-in</span></td>
+              <td>ใหม่</td>
+              <td>Rate Grid ของ Type ใหม่</td>
+              <td>Linked Booking ใหม่</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">Linked Stay Badge — อ่านค่าให้เป็น</div>
+        <div class="card">
+          <p style="font-size:14px; margin-bottom:8px">ใน Reservations List จะเห็น Badge เล็กๆ ใต้ชื่อแขก สำหรับจองที่มี Linked Stay</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px">
+            <span style="background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:700">OTA 7-10/3 ●</span>
+            <span style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:4px 10px; font-size:12px">WI 10-12/3 ✓</span>
+          </div>
+          <table style="margin-bottom:0">
+            <thead><tr><th>ส่วน</th><th>ความหมาย</th></tr></thead>
+            <tbody>
+              <tr><td><strong>OTA / WI</strong></td><td>Source — OTA = Online Travel Agency, WI = Walk-in</td></tr>
+              <tr><td><strong>7-10/3</strong></td><td>Check-in วันที่ 7 ถึง Check-out วันที่ 10 มีนาคม</td></tr>
+              <tr><td><strong>●</strong> (จุดสีน้ำเงิน)</td><td>Segment ที่กำลัง Active อยู่ตอนนี้</td></tr>
+              <tr><td><strong>✓</strong></td><td>Segment นั้น Check-out แล้ว</td></tr>
+              <tr><td><strong>✕</strong></td><td>Segment นั้นถูกยกเลิก</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนสรุปสำหรับ OTA Extend Stay</div>
+        <div class="flow">
+          <div class="flow-node">แขก OTA ต้องการอยู่ต่อ</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node active">กด OTA Extend Stay</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node warn">ตรวจ Blocker</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node">เลือก Strategy</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node">Preview Plan</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-node success">Commit</div>
+        </div>
+      </div>
+
+      <div class="tip-box danger">
+        <span class="tip-icon">🚨</span>
+        <div>
+          <strong>อย่าลืม!</strong> หลังทำ OTA Extend Stay ที่มี Room Move → ต้องไปอัปเดตวันใน Booking.com / Agoda เอง
+          ระบบ PMS ไม่ได้ส่งข้อมูลไปหา OTA Platform โดยตรง
+        </div>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ลองดู Reservations — หาจอง In-house เพื่อดู Linked Stay Badge</div>
+        <iframe src="http://localhost:3000/pms/reservations" title="Reservations" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       CHECKLIST SUMMARY
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon purple">✅</div>
+      <div>
+        <div class="section-title">Checklist สรุปก่อนทำ Special Operations</div>
+        <div class="section-subtitle">ตรวจสอบก่อนดำเนินการทุกครั้ง</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px">
+        <div>
+          <strong style="font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Early C/O</strong>
+          <ul class="checklist mt-2">
+            <li>ตรวจสอบ Prepaid Net และ Fee Cap ก่อนเสมอ</li>
+            <li>ได้รับอนุมัติก่อน Waive ค่าปรับ</li>
+            <li>ยืนยันวิธีคืนเงินกับแขก</li>
+            <li>Check-out ปกติหลัง Confirm Shorten</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Late Arrival</strong>
+          <ul class="checklist mt-2">
+            <li>เช็ค Business Date ก่อนเสมอ</li>
+            <li>Pre-booked: ตรวจ Pre-payment ใน Billing Panel</li>
+            <li>Walk-in: แจ้งแขกว่า Check-out = 12:00 วันนี้</li>
+            <li>อย่า set Check-out ข้ามวันโดยไม่ตั้งใจ</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Room Move</strong>
+          <ul class="checklist mt-2">
+            <li>เลือก Pricing Policy ให้ถูกก่อน Confirm</li>
+            <li>ตรวจ Diff ราคาก่อนยืนยัน</li>
+            <li>Plan Move: ตรวจวันให้ถูกต้อง</li>
+            <li>แจ้ง HK ทำความสะอาดห้องเก่า</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Extend Stay</strong>
+          <ul class="checklist mt-2">
+            <li>OTA: ใช้ Rate Grid สำหรับส่วน Extension</li>
+            <li>Walk-in: ขยาย Checkout และเพิ่มยอดในบิล</li>
+            <li>ตรวจ Blocker ก่อน Commit เสมอ</li>
+            <li>OTA + Room Move: อัปเดต OTA Platform ด้วยตัวเอง</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       GLOSSARY
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-glossary">
+    <div class="section-header">
+      <div class="section-icon purple">📖</div>
+      <div>
+        <div class="section-title">5. คำศัพท์ที่ต้องรู้ (Glossary)</div>
+        <div class="section-subtitle">ศัพท์เทคนิคและคำย่อที่ใช้ในหมวดนี้</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="glossary-grid">
+
+        <div class="glossary-item">
+          <div class="term">Early C/O (Early Check-out)</div>
+          <div class="definition">การเช็คเอาท์ก่อนวันที่กำหนดไว้ในการจอง</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Shorten Flow</div>
+          <div class="definition">กระบวนการในระบบเมื่อแขกขอออกก่อนกำหนด — คำนวณค่าห้องจริง + ค่าปรับ + เงินคืน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Shorten Fee Modal</div>
+          <div class="definition">หน้าต่างป๊อปอัพที่ระบบแสดงเพื่อยืนยันการ Early C/O พร้อมตัวเลขครบ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Prepaid Net</div>
+          <div class="definition">ยอดเงินที่แขกชำระมาแล้วสุทธิ (หักค่าธรรมเนียมธนาคาร/OTA แล้ว)</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Fee Cap</div>
+          <div class="definition">ค่าปรับสูงสุดที่เรียกเก็บได้ตามนโยบายโรงแรม — ห้ามเก็บเกิน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Waive</div>
+          <div class="definition">ยกเว้น / ยกโทษ — ในที่นี้คือยกเว้นค่าปรับ Early C/O โดยไม่เก็บ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Overpaid</div>
+          <div class="definition">ยอดที่แขกจ่ายเกินกว่าค่าห้องจริง = Prepaid − New Total</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Refund</div>
+          <div class="definition">การคืนเงินให้แขก — ต้องเลือกวิธีคืน: Cash / Transfer / Card</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Business Date</div>
+          <div class="definition">วันที่ธุรกิจของระบบ — อาจไม่ตรงกับปฏิทินจริงถ้า Night Audit ยังไม่รัน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Night Audit</div>
+          <div class="definition">กระบวนการปิดวัน — รันแล้ว Business Date เปลี่ยนเป็นวันถัดไป</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Pre-payment / Pre-paid</div>
+          <div class="definition">เงินที่แขกหรือ OTA ชำระมาล่วงหน้าก่อนเช็คอิน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Very Late Arrival</div>
+          <div class="definition">แขกมาเช็คอินหลังเที่ยงคืน หรือใกล้รุ่งสาง</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Room Move</div>
+          <div class="definition">การย้ายห้องพักของแขกที่อยู่ในบ้านแล้ว ไปยังห้องอื่น</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Plan Room Move</div>
+          <div class="definition">การวางแผนย้ายห้องล่วงหน้า กำหนดวันเริ่ม-สิ้นสุด</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Move Now</div>
+          <div class="definition">โหมดย้ายห้องทันที มีผลตั้งแต่วันนี้</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Pricing Policy</div>
+          <div class="definition">นโยบายราคาที่ใช้เมื่อย้ายห้อง: Keep RTC / Rate Grid / Rate Grid + Discount</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Keep RTC</div>
+          <div class="definition">คงราคาห้องเดิมไว้ ไม่เปลี่ยนแปลง (RTC = Room Type Change)</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Rate Grid</div>
+          <div class="definition">ตารางราคาห้องตามประเภทห้องและวันที่ — ราคาตลาดมาตรฐานของโรงแรม</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Top-up</div>
+          <div class="definition">ส่วนต่างที่แขกต้องจ่ายเพิ่มเมื่อย้ายไปห้องที่แพงกว่า</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Discount Type</div>
+          <div class="definition">ประเภทส่วนลด: Percent (%) หรือ Fixed (จำนวนเงินคงที่)</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Discount Reason</div>
+          <div class="definition">เหตุผลที่ให้ส่วนลด — บังคับกรอกเมื่อใช้ Rate Grid + Discount</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Assigned Room Lock</div>
+          <div class="definition">การล็อคห้องที่ assign ไว้ เพื่อป้องกันการย้ายโดยไม่ตั้งใจ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Do Not Move</div>
+          <div class="definition">สถานะที่ป้องกันไม่ให้ระบบย้ายห้องออก — ต้อง override ด้วยหมายเหตุ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Extend Stay</div>
+          <div class="definition">การขยายวัน Check-out ออกไป — แขกต้องการพักต่อ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">OTA (Online Travel Agency)</div>
+          <div class="definition">แหล่งจองออนไลน์ เช่น Booking.com, Agoda, Expedia</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">OTA Rate</div>
+          <div class="definition">ราคาที่ OTA กำหนดมาในการจอง — ใช้ตลอดช่วงที่จอง ไม่เปลี่ยน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Walk-in Rate</div>
+          <div class="definition">ราคาที่คำนวณจาก Rate Grid สำหรับแขก Walk-in หรือส่วน Extension</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Linked Booking / Linked Stay</div>
+          <div class="definition">การจองที่เชื่อมกัน เช่น OTA ต้นทาง + Walk-in Extension ต่อท้าย</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Linked Stay Panel</div>
+          <div class="definition">แผงในระบบที่แสดงรายการ Segment ทั้งหมดของ Linked Stay</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Linked Stay Badge</div>
+          <div class="definition">ป้ายเล็กๆ ใต้ชื่อแขกใน Reservations List แสดง Segment ที่เชื่อมกัน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Segment</div>
+          <div class="definition">ช่วงการพักหนึ่งๆ ในการจองที่ต่อเนื่องกัน เช่น OTA segment / Walk-in segment</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Blocker</div>
+          <div class="definition">การจองอื่นที่ขวางทาง Extend Stay ในห้องเดิม — ต้องจัดการก่อน Commit</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Swap Candidate</div>
+          <div class="definition">ห้องอื่นที่สามารถรองรับ Blocker ได้ เพื่อให้ OTA อยู่ต่อในห้องเดิม</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">OTA Extend Stay Orchestrator</div>
+          <div class="definition">Modal ในระบบสำหรับจัดการ Extend Stay ของ OTA — รองรับทั้ง Same Room และ Different Room</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Preview / Precheck</div>
+          <div class="definition">การตรวจสอบล่วงหน้าก่อน Commit — ระบบแสดง Warning และตรวจ Blocker</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Commit</div>
+          <div class="definition">การยืนยันและบันทึก Plan เข้าระบบจริง — ย้อนกลับยากหลังจากนี้</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Strategy: Same Room</div>
+          <div class="definition">กลยุทธ์ Extend ที่ต้องการอยู่ในห้องเดิม</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Strategy: Different Room</div>
+          <div class="definition">กลยุทธ์ Extend ที่ต้องการย้ายไปห้องอื่นหรือ Type อื่น</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Option A: Keep OTA as-is</div>
+          <div class="definition">ย้ายห้อง OTA ทันที โดยไม่แตะวันจอง OTA เดิม</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Option B: Shorten OTA first</div>
+          <div class="definition">ย่อวัน OTA ก่อน แล้วสร้าง Walk-in segment สำหรับช่วงที่ย้าย</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">OTA Platform Update</div>
+          <div class="definition">การอัปเดตวันใน Booking.com / Agoda ด้วยตัวเอง — ระบบไม่ทำให้อัตโนมัติ</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Room Move History</div>
+          <div class="definition">ประวัติการย้ายห้องทั้งหมดที่บันทึกในระบบ สำหรับแต่ละ Reservation</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Move Mode: Plan Move</div>
+          <div class="definition">กำหนดวันย้ายล่วงหน้า ระบบจะ execute อัตโนมัติเมื่อถึงวันนั้น</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Override</div>
+          <div class="definition">การข้ามข้อจำกัด (เช่น Assigned Lock) โดยใส่หมายเหตุยืนยัน</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Collect Method</div>
+          <div class="definition">วิธีรับชำระเงิน: Cash (เงินสด) / Transfer (โอน) / Card (บัตร)</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">Settlement Preview</div>
+          <div class="definition">การดูตัวเลขสรุปก่อนดำเนินการทางการเงิน เช่น Shorten, Check-out</div>
+        </div>
+
+        <div class="glossary-item">
+          <div class="term">HK (Housekeeping)</div>
+          <div class="definition">แผนกแม่บ้าน — ต้องแจ้งเมื่อมีการย้ายห้อง เพื่อทำความสะอาดห้องเก่า</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center; color:var(--muted); font-size:13px; padding-top:16px">
+    หมวด 4ข: การจัดการกรณีพิเศษ Front Desk — Hotel PMS Employee Training Manual<br>
+    อัปเดต: มีนาคม 2026
+  </div>
+
+</div>
+</body>
+</html>

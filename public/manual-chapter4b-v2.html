@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>หมวด 4ข: การจัดการกรณีพิเศษ Front Desk (V2) | Hotel PMS คู่มือพนักงาน</title>
+  <style>
+    /* ─── Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent: #4f46e5;
+      --accent-light: #eef2ff;
+      --accent-mid: #6366f1;
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --amber: #b45309;
+      --amber-light: #fef9c3;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --blue: #1d4ed8;
+      --blue-light: #dbeafe;
+      --gray: #374151;
+      --gray-light: #f9fafb;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --radius: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Sarabun', 'Segoe UI', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text);
+      background: #f3f4f6;
+    }
+
+    /* ─── Layout ──────────────────────────────────────────── */
+    .page-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 80px; }
+    .chapter-header {
+      background: linear-gradient(135deg, #312e81 0%, #4f46e5 60%, #6366f1 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 36px 32px 28px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .chapter-header::after {
+      content: "⚡";
+      font-size: 120px;
+      position: absolute;
+      right: -10px;
+      top: -20px;
+      opacity: 0.08;
+      pointer-events: none;
+    }
+    .chapter-header .tag {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 99px;
+      font-size: 12px;
+      padding: 3px 12px;
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+    .chapter-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .chapter-header .subtitle { font-size: 15px; opacity: 0.85; }
+
+    /* ─── Navigation ──────────────────────────────────────── */
+    .toc {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 28px;
+    }
+    .toc h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 10px; }
+    .toc ul { list-style: none; }
+    .toc ul li { margin-bottom: 6px; }
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toc a:hover { text-decoration: underline; }
+    .toc-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ─── Sections ────────────────────────────────────────── */
+    .section {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .section-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .section-icon.red { background: var(--red-light); }
+    .section-icon.amber { background: var(--amber-light); }
+    .section-icon.blue { background: var(--blue-light); }
+    .section-icon.green { background: var(--green-light); }
+    .section-icon.purple { background: var(--accent-light); }
+    .section-title { font-size: 19px; font-weight: 700; color: var(--text); }
+    .section-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .section-body { padding: 22px 24px; }
+
+    /* ─── Subsection ──────────────────────────────────────── */
+    .subsection { margin-bottom: 22px; }
+    .subsection-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    /* ─── Cards ───────────────────────────────────────────── */
+    .card {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: var(--gray-light);
+    }
+    .card.accent { border-color: #c7d2fe; background: var(--accent-light); }
+    .card.green { border-color: #bbf7d0; background: var(--green-light); }
+    .card.amber { border-color: #fde68a; background: var(--amber-light); }
+    .card.red { border-color: #fecaca; background: var(--red-light); }
+    .card.blue { border-color: #bfdbfe; background: var(--blue-light); }
+
+    /* ─── Steps ───────────────────────────────────────────── */
+    .steps { counter-reset: step; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .step::before {
+      content: counter(step);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #374151; }
+    .step-note { font-size: 13px; color: var(--muted); margin-top: 4px; font-style: italic; }
+
+    /* ─── Tip / Warning boxes ─────────────────────────────── */
+    .tip-box {
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .tip-box .tip-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .tip-box.tip { background: var(--blue-light); border: 1px solid #93c5fd; color: var(--blue); }
+    .tip-box.warn { background: var(--amber-light); border: 1px solid #fcd34d; color: var(--amber); }
+    .tip-box.success { background: var(--green-light); border: 1px solid #86efac; color: var(--green); }
+    .tip-box.danger { background: var(--red-light); border: 1px solid #fca5a5; color: var(--red); }
+
+    /* ─── Table ───────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 14px; }
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      padding: 9px 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f9fafb; }
+
+    /* ─── Badges / Tags ───────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      letter-spacing: 0.03em;
+    }
+    .badge.green { background: #dcfce7; color: #15803d; }
+    .badge.blue { background: #dbeafe; color: #1d4ed8; }
+    .badge.amber { background: #fef9c3; color: #92400e; }
+    .badge.red { background: #fee2e2; color: #b91c1c; }
+    .badge.purple { background: #ede9fe; color: #6d28d9; }
+    .badge.gray { background: #f1f5f9; color: #475569; }
+
+    /* ─── Flow Diagram ────────────────────────────────────── */
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .flow-node {
+      background: #fff;
+      border: 1.5px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .flow-node.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .flow-node.warn { background: var(--amber-light); color: var(--amber); border-color: #fcd34d; }
+    .flow-node.danger { background: var(--red-light); color: var(--red); border-color: #fca5a5; }
+    .flow-node.success { background: var(--green-light); color: var(--green); border-color: #86efac; }
+    .flow-arrow { font-size: 16px; color: var(--muted); }
+
+    /* ─── Price Box ───────────────────────────────────────── */
+    .price-box {
+      background: #f8faff;
+      border: 1.5px solid #c7d2fe;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 12px;
+    }
+    .price-box .price-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 6px; }
+    .price-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 3px 0; }
+    .price-row.total { font-weight: 700; font-size: 15px; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px; }
+    .price-row .label { color: var(--gray); }
+    .price-row .value { font-weight: 600; color: var(--accent); }
+
+    /* ─── Scenario Box ────────────────────────────────────── */
+    .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+    @media (max-width: 620px) { .scenario-grid { grid-template-columns: 1fr; } }
+    .scenario-card {
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      padding: 14px;
+      background: #fff;
+    }
+    .scenario-card .s-num {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+      letter-spacing: 0.06em;
+    }
+    .scenario-card .s-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .scenario-card .s-body { font-size: 13px; color: var(--gray); }
+
+    /* ─── Iframe ──────────────────────────────────────────── */
+    .iframe-wrap {
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1.5px solid var(--border);
+      margin: 14px 0;
+      background: #f8faff;
+    }
+    .iframe-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 12px;
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.05em;
+    }
+    .iframe-wrap iframe {
+      width: 100%;
+      height: 540px;
+      display: block;
+      border: none;
+    }
+
+    /* ─── Glossary ────────────────────────────────────────── */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .glossary-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #fff;
+    }
+    .glossary-item .term { font-weight: 700; font-size: 14px; color: var(--accent); }
+    .glossary-item .definition { font-size: 13px; color: var(--gray); margin-top: 3px; }
+
+    /* ─── Checklist ───────────────────────────────────────── */
+    .checklist { list-style: none; }
+    .checklist li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .checklist li::before {
+      content: "☐";
+      font-size: 16px;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ─── Utility ─────────────────────────────────────────── */
+    strong { color: #1e1b4b; }
+    p { margin-bottom: 10px; }
+    ul { padding-left: 20px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-4 { margin-top: 16px; }
+    .mb-2 { margin-bottom: 8px; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    /* ─── Print ───────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; font-size: 13px; }
+      .iframe-wrap { display: none; }
+      .page-wrap { max-width: 100%; padding: 0; }
+      .section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Header -->
+  <div class="chapter-header">
+    <div class="tag">หมวดที่ 4ข · SPECIAL OPERATIONS (อัปเดตใหม่ V2)</div>
+    <h1>การจัดการกรณีพิเศษ Front Desk</h1>
+    <div class="subtitle">Early C/O · Late Arrival · Room Move / Plan Move · Extend Stay (OTA & Walk-in)</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>เนื้อหาในหมวดนี้</h2>
+    <ul>
+      <li><a href="#sec-earlyco"><span class="toc-num">1</span> Early Check-out (ออกก่อนกำหนด)</a></li>
+      <li><a href="#sec-lateArr"><span class="toc-num">2</span> Very Late Arrival (เช็คอินดึกมาก)</a></li>
+      <li><a href="#sec-roommove"><span class="toc-num">3</span> Room Move &amp; Plan Room Move (ย้ายห้อง)</a></li>
+      <li><a href="#sec-extend"><span class="toc-num">4</span> Extend Stay — OTA &amp; Walk-in (ขยายวันเข้าพัก / ต่ออายุ)</a></li>
+      <li><a href="#sec-glossary"><span class="toc-num">5</span> คำศัพท์ที่ต้องรู้</a></li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 1: EARLY CHECK-OUT
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-earlyco">
+    <div class="section-header">
+      <div class="section-icon red">🚪</div>
+      <div>
+        <div class="section-title">1. Early Check-out (Early C/O)</div>
+        <div class="section-subtitle">แขกมีความประสงค์ต้องการออกก่อนวันที่จองไว้</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">สถานการณ์</div>
+        <p>แขก In-house โทรมาแจ้งว่าจะออกวันนี้ ทั้งที่จองถึงอีก 1-2 คืนข้างหน้า ระบบจะกระตุ้น <strong>Shorten Flow</strong> โดยอัตโนมัติ เพื่อคำนวณว่าควรจะเก็บค่าปรับ (<strong>Shorten Fee</strong>) หรือไม่ และต้องมีเงินทอน/เงินคืนแขกเท่าไหร่</p>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">หลักการคิดราคา</div>
+        <div class="card accent">
+          <strong>📌 กฎทองการคิดเงิน:</strong> 
+          <ul class="mt-2" style="font-size:14px">
+            <li><strong>คิดค่าห้องเฉพาะคืนที่แขกพักจริงเท่านั้น:</strong> เช่น จอง 4 คืน แจ้งออกหลังจากที่พักไปแล้ว 2 คืน → ให้คิดค่าห้องแค่ 2 คืน </li>
+            <li><strong>ค่าปรับ (Shorten Fee):</strong> ตรวจสอบว่ามีค่าปรับตามนโยบายหรือไม่ (ดู Fee Cap ในระบบเป็นตัวอ้างอิง) FO สามารถขอให้ ผจก. อนุมัติการยกเว้นได้ (Waive)</li>
+            <li><strong>เงินคืนส่วนต่าง:</strong> ถ้ายอดที่แขกชำระมาล่วงหน้า (Pre-paid) มีมากกว่า <em>"ค่าห้องที่พักจริง + ค่าปรับ"</em> ทางโรงแรมต้องคืนเงินส่วนเกินให้กับแขก</li>
+          </ul>
+        </div>
+
+        <div class="price-box">
+          <div class="price-label">ตัวอย่างการจำลอง (Simulation)</div>
+          <div class="price-row"><span class="label">เงินที่จ่ายมาแล้วทั้งหมด (Prepaid Net)</span><span class="value">บาท A</span></div>
+          <div class="price-row"><span class="label">ค่าห้องคืนที่พักจริง (New Total)</span><span class="value">บาท B</span></div>
+          <div class="price-row"><span class="label">ส่วนเกินที่ต้องจัดการ (Overpaid)</span><span class="value">A − B (บาท)</span></div>
+          <div class="price-row total"><span class="label">ยอดเงินคืนแขกจริง</span><span class="value" style="color:var(--green)">Overpaid − ค่าปรับ</span></div>
+        </div>
+
+        <div class="tip-box warn">
+          <span class="tip-icon">⚠️</span>
+          <span>ข้อควรระวัง: ห้ามเรียกเก็บ <strong>Shorten Fee</strong> เกินกว่า <strong>Fee Cap</strong> ที่ระบบแนะนำเด็ดขาด</span>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ขั้นตอนการทำ Early C/O บนระบบ</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ค้นหา Reservation → แก้ไขวันที่ออก (Checkout Date)</div>
+              <div class="step-desc">ค้นหาชื่อแขกที่หน้า Reservations → กด <strong>Edit</strong> → อัปเดตช่อง <strong>Checkout Date</strong> ให้เป็นวันที่แขกจะออกจริง</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ระบบแสดงค่าใช้จ่ายใหม่ (Settlement Preview)</div>
+              <div class="step-desc">หลังจากบันทึก ระบบจะแสดงหน้าต่าง <strong>Shorten Fee Modal</strong> อัตโนมัติ พร้อมคำนวณตัวเลขและยอดเงินคืนที่แจ้งไว้</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">ตรวจสอบความถูกต้องของตัวเลข</div>
+              <div class="step-desc">ตรวจสอบส่วน Prepaid Net / Old Total / New Total / Overpaid และ Fee Cap ให้ถูกต้องตรงกันกับสถานการณ์จริง</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เลือกการเก็บค่าปรับ (Policy)</div>
+              <div class="step-desc">
+                <strong>(A) เก็บค่าปรับ:</strong> ใส่จำนวนเงินค่าปรับ (ไม่เกินค่า Cap) และเลือกช่องทางให้ถูกต้อง<br>
+                <strong>(B) ยกเว้นค่าปรับ (Waive):</strong> หากเจรจาหรือได้รับอนุมัติจากผู้จัดการแล้ว ให้ติ๊กเครื่องหมายถูกที่ช่อง "No fee — Waive shorten stay penalty"
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">กดยืนยันการทำ Shorten และตรวจสอบบิล</div>
+              <div class="step-desc">ถ้ามียอดคืนเงิน ให้เลือกวิธีคืนเงิน (Refund Method) → จากนั้นกด <strong>Confirm Shorten</strong> เพื่อจบกระบวนการเปลี่ยนวัน</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-body">
+              <div class="step-title">เช็คเอาท์ตามปกติ (Checkout Process)</div>
+              <div class="step-desc">หลังจากทำ Shorten ทอนเงินเรียบร้อยแล้ว ให้ดำเนินการ <strong>Check-out</strong> รับคืนกุญแจ และอัปเดตสถานะห้อง HK ตาม Flow ถัดไป</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ลองดูหน้า Reservations — สำหรับดูข้อมูลภาพรวมและกดปุ่ม Edit</div>
+        <!-- CHANGED IFRAME SRC TO RELATIVE URL -->
+        <iframe src="/pms/reservations" title="Reservations List" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 2: VERY LATE ARRIVAL
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-lateArr">
+    <div class="section-header">
+      <div class="section-icon amber">🌙</div>
+      <div>
+        <div class="section-title">2. Very Late Arrival (แขกมาดึกมาก / เช้ามืด)</div>
+        <div class="section-subtitle">การจัดการเคสแขกมาถึงโรงแรมหลังเที่ยงคืนเป็นต้นไป</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">แบ่งเป็น 2 กลุ่มหลักในการจัดการ</div>
+        <div class="scenario-grid">
+          <div class="scenario-card">
+            <div class="s-num">กลุ่ม A — จองมาล่วงหน้า (Pre-booked)</div>
+            <div class="s-title">มีการ์ดจอง / OTA / Phone booking มารอก่อนแล้ว</div>
+            <div class="s-body">
+              <ul>
+                <li>สามารถหาชื่อเจอในระบบและทำการ Check-in ตามปกติ</li>
+                <li>ถ้าเป็น OTA ตรวจสอบสถานะ <strong>Pre-payment</strong> ว่ายอดชำระเคลียร์ครบแล้วหรือไม่ ก่อนให้ Keycard</li>
+                <li><strong>⚠️ ข้อควรระวังที่สุด:</strong> วัน Checkout ต้อง <em>"ยึดตามวันที่จองเดิม"</em> ไม่ใช่การตีวันใหม่ตามเวลาเช็คอินจริง</li>
+              </ul>
+            </div>
+          </div>
+          <div class="scenario-card">
+            <div class="s-num">กลุ่ม B — Walk-in (ไม่ได้จองมาก่อน)</div>
+            <div class="s-title">โผล่มาหน้าเคาน์เตอร์ยามดึก</div>
+            <div class="s-body">
+              <ul>
+                <li>ดำเนินการสร้าง New Reservation หน้างานเลย</li>
+                <li><strong>⚠️ วัน Check-out ต้องเป็น 12:00 น. ของวันตัดยอดนั้นๆ (Business Date ของคืนที่พัก)</strong></li>
+                <li>เช่น หากแขกเดินมาตี 2 ของคืนวันที่ 22 มี.ค. วัน Checkout จะต้องเป็น 12:00 น. ของวันที่ 23 มี.ค. ทันที</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">เรื่อง Business Date ที่ต้องโฟกัส</div>
+        <div class="card amber">
+          <strong>Business Date (วันที่ในระบบ PMS) อาจไม่ตรงกับ นาฬิกาปฏิทินจริง เสมอไป</strong><br>
+          <span style="font-size:14px">
+            จนกว่าจะมีการทำรอบ <strong>Night Audit</strong> วันที่ของระบบจะยังมองว่าเป็น "เมื่อวาน" อยู่เสมอ<br>
+            ดังนั้นการหาข้อมูลหรือยืนยัน Booking ต้องเช็คให้ดีว่าระบบค้างอยู่ที่ Business Date ใด เพื่อหลีกเลี่ยงการทำรอบจองผิดวัน (ตรวจสอบวันบนแถบบาร์ของระบบเสมอ)
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 3: ROOM MOVE & PLAN ROOM MOVE
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-roommove">
+    <div class="section-header">
+      <div class="section-icon blue">🔄</div>
+      <div>
+        <div class="section-title">3. Room Move &amp; Plan Room Move</div>
+        <div class="section-subtitle">ย้ายห้องทันที หรือวางแผนเพื่อย้ายข้ามวัน (เปลี่ยนแพลนห้อง)</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">โหมดภาพรวมการย้ายห้อง 2 ลักษณะ</div>
+        <div class="scenario-grid">
+          <div class="scenario-card">
+            <div class="s-num">รูปแบบที่ 1</div>
+            <div class="s-title">Move Now (ย้ายทันที)</div>
+            <div class="s-body">ใช้สำหรับย้ายห้องในวันนี้เลย มักเจอกรณีได้รับเรื่องร้องเรียนห้องแอร์เสีย หรือมีการอัปเกรดหน้า Front ทันที</div>
+          </div>
+          <div class="scenario-card">
+            <div class="s-num">รูปแบบที่ 2</div>
+            <div class="s-title">Plan Move (วางแพลนล่วงหน้า)</div>
+            <div class="s-body">เหมาะสำหรับแขกที่พักยาวและต้องมีการต่อจองห้องเดิมไม่แน่ไม่นอน หรือแขกเปลี่ยนประเภทห้องในลักษณะที่แจ้งไว้อีก 3 วันหน้า (ระบบจัดการ Execute ย้ายอัตโนมัติถึงวันที่ระบุ)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">3 นโยบายราคาอ้างอิง (Pricing Policy)</div>
+
+        <div class="card green">
+          <strong>แบบที่ 1: Keep RTC (ราคาเดิม / อัปเกรดให้ฟรี)</strong><br>
+          <span style="font-size:14px">ใช้เมื่อ: ห้องมีปัญหากระทันหัน เลยชดเชยด้วยการส่งเข้าห้องที่แพงกว่าฟรีๆ หรือการเปลี่ยนห้องระดับเดียวกัน ไม่สร้างผลกระทบต่อรายการราคาของแขก</span>
+        </div>
+
+        <div class="card amber">
+          <strong>แบบที่ 2: Rate Grid (คิดราคาอ้างอิงตาม Rate Grid ปัจจุบัน)</strong><br>
+          <span style="font-size:14px">ใช้เมื่อ: แขกมีความต้องการอยากเปลี่ยนจากห้องถูก ไปห้องที่มีระดับและราคาแพงขึ้น โดย Guest เต็มใจจ่ายเงินสมทบ Top-up จากราคาเดิม.<br>
+          (ระบบจะคำนวณราคา Diff นำเสนอให้เห็นก่อนยืนยันตกลงเสมอ)</span>
+        </div>
+
+        <div class="card accent">
+          <strong>แบบที่ 3: Rate Grid + Discount (ราคาตลาด + มีส่วนลดเฉพาะกิจ)</strong><br>
+          <span style="font-size:14px">คล้ายข้อ 2 แต่มีส่วนลดพ่วง โดยเลือกได้ว่าให้ลด <span class="badge purple">% (เปอร์เซ็นต์)</span> หรือหักลดแบบ <span class="badge blue">จำนวนเงินชัดเจน (Fixed amount)</span> <br>แต่จำเป็นอย่างยิ่งที่ต้องระบุสาเหตุส่วนลด <strong>(Discount Reason)</strong> เสมอ!</span>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">ทำความเข้าใจล็อคการห้ามย้าย (Assigned Room Lock)</div>
+        <p style="font-size:14px">หากห้องมี Lock สีเหลืองสถานะบ่งชี้ว่า <strong>"Do Not Move"</strong> หมายความว่าผู้รับผิดชอบห้องตั้งใจ Fix ไว้ ห้ามพนักงานท่านอื่นไปดึงสลับ ถ้าขยับจำเป็นต้องระบุผ่านช่อง Override Note เพื่อการรับทราบ</p>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ลองเช็คสถานะห้องในหน้า Room Board (เช็คก่อน Move Room เสมอ)</div>
+        <!-- CHANGED IFRAME SRC TO RELATIVE URL -->
+        <iframe src="/pms/board" title="Room Board" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SECTION 4: EXTEND STAY (THE NEW CLARIFIED REWRITE)
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-extend">
+    <div class="section-header">
+      <div class="section-icon green">📅</div>
+      <div>
+        <div class="section-title">4. Extend Stay — OTA &amp; Walk-in (ขยายการเข้าพักตัว)</div>
+        <div class="section-subtitle">แขกแจ้งความประสงค์ขออยู่ต่อหลังวันเช็คเอาท์ — กฎกติกาเกี่ยวกับราคาที่ห้ามพลาด</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="subsection">
+        <div class="subsection-title">กฎทองการจัดการราคาของ Extend Stay (สำคัญมาก!)</div>
+        <div class="card accent">
+          <strong>📌 กฎที่ห้ามละเมิดเกี่ยวกับการอยู่ต่อ:</strong>
+          <ul style="font-size:14px; margin-top:6px; line-height:1.6">
+            <li><strong>การอยู่ต่อเพิ่ม (Extension) ไม่ใช่ส่วนหนึ่งของสัญญา OTA เสมอ:</strong> 
+              แขกที่จอง OTA มา แล้วขออยู่ต่อช่วงเวลาดังกล่าว ระบบจะตีความเวลาที่เกินมาถือเป็นการซื้อโดยตรงกับโรงแรม (เท่ากับเป็นสถานะ <strong>Walk-in แบบ Walk-in Segment</strong> ตัวใหม่ทันที)</li>
+            <li><strong>ราคาการอยู่ต่อ ต้องอิงจาก Rate Grid เท่านั้น:</strong>
+              ราคาคืนเดิมของ OTA <span class="badge red">ห้าม</span> ดึงมาใช้ในวันที่อยู่ต่อ ให้ยึดราคาตลาด Rate Grid หน้าเคาน์เตอร์ชาร์จแบบ Walk-in เท่านั้น</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">รูปแบบและวิธีการ Extend Stay 4 สถานการณ์</div>
+
+        <!-- Scenario A -->
+        <div class="card green" style="margin-bottom:18px">
+          <strong>(สถานการณ์ A) แขก OTA — ขอพักต่อในห้องเดิม (Same Room - ไม่มีจองซ้อน)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            <strong>วิธีทำง่ายๆ ถ้ารูมว่าง:</strong>
+            <ul style="margin-top:4px; padding-left:16px">
+              <li>เปิด Profile ของ Reservation → กด <strong>"OTA Extend Stay"</strong></li>
+              <li>เลือกกลยุทธ์ (Strategy) เป็น <strong>Same Room (อยู่ห้องเดิม)</strong></li>
+              <li>ระบบจะทำการ Preview วันที่ต้องการพักต่อและราคา <strong>Rate Grid ของ Walk-in</strong> ขึ้นมา (จะไม่มีการ Block คนอื่น)</li>
+              <li>กดยืนยัน <strong>Commit Extension Plan</strong> ได้ทันที</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Scenario B -->
+        <div class="card amber" style="margin-bottom:18px">
+          <strong>(สถานการณ์ B) แขก OTA — ห้องเดิมพักต่อไม่ได้แล้ว มีลูกค้ารอ (Blocker Incident)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            ถ้าห้องของแขกมีการผูกจองรอไว้ล่วงหน้า ระบบจะโชว์ <strong>Blocking Item</strong> ขึ้นมาทันที<br>
+            <strong>เมื่อเจอแบบนี้ Front ต้องตัดสินใจเลือก 2 ทางออก:</strong>
+            <ul style="margin-top:4px; padding-left:16px; margin-bottom:8px">
+              <li><strong>ทางออก 1 (Swap Blocker):</strong> กดหาห้องสลับให้แขกที่กำลังรอ (สับตะพายห้อง) คืนคิวให้แขก OTA อยู่ห้องเดิมต่อไป</li>
+              <li><strong>ทางออก 2 (Different Room):</strong> ไม่ยุ่งกับคิวเก่า แต่ให้แขก OTA จัดกระเป๋าแล้วย้ายไปพักยังห้องใหม่ที่มีเตียงว่างแทน</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Scenario C -->
+        <div class="card blue" style="margin-bottom:18px">
+          <strong>(สถานการณ์ C) แขก OTA — ต้องอัปข้ามห้องพัก เปลี่ยนไป Type อื่น (Different Room)</strong>
+          <div style="font-size:14px; margin-top:6px">
+            <strong>วิธีปฏิบัติบนระบบ:</strong>
+            <ul style="margin-top:4px; padding-left:16px">
+              <li>ในหน้า OTA Extend Stay → เลือก <strong>Different Room</strong></li>
+              <li>ถ้าหากแขกบอกจะ <strong>Move Now</strong> ทันที จะมีกติกาย่อยให้พิจารณา:
+                <ul style="margin-top:4px">
+                  <li><strong>A: Keep OTA as-is</strong> (ย้ายห้องเลย แต่ชั่วโมงของสัญญา OTA เดิมยังอยู่คงที่)</li>
+                  <li><strong>B: Shorten OTA first</strong> (ตัวสัญญาจองของ OTA จะถูกย่นวันออกเพื่อหลีกเลี่ยงข้อหาซ้ำซ้อน)</li>
+                </ul>
+              </li>
+              <li>เมื่อกด Commit ระบบจะผูกยอดสร้างลักษณะ <strong>Linked Booking (การเข้าพักต่อเนื่องจาก OTA เป็น WI แบบผูกโยงกัน)</strong></li>
+            </ul>
+            <div class="tip-box warn" style="margin-top:10px">
+              <span class="tip-icon">⚠️</span>
+              <span>สำคัญมาก! หลังการ Extend สาย OTA แล้ว <strong>พนักงานต้องกระตุ้นการยืดวันใหม่ บนแพลตฟอร์ม OTA ด้วยมือตนเองอีกครั้ง!</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario D -->
+        <div class="card" style="margin-bottom:18px">
+          <strong>(สถานการณ์ D) แขก Walk-in ธรรมดา — ขอต่ออายุวัน</strong>
+          <div style="font-size:14px; margin-top:6px">
+            <strong>เคสนี้ง่ายที่สุด ไม่ยุ่งยากซับซ้อน:</strong>
+            <ul style="margin-top:4px; padding-left:16px">
+              <li>เข้า Reservation ของแขก เปลี่ยน <strong>Checkout Date</strong> ใหม่ เซฟให้เรียบร้อย</li>
+              <li>ระบบจะโยนยอดเข้าบิลที่เพิ่มมาให้ อิงจาก <strong>Rate Grid ปกติ</strong> </li>
+              <li>Front แค่เช็คยอดบิล แล้วเก็บตังค์ให้ครบจบ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="subsection-title">อ่านสัญลักษณ์ Linked Stay Badge บนหน้าระบบ</div>
+        <div class="card">
+          <p style="font-size:14px; margin-bottom:8px">ถ้าเห็นป้ายสถานะ Badge เล็กๆ ติดใต้ชื่อ ในหน้าจอง Reservations ข้อมูลเหล่านั้นแจ้งแบบนี้:</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px">
+            <span style="background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:700">OTA 7-10/3 ●</span>
+            <span style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:4px 10px; font-size:12px">WI 10-12/3 ✓</span>
+          </div>
+          <table style="margin-bottom:0">
+            <thead><tr><th>สัญลักษณ์</th><th>แปลผลหมายความว่าอย่างไร</th></tr></thead>
+            <tbody>
+              <tr><td><strong>OTA / WI</strong></td><td>ต้นสังกัดของตัวแทน — OTA (แอปทัวร์) / WI (หน้าระบบ Walk-in ติดต่อรับจองเอง)</td></tr>
+              <tr><td><strong>7-10/3</strong></td><td>ตัวแทนการเข้าพักเช็คอินวันที่ 7 ออกวันที่ 10/3</td></tr>
+              <tr><td><strong>เครื่องหมาย ●</strong> (จุดสีน้ำเงิน)</td><td>แปลว่ากำลังพักผ่อน ใช้วงจรท่อนนี้แบบ <strong>Active ในปัจจุบัน</strong></td></tr>
+              <tr><td><strong>เครื่องหมาย ✓</strong> </td><td>แขกใช้ช่วงท่อนนี้ Check-out หมดสัญญาแล้ว</td></tr>
+              <tr><td><strong>เครื่องหมาย ✕</strong></td><td>ล่ม/ยกเลิก ไม่มีตัวตนไปแล้ว</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="iframe-wrap">
+        <div class="iframe-label">🖥️ ดูหน้าระบบจริง — หน้า Reservations List เพื่อสังเกตสัญลักษณ์ Linked Stay</div>
+        <!-- CHANGED IFRAME SRC TO RELATIVE URL -->
+        <iframe src="/pms/reservations" title="Reservations List Linked Stay" loading="lazy"></iframe>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       GLOSSARY
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec-glossary">
+    <div class="section-header">
+      <div class="section-icon purple">📖</div>
+      <div>
+        <div class="section-title">5. คำศัพท์ที่ต้องรู้ (Glossary)</div>
+        <div class="section-subtitle">ศัพท์เทคนิคสรุปรวม</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="glossary-grid">
+        <div class="glossary-item">
+          <div class="term">Early C/O (Early Check-out)</div>
+          <div class="definition">การเช็คเอาท์ก่อนวันที่กำหนดไว้ในการจอง</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Shorten Fee / Cap</div>
+          <div class="definition">ค่าปรับในการย่นระยะการเข้าพัก และจำนวนเพดานสูงสุดที่สามารถปรับได้</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Overpaid / Refund</div>
+          <div class="definition">เงินส่วนที่ผู้ใช้จ่ายเกินที่ต้องได้รับเงินทอนคืนเป็น Cash หรือแบงก์กิ้ง</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Business Date</div>
+          <div class="definition">วันที่ผูกโยงกับ Night Audit ที่อิงเรื่องการจัดการเงินและยอดระบบบัญชี</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Very Late Arrival</div>
+          <div class="definition">แขกเช็คอินมืด ดึกๆ เลยเที่ยงคืน มีผลต้องระวังเรื่องการตั้งวัน 12:00 Checkout</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Room Move (Move Now / Plan Move)</div>
+          <div class="definition">ระบบจัดการสับเปลี่ยนย้ายห้องแบบฉับพลัน หรือตั้งวันเวลาจัดการรอข้ามวัน</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Keep RTC / Rate Grid</div>
+          <div class="definition">เกณฑ์ราคาแบบรักษาราคาเดิม หรือเทียบส่วนต่างอิงโครงสร้างฐานหน้าเคาน์เตอร์</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Extend Stay (การขยายการเข้าพัก)</div>
+          <div class="definition">สำคัญมาก! ยอดการอยู่เพิ่มของ OTA ให้คิดราคาใหม่หน้า Grid แบบ Walk-in ทุกกรณี</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Linked Booking / Stay Segment</div>
+          <div class="definition">รอบชิ้นส่วนการต่อกันของระบบจอง เช่น จองผ่านแอปต่อด้วยจองจ่ายหน้างาน (ซ้อนสัญญา)</div>
+        </div>
+        <div class="glossary-item">
+          <div class="term">Blocker / Swap</div>
+          <div class="definition">สิ่งขัดขวางห้องถูกจองซ้อนทับ และกระดานระบบสลับคิวอออร์โต้เพื่อแก้ Blocker</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center; color:var(--muted); font-size:13px; padding-top:16px">
+    หมวด 4ข: การจัดการกรณีพิเศษ Front Desk (V2) — Hotel PMS Employee Training Manual<br>
+    อัปเดต: ปี 2026 ฉบับแก้ไขปรับปรุง (Fix Preview & Clarify OTA Rule)
+  </div>
+
+</div>
+</body>
+</html>

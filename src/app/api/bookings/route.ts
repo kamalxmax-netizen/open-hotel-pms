@@ -3,7 +3,7 @@ import { z } from "zod";
 import { mapBookingErrorToStatus, normalizeMoney, sumMoney } from "@/lib/bookings";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
-import { isValidDateString, listNights } from "@/lib/dates";
+import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import {
   applyNightlyRatesToReservation,
   calculateAppliedRateNights,
@@ -86,6 +86,28 @@ async function resolveAuditBusinessDate(supabase: any): Promise<string> {
   }
 
   return toBangkokDateString();
+}
+
+function getBangkokNowMeta(date = new Date()): { date: string; hour: number; minute: number; timeLabel: string } {
+  const dateText = toBangkokDateString(date);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  const safeHour = Number.isFinite(hour) ? hour : 0;
+  const safeMinute = Number.isFinite(minute) ? minute : 0;
+
+  return {
+    date: dateText,
+    hour: safeHour,
+    minute: safeMinute,
+    timeLabel: `${String(safeHour).padStart(2, "0")}:${String(safeMinute).padStart(2, "0")}`,
+  };
 }
 
 const createBookingSchema = z.object({
@@ -231,6 +253,21 @@ export async function POST(request: NextRequest) {
 
   if (!isValidDateString(payload.checkin_date) || !isValidDateString(payload.checkout_date)) {
     return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD." }, { status: 400 });
+  }
+
+  // Late-arrival policy:
+  // - Before 12:00 Bangkok: allow check-in backdate up to 1 day.
+  // - At/after 12:00 Bangkok: do not allow backdate.
+  const bangkokNow = getBangkokNowMeta();
+  const allowBackdateDays = bangkokNow.hour < 12 ? 1 : 0;
+  const earliestAllowedCheckin = addDays(bangkokNow.date, -allowBackdateDays);
+  if (compareDateStrings(payload.checkin_date, earliestAllowedCheckin) < 0) {
+    return NextResponse.json(
+      {
+        error: `checkin_date is too far in the past. Earliest allowed now is ${earliestAllowedCheckin} (current Bangkok time ${bangkokNow.timeLabel}, date ${bangkokNow.date}).`,
+      },
+      { status: 400 }
+    );
   }
 
   let nights: string[];

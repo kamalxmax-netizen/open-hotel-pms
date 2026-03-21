@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { isKnownOtaOrchestratorError, previewOtaExtendOrchestrator } from "@/lib/ota-extend-orchestrator";
 
 const paramsSchema = z.object({
@@ -36,6 +37,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const result = await previewOtaExtendOrchestrator({
       supabase: supabase as any,
       input: {

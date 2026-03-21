@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { isValidDateString } from "@/lib/dates";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
-import { applyVisibleTotal, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
+import { applyVisibleTotal, fetchReservationOutstandingBalances, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
                 discount_type,
                 discount_value,
                 discount_percent,
+                deposit_amount,
                 total_price,
                 note,
                 reservation_nights(
@@ -95,6 +96,19 @@ export async function GET(request: NextRequest) {
             profileSeed
         );
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
+        const outstandingByReservationId = await fetchReservationOutstandingBalances(
+            supabase,
+            (data ?? []).map((r: any) => ({
+                id: String(r.id),
+                total_price: r.total_price,
+                deposit_amount: r.deposit_amount,
+                discount_type: r.discount_type,
+                discount_value: r.discount_value,
+                discount_percent: r.discount_percent,
+                checkin_date: r.checkin_date,
+                checkout_date: r.checkout_date,
+            }))
+        );
         const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
 
         const departures = await Promise.all(
@@ -132,6 +146,7 @@ export async function GET(request: NextRequest) {
                     checkinDate: r.checkin_date,
                     checkoutDate: r.checkout_date,
                 }),
+                outstanding_balance: outstandingByReservationId.get(String(r.id)) ?? 0,
                 note: r.note,
                 room_number: room?.room_number ?? "—",
                 room_type: room?.room_types?.name_en ?? "—",

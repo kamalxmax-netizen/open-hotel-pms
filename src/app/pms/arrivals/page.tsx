@@ -97,6 +97,17 @@ export default function ArrivalsPage() {
     const [optionsArrival, setOptionsArrival] = useState<Arrival | null>(null);
     const [assignArrival, setAssignArrival] = useState<Arrival | null>(null);
     const [swapArrival, setSwapArrival] = useState<Arrival | null>(null);
+    const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (!(event.target as Element).closest(".more-menu-container")) {
+                setShowMoreMenu(null);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
     const [markNoShowArrival, setMarkNoShowArrival] = useState<Arrival | null>(null);
     const [chargeAmountInput, setChargeAmountInput] = useState("0");
     const [paymentMethod, setPaymentMethod] = useState<NoShowPaymentMethod>("cash");
@@ -305,7 +316,7 @@ export default function ArrivalsPage() {
 
             {/* Arrivals table */}
             {!loading && filteredArrivals.length > 0 && (
-                <div className="card overflow-hidden">
+                <div className="card overflow-visible">
                     <table className="data-table table-fixed w-full">
                         <thead>
                             <tr>
@@ -348,24 +359,24 @@ export default function ArrivalsPage() {
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                                 {(a.alert_count ?? a.alerts?.length ?? 0) > 0 && (
-                                                     <span className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400" title={a.first_alert_message ?? "Alerts Present"}>
-                                                         🔴 {a.alert_count ?? a.alerts.length}
-                                                     </span>
-                                                 )}
-                                                 {a.do_not_move_assigned_room && (
-                                                     <span
-                                                         className="badge bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
-                                                         title={a.do_not_move_reason || "Assigned room is locked"}
-                                                     >
-                                                         🔒 Do Not Move
-                                                     </span>
-                                                 )}
-                                                 {a.open_traces_count > 0 && (
-                                                     <span className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400" title="Open Traces">
-                                                         🟠 {a.open_traces_count}
-                                                     </span>
-                                                 )}
+                                                {(a.alert_count ?? a.alerts?.length ?? 0) > 0 && (
+                                                    <span className="badge bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400" title={a.first_alert_message ?? "Alerts Present"}>
+                                                        🔴 {a.alert_count ?? a.alerts.length}
+                                                    </span>
+                                                )}
+                                                {a.do_not_move_assigned_room && (
+                                                    <span
+                                                        className="badge bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                                                        title={a.do_not_move_reason || "Assigned room is locked"}
+                                                    >
+                                                        🔒 Do Not Move
+                                                    </span>
+                                                )}
+                                                {a.open_traces_count > 0 && (
+                                                    <span className="badge bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] dark:bg-amber-500/10 dark:text-amber-400" title="Open Traces">
+                                                        🟠 {a.open_traces_count}
+                                                    </span>
+                                                )}
                                             </div>
                                             {a.phone && <div className="text-xs text-[var(--text-muted)]">{a.phone}</div>}
                                         </td>
@@ -392,12 +403,18 @@ export default function ArrivalsPage() {
                                             {done ? (
                                                 <div className="flex gap-2 items-center">
                                                     <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">✓ Checked In</span>
-                                                    <button className="btn btn-secondary btn-sm" onClick={() => setOptionsArrival(a)}>⋯ Options</button>
+                                                    <button className="btn btn-secondary btn-sm flex items-center gap-1" onClick={() => setOptionsArrival(a)}>
+                                                        <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M8.34 1.804A1 1 0 019.32 1h1.36a1 1 0 01.98.804l.295 1.473c.497.179.972.413 1.416.697l1.394-.599a1 1 0 011.118.23l.962.962a1 1 0 01.23 1.118l-.6 1.394c.285.444.519.919.697 1.416l1.474.295A1 1 0 0119 10.68v1.36a1 1 0 01-.804.98l-1.473.295c-.179.497-.413.972-.697 1.416l.599 1.394a1 1 0 01-.23 1.118l-.962.962a1 1 0 01-1.118.23l-1.394-.6c-.444.285-.919.519-1.416.697l-.295 1.474A1 1 0 0110.68 19H9.32a1 1 0 01-.98-.804l-.295-1.473a7.957 7.957 0 01-1.416-.697l-1.394.599a1 1 0 01-1.118-.23l-.962-.962a1 1 0 01-.23-1.118l.6-1.394a7.957 7.957 0 01-.697-1.416l-1.474-.295A1 1 0 011 10.68V9.32a1 1 0 01.804-.98l1.473-.295c.179-.497.413-.972.697-1.416l-.599-1.394a1 1 0 01.23-1.118l.962-.962a1 1 0 011.118-.23l1.394.6c.444-.285.919-.519 1.416-.697l.295-1.474z" clipRule="evenodd" />
+                                                            <path fillRule="evenodd" d="M10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                                        </svg>
+                                                        Options
+                                                    </button>
                                                 </div>
                                             ) : isNoShow ? (
                                                 <span className="badge bg-[var(--bg-muted)] text-[var(--text-secondary)]">No-Show</span>
                                             ) : (
-                                                <div className="flex gap-1">
+                                                <div className="flex gap-1 items-center">
                                                     {a.room_number === "—" ? (
                                                         <button
                                                             className="btn btn-primary btn-sm"
@@ -406,29 +423,54 @@ export default function ArrivalsPage() {
                                                             Assign Room
                                                         </button>
                                                     ) : (
-                                                        <>
-                                                            <button
-                                                                className="btn btn-primary btn-sm"
-                                                                onClick={() => handleCheckin(a)}
-                                                            >
-                                                                Check-in
-                                                            </button>
-                                                            <button
-                                                                className="btn btn-secondary btn-sm"
-                                                                onClick={() => setSwapArrival(a)}
-                                                            >
-                                                                Swap
-                                                            </button>
-                                                        </>
+                                                        <button
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => handleCheckin(a)}
+                                                        >
+                                                            Check-in
+                                                        </button>
                                                     )}
-                                                    <button className="btn btn-secondary btn-sm" onClick={() => setOptionsArrival(a)}>⋯ Options</button>
+
                                                     <button
-                                                        className="btn btn-ghost btn-sm text-[var(--text-muted)] hover:text-rose-600"
-                                                        onClick={() => handleNoShow(a)}
-                                                        title="Mark as No-Show"
+                                                        className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                        onClick={() => setOptionsArrival(a)}
                                                     >
-                                                        No-Show
+                                                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                                        </svg>
+                                                        Options
                                                     </button>
+
+                                                    <div className="relative more-menu-container">
+                                                        <button
+                                                            className="btn btn-secondary btn-sm flex items-center gap-1"
+                                                            onClick={() => setShowMoreMenu(prev => prev === a.id ? null : a.id)}
+                                                        >
+                                                            More
+                                                            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                            </svg>
+                                                        </button>
+                                                        {showMoreMenu === a.id && (
+                                                            <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg py-1">
+                                                                {a.room_number !== "—" && (
+                                                                    <button
+                                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                        onClick={() => { setShowMoreMenu(null); setSwapArrival(a); }}
+                                                                    >
+                                                                        🔄 Swap Room
+                                                                    </button>
+                                                                )}
+                                                                {a.room_number !== "—" && <hr className="my-1 border-[var(--border-default)]" />}
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-rose-600"
+                                                                    onClick={() => { setShowMoreMenu(null); handleNoShow(a); }}
+                                                                >
+                                                                    🚫 No-Show
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                         </td>

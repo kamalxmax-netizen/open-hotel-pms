@@ -7,6 +7,7 @@ import { addDays } from "@/lib/dates";
 
 type LinkedExtensionModalProps = {
   reservationId: string;
+  source?: string;
   guestName: string;
   currentCheckoutDate: string;
   currentRoomTypeId: string;
@@ -80,6 +81,7 @@ function getBangkokTodayYmd(date = new Date()): string {
 
 export default function LinkedExtensionModal({
   reservationId,
+  source = "ota",
   guestName,
   currentCheckoutDate,
   currentRoomTypeId,
@@ -123,8 +125,8 @@ export default function LinkedExtensionModal({
 
   const bangkokToday = useMemo(() => getBangkokTodayYmd(), []);
   const isEarlyMoveCase = useMemo(
-    () => strategy === "different_room" && moveMode === "move_now" && bangkokToday < currentCheckoutDate,
-    [strategy, moveMode, bangkokToday, currentCheckoutDate]
+    () => source === "ota" && strategy === "different_room" && moveMode === "move_now" && bangkokToday < currentCheckoutDate,
+    [source, strategy, moveMode, bangkokToday, currentCheckoutDate]
   );
   const optionBMaxDate = useMemo(() => addDays(currentCheckoutDate, -1), [currentCheckoutDate]);
 
@@ -194,7 +196,7 @@ export default function LinkedExtensionModal({
       }
 
       try {
-        const res = await fetch(`/api/bookings/${reservationId}/ota-extend-orchestrator/preview`, {
+        const res = await fetch(`/api/bookings/${reservationId}/extend-stay/preview`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -337,7 +339,7 @@ export default function LinkedExtensionModal({
         body.selected_blocker_target_room_id = selectedBlockerTargetRoomId || undefined;
       }
 
-      const res = await fetch(`/api/bookings/${reservationId}/ota-extend-orchestrator/commit`, {
+      const res = await fetch(`/api/bookings/${reservationId}/extend-stay/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -366,7 +368,7 @@ export default function LinkedExtensionModal({
 
   return (
     <PmsModal
-      title="OTA Extend Stay Orchestrator"
+      title={source === "ota" ? "OTA Extend Stay Orchestrator" : "Extend Stay Orchestrator"}
       size="lg"
       onClose={onClose}
       footer={(
@@ -394,10 +396,13 @@ export default function LinkedExtensionModal({
         )}
 
         <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-3">
-          <p className="text-xs uppercase tracking-wide text-[var(--text-secondary)] font-semibold">Original OTA Reservation</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--text-secondary)] font-semibold">
+            {source === "ota" ? "Original OTA Reservation" : "Original Reservation"}
+          </p>
           <p className="text-lg font-bold text-[var(--text-primary)] mt-0.5">{guestName}</p>
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Extension source will be Walk-in. For move-now, you can choose keep OTA as-is or shorten OTA first.
+            Extension source will be Walk-in. 
+            {source === "ota" ? " For move-now, you can choose keep OTA as-is or shorten OTA first." : ""}
           </p>
         </div>
 
@@ -651,16 +656,18 @@ export default function LinkedExtensionModal({
           </div>
         )}
 
-        <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-table-cell)]">
-            <input type="checkbox" checked={copyAccompanying} onChange={(e) => setCopyAccompanying(e.target.checked)} disabled={saving} />
-            Copy accompanying guests to the new reservation
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-table-cell)]">
-            <input type="checkbox" checked={copyPreferences} onChange={(e) => setCopyPreferences(e.target.checked)} disabled={saving} />
-            Copy preferences / reservation notes context
-          </label>
-        </div>
+        {source === "ota" && (
+          <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-table-cell)]">
+              <input type="checkbox" checked={copyAccompanying} onChange={(e) => setCopyAccompanying(e.target.checked)} disabled={saving} />
+              Copy accompanying guests to the new reservation
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-table-cell)]">
+              <input type="checkbox" checked={copyPreferences} onChange={(e) => setCopyPreferences(e.target.checked)} disabled={saving} />
+              Copy preferences / reservation notes context
+            </label>
+          </div>
+        )}
 
         <div>
           <label className="form-label">Extension Note</label>
