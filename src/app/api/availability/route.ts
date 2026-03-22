@@ -4,6 +4,10 @@ import { listNights, isValidDateString } from "@/lib/dates";
 import { expandPlannedMoveNights, listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 
+function round2(value: number) {
+    return Number(value.toFixed(2));
+}
+
 // GET /api/availability?checkin=YYYY-MM-DD&checkout=YYYY-MM-DD
 // Returns per-room-type availability count, rate/night, and total for stay
 export async function GET(request: NextRequest) {
@@ -155,23 +159,51 @@ export async function GET(request: NextRequest) {
         .from("room_types")
         .select("id, name_en, code");
 
-    // 6. Get rate per type — use the first room of each type, avg price over stay
+    // 6. Get rate per type from all rooms in that type (avg per-night, then avg over stay)
     const rateByType: Record<number, number> = {};
-    for (const [tid, roomIds] of Object.entries(roomIdsByType)) {
-        const typeId = Number(tid);
-        const sampleRoomId = roomIds[0];
-        const { data: rates } = await supabase
+    const overnightRoomIds = Object.values(roomIdsByType).flat();
+    if (overnightRoomIds.length > 0) {
+        const { data: rates, error: ratesError } = await supabase
             .from("rate_templates")
-            .select("price")
-            .eq("room_id", sampleRoomId)
+            .select("room_id, stay_date, price")
+            .in("room_id", overnightRoomIds)
             .in("stay_date", nights);
 
-        if (rates && rates.length > 0) {
-            const sum = rates.reduce((s, r) => s + Number(r.price ?? 0), 0);
-            rateByType[typeId] = Math.round(sum / nights.length);
-        } else {
-            rateByType[typeId] = 0;
+        if (ratesError) return NextResponse.json({ error: ratesError.message }, { status: 500 });
+
+        const valuesByTypeNight = new Map<number, Map<string, number[]>>();
+        for (const row of rates ?? []) {
+            const roomId = String((row as any).room_id ?? "");
+            const stayDate = String((row as any).stay_date ?? "");
+            if (!roomId || !stayDate) continue;
+            const roomMeta = roomMetaById.get(roomId);
+            const typeId = roomMeta?.room_type_id ?? 0;
+            if (!Number.isFinite(typeId) || typeId <= 0) continue;
+
+            let byNight = valuesByTypeNight.get(typeId);
+            if (!byNight) {
+                byNight = new Map<string, number[]>();
+                valuesByTypeNight.set(typeId, byNight);
+            }
+            const list = byNight.get(stayDate) ?? [];
+            list.push(Number((row as any).price ?? 0));
+            byNight.set(stayDate, list);
         }
+
+        for (const tid of Object.keys(roomIdsByType).map(Number)) {
+            const byNight = valuesByTypeNight.get(tid) ?? new Map<string, number[]>();
+            const nightlyAverages: number[] = [];
+            for (const night of nights) {
+                const values = byNight.get(night) ?? [];
+                if (values.length === 0) continue;
+                nightlyAverages.push(values.reduce((sum, value) => sum + value, 0) / values.length);
+            }
+            rateByType[tid] = nightlyAverages.length === 0
+                ? 0
+                : round2(nightlyAverages.reduce((sum, value) => sum + value, 0) / nightlyAverages.length);
+        }
+    } else {
+        for (const tid of Object.keys(roomIdsByType).map(Number)) rateByType[tid] = 0;
     }
 
     // 7. Build response
@@ -189,7 +221,7 @@ export async function GET(request: NextRequest) {
                 available_rooms: available,
                 is_available: available > 0,
                 rate_per_night: ratePerNight,
-                total_for_stay: ratePerNight * nights.length,
+                total_for_stay: round2(ratePerNight * nights.length),
                 nights: nights.length,
             };
         })

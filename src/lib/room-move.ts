@@ -79,20 +79,29 @@ async function fetchRackRateByDate(params: {
   }
 
   const byDate = new Map<string, number[]>();
+  const allValues: number[] = [];
   for (const row of rates) {
     const date = String(row.stay_date ?? "");
     if (!date) continue;
     const price = toNumber((row as any).price);
+    allValues.push(price);
     const list = byDate.get(date) ?? [];
     list.push(price);
     byDate.set(date, list);
   }
 
+  const fallbackAverage = allValues.length > 0
+    ? round2(allValues.reduce((sum, value) => sum + value, 0) / allValues.length)
+    : null;
+
   for (const stayDate of stayDates) {
     const values = byDate.get(stayDate) ?? [];
-    if (values.length === 0) continue;
-    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
-    map.set(stayDate, round2(avg));
+    if (values.length === 0) {
+      if (fallbackAverage !== null) map.set(stayDate, fallbackAverage);
+      continue;
+    }
+    const nightlyAverage = values.reduce((sum, value) => sum + value, 0) / values.length;
+    map.set(stayDate, round2(nightlyAverage));
   }
 
   return map;
@@ -177,6 +186,33 @@ async function assertNoActiveDueOutOccupantForImmediateMove(params: {
       `${roomLabel} is still occupied by due-out reservation ${bookingCode || String(stillInside.id)}${guestName ? ` (${guestName})` : ""}. Check-out must be completed before move.`,
       409
     );
+  }
+}
+
+async function assertRoomHousekeepingReadyForImmediateMove(params: {
+  supabase: SupabaseLike;
+  roomId: string;
+  stayDate: string;
+  roomNumberForMessage?: string | null;
+}) {
+  const { supabase, roomId, stayDate, roomNumberForMessage = null } = params;
+  const { data: hkRows, error: hkError } = await supabase
+    .from("housekeeping_tasks")
+    .select("status, task_seq")
+    .eq("room_id", roomId)
+    .eq("stay_date", stayDate)
+    .order("task_seq", { ascending: false });
+
+  if (hkError) {
+    throw new RoomMoveError(hkError.message ?? "Failed to check housekeeping status.", 500);
+  }
+
+  const latestStatus = hkRows && hkRows.length > 0 ? String((hkRows[0] as any).status ?? "").toLowerCase() : "";
+  if (latestStatus === "dirty" || latestStatus === "in_progress" || latestStatus === "paused") {
+    const roomLabel = roomNumberForMessage ? `Room ${roomNumberForMessage}` : "Target room";
+    const statusLabel =
+      latestStatus === "in_progress" ? "cleaning in progress" : latestStatus === "paused" ? "cleaning paused" : "dirty";
+    throw new RoomMoveError(`${roomLabel} is not ready (HK: ${statusLabel}).`, 409);
   }
 }
 
@@ -310,6 +346,12 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
 
   // Block immediate move if target room still has a due-out guest not checked out yet.
   if (stayDates.includes(today)) {
+    await assertRoomHousekeepingReadyForImmediateMove({
+      supabase,
+      roomId: newRoomId,
+      stayDate: today,
+      roomNumberForMessage: String(newRoom.room_number ?? ""),
+    });
     await assertNoActiveDueOutOccupantForImmediateMove({
       supabase,
       roomId: newRoomId,

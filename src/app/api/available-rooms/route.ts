@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
         }
 
         const nights = listNights(checkin, checkout);
+        const todayBangkok = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+        const includesToday = checkin <= todayBangkok && checkout > todayBangkok;
 
         const supabase = createServerSupabaseClient();
 
@@ -165,6 +167,31 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        const hkBlockedRoomIds = new Set<string>();
+        if (includesToday && overnightRoomIds.length > 0) {
+            const { data: hkRows, error: hkError } = await supabase
+                .from("housekeeping_tasks")
+                .select("room_id, status, task_seq")
+                .eq("stay_date", todayBangkok)
+                .in("room_id", overnightRoomIds)
+                .order("task_seq", { ascending: false });
+
+            if (hkError) {
+                return NextResponse.json({ error: hkError.message }, { status: 500 });
+            }
+
+            const seenRooms = new Set<string>();
+            for (const row of hkRows ?? []) {
+                const roomId = String((row as any).room_id ?? "");
+                if (!roomId || seenRooms.has(roomId)) continue;
+                seenRooms.add(roomId);
+                const status = String((row as any).status ?? "").toLowerCase();
+                if (status === "dirty" || status === "in_progress" || status === "paused") {
+                    hkBlockedRoomIds.add(roomId);
+                }
+            }
+        }
+
         const blockedByTypeCapacity = nights.some((night) => {
             const blockedRooms = blockedRoomIdsByNight.get(night) ?? new Set<string>();
             const capacity = overnightRoomIds.reduce((count, id) => count + (blockedRooms.has(id) ? 0 : 1), 0);
@@ -225,7 +252,7 @@ export async function GET(request: NextRequest) {
 
         // 3. Filter to available rooms
         const availableRooms = allRooms
-            .filter(r => !occupiedRoomIds.has(r.id) && !heldRoomIds.has(r.id))
+            .filter(r => !occupiedRoomIds.has(r.id) && !heldRoomIds.has(r.id) && !hkBlockedRoomIds.has(r.id))
             .map(r => ({
                 id: r.id,
                 room_number: r.room_number,
@@ -240,7 +267,8 @@ export async function GET(request: NextRequest) {
             count: availableRooms.length,
             total_rooms: allRooms.length,
             occupied_count: occupiedRoomIds.size,
-            planned_hold_count: heldRoomIds.size
+            planned_hold_count: heldRoomIds.size,
+            hk_blocked_count: hkBlockedRoomIds.size
         });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });

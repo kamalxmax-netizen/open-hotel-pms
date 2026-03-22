@@ -51,20 +51,14 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ success: false, error: "Another planned move is effective today. Resolve that move first." }, { status: 409 });
     }
 
-    const { data: reservationMeta, error: reservationMetaError } = await supabase
-      .from("reservations")
-      .select("source")
-      .eq("id", reservationId)
-      .maybeSingle();
-    if (reservationMetaError) {
-      return NextResponse.json({ success: false, error: reservationMetaError.message }, { status: 500 });
-    }
-
-    const isOtaReservation = String(reservationMeta?.source ?? "").toLowerCase() === "ota";
-    const effectivePricingPolicy = isOtaReservation ? "keep_rtc" : move.pricing_policy;
-    const effectiveDiscountType = isOtaReservation ? "percent" : (move.discount_type ?? "percent");
-    const effectiveDiscountValue = isOtaReservation ? 0 : Number(move.discount_value ?? 0);
-    const effectiveDiscountReason = isOtaReservation ? null : (move.discount_reason ?? null);
+    const effectivePricingPolicy =
+      move.pricing_policy === "reprice_grid" || move.pricing_policy === "reprice_grid_discount"
+        ? move.pricing_policy
+        : "keep_rtc";
+    const effectiveDiscountType = move.discount_type === "fixed" ? "fixed" : "percent";
+    const rawDiscountValue = Number(move.discount_value ?? 0);
+    const effectiveDiscountValue = Number.isFinite(rawDiscountValue) ? rawDiscountValue : 0;
+    const effectiveDiscountReason = move.discount_reason ?? null;
 
     const executeFrom = today > move.start_date ? today : move.start_date;
     const lateNote = today > move.start_date ? `Executed late from ${today}` : null;
@@ -82,7 +76,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       startDate: executeFrom,
       endDate: addDays(move.end_date, -1),
       notePrefix: "Planned Room Move",
-      noteSuffix: `${lateNote ?? ""}${isOtaReservation ? `${lateNote ? " | " : ""}OTA keep_rtc safeguard` : ""}` || null,
+      noteSuffix: lateNote || null,
       auditAction: "planned_room_move_executed",
       appendNoteLine: true,
       markOldRoomDirty: true,

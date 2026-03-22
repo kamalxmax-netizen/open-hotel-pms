@@ -49,6 +49,31 @@ function resolveLinkHoverKey(res: CalendarReservation): string | null {
     return null;
 }
 
+function splitConsecutiveNights(nights: string[]) {
+    if (nights.length === 0) return [] as string[][];
+    const sorted = Array.from(new Set(nights)).sort();
+    const segments: string[][] = [];
+    let current: string[] = [];
+
+    for (const night of sorted) {
+        if (current.length === 0) {
+            current.push(night);
+            continue;
+        }
+        const prevNight = current[current.length - 1];
+        const expectedNext = addDays(prevNight, 1);
+        if (night === expectedNext) {
+            current.push(night);
+            continue;
+        }
+        segments.push(current);
+        current = [night];
+    }
+
+    if (current.length > 0) segments.push(current);
+    return segments;
+}
+
 /* ─── Props ───────────────────────────────────── */
 export type RoomGridProps = {
     isLoading: boolean;
@@ -125,26 +150,46 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     const dayUseRooms = rooms.filter((r) => r.is_dayuse);
 
     function getBarsForRoom(room: CalendarRoom) {
-        return room.reservations.map((res) => {
+        return room.reservations.flatMap((res) => {
             const visibleNights = res.nights.filter((n) => n >= startDate && n <= endDate);
-            if (visibleNights.length === 0) return null;
+            if (visibleNights.length === 0) return [];
 
-            const firstNight = visibleNights[0];
-            const lastNight = visibleNights[visibleNights.length - 1];
+            return splitConsecutiveNights(visibleNights)
+                .map((segmentNights) => {
+                    const firstNight = segmentNights[0];
+                    const lastNight = segmentNights[segmentNights.length - 1];
 
-            const startIdx = days.indexOf(firstNight);
-            const spanCount = days.indexOf(lastNight) - startIdx + 1;
+                    const startIdx = days.indexOf(firstNight);
+                    const spanCount = days.indexOf(lastNight) - startIdx + 1;
+                    if (startIdx < 0 || spanCount <= 0) return null;
 
-            const clippedLeft = res.checkin_date < startDate;
-            const clippedRight = res.checkout_date > addDays(endDate, 1);
+                    const clippedLeft = res.checkin_date < startDate && firstNight === startDate;
+                    const clippedRight = res.checkout_date > addDays(endDate, 1) && lastNight === endDate;
 
-            return { res, startIdx, spanCount, clippedLeft, clippedRight };
-        }).filter(Boolean) as {
+                    return {
+                        res,
+                        startIdx,
+                        spanCount,
+                        clippedLeft,
+                        clippedRight,
+                        segmentKey: `${firstNight}__${lastNight}`,
+                    };
+                })
+                .filter(Boolean) as {
+                    res: CalendarReservation;
+                    startIdx: number;
+                    spanCount: number;
+                    clippedLeft: boolean;
+                    clippedRight: boolean;
+                    segmentKey: string;
+                }[];
+        }) as {
             res: CalendarReservation;
             startIdx: number;
             spanCount: number;
             clippedLeft: boolean;
             clippedRight: boolean;
+            segmentKey: string;
         }[];
     }
 
@@ -404,7 +449,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 );
                                             })}
 
-                                            {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight }) => {
+                                            {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight, segmentKey }) => {
                                                 const isCheckedOut = res.status === "checked_out";
                                                 const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                 const linkHoverKey = resolveLinkHoverKey(res);
@@ -440,7 +485,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
 
                                                 return (
                                                     <div
-                                                        key={`${res.reservation_id}-${room.room_id}`}
+                                                        key={`${res.reservation_id}-${room.room_id}-${segmentKey}`}
                                                         draggable={isDraggable}
                                                         onDragStart={(e) => {
                                                             if (isDraggable) onBarDragStart?.(res, room.room_number, e);
