@@ -55,6 +55,29 @@ async function resolveRoomMeta(supabase: any, roomId: string) {
   return data;
 }
 
+async function resolveRoomNumber(supabase: any, roomId: string | null | undefined) {
+  if (!roomId) return "unknown";
+  const { data, error } = await supabase
+    .from("rooms")
+    .select("room_number")
+    .eq("id", roomId)
+    .maybeSingle();
+  if (error) throw new PlannedRoomMoveError(error.message ?? "Failed to load room number.", 500);
+  return String(data?.room_number ?? "unknown");
+}
+
+function formatPricingPolicyLabel(params: {
+  pricingPolicy: "keep_rtc" | "reprice_grid" | "reprice_grid_discount";
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  discountReason: string | null;
+}) {
+  const { pricingPolicy, discountType, discountValue, discountReason } = params;
+  if (pricingPolicy === "keep_rtc") return "POLICY: Keep RTC";
+  if (pricingPolicy === "reprice_grid") return "POLICY: Reprice Grid";
+  return `POLICY: Reprice Grid + Discount (${discountType}:${discountValue})${discountReason ? ` [${discountReason}]` : ""}`;
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string; planId: string } }) {
   try {
     const parsedParams = paramsSchema.safeParse(params);
@@ -206,6 +229,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         auditSource: "system",
       });
     }
+
+    const sourceRoomNumber = await resolveRoomNumber(supabase, nextFromRoomIdSnapshot);
+    const updateNoteParts = [
+      `[PLANNED MOVE UPDATE ${today}] ${sourceRoomNumber} -> ${String(targetRoom.room_number)}`,
+      `DATES: ${payload.start_date} -> ${payload.end_date}`,
+      `REASON: ${payload.move_reason.trim()}`,
+      formatPricingPolicyLabel({
+        pricingPolicy,
+        discountType,
+        discountValue,
+        discountReason,
+      }),
+      overrideNote ? `OVERRIDE: ${overrideNote}` : null,
+    ].filter(Boolean);
+    await appendReservationNoteLine(supabase as any, reservationId, updateNoteParts.join(" | "));
 
     if (overrideNote) {
       const overrideLine = buildDoNotMoveNoteLine({

@@ -41,6 +41,7 @@ export type CreateLinkedExtensionResult = {
   locked_room_type_id: number;
   locked_room_number: string | null;
   reservation: any;
+  auto_checked_in: boolean;
 };
 
 function addDaysYmd(dateYmd: string, days: number): string {
@@ -74,7 +75,7 @@ export async function createLinkedExtensionReservation(params: {
 
   const { data: originalReservation, error: originalError } = await supabase
     .from("reservations")
-    .select("id, parent_reservation_id, booking_group_id, booking_code, guest_name, phone, source, status, checkin_date, checkout_date, checkin_time, note, specials, guest_profile_id")
+    .select("id, parent_reservation_id, booking_group_id, booking_code, guest_name, phone, source, status, checkin_date, checkout_date, checkin_time, note, specials, guest_profile_id, checked_in_at")
     .eq("id", originalReservationId)
     .maybeSingle();
 
@@ -223,6 +224,45 @@ export async function createLinkedExtensionReservation(params: {
     }
   }
 
+  // --- A1: Auto check-in linked extension ---
+  // When parent is already checked in, the guest is physically in the room.
+  // The child extension must inherit checked_in status so FO can plan moves,
+  // edit, and manage the linked stay as if it were a single continuous booking.
+  let autoCheckedIn = false;
+  const parentCheckedInAt = originalReservation.checked_in_at
+    ? String(originalReservation.checked_in_at)
+    : null;
+
+  if (parentCheckedInAt) {
+    const nowIso = new Date().toISOString();
+    const { error: autoCheckinError } = await supabase
+      .from("reservations")
+      .update({ checked_in_at: nowIso })
+      .eq("id", newReservationId);
+
+    if (!autoCheckinError) {
+      autoCheckedIn = true;
+
+      await supabase.from("audit_logs").insert({
+        action: "auto_checkin_linked_extension",
+        entity_type: "reservation",
+        entity_id: newReservationId,
+        before_json: {
+          parent_reservation_id: rootParentReservationId,
+          parent_checked_in_at: parentCheckedInAt,
+        },
+        after_json: {
+          checked_in_at: nowIso,
+          reason: "Inherited check-in from parent — guest already in room",
+        },
+        business_date: toBangkokDateString(),
+        source: auditSource,
+      });
+    }
+    // Non-blocking: if auto check-in fails, extension is still created.
+    // FO can manually check in later.
+  }
+
   await supabase.from("audit_logs").insert({
     action: "linked_extension_created",
     entity_type: "reservation",
@@ -241,6 +281,7 @@ export async function createLinkedExtensionReservation(params: {
       room_number: lockedRoomNumber || null,
       copy_accompanying: Boolean(payload.copy_accompanying),
       copy_preferences: Boolean(payload.copy_preferences),
+      auto_checked_in: autoCheckedIn,
     },
     business_date: toBangkokDateString(),
     source: auditSource,
@@ -254,6 +295,7 @@ export async function createLinkedExtensionReservation(params: {
     locked_room_type_id: lockedRoomTypeId,
     locked_room_number: lockedRoomNumber || null,
     reservation,
+    auto_checked_in: autoCheckedIn,
   };
 }
 

@@ -9,6 +9,8 @@ import AutoAssignResultsModal from "@/components/auto-assign-results-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
+import { LinkedStayBadge } from "@/components/linked-stay-badge";
+import type { LinkedStay } from "@/lib/types";
 
 type Arrival = {
     id: string;
@@ -42,6 +44,7 @@ type Arrival = {
     first_alert_message?: string | null;
     do_not_move_assigned_room?: boolean;
     do_not_move_reason?: string | null;
+    linked_stay?: LinkedStay | null;
 };
 
 type NoShowPaymentMethod = "cash" | "transfer" | "credit_card";
@@ -334,6 +337,9 @@ export default function ArrivalsPage() {
                                 const done = doneIds.has(a.id);
                                 const isNoShow = noShowIds.has(a.id);
                                 const loyaltyVisual = resolveGuestLoyaltyVisual(a);
+                                const stayCheckin = a.linked_stay?.full_checkin ?? a.checkin_date;
+                                const stayCheckout = a.linked_stay?.full_checkout ?? a.checkout_date;
+                                const stayNights = a.linked_stay?.full_nights ?? a.nights;
                                 return (
                                     <tr
                                         key={a.id}
@@ -386,8 +392,16 @@ export default function ArrivalsPage() {
                                             </span>
                                         </td>
                                         <td>
-                                            <div className="text-sm">{a.checkin_date}</div>
-                                            <div className="text-xs text-[var(--text-muted)]">→ {a.checkout_date} ({a.nights}N)</div>
+                                            <div className="text-sm">{stayCheckin}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">→ {stayCheckout} ({stayNights}N)</div>
+                                            {a.linked_stay && (
+                                                <div className="mt-1" title="Linked stay / in-house move segment">
+                                                    <LinkedStayBadge
+                                                        segments={a.linked_stay.segments}
+                                                        activeSegmentId={a.linked_stay.active_segment_id || a.id}
+                                                    />
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             {a.checkin_time ? (

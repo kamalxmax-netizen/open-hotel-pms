@@ -139,8 +139,9 @@ export async function listOverlappingPlannedRoomHolds(
 
   let query = supabase
     .from("reservation_room_plans")
-    .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_type_id, to_room_id, move_reason, pricing_policy, discount_type, discount_value, discount_reason, do_not_move, do_not_move_note, status, executed_at, cancelled_at, created_at, updated_at")
+    .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_type_id, to_room_id, move_reason, pricing_policy, discount_type, discount_value, discount_reason, do_not_move, do_not_move_note, status, executed_at, cancelled_at, created_at, updated_at, reservations!inner(id, status)")
     .eq("status", "planned")
+    .eq("reservations.status", "active")
     .lt("start_date", checkoutDate)
     .gt("end_date", checkinDate);
 
@@ -204,10 +205,31 @@ export function buildDoNotMoveNoteLine(params: {
 }
 
 function normalizeReservationNoteLine(line: string) {
-  const trimmed = line.trim();
+  const trimmed = line.replace(/\r\n/g, "\n").trim();
   if (!trimmed) return "";
-  if (/^[-*•]\s/u.test(trimmed)) return trimmed;
-  return `- ${trimmed}`;
+
+  const lines = trimmed
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return "";
+
+  // Preserve already-bulleted content as-is.
+  if (/^[-*•]\s/u.test(lines[0])) {
+    return lines.join("\n");
+  }
+
+  const parts = lines
+    .flatMap((entry) => entry.split("|"))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return `- ${parts[0]}`;
+
+  return [
+    `- ${parts[0]}`,
+    ...parts.slice(1).map((part) => `  • ${part}`),
+  ].join("\n");
 }
 
 export async function appendReservationNoteLine(

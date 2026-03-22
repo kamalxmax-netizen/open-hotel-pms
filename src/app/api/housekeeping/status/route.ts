@@ -664,9 +664,30 @@ export async function GET(request: NextRequest) {
             to_room_id?: string | null;
         }>;
 
+        // Ignore stale planned moves when the reservation has already left its source room.
+        const activeStayRoomByReservationId = new Map<string, string>();
+        for (const row of activeStayRows) {
+            const reservationId = String(row?.reservation_id ?? "");
+            const roomId = String(row?.room_id ?? "");
+            if (!reservationId || !roomId) continue;
+            if (!activeStayRoomByReservationId.has(reservationId)) {
+                activeStayRoomByReservationId.set(reservationId, roomId);
+            }
+        }
+
+        const effectivePlannedMoveRows = plannedMoveRows.filter((row) => {
+            const reservationId = String(row?.reservation_id ?? "");
+            if (!reservationId) return false;
+            const sourceRoomId = String(row?.from_room_id_snapshot ?? "");
+            if (!sourceRoomId) return true;
+            const todayAssignedRoomId = activeStayRoomByReservationId.get(reservationId);
+            if (!todayAssignedRoomId) return true;
+            return todayAssignedRoomId === sourceRoomId;
+        });
+
         const plannedReservationIds = Array.from(
             new Set(
-                plannedMoveRows
+                effectivePlannedMoveRows
                     .map((row) => String(row?.reservation_id ?? ""))
                     .filter(Boolean)
             )
@@ -699,7 +720,7 @@ export async function GET(request: NextRequest) {
         const plannedSourceGuestByRoomId = new Map<string, PlannedMoveGuestSummary>();
         const plannedTargetGuestByRoomId = new Map<string, PlannedMoveGuestSummary>();
 
-        for (const row of plannedMoveRows) {
+        for (const row of effectivePlannedMoveRows) {
             const reservationId = String(row?.reservation_id ?? "");
             const plannedGuest = plannedGuestByReservationId.get(reservationId) ?? null;
 

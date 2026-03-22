@@ -24,6 +24,11 @@ type PaymentRow = {
   fee_template_code?: string | null;
   cashier_name?: string | null;
   is_record_only?: boolean | null;
+  is_void_reversal?: boolean | null;
+  void_of?: string | null;
+  is_correction?: boolean | null;
+  correction_ref?: string | null;
+  correction_reason?: string | null;
   extra_fee_templates?: {
     code: string;
     name: string;
@@ -67,6 +72,11 @@ function isMissingFeeRelationError(error: { code?: string | null; message?: stri
   return (
     message.includes("extra_fee_templates")
     || message.includes("fee_template_code")
+    || message.includes("is_void_reversal")
+    || message.includes("void_of")
+    || message.includes("is_correction")
+    || message.includes("correction_ref")
+    || message.includes("correction_reason")
     || (message.includes("relation") && message.includes("does not exist"))
     || (message.includes("column") && message.includes("does not exist"))
     || message.includes("could not find a relationship")
@@ -99,6 +109,11 @@ function normalizePaymentRows(rows: any[]): PaymentRow[] {
       fee_template_code: row.fee_template_code ?? null,
       cashier_name: row.cashier_name ?? null,
       is_record_only: row.is_record_only ?? false,
+      is_void_reversal: row.is_void_reversal ?? false,
+      void_of: row.void_of ?? null,
+      is_correction: row.is_correction ?? false,
+      correction_ref: row.correction_ref ?? null,
+      correction_reason: row.correction_reason ?? null,
       extra_fee_templates: templateValue
         ? {
             code: String(templateValue.code ?? ""),
@@ -196,6 +211,11 @@ async function fetchReservationRows(
     fee_template_code,
     cashier_name,
     is_record_only,
+    is_void_reversal,
+    void_of,
+    is_correction,
+    correction_ref,
+    correction_reason,
     extra_fee_templates(code, name, icon, category)
   `;
 
@@ -238,6 +258,11 @@ async function fetchReservationRows(
       (baseRes.data ?? []).map((row: any) => ({
         ...row,
         fee_template_code: null,
+        is_void_reversal: false,
+        void_of: null,
+        is_correction: false,
+        correction_ref: null,
+        correction_reason: null,
         extra_fee_templates: null,
       }))
     );
@@ -327,6 +352,11 @@ async function fetchPaymentRowsWithOptionalFeeFields(
     fee_template_code,
     cashier_name,
     is_record_only,
+    is_void_reversal,
+    void_of,
+    is_correction,
+    correction_ref,
+    correction_reason,
     extra_fee_templates(code, name, icon, category)
   `;
 
@@ -340,7 +370,8 @@ async function fetchPaymentRowsWithOptionalFeeFields(
     paid_date,
     created_at,
     revenue_category,
-    cashier_name
+    cashier_name,
+    is_record_only
   `;
 
   const richRes = await supabase
@@ -373,6 +404,11 @@ async function fetchPaymentRowsWithOptionalFeeFields(
     (baseRes.data ?? []).map((row: any) => ({
       ...row,
       fee_template_code: null,
+      is_void_reversal: false,
+      void_of: null,
+      is_correction: false,
+      correction_ref: null,
+      correction_reason: null,
       extra_fee_templates: null,
     }))
   );
@@ -542,6 +578,11 @@ function normalizeLedgerRows(
       cashier_name: row.cashier_name ?? null,
       label: makeLedgerRowLabel(row),
       is_record_only: row.is_record_only ?? false,
+      is_void_reversal: row.is_void_reversal ?? false,
+      void_of: row.void_of ?? null,
+      is_correction: row.is_correction ?? false,
+      correction_ref: row.correction_ref ?? null,
+      correction_reason: row.correction_reason ?? null,
     });
   }
 

@@ -15,6 +15,10 @@ interface CancelFeeModalProps {
     isOpen: boolean;
     reservationId: string;
     guestName: string;
+    /** Whether this reservation is a child in a linked stay (extension) */
+    isLinkedChild?: boolean;
+    /** Total segments in linked stay group */
+    linkedSegmentCount?: number;
     onClose: () => void;
     onConfirm: (payload: CancelFeePayload) => void;
 }
@@ -23,6 +27,8 @@ export default function CancelFeeModal({
     isOpen,
     reservationId,
     guestName,
+    isLinkedChild,
+    linkedSegmentCount,
     onClose,
     onConfirm
 }: CancelFeeModalProps) {
@@ -131,6 +137,34 @@ export default function CancelFeeModal({
             onClose={onClose}
         >
             <div className="space-y-4">
+                {/* Linked stay context warning */}
+                {isLinkedChild && (
+                    <div className="bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-500/30 rounded-lg p-3 text-amber-800 dark:text-amber-400 text-sm">
+                        <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                            </svg>
+                            <strong>This is a linked extension</strong>
+                        </div>
+                        <p className="mt-1 text-xs">
+                            Cancelling this segment only. The parent booking and other linked segments ({(linkedSegmentCount ?? 2) - 1} remaining) will not be affected.
+                        </p>
+                    </div>
+                )}
+                {!isLinkedChild && (linkedSegmentCount ?? 0) > 1 && (
+                    <div className="bg-rose-50 border border-rose-300 dark:bg-rose-900/30 dark:border-rose-500/40 rounded-lg p-3 text-rose-800 dark:text-rose-400 text-sm">
+                        <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                            <strong>This will cancel the entire linked stay</strong>
+                        </div>
+                        <p className="mt-1 text-xs">
+                            All {linkedSegmentCount} linked segments will be cancelled together. To cancel only one segment, open it individually first.
+                        </p>
+                    </div>
+                )}
+
                 <div className="bg-rose-50 border border-rose-200 dark:bg-rose-900/20 dark:border-rose-500/30 rounded-lg p-4 text-rose-800 dark:text-rose-400 text-sm">
                     <strong>Cancelling {guestName || "Reservation"}</strong>
                     <p className="mt-1">

@@ -16,6 +16,8 @@ const cancelSchema = z.object({
   refund_method: z.enum(["cash", "transfer"]).optional(),
   fee_note: z.string().optional(),
   refund_note: z.string().optional(),
+  /** When true, cascade cancel to all linked reservations (default: true for root, false for child). */
+  cascade_linked: z.coerce.boolean().optional(),
 });
 
 function normalizeAmount(value: number): number {
@@ -222,15 +224,24 @@ export async function POST(
   const rootReservationId = reservationRef.parent_reservation_id
     ? String(reservationRef.parent_reservation_id)
     : reservationId;
+  const isChildReservation = Boolean(reservationRef.parent_reservation_id);
   const cancellationWarnings: string[] = [];
 
+  // Cascade logic:
+  // - Root reservation: cascade by default (unless explicitly false)
+  // - Child reservation: do NOT cascade by default (cancel only this child)
+  // This prevents accidentally cancelling the parent OTA when only cancelling an extension.
+  const cascadeLinked = parsed.data.cascade_linked ?? !isChildReservation;
+
   let linkedTargets: CancelTarget[] = [];
-  try {
-    linkedTargets = await loadLinkedCancelTargets(supabase, rootReservationId);
-  } catch (error) {
-    cancellationWarnings.push(
-      `Failed to load linked chain for cascade cancel: ${error instanceof Error ? error.message : String(error)}`
-    );
+  if (cascadeLinked) {
+    try {
+      linkedTargets = await loadLinkedCancelTargets(supabase, rootReservationId);
+    } catch (error) {
+      cancellationWarnings.push(
+        `Failed to load linked chain for cascade cancel: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
   if (linkedTargets.length === 0) {
     linkedTargets = [
@@ -389,6 +400,23 @@ export async function POST(
 
   const cancelledReservationIds = [reservationId, ...linkedCancelled.map((row) => row.id)];
 
+  // When cancelling a child without cascade, auto-unlink it from the parent
+  // so the linked stay group stays clean (cancelled children should not appear in linked stay).
+  let autoUnlinked = false;
+  if (isChildReservation && !cascadeLinked) {
+    const { error: unlinkError } = await supabase
+      .from("reservations")
+      .update({ parent_reservation_id: null })
+      .eq("id", reservationId);
+    if (unlinkError) {
+      cancellationWarnings.push(
+        `Cancel succeeded but auto-unlink failed: ${unlinkError.message}. Child may still appear in linked stay.`
+      );
+    } else {
+      autoUnlinked = true;
+    }
+  }
+
   let cancelledPlannedMoveCount = 0;
   let plannedMoveCleanupWarning: string | null = null;
   const { data: plannedMoves, error: plannedMovesError } = await supabase
@@ -505,6 +533,8 @@ export async function POST(
       },
       linked_chain: {
         root_reservation_id: rootReservationId,
+        cascade_linked: cascadeLinked,
+        auto_unlinked: autoUnlinked,
         cancelled_count: linkedCancelled.length,
         cancelled: linkedCancelled,
         failed_count: linkedCancelFailed.length,

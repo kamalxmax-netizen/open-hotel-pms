@@ -1,0 +1,56 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import {
+  AdminCorrectionError,
+  isAdminCorrectionError,
+  transferPayment,
+} from "@/lib/admin-corrections";
+import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+const bodySchema = z.object({
+  source_reservation_id: z.string().uuid(),
+  destination_reservation_id: z.string().uuid(),
+  amount: z.coerce.number().positive(),
+  method: z.enum(["cash", "transfer", "credit_card", "other"]),
+  reason: z.string().trim().min(1).max(500),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+
+    const body = await request.json().catch(() => null);
+    const parsed = bodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid payload.", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const result = await transferPayment(supabase as any, user.id, {
+      sourceReservationId: parsed.data.source_reservation_id,
+      destinationReservationId: parsed.data.destination_reservation_id,
+      amount: parsed.data.amount,
+      method: parsed.data.method,
+      reason: parsed.data.reason,
+    });
+
+    return NextResponse.json(result);
+  } catch (err) {
+    if (isAdminCorrectionError(err) || err instanceof AdminCorrectionError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
+    const message = err instanceof Error ? err.message : "Internal server error";
+    const status = message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
+  }
+}

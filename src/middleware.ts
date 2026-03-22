@@ -50,7 +50,13 @@ export async function middleware(request: NextRequest) {
 
     // ["*"] = full access
     if (!allowedPages.includes("*")) {
-      const hasAccess = allowedPages.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p));
+      const permissionPath =
+        pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
+          ? "/pms/calendar"
+          : pathname;
+      const hasAccess = allowedPages.some(
+        (p) => permissionPath === p || permissionPath.startsWith(p + "/") || permissionPath.startsWith(p)
+      );
       if (!hasAccess) {
         return NextResponse.redirect(new URL("/pms/unauthorized", request.url));
       }

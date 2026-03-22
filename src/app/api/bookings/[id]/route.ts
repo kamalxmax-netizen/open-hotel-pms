@@ -20,6 +20,11 @@ import {
   assertRoomAvailableForDateRange,
   PlannedRoomMoveError,
   syncReservationNightDependencyMetadata,
+  listReservationPlannedMoves,
+  appendReservationNoteLine,
+  floatPlanImpactAssignments,
+  listPlanImpactAssignments,
+  rebuildReservationFutureRoomPath,
 } from "@/lib/planned-room-moves";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError, getAssignedRoomLockContext } from "@/lib/assigned-room-lock";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
@@ -892,6 +897,63 @@ export async function PUT(
         feature_code: code
       }));
       await supabase.from("reservation_preferences").insert(prefInserts);
+    }
+  }
+
+  // ── Auto-cancel zombie planned moves when room changes manually ──
+  // When a user changes room_id directly on reservation edit, any status='planned'
+  // moves become stale and would permanently block their target rooms.
+  if (roomIdWillChange || roomWillBeDropped) {
+    try {
+      const activePlans = (await listReservationPlannedMoves(supabase as any, reservationId))
+        .filter((row) => row.status === "planned");
+
+      if (activePlans.length > 0) {
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+
+        for (const plan of activePlans) {
+          // Float any dependent reservations first
+          const impacted = await listPlanImpactAssignments(supabase as any, {
+            planId: plan.id,
+            sourceRoomId: plan.from_room_id_snapshot ?? null,
+            startDate: plan.start_date,
+            endDate: plan.end_date,
+            excludeReservationId: reservationId,
+          });
+
+          if (impacted.length > 0) {
+            await floatPlanImpactAssignments(supabase as any, {
+              planId: plan.id,
+              sourceRoomId: plan.from_room_id_snapshot ?? null,
+              startDate: plan.start_date,
+              endDate: plan.end_date,
+              excludeReservationId: reservationId,
+              auditSource: "system",
+            });
+          }
+
+          // Cancel the planned move
+          await supabase
+            .from("reservation_room_plans")
+            .update({
+              status: "cancelled",
+              cancelled_at: new Date().toISOString(),
+              updated_by: null,
+            })
+            .eq("id", plan.id)
+            .eq("reservation_id", reservationId);
+
+          // Audit trail
+          await appendReservationNoteLine(
+            supabase as any,
+            reservationId,
+            `[AUTO-CANCEL PLANNED MOVE ${today}] Room changed manually. Plan ${plan.start_date}→${plan.end_date} to_room=${plan.to_room_id} cancelled.${impacted.length > 0 ? ` Floated ${impacted.length} dependent reservation(s).` : ""}`
+          );
+        }
+      }
+    } catch (error) {
+      // Non-fatal: log but don't block the reservation update
+      console.error("[auto-cancel-planned-moves]", error);
     }
   }
 

@@ -1,0 +1,948 @@
+/**
+ * Admin Corrections — Core business logic (Phase 42)
+ *
+ * Design principle: Compensating Entry (not soft-delete)
+ * Every void/adjustment inserts a new folio_payments row.
+ * Existing outstanding/revenue queries work without modification.
+ *
+ * Future consideration: FO self-service void within 1 hour window
+ * (not implemented yet — admin-only for initial release)
+ */
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AdminCorrectionAction,
+  AdminCorrectionRecord,
+  PaymentMethod,
+} from "@/lib/types";
+import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
+import { fromSatang, toSatang } from "@/lib/money";
+
+// ─── Helpers ───────────────────────────────────────────────────
+
+function bangkokToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+}
+
+function nowISO(): string {
+  return new Date().toISOString();
+}
+
+/**
+ * Defensive reservation loader — handles case where folio_reopened column
+ * may not exist yet (migration not applied). Falls back to false.
+ */
+async function loadReservationWithFolioFlag<T extends string>(
+  supabase: SupabaseClient,
+  reservationId: string,
+  extraFields: T[] = [],
+): Promise<Record<string, unknown> & { id: string; status: string; folio_reopened: boolean }> {
+  const baseFields = ["id", "status", "folio_reopened", ...extraFields];
+  const { data, error } = await supabase
+    .from("reservations")
+    .select(baseFields.join(", "))
+    .eq("id", reservationId)
+    .single();
+
+  if (error && error.message?.includes("folio_reopened")) {
+    // Column not yet migrated — fallback without it
+    const fallbackFields = ["id", "status", ...extraFields];
+    const { data: fb, error: fbErr } = await supabase
+      .from("reservations")
+      .select(fallbackFields.join(", "))
+      .eq("id", reservationId)
+      .single();
+    if (fbErr || !fb) {
+      throw new AdminCorrectionError("Reservation not found.", 404);
+    }
+    return { ...(fb as any), folio_reopened: false };
+  }
+  if (error || !data) {
+    console.error("[AdminCorrections] loadReservation failed:", error?.message, "id:", reservationId);
+    throw new AdminCorrectionError(
+      error ? `Reservation lookup failed: ${error.message}` : "Reservation not found.",
+      404
+    );
+  }
+  return data as any;
+}
+
+// ─── Types ─────────────────────────────────────────────────────
+
+interface FolioPaymentRow {
+  id: string;
+  reservation_id: string;
+  tx_type: string;
+  method: string;
+  amount: number;
+  revenue_category: string | null;
+  note: string | null;
+  paid_date: string;
+  paid_at: string;
+  recorded_by: string | null;
+  is_record_only: boolean;
+  is_void_reversal: boolean;
+  void_of: string | null;
+  is_correction: boolean;
+  correction_ref: string | null;
+  correction_reason: string | null;
+}
+
+export interface CorrectionResult {
+  success: boolean;
+  action: AdminCorrectionAction;
+  correction_id: string;
+  message: string;
+  created_payment_ids?: string[];
+}
+
+export class AdminCorrectionError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "AdminCorrectionError";
+    this.status = status;
+  }
+}
+
+// ─── Business Day Check ────────────────────────────────────────
+
+async function isBusinessDayClosed(
+  supabase: SupabaseClient,
+  targetDate: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("daily_snapshots")
+    .select("business_date")
+    .gte("business_date", targetDate)
+    .order("business_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data?.business_date);
+}
+
+// ─── Load Payment ──────────────────────────────────────────────
+
+async function loadPayment(
+  supabase: SupabaseClient,
+  paymentId: string
+): Promise<FolioPaymentRow> {
+  const { data, error } = await supabase
+    .from("folio_payments")
+    .select("*")
+    .eq("id", paymentId)
+    .single();
+
+  if (error || !data) {
+    throw new AdminCorrectionError("Payment not found.", 404);
+  }
+  return data as FolioPaymentRow;
+}
+
+// ─── Check Already Voided ──────────────────────────────────────
+
+async function hasExistingVoid(
+  supabase: SupabaseClient,
+  paymentId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("folio_payments")
+    .select("id")
+    .eq("void_of", paymentId)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+// ─── Insert Correction Log ────────────────────────────────────
+
+async function insertCorrectionLog(
+  supabase: SupabaseClient,
+  params: {
+    reservationId: string;
+    action: AdminCorrectionAction;
+    actorUserId: string;
+    beforeSnapshot: Record<string, unknown>;
+    afterSnapshot: Record<string, unknown>;
+    reason: string;
+    relatedPaymentIds: string[];
+    businessDate: string;
+  }
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("admin_corrections")
+    .insert({
+      reservation_id: params.reservationId,
+      action: params.action,
+      actor_user_id: params.actorUserId,
+      before_snapshot: params.beforeSnapshot,
+      after_snapshot: params.afterSnapshot,
+      reason: params.reason,
+      related_payment_ids: params.relatedPaymentIds,
+      business_date: params.businessDate,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[AdminCorrections] Failed to log correction:", error.message);
+    throw new AdminCorrectionError("Failed to record correction log.");
+  }
+  return String(data.id);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTION 1: VOID PAYMENT (same business day only)
+// ═══════════════════════════════════════════════════════════════
+
+export async function voidPayment(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  paymentId: string,
+  reason: string
+): Promise<CorrectionResult> {
+  if (!reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+
+  const payment = await loadPayment(supabase, paymentId);
+  const today = bangkokToday();
+
+  // Guard: same business day only
+  if (String(payment.paid_date) !== today) {
+    throw new AdminCorrectionError(
+      `Cannot void: payment was posted on ${payment.paid_date}, today is ${today}. Use Adjustment instead.`
+    );
+  }
+
+  // Guard: business day must still be open
+  const closed = await isBusinessDayClosed(supabase, today);
+  if (closed) {
+    throw new AdminCorrectionError(
+      "Cannot void: business day already closed by Night Audit. Use Adjustment instead."
+    );
+  }
+
+  // Guard: cannot void a void
+  if (payment.is_void_reversal) {
+    throw new AdminCorrectionError("Cannot void a void reversal entry.");
+  }
+
+  // Guard: already voided
+  const alreadyVoided = await hasExistingVoid(supabase, paymentId);
+  if (alreadyVoided) {
+    throw new AdminCorrectionError("This payment has already been voided.");
+  }
+
+  // Determine reversal tx_type (payment↔refund, deposit stays as refund)
+  const reversalTxType = payment.tx_type === "refund" ? "payment"
+    : payment.tx_type === "deposit" ? "refund"
+    : "refund";
+
+  // Insert compensating entry
+  const { data: reversalRow, error: insertError } = await supabase
+    .from("folio_payments")
+    .insert({
+      reservation_id: payment.reservation_id,
+      tx_type: reversalTxType,
+      method: payment.method,
+      amount: payment.amount,
+      revenue_category: payment.revenue_category,
+      is_void_reversal: true,
+      void_of: payment.id,
+      correction_reason: reason,
+      paid_date: today,
+      paid_at: nowISO(),
+      recorded_by: actorUserId,
+      note: `VOID: ${reason} (ref: ${payment.id.slice(0, 8)})`,
+      is_record_only: payment.is_record_only,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !reversalRow) {
+    throw new AdminCorrectionError("Failed to create void reversal entry.");
+  }
+
+  // Log correction
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId: payment.reservation_id,
+    action: "void",
+    actorUserId,
+    beforeSnapshot: {
+      payment_id: payment.id,
+      tx_type: payment.tx_type,
+      method: payment.method,
+      amount: payment.amount,
+      revenue_category: payment.revenue_category,
+    },
+    afterSnapshot: {
+      reversal_id: reversalRow.id,
+      reversal_tx_type: reversalTxType,
+    },
+    reason,
+    relatedPaymentIds: [payment.id, reversalRow.id],
+    businessDate: today,
+  });
+
+  // Also write to audit_logs for Audit Explorer
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: payment.reservation_id,
+      action: "void",
+      actor_user_id: actorUserId,
+      after_json: {
+        payment_id: payment.id,
+        reversal_id: reversalRow.id,
+        amount: payment.amount,
+        method: payment.method,
+        reason,
+      },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "void",
+    correction_id: correctionId,
+    message: `Voided ${payment.tx_type} of ${payment.amount} (${payment.method}).`,
+    created_payment_ids: [reversalRow.id],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTION 2: ADJUSTMENT (post any time, including after Night Audit)
+// ═══════════════════════════════════════════════════════════════
+
+export async function postAdjustment(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  params: {
+    reservationId: string;
+    direction: "add_charge" | "reduce_charge";
+    amount: number;
+    method: PaymentMethod;
+    originalPaymentId?: string | null;
+    reason: string;
+  }
+): Promise<CorrectionResult> {
+  if (!params.reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+  if (params.amount <= 0) {
+    throw new AdminCorrectionError("Amount must be positive.");
+  }
+
+  // Verify reservation exists (defensive: folio_reopened may not exist yet)
+  const res = await loadReservationWithFolioFlag(supabase, params.reservationId);
+
+  // Guard: if checked_out, folio must be reopened
+  if (res.status === "checked_out" && !res.folio_reopened) {
+    throw new AdminCorrectionError(
+      "Reservation is checked out. Reopen folio first before posting adjustments."
+    );
+  }
+
+  const today = bangkokToday();
+
+  // ── Adjustment direction logic ──────────────────────────────────
+  // Outstanding = (roomCharges + extraCharges) - allCredits
+  //
+  // "add_charge" (increase outstanding):
+  //   tx_type=payment, revenue_category=extra_charge, is_record_only=TRUE
+  //   → extraCharges ↑ (line 154-157 runs before isRecordOnly skip)
+  //   → allCredits unchanged (isRecordOnly skips line 161)
+  //   → outstanding increases ✓
+  //
+  // "reduce_charge" (decrease outstanding):
+  //   tx_type=payment, revenue_category=room_revenue, is_record_only=FALSE
+  //   → extraCharges unchanged (not "extra_charge" category)
+  //   → allCredits ↑ (counted as normal payment credit)
+  //   → outstanding decreases ✓
+  const isAddCharge = params.direction === "add_charge";
+  const txType = "payment";
+  const revenueCategory = isAddCharge ? "extra_charge" : "room_revenue";
+  const isRecordOnly = isAddCharge; // prevents counting as credit for add_charge
+
+  // If correcting a specific payment, verify it exists
+  let correctionRef: string | null = null;
+  if (params.originalPaymentId) {
+    const original = await loadPayment(supabase, params.originalPaymentId);
+    if (original.reservation_id !== params.reservationId) {
+      throw new AdminCorrectionError("Original payment belongs to a different reservation.");
+    }
+    correctionRef = params.originalPaymentId;
+  }
+
+  // Insert adjustment entry
+  const { data: adjRow, error: insertError } = await supabase
+    .from("folio_payments")
+    .insert({
+      reservation_id: params.reservationId,
+      tx_type: txType,
+      method: params.method,
+      amount: params.amount,
+      revenue_category: revenueCategory,
+      is_correction: true,
+      correction_ref: correctionRef,
+      correction_reason: params.reason,
+      paid_date: today,
+      paid_at: nowISO(),
+      recorded_by: actorUserId,
+      note: `ADJ: ${params.reason}${correctionRef ? ` (ref: ${correctionRef.slice(0, 8)})` : ""}`,
+      is_record_only: isRecordOnly,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !adjRow) {
+    throw new AdminCorrectionError("Failed to create adjustment entry.");
+  }
+
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId: params.reservationId,
+    action: "adjustment",
+    actorUserId,
+    beforeSnapshot: correctionRef
+      ? { original_payment_id: correctionRef }
+      : {},
+    afterSnapshot: {
+      adjustment_id: adjRow.id,
+      tx_type: txType,
+      amount: params.amount,
+      method: params.method,
+      revenue_category: revenueCategory,
+      is_record_only: isRecordOnly,
+    },
+    reason: params.reason,
+    relatedPaymentIds: [adjRow.id, ...(correctionRef ? [correctionRef] : [])],
+    businessDate: today,
+  });
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: params.reservationId,
+      action: "adjustment",
+      actor_user_id: actorUserId,
+      after_json: {
+        adjustment_id: adjRow.id,
+        direction: params.direction,
+        amount: params.amount,
+        method: params.method,
+        revenue_category: revenueCategory,
+        is_record_only: isRecordOnly,
+        reason: params.reason,
+      },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "adjustment",
+    correction_id: correctionId,
+    message: `Posted ${params.direction} of ${params.amount} (${params.method}).`,
+    created_payment_ids: [adjRow.id],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTION 3: REINSTATE RESERVATION (undo accidental cancel)
+// ═══════════════════════════════════════════════════════════════
+
+export async function reinstateReservation(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  reservationId: string,
+  reason: string,
+  targetRoomId?: string | null
+): Promise<CorrectionResult> {
+  if (!reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+
+  // Load reservation
+  const { data: res, error: resError } = await supabase
+    .from("reservations")
+    .select("id, status, guest_name, booking_code, checkin_date, checkout_date, room_type_id")
+    .eq("id", reservationId)
+    .single();
+
+  if (resError || !res) {
+    throw new AdminCorrectionError("Reservation not found.", 404);
+  }
+
+  if (res.status !== "cancelled") {
+    throw new AdminCorrectionError(
+      `Cannot reinstate: reservation status is "${res.status}", expected "cancelled".`
+    );
+  }
+
+  const today = bangkokToday();
+
+  // Restore reservation status
+  const { error: updateError } = await supabase
+    .from("reservations")
+    .update({ status: "active" })
+    .eq("id", reservationId);
+
+  if (updateError) {
+    throw new AdminCorrectionError("Failed to update reservation status.");
+  }
+
+  // Restore cancelled nights
+  const { data: restoredNights, error: nightsError } = await supabase
+    .from("reservation_nights")
+    .update({ cancelled_at: null })
+    .eq("reservation_id", reservationId)
+    .not("cancelled_at", "is", null)
+    .select("id");
+
+  if (nightsError) {
+    console.error("[AdminCorrections] Failed to restore nights:", nightsError.message);
+  }
+
+  const nightsRestored = restoredNights?.length ?? 0;
+
+  // Void any cancel settlement rows (cancel fee + refund entries)
+  // Find folio_payments created by the cancel flow
+  const { data: cancelSettlements } = await supabase
+    .from("folio_payments")
+    .select("id, tx_type, amount, method, revenue_category, note, is_record_only")
+    .eq("reservation_id", reservationId)
+    .or("note.ilike.%cancel%,note.ilike.%CANCEL%")
+    .order("created_at", { ascending: false });
+
+  const voidedIds: string[] = [];
+  for (const settlement of (cancelSettlements ?? [])) {
+    // Skip if already voided
+    const alreadyVoided = await hasExistingVoid(supabase, settlement.id);
+    if (alreadyVoided) continue;
+
+    const reversalTxType = settlement.tx_type === "refund" ? "payment" : "refund";
+
+    const { data: rev } = await supabase
+      .from("folio_payments")
+      .insert({
+        reservation_id: reservationId,
+        tx_type: reversalTxType,
+        method: settlement.method,
+        amount: settlement.amount,
+        revenue_category: settlement.revenue_category,
+        is_void_reversal: true,
+        void_of: settlement.id,
+        correction_reason: `Reinstate: ${reason}`,
+        paid_date: today,
+        paid_at: nowISO(),
+        recorded_by: actorUserId,
+        note: `REINSTATE VOID: ${reason} (ref: ${settlement.id.slice(0, 8)})`,
+        is_record_only: settlement.is_record_only,
+      })
+      .select("id")
+      .single();
+
+    if (rev) voidedIds.push(rev.id);
+  }
+
+  // If target room specified, reassign
+  if (targetRoomId) {
+    await supabase
+      .from("reservation_nights")
+      .update({ room_id: targetRoomId })
+      .eq("reservation_id", reservationId)
+      .is("cancelled_at", null);
+  }
+
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId,
+    action: "reinstate",
+    actorUserId,
+    beforeSnapshot: {
+      status: "cancelled",
+      guest_name: res.guest_name,
+      booking_code: res.booking_code,
+    },
+    afterSnapshot: {
+      status: "active",
+      nights_restored: nightsRestored,
+      settlement_rows_voided: voidedIds.length,
+      target_room_id: targetRoomId ?? null,
+    },
+    reason,
+    relatedPaymentIds: voidedIds,
+    businessDate: today,
+  });
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: reservationId,
+      action: "reinstate",
+      actor_user_id: actorUserId,
+      after_json: {
+        from_status: "cancelled",
+        to_status: "active",
+        nights_restored: nightsRestored,
+        settlement_voided: voidedIds.length,
+        reason,
+      },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "reinstate",
+    correction_id: correctionId,
+    message: `Reinstated ${res.guest_name ?? reservationId}. ${nightsRestored} nights restored, ${voidedIds.length} settlement entries voided.`,
+    created_payment_ids: voidedIds,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTION 4: REOPEN / CLOSE FOLIO
+// ═══════════════════════════════════════════════════════════════
+
+export async function reopenFolio(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  reservationId: string,
+  reason: string
+): Promise<CorrectionResult> {
+  if (!reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+
+  const res = await loadReservationWithFolioFlag(supabase, reservationId, ["guest_name"]);
+
+  if (res.status !== "checked_out") {
+    throw new AdminCorrectionError(
+      `Cannot reopen folio: reservation status is "${res.status}", expected "checked_out".`
+    );
+  }
+
+  if (res.folio_reopened) {
+    throw new AdminCorrectionError("Folio is already open.");
+  }
+
+  const { error: updateError } = await supabase
+    .from("reservations")
+    .update({ folio_reopened: true })
+    .eq("id", reservationId);
+
+  if (updateError) {
+    throw new AdminCorrectionError("Failed to reopen folio.");
+  }
+
+  const today = bangkokToday();
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId,
+    action: "reopen_folio",
+    actorUserId,
+    beforeSnapshot: { folio_reopened: false },
+    afterSnapshot: { folio_reopened: true },
+    reason,
+    relatedPaymentIds: [],
+    businessDate: today,
+  });
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: reservationId,
+      action: "reopen_folio",
+      actor_user_id: actorUserId,
+      after_json: { reason },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "reopen_folio",
+    correction_id: correctionId,
+    message: `Folio reopened for ${res.guest_name ?? reservationId}.`,
+  };
+}
+
+export async function closeFolio(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  reservationId: string,
+  reason: string
+): Promise<CorrectionResult> {
+  if (!reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+
+  const res = await loadReservationWithFolioFlag(supabase, reservationId, ["guest_name", "total_price"]);
+
+  if (!res.folio_reopened) {
+    throw new AdminCorrectionError("Folio is not currently open.");
+  }
+
+  // Check balance is zero before closing
+  const { data: payments } = await supabase
+    .from("folio_payments")
+    .select("tx_type, amount, revenue_category, note, is_record_only")
+    .eq("reservation_id", reservationId);
+
+  const baseRoomChargeSatang = toSatang((res.total_price as number) ?? 0);
+  const netPaid = computeCheckoutNetPaidSatang(payments ?? []);
+  const extraChargeNetSatang = computeExtraChargeNetSatang(payments ?? []);
+  const outstandingSatang = baseRoomChargeSatang + extraChargeNetSatang - netPaid.netPaidSatang;
+  const outstanding = fromSatang(outstandingSatang);
+
+  if (Math.abs(outstandingSatang) > 1) {
+    throw new AdminCorrectionError(
+      `Cannot close folio: outstanding balance is ${outstanding.toFixed(2)}. Must be zero.`
+    );
+  }
+
+  const { error: updateError } = await supabase
+    .from("reservations")
+    .update({ folio_reopened: false })
+    .eq("id", reservationId);
+
+  if (updateError) {
+    throw new AdminCorrectionError("Failed to close folio.");
+  }
+
+  const today = bangkokToday();
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId,
+    action: "close_folio",
+    actorUserId,
+    beforeSnapshot: { folio_reopened: true, outstanding },
+    afterSnapshot: { folio_reopened: false },
+    reason,
+    relatedPaymentIds: [],
+    businessDate: today,
+  });
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: reservationId,
+      action: "close_folio",
+      actor_user_id: actorUserId,
+      after_json: { reason },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "close_folio",
+    correction_id: correctionId,
+    message: `Folio closed for ${res.guest_name ?? reservationId}.`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTION 5: TRANSFER PAYMENT (cross-booking)
+// ═══════════════════════════════════════════════════════════════
+
+export async function transferPayment(
+  supabase: SupabaseClient,
+  actorUserId: string,
+  params: {
+    sourceReservationId: string;
+    destinationReservationId: string;
+    amount: number;
+    method: PaymentMethod;
+    reason: string;
+  }
+): Promise<CorrectionResult> {
+  if (!params.reason.trim()) {
+    throw new AdminCorrectionError("Reason is required.");
+  }
+  if (params.amount <= 0) {
+    throw new AdminCorrectionError("Amount must be positive.");
+  }
+  if (params.sourceReservationId === params.destinationReservationId) {
+    throw new AdminCorrectionError("Source and destination must be different reservations.");
+  }
+
+  // Verify both reservations exist
+  const { data: srcRes } = await supabase
+    .from("reservations")
+    .select("id, guest_name")
+    .eq("id", params.sourceReservationId)
+    .single();
+  if (!srcRes) throw new AdminCorrectionError("Source reservation not found.", 404);
+
+  const dstRes = await loadReservationWithFolioFlag(
+    supabase, params.destinationReservationId, ["guest_name"]
+  );
+
+  // Guard: destination must be writable
+  if (dstRes.status === "checked_out" && !dstRes.folio_reopened) {
+    throw new AdminCorrectionError(
+      "Destination reservation is checked out. Reopen its folio first."
+    );
+  }
+
+  const today = bangkokToday();
+
+  // 1. Insert refund on source (remove credit)
+  const { data: srcRefund, error: srcError } = await supabase
+    .from("folio_payments")
+    .insert({
+      reservation_id: params.sourceReservationId,
+      tx_type: "refund",
+      method: params.method,
+      amount: params.amount,
+      revenue_category: "room_revenue",
+      is_correction: true,
+      correction_reason: `Transfer to ${params.destinationReservationId.slice(0, 8)}: ${params.reason}`,
+      paid_date: today,
+      paid_at: nowISO(),
+      recorded_by: actorUserId,
+      note: `TRANSFER OUT: ${params.reason} → ${dstRes.guest_name ?? params.destinationReservationId.slice(0, 8)}`,
+      is_record_only: false,
+    })
+    .select("id")
+    .single();
+
+  if (srcError || !srcRefund) {
+    throw new AdminCorrectionError("Failed to create transfer-out entry.");
+  }
+
+  // 2. Insert payment on destination (add credit)
+  const { data: dstPayment, error: dstError } = await supabase
+    .from("folio_payments")
+    .insert({
+      reservation_id: params.destinationReservationId,
+      tx_type: "payment",
+      method: params.method,
+      amount: params.amount,
+      revenue_category: "room_revenue",
+      is_correction: true,
+      correction_ref: srcRefund.id,
+      correction_reason: `Transfer from ${params.sourceReservationId.slice(0, 8)}: ${params.reason}`,
+      paid_date: today,
+      paid_at: nowISO(),
+      recorded_by: actorUserId,
+      note: `TRANSFER IN: ${params.reason} ← ${srcRes.guest_name ?? params.sourceReservationId.slice(0, 8)}`,
+      is_record_only: false,
+    })
+    .select("id")
+    .single();
+
+  if (dstError || !dstPayment) {
+    throw new AdminCorrectionError("Failed to create transfer-in entry.");
+  }
+
+  const correctionId = await insertCorrectionLog(supabase, {
+    reservationId: params.sourceReservationId,
+    action: "transfer_payment",
+    actorUserId,
+    beforeSnapshot: {
+      source_reservation_id: params.sourceReservationId,
+      source_guest: srcRes.guest_name,
+    },
+    afterSnapshot: {
+      destination_reservation_id: params.destinationReservationId,
+      destination_guest: dstRes.guest_name,
+      amount: params.amount,
+      method: params.method,
+      source_refund_id: srcRefund.id,
+      destination_payment_id: dstPayment.id,
+    },
+    reason: params.reason,
+    relatedPaymentIds: [srcRefund.id, dstPayment.id],
+    businessDate: today,
+  });
+
+  await insertCorrectionLog(supabase, {
+    reservationId: params.destinationReservationId,
+    action: "transfer_payment",
+    actorUserId,
+    beforeSnapshot: {
+      transfer_direction: "incoming",
+      source_reservation_id: params.sourceReservationId,
+      source_guest: srcRes.guest_name,
+    },
+    afterSnapshot: {
+      amount: params.amount,
+      method: params.method,
+      payment_id: dstPayment.id,
+    },
+    reason: params.reason,
+    relatedPaymentIds: [dstPayment.id],
+    businessDate: today,
+  });
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_type: "admin_correction",
+      entity_id: params.sourceReservationId,
+      action: "transfer_payment",
+      actor_user_id: actorUserId,
+      after_json: {
+        source: params.sourceReservationId,
+        destination: params.destinationReservationId,
+        amount: params.amount,
+        method: params.method,
+        reason: params.reason,
+      },
+      business_date: today,
+      source: "manual",
+    });
+  } catch { /* non-blocking */ }
+
+  return {
+    success: true,
+    action: "transfer_payment",
+    correction_id: correctionId,
+    message: `Transferred ${params.amount} (${params.method}) from ${srcRes.guest_name ?? "source"} to ${dstRes.guest_name ?? "destination"}.`,
+    created_payment_ids: [srcRefund.id, dstPayment.id],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUERY: Correction History
+// ═══════════════════════════════════════════════════════════════
+
+export async function getCorrectionHistory(
+  supabase: SupabaseClient,
+  reservationId: string
+): Promise<AdminCorrectionRecord[]> {
+  const { data, error } = await supabase
+    .from("admin_corrections")
+    .select("*, profiles:actor_user_id(full_name)")
+    .eq("reservation_id", reservationId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[AdminCorrections] getCorrectionHistory failed:", error.message);
+    throw new AdminCorrectionError("Failed to load correction history.");
+  }
+
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    reservation_id: row.reservation_id,
+    action: row.action,
+    actor_user_id: row.actor_user_id,
+    actor_name: row.profiles?.full_name ?? "Unknown",
+    before_snapshot: row.before_snapshot ?? {},
+    after_snapshot: row.after_snapshot ?? {},
+    reason: row.reason,
+    related_payment_ids: row.related_payment_ids ?? [],
+    business_date: row.business_date,
+    created_at: row.created_at,
+  }));
+}
+
+export function isAdminCorrectionError(err: unknown): err is AdminCorrectionError {
+  return err instanceof AdminCorrectionError;
+}

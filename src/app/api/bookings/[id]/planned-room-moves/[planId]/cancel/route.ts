@@ -46,6 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const { id: reservationId, planId } = parsedParams.data;
     const supabase = createServerSupabaseClient();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
     const move = (await listReservationPlannedMoves(supabase as any, reservationId)).find((row) => row.id === planId);
     if (!move) {
       return NextResponse.json({ success: false, error: "Planned move not found." }, { status: 404 });
@@ -91,13 +92,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
     }
 
+    const sourceRoomNumber = await resolveRoomNumber(supabase, move.from_room_id_snapshot);
+    const targetRoomNumber = await resolveRoomNumber(supabase, move.to_room_id);
+    const cancelNoteParts = [
+      `[PLANNED MOVE CANCEL ${today}] ${sourceRoomNumber} -> ${targetRoomNumber}`,
+      `DATES: ${move.start_date} -> ${move.end_date}`,
+      `REASON: ${overrideNote || "Cancelled planned move"}`,
+    ];
+    await appendReservationNoteLine(supabase as any, reservationId, cancelNoteParts.join(" | "));
+
     if (move.do_not_move) {
-      const roomNumber = await resolveRoomNumber(supabase, move.to_room_id);
       const noteLine = buildDoNotMoveNoteLine({
         action: overrideNote ? "override" : "cancel",
         startDate: move.start_date,
         endDate: move.end_date,
-        roomNumber,
+        roomNumber: targetRoomNumber,
         note: overrideNote || move.do_not_move_note || "Cancelled planned move",
       });
       await appendReservationNoteLine(supabase as any, reservationId, noteLine);

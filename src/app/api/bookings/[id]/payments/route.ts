@@ -9,6 +9,7 @@ import {
     computeHeldDepositFromRows,
     extractDepositGeneralNote,
 } from "@/lib/deposit-ledger";
+import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
 import { NextRequest, NextResponse } from "next/server";
@@ -17,6 +18,16 @@ import { unstable_noStore as noStore } from "next/cache";
 const TX_TYPES = new Set(["payment", "refund", "deposit"]);
 
 type RouteParams = { params: { id: string } };
+
+type ReservationPaymentTarget = {
+    id: string;
+    status: string | null;
+    checked_in_at: string | null;
+    total_price: number | string | null;
+    deposit_amount: number | string | null;
+    deposit_note: string | null;
+    folio_reopened: boolean;
+};
 
 type PaymentRow = {
     id: string;
@@ -50,6 +61,12 @@ function isMissingFeeRelationError(error: { code?: string | null; message?: stri
         || (message.includes("column") && message.includes("does not exist"))
         || message.includes("could not find a relationship")
     );
+}
+
+function isMissingReservationFolioReopenedError(error: { message?: string | null } | null | undefined): boolean {
+    if (!error) return false;
+    const message = String(error.message ?? "").toLowerCase();
+    return message.includes("folio_reopened");
 }
 
 function toNumber(value: unknown): number {
@@ -150,6 +167,69 @@ async function fetchPaymentRowsWithOptionalFeeFields(supabase: ReturnType<typeof
     return normalizePaymentRows(rows);
 }
 
+async function loadReservationPaymentTarget(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string
+): Promise<ReservationPaymentTarget | null> {
+    const withFolioReopened = await supabase
+        .from("reservations")
+        .select("id, status, checked_in_at, total_price, deposit_amount, deposit_note, folio_reopened")
+        .eq("id", reservationId)
+        .maybeSingle();
+
+    if (!withFolioReopened.error) {
+        if (!withFolioReopened.data) return null;
+        return {
+            id: String(withFolioReopened.data.id),
+            status: withFolioReopened.data.status ?? null,
+            checked_in_at: withFolioReopened.data.checked_in_at ?? null,
+            total_price: withFolioReopened.data.total_price ?? 0,
+            deposit_amount: withFolioReopened.data.deposit_amount ?? 0,
+            deposit_note: withFolioReopened.data.deposit_note ?? null,
+            folio_reopened: Boolean(withFolioReopened.data.folio_reopened ?? false),
+        };
+    }
+
+    if (!isMissingReservationFolioReopenedError(withFolioReopened.error)) {
+        throw new Error(withFolioReopened.error.message);
+    }
+
+    const fallback = await supabase
+        .from("reservations")
+        .select("id, status, checked_in_at, total_price, deposit_amount, deposit_note")
+        .eq("id", reservationId)
+        .maybeSingle();
+    if (fallback.error) {
+        throw new Error(fallback.error.message);
+    }
+    if (!fallback.data) return null;
+
+    return {
+        id: String(fallback.data.id),
+        status: fallback.data.status ?? null,
+        checked_in_at: fallback.data.checked_in_at ?? null,
+        total_price: fallback.data.total_price ?? 0,
+        deposit_amount: fallback.data.deposit_amount ?? 0,
+        deposit_note: fallback.data.deposit_note ?? null,
+        folio_reopened: false,
+    };
+}
+
+async function resolveLinkedActiveReservationId(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string
+): Promise<string | null> {
+    try {
+        const checkOutTime = await resolveHotelCheckOutTime(supabase as any, "12:00");
+        const linkedStay = await resolveLinkedStay(supabase as any, reservationId, checkOutTime);
+        const activeId = String(linkedStay?.active_segment_id ?? "").trim();
+        if (!activeId || activeId === reservationId) return null;
+        return activeId;
+    } catch {
+        return null;
+    }
+}
+
 export async function GET(_request: NextRequest, { params }: RouteParams) {
     noStore();
     try {
@@ -202,8 +282,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const reservationId = params.id;
-        if (!reservationId) {
+        const requestedReservationId = params.id;
+        if (!requestedReservationId) {
             return NextResponse.json({ error: "Missing reservation id." }, { status: 400 });
         }
 
@@ -231,19 +311,41 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         const supabase = createServerSupabaseClient();
+        let effectiveReservationId = requestedReservationId;
+        let reservation: ReservationPaymentTarget | null = null;
 
-        const { data: reservation, error: reservationError } = await supabase
-            .from("reservations")
-            .select("id, status, checked_in_at, total_price, deposit_amount, deposit_note")
-            .eq("id", reservationId)
-            .maybeSingle();
-
-        if (reservationError) {
-            return NextResponse.json({ error: reservationError.message }, { status: 500 });
+        try {
+            reservation = await loadReservationPaymentTarget(supabase, effectiveReservationId);
+        } catch (reservationLoadError) {
+            const message = reservationLoadError instanceof Error ? reservationLoadError.message : "Failed to load reservation.";
+            return NextResponse.json({ error: message }, { status: 500 });
         }
         if (!reservation) {
             return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
         }
+
+        if (reservation.status === "checked_out" && !reservation.folio_reopened) {
+            const linkedActiveId = await resolveLinkedActiveReservationId(supabase, effectiveReservationId);
+            if (linkedActiveId) {
+                try {
+                    const activeReservation = await loadReservationPaymentTarget(supabase, linkedActiveId);
+                    if (activeReservation) {
+                        effectiveReservationId = linkedActiveId;
+                        reservation = activeReservation;
+                    }
+                } catch {
+                    // keep original guard behavior below
+                }
+            }
+
+            if (reservation.status === "checked_out" && !reservation.folio_reopened) {
+                return NextResponse.json(
+                    { success: false, error: "Reservation is checked out. Reopen folio first." },
+                    { status: 400 }
+                );
+            }
+        }
+
         if (
             txType === "deposit" &&
             (reservation.status !== "active" || (!reservation.checked_in_at && !allowDuringCheckin))
@@ -267,7 +369,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const { error: insertError } = await supabase
             .from("folio_payments")
             .insert({
-                reservation_id: reservationId,
+                reservation_id: effectiveReservationId,
                 tx_type: txType,
                 method,
                 amount,
@@ -286,7 +388,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             const { data: depositRows, error: depositRowsError } = await supabase
                 .from("folio_payments")
                 .select("method, amount, note, paid_at, tx_type, revenue_category")
-                .eq("reservation_id", reservationId)
+                .eq("reservation_id", effectiveReservationId)
                 .eq("revenue_category", "deposit")
                 .order("paid_at", { ascending: true });
 
@@ -330,20 +432,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                     deposit_note: nextDepositNote,
                     updated_at: new Date().toISOString(),
                 })
-                .eq("id", reservationId);
+                .eq("id", effectiveReservationId);
 
             if (syncReservationDepositError) {
                 return NextResponse.json({ error: syncReservationDepositError.message }, { status: 500 });
             }
         }
 
-        const payments = await fetchPaymentRowsWithOptionalFeeFields(supabase, reservationId);
+        const payments = await fetchPaymentRowsWithOptionalFeeFields(supabase, effectiveReservationId);
         const refreshedReservation =
             txType === "deposit"
                 ? await supabase
                     .from("reservations")
                     .select("total_price, deposit_amount")
-                    .eq("id", reservationId)
+                    .eq("id", effectiveReservationId)
                     .maybeSingle()
                 : null;
         const inserted = payments[0] ?? null;
@@ -355,6 +457,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
+            requested_reservation_id: requestedReservationId,
+            effective_reservation_id: effectiveReservationId,
             payment: inserted,
             summary: {
                 ...summary,

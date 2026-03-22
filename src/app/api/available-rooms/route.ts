@@ -111,20 +111,29 @@ export async function GET(request: NextRequest) {
             excludeReservationId: excludeReservationId || null,
         });
 
-        const occupiedReservationIdsByNight = new Map<string, Set<string>>();
-        for (const night of nights) occupiedReservationIdsByNight.set(night, new Set<string>());
+        const occupiedAssignedRoomIdsByNight = new Map<string, Set<string>>();
+        const occupiedFloatingReservationIdsByNight = new Map<string, Set<string>>();
+        for (const night of nights) {
+            occupiedAssignedRoomIdsByNight.set(night, new Set<string>());
+            occupiedFloatingReservationIdsByNight.set(night, new Set<string>());
+        }
         for (const row of typeRows ?? []) {
             const reservationId = String((row as any).reservation_id ?? "");
             if (!reservationId || (excludeReservationId && reservationId === excludeReservationId)) continue;
             const stayDate = String((row as any).stay_date ?? "");
-            if (!occupiedReservationIdsByNight.has(stayDate)) continue;
+            if (!occupiedAssignedRoomIdsByNight.has(stayDate)) continue;
             const rowRoomTypeId = Number((row as any).room_type_id ?? 0);
             const rowRoomId = row && (row as any).room_id ? String((row as any).room_id) : "";
             const belongsToType =
                 rowRoomTypeId === parsedRoomTypeId ||
                 (rowRoomId ? overnightRoomIdSet.has(rowRoomId) : false);
             if (!belongsToType) continue;
-            occupiedReservationIdsByNight.get(stayDate)?.add(reservationId);
+
+            if (rowRoomId && overnightRoomIdSet.has(rowRoomId)) {
+                occupiedAssignedRoomIdsByNight.get(stayDate)?.add(rowRoomId);
+            } else {
+                occupiedFloatingReservationIdsByNight.get(stayDate)?.add(reservationId);
+            }
         }
 
         const blockedRoomIdsByNight = new Map<string, Set<string>>();
@@ -141,15 +150,17 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        const plannedHoldsByNight = new Map<string, number>();
-        for (const night of nights) plannedHoldsByNight.set(night, 0);
+        const plannedHeldRoomIdsByNight = new Map<string, Set<string>>();
+        for (const night of nights) plannedHeldRoomIdsByNight.set(night, new Set<string>());
         for (const hold of plannedHolds) {
             const holdStart = String((hold as any).start_date ?? "");
             const holdEnd = String((hold as any).end_date ?? "");
+            const holdRoomId = String((hold as any).to_room_id ?? "");
+            if (!holdRoomId || !overnightRoomIdSet.has(holdRoomId)) continue;
             if (!holdStart || !holdEnd) continue;
             for (const night of nights) {
                 if (holdStart <= night && holdEnd > night) {
-                    plannedHoldsByNight.set(night, (plannedHoldsByNight.get(night) ?? 0) + 1);
+                    plannedHeldRoomIdsByNight.get(night)?.add(holdRoomId);
                 }
             }
         }
@@ -157,9 +168,18 @@ export async function GET(request: NextRequest) {
         const blockedByTypeCapacity = nights.some((night) => {
             const blockedRooms = blockedRoomIdsByNight.get(night) ?? new Set<string>();
             const capacity = overnightRoomIds.reduce((count, id) => count + (blockedRooms.has(id) ? 0 : 1), 0);
-            const occupied = occupiedReservationIdsByNight.get(night)?.size ?? 0;
-            const held = plannedHoldsByNight.get(night) ?? 0;
-            return occupied + held >= capacity;
+            if (capacity <= 0) return true;
+
+            const committedRoomIds = new Set<string>();
+            for (const roomId of occupiedAssignedRoomIdsByNight.get(night) ?? new Set<string>()) {
+                if (!blockedRooms.has(roomId)) committedRoomIds.add(roomId);
+            }
+            for (const roomId of plannedHeldRoomIdsByNight.get(night) ?? new Set<string>()) {
+                if (!blockedRooms.has(roomId)) committedRoomIds.add(roomId);
+            }
+
+            const floatingReservations = occupiedFloatingReservationIdsByNight.get(night)?.size ?? 0;
+            return committedRoomIds.size + floatingReservations >= capacity;
         });
 
         if (blockedByTypeCapacity) {
@@ -178,10 +198,15 @@ export async function GET(request: NextRequest) {
         // reservation_nights covers [checkin, checkout-1day]
         let occupiedQuery = supabase
             .from("reservation_nights")
-            .select("room_id")
+            .select(`
+                room_id,
+                reservations!inner(status, is_dayuse)
+            `)
             .gte("stay_date", checkin)
             .lt("stay_date", checkout)
             .is("cancelled_at", null)
+            .eq("reservations.status", "active")
+            .eq("reservations.is_dayuse", false)
             .in("room_id", overnightRoomIds);
 
         if (excludeReservationId) {

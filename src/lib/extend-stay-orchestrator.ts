@@ -1,6 +1,7 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import { normalizeAuditSource, toBangkokDateString, type AuditSource } from "@/lib/audit-utils";
 import {
+  appendReservationNoteLine,
   assertNoOverlapWithinReservation,
   assertRoomAvailableForDateRange,
   clampDiscountValue,
@@ -157,6 +158,50 @@ function toNumber(value: unknown): number {
 
 function round2(value: number): number {
   return Number(value.toFixed(2));
+}
+
+function summarizeExecutedActions(actions: Array<Record<string, unknown>>): string {
+  const labels = actions
+    .map((action) => asString(action.action).replaceAll("_", " "))
+    .filter(Boolean);
+  return labels.length > 0 ? labels.join(", ") : "none";
+}
+
+async function appendExtendSummaryNote(params: {
+  supabase: SupabaseLike;
+  reservationId: string;
+  today: string;
+  oldCheckoutDate: string;
+  newCheckoutDate: string;
+  strategy: ExtendStayStrategy;
+  moveMode: ExtendStayMoveMode | null;
+  targetRoomNumber: string | null;
+  executedActions: Array<Record<string, unknown>>;
+  pendingFixAction: string | null;
+}) {
+  const {
+    supabase,
+    reservationId,
+    today,
+    oldCheckoutDate,
+    newCheckoutDate,
+    strategy,
+    moveMode,
+    targetRoomNumber,
+    executedActions,
+    pendingFixAction,
+  } = params;
+
+  const noteParts = [
+    `[EXTEND STAY ${today}] ${oldCheckoutDate} -> ${newCheckoutDate}`,
+    `STRATEGY: ${strategy}`,
+    `MOVE: ${moveMode ?? "n/a"}`,
+    targetRoomNumber ? `TARGET ROOM: ${targetRoomNumber}` : null,
+    `ACTIONS: ${summarizeExecutedActions(executedActions)}`,
+    pendingFixAction ? `PENDING FIX: ${pendingFixAction}` : null,
+  ].filter(Boolean);
+
+  await appendReservationNoteLine(supabase as any, reservationId, noteParts.join(" | "));
 }
 
 function applyDiscount(rackRate: number, discountType: DiscountType, discountValue: number): number {
@@ -827,6 +872,41 @@ async function insertPlannedMove(params: {
   if (insertError) {
     throw new ExtendStayOrchestratorError(insertError.message ?? "Failed to create planned move segment.", 500);
   }
+
+  const roomIds = [fromRoomIdSnapshot, targetRoomId].filter(Boolean) as string[];
+  const roomNumberById = new Map<string, string>();
+  if (roomIds.length > 0) {
+    const { data: roomRows, error: roomRowsError } = await supabase
+      .from("rooms")
+      .select("id, room_number")
+      .in("id", roomIds);
+    if (roomRowsError) {
+      throw new ExtendStayOrchestratorError(roomRowsError.message ?? "Failed to resolve room numbers for plan note.", 500);
+    }
+    for (const row of ensureArray<any>(roomRows)) {
+      const roomId = asString(row?.id);
+      const roomNumber = asString(row?.room_number);
+      if (!roomId || !roomNumber) continue;
+      roomNumberById.set(roomId, roomNumber);
+    }
+  }
+
+  const sourceRoomNumber = fromRoomIdSnapshot
+    ? roomNumberById.get(String(fromRoomIdSnapshot)) ?? "unknown"
+    : "unknown";
+  const targetRoomNumber = roomNumberById.get(String(targetRoomId)) ?? "unknown";
+  const policyLabel =
+    pricingPolicy === "keep_rtc"
+      ? "POLICY: Keep RTC"
+      : pricingPolicy === "reprice_grid"
+        ? "POLICY: Reprice Grid"
+        : `POLICY: Reprice Grid + Discount (${discountType}:${discountValue})${discountReason ? ` [${discountReason}]` : ""}`;
+
+  await appendReservationNoteLine(
+    supabase as any,
+    reservationId,
+    `[PLANNED MOVE CREATE ${today}] ${sourceRoomNumber} -> ${targetRoomNumber} | DATES: ${startDate} -> ${endDate} | REASON: ${moveReason} | ${policyLabel}`
+  );
 
   await rebuildReservationFutureRoomPath(supabase as any, { reservationId });
   await applySegmentPricingProjection({
@@ -1510,6 +1590,29 @@ export async function commitExtendStay(params: {
         };
       }
     }
+  }
+
+  const summaryTargetRoomNumber =
+    input.strategy === "different_room"
+      ? preview.available_target_rooms.find((room) => room.id === asString(input.targetRoomId))?.room_number ?? null
+      : ctx.lockedRoomNumber;
+
+  try {
+    await appendExtendSummaryNote({
+      supabase,
+      reservationId: ctx.reservation.id,
+      today: ctx.today,
+      oldCheckoutDate: ctx.reservation.checkout_date,
+      newCheckoutDate: ctx.extensionCheckoutDate,
+      strategy: input.strategy,
+      moveMode: input.moveMode ?? null,
+      targetRoomNumber: summaryTargetRoomNumber,
+      executedActions,
+      pendingFixAction,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    warnings.push(`Could not write extend summary note: ${message}`);
   }
 
   await writeExtendAudit({

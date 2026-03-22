@@ -12,6 +12,7 @@ const NAV_ITEMS = [
         items: [
             { href: "/pms", label: "Dashboard", icon: HomeIcon, exact: true },
             { href: "/pms/board", label: "Room Diary", icon: GridIcon },
+            { href: "/pms/room-planner", label: "Room Planner", icon: GridIcon },
             { href: "/pms/calendar", label: "Calendar", icon: CalendarIcon },
             { href: "/pms/arrivals", label: "Arrivals", icon: ArrivalsIcon },
             { href: "/pms/inhouse", label: "In-House", icon: InHouseIcon },
@@ -95,6 +96,7 @@ const NAV_ITEMS = [
             { href: "/pms/training", label: "Training", icon: BookOpenIcon },
             { href: "/pms/night-audit", label: "Night Audit", icon: MoonIcon },
             { href: "/pms/audit", label: "Audit Explorer", icon: ListIcon },
+            { href: "/pms/admin/corrections", label: "Admin Corrections", icon: WrenchIcon },
             { href: "/pms/audit/monthly", label: "Monthly Audit", icon: ListIcon },
             { href: "/pms/settings", label: "Settings", icon: SettingsIcon },
             { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },

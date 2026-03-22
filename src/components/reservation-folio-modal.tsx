@@ -180,6 +180,16 @@ export function ReservationFolioModal({
     }
   };
 
+  const voidedRowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of (folio?.ledger ?? [])) {
+      if (row.void_of) {
+        ids.add(row.void_of);
+      }
+    }
+    return ids;
+  }, [folio?.ledger]);
+
   const visibleLedger = useMemo(() => {
     const rows = folio?.ledger ?? [];
     if (filter === "all") return rows;
@@ -222,12 +232,21 @@ export function ReservationFolioModal({
         throw new Error(data?.error || "Failed to add payment.");
       }
 
+      const effectiveReservationId =
+        typeof data?.effective_reservation_id === "string"
+          ? data.effective_reservation_id
+          : reservationId;
+
       setPaymentAmount("");
       setPaymentNote("");
       setShowPaymentForm(false);
       window.dispatchEvent(new CustomEvent("billing-panel-refresh"));
       onInlineRefresh?.();
-      await loadFolio();
+      if (effectiveReservationId && effectiveReservationId !== reservationId && onSwitchTab) {
+        onSwitchTab(effectiveReservationId);
+      } else {
+        await loadFolio();
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to add payment.");
     } finally {
@@ -387,26 +406,52 @@ export function ReservationFolioModal({
                         </td>
                       </tr>
                     ) : (
-                      visibleLedger.map((row) => (
-                        <tr
-                          key={row.id}
-                          className={`border-t border-[var(--border-subtle)] align-top ${row.is_record_only ? "opacity-60 italic" : ""}`}
-                        >
-                          <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{formatLedgerDateTime(row.occurred_at)}</td>
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-[var(--text-primary)]">{getRowTypeLabel(row)}</div>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
-                              <span>{row.label}</span>
-                              {row.is_record_only ? (
-                                <span
-                                  className="rounded-full bg-[var(--bg-surface-hover)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]"
-                                  title="This transaction was settled in POS. Shown for reference only."
-                                >
-                                  Record Only
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
+                      visibleLedger.map((row) => {
+                        const isVoided = voidedRowIds.has(row.id);
+                        return (
+                          <tr
+                            key={row.id}
+                            className={`border-t border-[var(--border-subtle)] align-top ${row.is_record_only && !row.is_correction ? "opacity-60 italic" : ""} ${row.is_void_reversal || isVoided ? "italic" : ""} ${isVoided ? "line-through opacity-50" : ""}`}
+                          >
+                            <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">{formatLedgerDateTime(row.occurred_at)}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[var(--text-primary)]">{getRowTypeLabel(row)}</div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                <span>{row.label}</span>
+                                {row.is_record_only && !row.is_correction ? (
+                                  <span
+                                    className="rounded-full bg-[var(--bg-surface-hover)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]"
+                                    title="This transaction was settled in POS. Shown for reference only."
+                                  >
+                                    Record Only
+                                  </span>
+                                ) : null}
+                                {row.is_void_reversal && (
+                                  <span
+                                    className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
+                                    title={row.correction_reason || "Reversal entry"}
+                                  >
+                                    VOID
+                                  </span>
+                                )}
+                                {row.is_correction && (
+                                  <span
+                                    className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-700 dark:bg-blue-500/20 dark:text-blue-400"
+                                    title={row.correction_reason || "Adjustment entry"}
+                                  >
+                                    ADJ
+                                  </span>
+                                )}
+                                {isVoided && (
+                                  <span
+                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                                    title="This entry has been voided"
+                                  >
+                                    VOIDED
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                           <td className="px-4 py-3 text-[var(--text-table-cell)]">{getMethodLabel(row.method)}</td>
                           <td className={`whitespace-nowrap px-4 py-3 font-mono font-semibold ${getAmountTone(row)}`}>
                             {getAmountPrefix(row)}฿{formatMoney(row.amount)}
@@ -421,7 +466,8 @@ export function ReservationFolioModal({
                           </td>
                           <td className="px-4 py-3 text-[var(--text-secondary)]">{row.cashier_name || "—"}</td>
                         </tr>
-                      ))
+                      );
+                    })
                     )}
                   </tbody>
                 </table>

@@ -3181,8 +3181,9 @@ export default function ReservationDetailPage({
                     }
                 }
                 if (pendingInhousePayments.length > 0) {
+                    let paymentTargetReservationId = reservationId;
                     for (const payment of pendingInhousePayments) {
-                        const paymentRes = await fetch(`/api/bookings/${reservationId}/payments`, {
+                        const paymentRes = await fetch(`/api/bookings/${paymentTargetReservationId}/payments`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
@@ -3197,6 +3198,14 @@ export default function ReservationDetailPage({
                             setError(paymentData?.error || "Failed to save in-house payment.");
                             setLoading(false);
                             return;
+                        }
+                        const effectiveReservationId =
+                            typeof paymentData?.effective_reservation_id === "string"
+                                ? paymentData.effective_reservation_id
+                                : paymentTargetReservationId;
+                        if (effectiveReservationId && effectiveReservationId !== paymentTargetReservationId) {
+                            paymentTargetReservationId = effectiveReservationId;
+                            handleSwitchLinkedTab(effectiveReservationId);
                         }
                     }
                 }
@@ -3253,8 +3262,9 @@ export default function ReservationDetailPage({
 
                 if (activeIntent === "draft") {
                     if (pendingCheckinPayments.length > 0) {
+                        let paymentTargetReservationId = reservationId;
                         for (const payment of pendingCheckinPayments) {
-                            const paymentRes = await fetch(`/api/bookings/${reservationId}/payments`, {
+                            const paymentRes = await fetch(`/api/bookings/${paymentTargetReservationId}/payments`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
@@ -3269,6 +3279,14 @@ export default function ReservationDetailPage({
                                 setError(paymentData?.error || "Failed to save payment draft.");
                                 setLoading(false);
                                 return;
+                            }
+                            const effectiveReservationId =
+                                typeof paymentData?.effective_reservation_id === "string"
+                                    ? paymentData.effective_reservation_id
+                                    : paymentTargetReservationId;
+                            if (effectiveReservationId && effectiveReservationId !== paymentTargetReservationId) {
+                                paymentTargetReservationId = effectiveReservationId;
+                                handleSwitchLinkedTab(effectiveReservationId);
                             }
                         }
                     }
@@ -3406,7 +3424,7 @@ export default function ReservationDetailPage({
     const checkinFieldErrorClass = (field: string | string[]) => {
         const fields = Array.isArray(field) ? field : [field];
         const hasError = fields.some((item) => checkinMissingFields.has(item));
-        return hasError ? "!border-rose-300 !bg-rose-100 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" : "";
+        return hasError ? "!border-rose-300 !bg-rose-100 dark:!bg-rose-500/10 dark:!border-rose-500/30 text-[var(--text-primary)] dark:!text-rose-200 placeholder:text-[var(--text-muted)]" : "";
     };
 
     /* ─── Loading state ─── */
@@ -3682,10 +3700,11 @@ export default function ReservationDetailPage({
                 )}
 
                 {linkedStay && reservationId && (
-                    <LinkedStayPanel 
-                        linkedStay={linkedStay} 
-                        currentReservationId={reservationId} 
-                        onSwitchTab={handleSwitchLinkedTab} 
+                    <LinkedStayPanel
+                        linkedStay={linkedStay}
+                        currentReservationId={reservationId}
+                        onSwitchTab={handleSwitchLinkedTab}
+                        onUnlinked={() => onSuccess()}
                     />
                 )}
 

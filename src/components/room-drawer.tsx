@@ -6,6 +6,7 @@ import DepositModal from "./deposit-modal";
 import ReservationOptionsPanel from "./reservation-options-panel";
 import RoomMoveModal from "./room-move-modal";
 import LinkedExtensionModal from "./linked-extension-modal";
+import LinkStayModal from "./link-stay-modal";
 import CancelFeeModal, { CancelFeePayload } from "./cancel-fee-modal";
 import { DayUseTimer } from "./dayuse-timer";
 import type { LinkedStay } from "@/lib/types";
@@ -228,6 +229,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [showOptionsPanel, setShowOptionsPanel] = useState(false);
     const [showMoveRoomModal, setShowMoveRoomModal] = useState(false);
     const [showLinkedExtensionModal, setShowLinkedExtensionModal] = useState(false);
+    const [showLinkStayModal, setShowLinkStayModal] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showEarlyCheckoutConfirm, setShowEarlyCheckoutConfirm] = useState(false);
     const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -337,6 +339,14 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             }
             if (payload.refund_method) bodyPayload.refund_method = payload.refund_method;
             if (payload.refund_note?.trim()) bodyPayload.refund_note = payload.refund_note.trim();
+            // A3: Linked stays — child cancellation does NOT cascade by default.
+            // Backend already handles this, but we explicitly pass false for child to be safe.
+            const currentLinkedStay = room.reservation.linked_stay;
+            const currentSegment = currentLinkedStay?.segments?.find((s: any) => s.reservation_id === room.reservation!.id);
+            const isLinkedChild = currentSegment ? !currentSegment.is_parent : false;
+            if (isLinkedChild) {
+                bodyPayload.cascade_linked = false;
+            }
             const res = await fetch(`/api/bookings/${room.reservation.id}/cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -929,7 +939,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     )}
 
                                     {res.note && (
-                                        <p className="text-xs text-[var(--text-muted)] bg-amber-50 border border-amber-100 dark:bg-amber-500/5 dark:border-amber-500/20 rounded-lg px-3 py-2">
+                                        <p
+                                            className="text-xs text-[var(--text-muted)] bg-amber-50 border border-amber-100 dark:bg-amber-500/5 dark:border-amber-500/20 rounded-lg px-3 py-2"
+                                            title={res.note}
+                                        >
                                             📝 {res.note}
                                         </p>
                                     )}
@@ -1091,6 +1104,17 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                                         <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                                                                     </svg>
                                                                     Extend Stay
+                                                                </button>
+                                                            )}
+                                                            {canInHouseActions && res?.id && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                    onClick={() => { setShowMoreMenu(false); setShowLinkStayModal(true); }}
+                                                                >
+                                                                    <svg className="h-4 w-4 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                                                                    </svg>
+                                                                    Link Booking
                                                                 </button>
                                                             )}
                                                             {canLockRoom && !assignedLockActive && (
@@ -1514,6 +1538,21 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 />
             )}
 
+            {showLinkStayModal && res && (
+                <LinkStayModal
+                    reservationId={res.id}
+                    guestName={res.guest_name || "Guest"}
+                    checkinDate={res.checkin_date}
+                    checkoutDate={res.checkout_date}
+                    onClose={() => setShowLinkStayModal(false)}
+                    onSuccess={() => {
+                        setShowLinkStayModal(false);
+                        setMsg("Reservations linked successfully.");
+                        onRefresh();
+                    }}
+                />
+            )}
+
             {showDepositModal && res && (
                 <DepositModal
                     reservationId={res.id}
@@ -1537,6 +1576,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 isOpen={showCancelFeeModal}
                 reservationId={res?.id ?? ""}
                 guestName={res?.guest_name || ""}
+                isLinkedChild={Boolean(linkedStay && linkedStay.segments.find(s => s.reservation_id === res?.id && !s.is_parent))}
+                linkedSegmentCount={linkedStay?.segments?.length ?? 0}
                 onClose={() => setShowCancelFeeModal(false)}
                 onConfirm={executeCancel}
             />

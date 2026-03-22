@@ -87,7 +87,7 @@ export default function ShortenFeeModal({
             onClose={onClose}
         >
             <div className="space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800 text-sm">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800 text-sm dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30">
                     <strong>Reduced Stay Duration</strong>
                     <div className="mt-2 space-y-1 text-xs">
                         <p>Pre-paid: <span className="font-bold">฿{formatMoney(prepaidNet)}</span></p>
@@ -121,7 +121,7 @@ export default function ShortenFeeModal({
                             </label>
                             <input
                                 type="number"
-                                className="form-input w-full font-bold text-lg"
+                                className="form-input w-full font-bold text-lg dark:aria-invalid:bg-rose-500/10"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                                 required={!noFee}
@@ -171,12 +171,12 @@ export default function ShortenFeeModal({
                     </div>
                 )}
 
-                <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 rounded-lg">
-                    <div className="text-xs font-bold text-sky-700 uppercase tracking-wider">Refund Summary</div>
+                <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 rounded-lg dark:bg-sky-500/10 dark:border-sky-500/30">
+                    <div className="text-xs font-bold text-sky-700 uppercase tracking-wider dark:text-sky-400">Refund Summary</div>
                     <div className="text-sm text-[var(--text-table-cell)] space-y-1">
                         <p>Overpaid: ฿{formatMoney(overpaid)}</p>
                         <p>Less fee: ฿{formatMoney(feeInputAmount)}</p>
-                        <p className="font-semibold text-emerald-700">Refund due: ฿{formatMoney(refundDuePreview)}</p>
+                        <p className="font-semibold text-emerald-700 dark:text-emerald-400">Refund due: ฿{formatMoney(refundDuePreview)}</p>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">

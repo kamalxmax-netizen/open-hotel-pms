@@ -10,99 +10,14 @@ import AssignRoomModal from "@/components/assign-room-modal";
 import CancelFeeModal, { type CancelFeePayload } from "@/components/cancel-fee-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import { formatShortGroupCode } from "@/lib/group-label";
-
-/* ─── Types ───────────────────────────────────── */
-type Reservation = {
-    reservation_id: string;
-    booking_code: string;
-    booking_group_id?: string | null;
-    parent_reservation_id?: string | null;
-    linked_root_id?: string | null;
-    group_code?: string | null;
-    group_name?: string | null;
-    guest_name: string;
-    phone: string | null;
-    source: string;
-    status: string;           // 'active' | 'checked_out'
-    checked_in_at?: string | null;
-    checkin_date: string;
-    checkout_date: string;
-    total_price: number;
-    note: string | null;
-    nights: string[];
-    alert_count?: number;
-    first_alert_message?: string | null;
-    alert_severity?: "info" | "warning" | "critical" | null;
-    room_type_id: string;
-    room_type: string;
-};
-
-type CalendarRoom = {
-    room_id: string;
-    room_type_id: string;
-    room_number: string;
-    room_type: string;
-    room_type_code: string;
-    is_sellable: boolean;
-    closure_reason: string | null;
-    is_dayuse?: boolean;
-    reservations: Reservation[];
-};
-
-type RoomBlock = {
-    id: string;
-    room_id: string;
-    block_type: "OOO" | "OOS";
-    start_date: string;
-    end_date: string;
-    reason: string;
-};
-
-type CalendarData = {
-    success: boolean;
-    start_date: string;
-    end_date: string;
-    rooms: CalendarRoom[];
-    unassigned?: Reservation[];
-    blocks?: RoomBlock[];
-    planned_moves?: PlannedMove[];
-};
-
-type PlannedMove = {
-    id: string;
-    reservation_id: string;
-    booking_code: string | null;
-    guest_name: string | null;
-    checkin_date: string | null;
-    checkout_date: string | null;
-    booking_group_id?: string | null;
-    group_code?: string | null;
-    group_name?: string | null;
-    start_date: string;
-    end_date: string;
-    from_room_id_snapshot: string | null;
-    from_room_number: string | null;
-    to_room_id: string;
-    to_room_number: string | null;
-    to_room_type_id: number;
-    move_reason: string | null;
-    pricing_policy: string;
-    do_not_move: boolean;
-    status: string;
-};
-
-/* ─── Constants ───────────────────────────────── */
-const SOURCE_COLOR: Record<string, { bar: string; text: string }> = {
-    walkin: { bar: "bg-sky-500", text: "text-white" },
-    ota: { bar: "bg-purple-500", text: "text-white" },
-    direct: { bar: "bg-emerald-500", text: "text-white" },
-    agent: { bar: "bg-amber-500", text: "text-[var(--text-primary)]" }
-};
-const DEFAULT_COLOR = { bar: "bg-brand-500", text: "text-white" };
-
-const SOURCE_LABEL: Record<string, string> = {
-    walkin: "Walk-in", ota: "OTA", direct: "Direct", agent: "Agent"
-};
+import { RoomGrid, SOURCE_COLOR, SOURCE_LABEL, DEFAULT_COLOR } from "@/components/room-grid";
+import type { 
+    CalendarReservation as Reservation,
+    CalendarRoom,
+    CalendarRoomBlock as RoomBlock,
+    CalendarData,
+    CalendarPlannedMove as PlannedMove
+} from "@/lib/types";
 
 /* ─── Helpers ─────────────────────────────────── */
 function addDays(date: string, n: number): string {
@@ -318,7 +233,12 @@ function ReservationDetail({
 
                     <div className="text-xs text-[var(--text-muted)]">Code: {res.booking_code}</div>
                     {res.note && (
-                        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400">📝 {res.note}</div>
+                        <div
+                            className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400"
+                            title={res.note}
+                        >
+                            📝 {res.note}
+                        </div>
                     )}
                 </div>
             </PmsModal>
@@ -445,9 +365,8 @@ function CalendarPageInner() {
     const moveRelatedRoomIds = (() => {
         const ids = new Set<string>();
         for (const move of data?.planned_moves ?? []) {
-            if (move.status !== "planned") continue;
-            if (move.from_room_id_snapshot) ids.add(move.from_room_id_snapshot);
-            if (move.to_room_id) ids.add(move.to_room_id);
+            if (move.from_room_id_snapshot) ids.add(String(move.from_room_id_snapshot));
+            if (move.to_room_id) ids.add(String(move.to_room_id));
         }
         return ids;
     })();
@@ -463,7 +382,13 @@ function CalendarPageInner() {
         return room.reservations.some((res) => res.nights.some((night) => night >= startDate && night <= endDate));
     };
 
-    const hasMoveActivity = (room: CalendarRoom): boolean => moveRelatedRoomIds.has(room.room_id);
+    const hasMoveActivity = (room: CalendarRoom): boolean => {
+        if (moveRelatedRoomIds.has(room.room_id)) return true;
+        return (data?.planned_moves ?? []).some((move) => {
+            if (move.end_date <= startDate || move.start_date > endDate) return false;
+            return move.to_room_id === room.room_id || move.from_room_id_snapshot === room.room_id;
+        });
+    };
 
     const compareRooms = (a: CalendarRoom, b: CalendarRoom): number => {
         if (roomSort === "room_number_asc") {
@@ -491,79 +416,7 @@ function CalendarPageInner() {
     const dayUseRooms = visibleRooms.filter((r) => r.is_dayuse);
     const visibleReservationCount = visibleRooms.reduce((acc, room) => acc + room.reservations.length, 0);
 
-    // Map: room_id → reservations that overlap days range (keyed by first night in range)
-    // Build bar segments: for each room, find reservations and compute bar position
-    function getBarsForRoom(room: CalendarRoom) {
-        return room.reservations.map((res) => {
-            const visibleNights = res.nights.filter((n) => n >= startDate && n <= endDate);
-            if (visibleNights.length === 0) return null;
 
-            const firstNight = visibleNights[0];
-            const lastNight = visibleNights[visibleNights.length - 1];
-
-            const startIdx = days.indexOf(firstNight);
-            const spanCount = days.indexOf(lastNight) - startIdx + 1;
-
-            const clippedLeft = res.checkin_date < startDate;
-            const clippedRight = res.checkout_date > addDays(endDate, 1);
-
-            return { res, startIdx, spanCount, clippedLeft, clippedRight };
-        }).filter(Boolean) as {
-            res: Reservation;
-            startIdx: number;
-            spanCount: number;
-            clippedLeft: boolean;
-            clippedRight: boolean;
-        }[];
-    }
-
-    function getBlocksForRoom(room: CalendarRoom) {
-        return (data?.blocks ?? []).filter(b => b.room_id === room.room_id).map(block => {
-            if (block.end_date < startDate || block.start_date > endDate) return null;
-
-            const bStart = block.start_date < startDate ? startDate : block.start_date;
-            const bEnd = block.end_date > addDays(endDate, 1) ? addDays(endDate, 1) : block.end_date;
-
-            const startIdx = days.indexOf(bStart);
-            const spanCount = days.indexOf(addDays(bEnd, -1)) - startIdx + 1;
-
-            if (startIdx < 0 || spanCount <= 0) return null;
-
-            return { block, startIdx, spanCount };
-        }).filter(Boolean) as { block: RoomBlock, startIdx: number, spanCount: number }[];
-    }
-
-    function getPlannedBarsForRoom(room: CalendarRoom) {
-        return (data?.planned_moves ?? [])
-            .filter((move) => move.status === "planned" && move.to_room_id === room.room_id)
-            .map((move) => {
-                if (move.end_date <= startDate || move.start_date > endDate) return null;
-                const visibleStart = move.start_date < startDate ? startDate : move.start_date;
-                const visibleEndExclusive = move.end_date > addDays(endDate, 1) ? addDays(endDate, 1) : move.end_date;
-                const startIdx = days.indexOf(visibleStart);
-                const lastVisibleNight = addDays(visibleEndExclusive, -1);
-                const spanCount = days.indexOf(lastVisibleNight) - startIdx + 1;
-                if (startIdx < 0 || spanCount <= 0) return null;
-                return { move, startIdx, spanCount };
-            })
-            .filter(Boolean) as { move: PlannedMove; startIdx: number; spanCount: number }[];
-    }
-
-    function getPlannedReleaseBarsForRoom(room: CalendarRoom) {
-        return (data?.planned_moves ?? [])
-            .filter((move) => move.status === "planned" && move.from_room_id_snapshot === room.room_id)
-            .map((move) => {
-                if (move.end_date <= startDate || move.start_date > endDate) return null;
-                const visibleStart = move.start_date < startDate ? startDate : move.start_date;
-                const visibleEndExclusive = move.end_date > addDays(endDate, 1) ? addDays(endDate, 1) : move.end_date;
-                const startIdx = days.indexOf(visibleStart);
-                const lastVisibleNight = addDays(visibleEndExclusive, -1);
-                const spanCount = days.indexOf(lastVisibleNight) - startIdx + 1;
-                if (startIdx < 0 || spanCount <= 0) return null;
-                return { move, startIdx, spanCount };
-            })
-            .filter(Boolean) as { move: PlannedMove; startIdx: number; spanCount: number }[];
-    }
 
     const focusedMove = focusReservationId
         ? (data?.planned_moves ?? []).find((move) => move.reservation_id === focusReservationId) ?? null
@@ -764,308 +617,33 @@ function CalendarPageInner() {
                 </div>
             )}
 
-            {/* Gantt Grid */}
-            <div className="card overflow-hidden">
-                <div className="flex">
-                    {/* Frozen room column */}
-                    <div
-                        className="flex-shrink-0 border-r border-[var(--border-default)] bg-[var(--bg-surface)] z-10"
-                        style={{ width: ROOM_COL_W }}
-                    >
-                        {/* Header cell */}
-                        <div
-                            className="flex items-center px-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
-                            style={{ height: ROW_H }}
-                        >
-                            Room
-                        </div>
-                        {loading
-                            ? Array.from({ length: 8 }).map((_, i) => (
-                                <div key={i} className="flex items-center px-3 border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
-                                    <div className="h-3 w-20 rounded bg-[var(--bg-muted)] animate-pulse" />
-                                </div>
-                            ))
-                            : (
-                                <>
-                                    {filteredRooms.map((room) => (
-                                        <div
-                                            key={room.room_id}
-                                            className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]"
-                                            style={{ height: ROW_H }}
-                                        >
-                                            <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
-                                            <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
-                                            {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
-                                        </div>
-                                    ))}
-                                    {dayUseRooms.length > 0 && (
-                                        <>
-                                            <div
-                                                className="flex items-center px-3 border-b border-t border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--dayuse-text)]"
-                                                style={{ height: ROW_H }}
-                                            >
-                                                Day Use
-                                            </div>
-                                            {dayUseRooms.map((room) => (
-                                                <div
-                                                    key={room.room_id}
-                                                    className="flex items-center gap-1.5 px-3 border-b border-[var(--border-subtle)] bg-rose-50/20 dark:bg-rose-900/10"
-                                                    style={{ height: ROW_H }}
-                                                >
-                                                    <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
-                                                    <span className="text-[9px] text-[var(--dayuse-text)] font-bold uppercase truncate">Day Use</span>
-                                                    {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
-                                                </div>
-                                            ))}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                    </div>
 
-                    {/* Scrollable grid */}
-                    <div ref={scrollRef} className="overflow-x-auto flex-1">
-                        <div style={{ width: totalGridW, minWidth: totalGridW }}>
-                            {/* Date header */}
-                            <div
-                                className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] sticky top-0 z-10"
-                                style={{ height: ROW_H }}
-                            >
-                                {days.map((day) => {
-                                    const { day: d, dow } = dayLabel(day);
-                                    const isToday = day === today;
-                                    const weekend = isWeekend(day);
-                                    return (
-                                        <div
-                                            key={day}
-                                            className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${isToday ? "bg-brand-50 dark:bg-brand-900/40" : weekend ? "bg-rose-50/40 dark:bg-rose-900/20" : ""
-                                                }`}
-                                            style={{ width: COL_W }}
-                                        >
-                                            <span className={`text-[9px] font-semibold ${weekend ? "text-rose-400" : "text-[var(--text-muted)]"}`}>{dow}</span>
-                                            <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : weekend ? "text-rose-500" : "text-[var(--text-table-cell)]"}`}>{d}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Room rows */}
-                            {loading ? (
-                                Array.from({ length: 8 }).map((_, i) => (
-                                    <div key={i} className="flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
-                                        {days.map((d) => (
-                                            <div key={d} className="flex-shrink-0 border-r border-[var(--border-subtle)]" style={{ width: COL_W }} />
-                                        ))}
-                                    </div>
-                                ))
-                            ) : (
-                                <>
-                                    {filteredRooms.map((room) => {
-                                        const bars = getBarsForRoom(room);
-                                        const roomBlocks = getBlocksForRoom(room);
-                                        const plannedReleaseBars = getPlannedReleaseBarsForRoom(room);
-                                        const plannedBars = getPlannedBarsForRoom(room);
-                                        return (
-                                            <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
-                                                {days.map((day) => (
-                                                    <div
-                                                        key={day}
-                                                        className={`flex-shrink-0 border-r border-[var(--border-subtle)] cursor-pointer transition-colors ${
-                                                            day === today 
-                                                                ? "bg-brand-50/40 hover:bg-brand-200/50 dark:bg-brand-900/30 dark:hover:bg-brand-900/50" 
-                                                                : isWeekend(day) 
-                                                                    ? "bg-rose-50/30 hover:bg-rose-200/40 dark:bg-rose-900/15 dark:hover:bg-rose-900/30" 
-                                                                    : "hover:bg-slate-200/50 dark:hover:bg-white/5"
-                                                        } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
-                                                        style={{ width: COL_W, height: ROW_H }}
-                                                        onClick={() => {
-                                                            if (!room.is_sellable) return;
-                                                            setDetailMode("create");
-                                                            setDetailResId(undefined);
-                                                            setDetailRoomNumber(room.room_number);
-                                                            setDetailInitialRoomTypeId(room.room_type_id || undefined);
-                                                            setDetailInitialCheckinDate(day);
-                                                            setDetailInitialCheckoutDate(addDays(day, 1));
-                                                        }}
-                                                        title={room.is_sellable ? `New booking in Room ${room.room_number} on ${day}` : undefined}
-                                                    />
-                                                ))}
-
-                                                {roomBlocks.map(({ block, startIdx, spanCount }) => {
-                                                    const isOOO = block.block_type === "OOO";
-                                                    const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
-                                                    const left = startIdx * COL_W;
-                                                    const width = spanCount * COL_W;
-                                                    return (
-                                                        <div
-                                                            key={block.id}
-                                                            className={`absolute top-0 bottom-0 border-x border-y-0 ${color} z-0 opacity-80 flex flex-col justify-center px-1 overflow-hidden select-none pointer-events-none`}
-                                                            style={{ left, width, zIndex: 5 }}
-                                                            title={`Blocked (${block.block_type}): ${block.reason}`}
-                                                        >
-                                                            <div className="absolute inset-0 bg-stripe-pattern opacity-10" />
-                                                            <span className="text-[10px] font-bold leading-none truncate relative z-10">
-                                                                {isOOO ? "OOO" : "OOS"} - {block.reason}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })}
-
-                                                {plannedBars.map(({ move, startIdx, spanCount }) => {
-                                                    const shouldFade = Boolean(focusReservationId) && move.reservation_id !== focusReservationId;
-                                                    const isFocused = move.reservation_id === focusReservationId;
-                                                    const left = startIdx * COL_W + 2;
-                                                    const width = spanCount * COL_W - 4;
-                                                    return (
-                                                        <button
-                                                            key={`planned-${move.id}`}
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                syncFocus(move.reservation_id);
-                                                            }}
-                                                            className={`absolute rounded-md border-2 border-dashed px-2 text-[10px] font-semibold text-indigo-700 transition z-20 ${move.do_not_move ? "border-rose-400 bg-rose-100/85 text-rose-700 dark:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300" : "border-indigo-400 bg-indigo-100/85 dark:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"} ${shouldFade ? "opacity-10" : "opacity-95"} ${isFocused ? "shadow-[0_0_0_2px_rgba(99,102,241,0.18)]" : ""}`}
-                                                            style={{ left, width, top: 2, height: ROW_H - 4 }}
-                                                            title={`${move.guest_name ?? "Guest"} · planned ${move.start_date} → ${move.end_date} · Room ${move.to_room_number ?? "?"}`}
-                                                        >
-                                                            {width > 92 ? `Move ← ${move.from_room_number ?? "?"}` : null}
-                                                        </button>
-                                                    );
-                                                })}
-
-                                                {plannedReleaseBars.map(({ move, startIdx, spanCount }) => {
-                                                    const shouldFade = Boolean(focusReservationId) && move.reservation_id !== focusReservationId;
-                                                    const isFocused = move.reservation_id === focusReservationId;
-                                                    const left = startIdx * COL_W + 2;
-                                                    const width = spanCount * COL_W - 4;
-                                                    return (
-                                                        <button
-                                                            key={`planned-release-${move.id}`}
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                syncFocus(move.reservation_id);
-                                                            }}
-                                                            className={`absolute rounded-md border-2 border-dashed px-2 text-[10px] font-semibold transition z-[15] ${
-                                                                move.do_not_move
-                                                                    ? "border-orange-400 bg-orange-100/85 text-orange-800 dark:bg-orange-500/20 dark:border-orange-500/40 dark:text-orange-300"
-                                                                    : "border-amber-400 bg-amber-100/80 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-300"
-                                                            } ${shouldFade ? "opacity-10" : "opacity-95"} ${isFocused ? "shadow-[0_0_0_2px_rgba(251,191,36,0.18)]" : ""}`}
-                                                            style={{ left, width, top: 2, height: ROW_H - 4 }}
-                                                            title={`${move.guest_name ?? "Guest"} · release Room ${move.from_room_number ?? "?"} for planned move ${move.start_date} → ${move.end_date} · target Room ${move.to_room_number ?? "?"}`}
-                                                        >
-                                                            {width > 92 ? `Move → ${move.to_room_number ?? "?"}` : null}
-                                                        </button>
-                                                    );
-                                                })}
-
-                                                {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight }) => {
-                                                    const isCheckedOut = res.status === "checked_out";
-                                                    const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
-                                                    const linkHoverKey = resolveLinkHoverKey(res);
-                                                    const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && linkHoverKey === hoverGroupId;
-                                                    const shouldFadeGroup = focusReservationId
-                                                        ? res.reservation_id !== focusReservationId
-                                                        : Boolean(hoverGroupId) && linkHoverKey !== hoverGroupId;
-                                                    const left = startIdx * COL_W + (clippedLeft ? 0 : 2);
-                                                    const width = spanCount * COL_W - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
-                                                    return (
-                                                        <button
-                                                            key={res.reservation_id}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedRes({ res, roomNumber: room.room_number });
-                                                            }}
-                                                            onMouseEnter={() => setHoverGroupId(linkHoverKey)}
-                                                            onMouseLeave={() => setHoverGroupId(null)}
-                                                            onFocus={() => setHoverGroupId(linkHoverKey)}
-                                                            onBlur={() => setHoverGroupId(null)}
-                                                            className={`absolute top-1.5 rounded-md ${sc.bar} ${sc.text} text-[10px] font-semibold overflow-hidden whitespace-nowrap px-2 shadow-sm transition z-10 ${
-                                                                shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-60 cursor-default" : "hover:brightness-110"
-                                                            } ${(isGroupFocused || res.reservation_id === focusReservationId) ? "ring-2 ring-indigo-300 brightness-110" : ""} ${clippedLeft ? "rounded-l-none" : ""} ${
-                                                                clippedRight ? "rounded-r-none" : ""
-                                                            }`}
-                                                            style={{ left, width, height: ROW_H - 12, transform: isGroupFocused ? "scaleY(1.08)" : undefined, transformOrigin: "center" }}
-                                                            title={`${isCheckedOut ? "✓ CO " : ""}${res.guest_name} · ${res.checkin_date} → ${res.checkout_date}${res.group_code ? ` · ${res.group_code}` : ""}${res.first_alert_message ? ` · Alert: ${res.first_alert_message}` : ""}`}
-                                                        >
-                                                            {width > 60 ? (
-                                                                <span className="flex items-center gap-1">
-                                                                    {isCheckedOut && <span className="opacity-80">✓</span>}
-                                                                    {res.guest_name}
-                                                                    {isCheckedOut && width > 120 && <span className="ml-1 text-[9px] bg-[var(--bg-surface)]/30 rounded px-1">CO</span>}
-                                                                </span>
-                                                            ) : null}
-                                                            {(res.alert_count ?? 0) > 0 && (
-                                                                <span
-                                                                    className={`absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-white/80 ${
-                                                                        res.alert_severity === "critical"
-                                                                            ? "bg-rose-500"
-                                                                            : res.alert_severity === "warning"
-                                                                                ? "bg-amber-400"
-                                                                                : "bg-sky-400"
-                                                                    }`}
-                                                                    title={res.first_alert_message ?? "Alert"}
-                                                                />
-                                                            )}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    })}
-
-                                    {dayUseRooms.length > 0 && (
-                                        <>
-                                            <div className="flex border-b border-t border-[var(--border-default)] bg-[var(--bg-body)]" style={{ height: ROW_H }}>
-                                                <div className="px-2 flex items-center text-[10px] font-bold uppercase tracking-wide text-[var(--dayuse-text)]">Day Use</div>
-                                            </div>
-                                            {dayUseRooms.map((room) => {
-                                                const roomBlocks = getBlocksForRoom(room);
-                                                return (
-                                                    <div key={room.room_id} className="relative flex border-b border-[var(--border-subtle)] bg-rose-50/10 hover:bg-rose-200/30 dark:bg-rose-900/10 dark:hover:bg-rose-900/25 transition-colors" style={{ height: ROW_H }}>
-                                                        {days.map((day) => {
-                                                            const hasRes = room.reservations.some((r) => r.nights.includes(day));
-                                                            return (
-                                                                <div
-                                                                    key={day}
-                                                                    className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
-                                                                    style={{ width: COL_W, height: ROW_H }}
-                                                                    title="Use Room Diary board for Day Use actions"
-                                                                >
-                                                                    {hasRes && <div className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />}
-                                                                </div>
-                                                            );
-                                                        })}
-
-                                                        {roomBlocks.map(({ block, startIdx, spanCount }) => {
-                                                            const isOOO = block.block_type === "OOO";
-                                                            const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
-                                                            const left = startIdx * COL_W;
-                                                            const width = spanCount * COL_W;
-                                                            return (
-                                                                <div
-                                                                    key={block.id}
-                                                                    className={`absolute top-0 bottom-0 border-x border-y-0 ${color} z-0 opacity-80 flex flex-col justify-center px-1 overflow-hidden select-none pointer-events-none`}
-                                                                    style={{ left, width, zIndex: 5 }}
-                                                                    title={`Blocked (${block.block_type}): ${block.reason}`}
-                                                                >
-                                                                    <div className="absolute inset-0 bg-stripe-pattern opacity-10" />
-                                                                    <span className="text-[10px] font-bold leading-none truncate relative z-10">
-                                                                        {isOOO ? "OOO" : "OOS"} - {block.reason}
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                );
-                                            })}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
+            <RoomGrid
+                ref={scrollRef}
+                isLoading={loading}
+                rooms={visibleRooms}
+                blocks={data?.blocks ?? []}
+                plannedMoves={data?.planned_moves ?? []}
+                startDate={startDate}
+                spanDays={spanDays}
+                days={days}
+                mode="readonly"
+                hoverGroupId={hoverGroupId}
+                focusReservationId={focusReservationId}
+                onLinkHover={setHoverGroupId}
+                onFocusReservation={syncFocus}
+                onBarClick={(res, roomNumber) => setSelectedRes({ res, roomNumber })}
+                onCellClick={(roomId, date) => {
+                    const room = visibleRooms.find(r => r.room_id === roomId);
+                    if (!room || !room.is_sellable) return;
+                    setDetailMode("create");
+                    setDetailResId(undefined);
+                    setDetailRoomNumber(room.room_number);
+                    setDetailInitialRoomTypeId(room.room_type_id || undefined);
+                    setDetailInitialCheckinDate(date);
+                    setDetailInitialCheckoutDate(addDays(date, 1));
+                }}
+            />
 
             {/* Summary footer */}
             {
@@ -1080,7 +658,6 @@ function CalendarPageInner() {
                     </div>
                 )
             }
-        </div >
 
         {/* Reservation Detail Modal */ }
     {

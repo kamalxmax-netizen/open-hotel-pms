@@ -1,6 +1,7 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import { normalizeAuditSource, toBangkokDateString, type AuditSource } from "@/lib/audit-utils";
 import {
+  appendReservationNoteLine,
   assertNoOverlapWithinReservation,
   assertRoomAvailableForDateRange,
   clampDiscountValue,
@@ -172,6 +173,69 @@ function toNumber(value: unknown): number {
 
 function round2(value: number): number {
   return Number(value.toFixed(2));
+}
+
+function summarizeExecutedActions(actions: Array<Record<string, unknown>>): string {
+  const labels = actions
+    .map((action) => asString(action.action).replaceAll("_", " "))
+    .filter(Boolean);
+  return labels.length > 0 ? labels.join(", ") : "none";
+}
+
+async function appendOtaSummaryNotes(params: {
+  supabase: SupabaseLike;
+  today: string;
+  otaReservationId: string;
+  otaBookingCode: string;
+  oldCheckoutDate: string;
+  newCheckoutDate: string;
+  strategy: OtaExtendStrategy;
+  moveMode: OtaMoveMode | null;
+  otaModificationOption: OtaModificationOption | null;
+  targetRoomNumber: string | null;
+  extensionReservationId: string | null;
+  executedActions: Array<Record<string, unknown>>;
+  pendingFixAction: string | null;
+}) {
+  const {
+    supabase,
+    today,
+    otaReservationId,
+    otaBookingCode,
+    oldCheckoutDate,
+    newCheckoutDate,
+    strategy,
+    moveMode,
+    otaModificationOption,
+    targetRoomNumber,
+    extensionReservationId,
+    executedActions,
+    pendingFixAction,
+  } = params;
+
+  const otaNoteParts = [
+    `[OTA EXTEND ${today}] ${oldCheckoutDate} -> ${newCheckoutDate}`,
+    `STRATEGY: ${strategy}`,
+    `MOVE: ${moveMode ?? "n/a"}`,
+    otaModificationOption ? `OTA OPTION: ${otaModificationOption}` : null,
+    targetRoomNumber ? `TARGET ROOM: ${targetRoomNumber}` : null,
+    extensionReservationId ? `LINKED: ${extensionReservationId}` : null,
+    `ACTIONS: ${summarizeExecutedActions(executedActions)}`,
+    pendingFixAction ? `PENDING FIX: ${pendingFixAction}` : null,
+  ].filter(Boolean);
+  await appendReservationNoteLine(supabase as any, otaReservationId, otaNoteParts.join(" | "));
+
+  if (extensionReservationId) {
+    const linkedNoteParts = [
+      `[LINKED STAY ${today}] Parent OTA ${otaBookingCode}`,
+      `PERIOD: ${oldCheckoutDate} -> ${newCheckoutDate}`,
+      `MOVE: ${moveMode ?? "n/a"}`,
+      targetRoomNumber ? `TARGET ROOM: ${targetRoomNumber}` : null,
+      `ACTIONS: ${summarizeExecutedActions(executedActions)}`,
+      pendingFixAction ? `PENDING FIX: ${pendingFixAction}` : null,
+    ].filter(Boolean);
+    await appendReservationNoteLine(supabase as any, extensionReservationId, linkedNoteParts.join(" | "));
+  }
 }
 
 function applyDiscount(rackRate: number, discountType: DiscountType, discountValue: number): number {
@@ -1166,6 +1230,41 @@ async function insertPlannedMove(params: {
     .maybeSingle();
   if (insertError) throw new OtaExtendOrchestratorError(insertError.message ?? "Failed to create planned move segment.", 500);
 
+  const roomIds = [fromRoomIdSnapshot, targetRoomId].filter(Boolean) as string[];
+  const roomNumberById = new Map<string, string>();
+  if (roomIds.length > 0) {
+    const { data: roomRows, error: roomRowsError } = await supabase
+      .from("rooms")
+      .select("id, room_number")
+      .in("id", roomIds);
+    if (roomRowsError) {
+      throw new OtaExtendOrchestratorError(roomRowsError.message ?? "Failed to resolve room numbers for plan note.", 500);
+    }
+    for (const row of ensureArray<any>(roomRows)) {
+      const roomId = asString(row?.id);
+      const roomNumber = asString(row?.room_number);
+      if (!roomId || !roomNumber) continue;
+      roomNumberById.set(roomId, roomNumber);
+    }
+  }
+
+  const sourceRoomNumber = fromRoomIdSnapshot
+    ? roomNumberById.get(String(fromRoomIdSnapshot)) ?? "unknown"
+    : "unknown";
+  const targetRoomNumber = roomNumberById.get(String(targetRoomId)) ?? "unknown";
+  const policyLabel =
+    pricingPolicy === "keep_rtc"
+      ? "POLICY: Keep RTC"
+      : pricingPolicy === "reprice_grid"
+        ? "POLICY: Reprice Grid"
+        : `POLICY: Reprice Grid + Discount (${discountType}:${discountValue})${discountReason ? ` [${discountReason}]` : ""}`;
+
+  await appendReservationNoteLine(
+    supabase as any,
+    reservationId,
+    `[PLANNED MOVE CREATE ${today}] ${sourceRoomNumber} -> ${targetRoomNumber} | DATES: ${startDate} -> ${endDate} | REASON: ${moveReason} | ${policyLabel}`
+  );
+
   await rebuildReservationFutureRoomPath(supabase as any, { reservationId });
   await applySegmentPricingProjection({
     supabase,
@@ -1392,6 +1491,31 @@ async function commitOptionBShortenFlow(params: {
       warnings,
       ota_platform_update_required: true,
     };
+  }
+
+  const optionBTargetRoomNumber =
+    preview.available_target_rooms.find((row) => row.id === targetRoomId)?.room_number ?? null;
+  try {
+    await appendOtaSummaryNotes({
+      supabase,
+      today: ctx.today,
+      otaReservationId: ctx.reservation.id,
+      otaBookingCode: ctx.reservation.booking_code,
+      oldCheckoutDate: shortenResult.old_checkout_date,
+      newCheckoutDate: ctx.extensionCheckoutDate,
+      strategy: input.strategy,
+      moveMode: input.moveMode ?? null,
+      otaModificationOption: "option_b_shorten_ota",
+      targetRoomNumber: optionBTargetRoomNumber,
+      extensionReservationId,
+      executedActions,
+      pendingFixAction,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!warnings.includes(`Could not write extend summary note: ${message}`)) {
+      warnings.push(`Could not write extend summary note: ${message}`);
+    }
   }
 
   await writeOrchestratorAudit({
@@ -1752,6 +1876,33 @@ export async function commitOtaExtendOrchestrator(params: {
         end_date: segment.end_date,
         pricing_policy: segment.pricing_policy,
       });
+    }
+  }
+
+  const summaryTargetRoomNumber =
+    input.strategy === "different_room"
+      ? preview.available_target_rooms.find((row) => row.id === asString(input.targetRoomId))?.room_number ?? null
+      : ctx.lockedRoomNumber;
+  try {
+    await appendOtaSummaryNotes({
+      supabase,
+      today: ctx.today,
+      otaReservationId: ctx.reservation.id,
+      otaBookingCode: ctx.reservation.booking_code,
+      oldCheckoutDate: ctx.reservation.checkout_date,
+      newCheckoutDate: ctx.extensionCheckoutDate,
+      strategy: input.strategy,
+      moveMode: input.moveMode ?? null,
+      otaModificationOption,
+      targetRoomNumber: summaryTargetRoomNumber,
+      extensionReservationId,
+      executedActions,
+      pendingFixAction,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!warnings.includes(`Could not write extend summary note: ${message}`)) {
+      warnings.push(`Could not write extend summary note: ${message}`);
     }
   }
 

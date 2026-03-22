@@ -127,6 +127,12 @@ function buildConflictPrompt(conflicts: Array<{ booking_code?: string | null; gu
     return `This change will float reservation(s) that depend on the released room.\n\n${preview}${more}\n\nConfirm and float conflicts?`;
 }
 
+function parseOverlapSegmentRange(message: string): { start: string; end: string } | null {
+    const match = message.match(/segment\s+(\d{4}-\d{2}-\d{2})\s*[→-]\s*(\d{4}-\d{2}-\d{2})/u);
+    if (!match) return null;
+    return { start: match[1], end: match[2] };
+}
+
 function loadMetaTypes(list: any[] | undefined): RoomTypeOption[] {
     return (list ?? []).map((row) => ({
         id: String(row.id),
@@ -738,6 +744,30 @@ export default function RoomMoveModal({
                     }
                     return;
                 }
+
+                const rawError = typeof payload?.error === "string" ? payload.error : "";
+                if (!planEditingId && rawError.toLowerCase().includes("planned move overlaps existing segment")) {
+                    const parsedRange = parseOverlapSegmentRange(rawError);
+                    const overlappingMove = parsedRange
+                        ? plannedMoves.find(
+                            (row) =>
+                                row.status === "planned" &&
+                                row.start_date === parsedRange.start &&
+                                row.end_date === parsedRange.end
+                        ) ?? null
+                        : plannedMoves.find(
+                            (row) =>
+                                row.status === "planned" &&
+                                clampedPlanStartDate < row.end_date &&
+                                clampedPlanEndDate > row.start_date
+                        ) ?? null;
+                    if (overlappingMove) {
+                        populatePlanForm(overlappingMove);
+                        setError("This date range already has a planned segment. Switched to Edit mode for that segment.");
+                        return;
+                    }
+                }
+
                 setError(payload.error ?? "Failed to save planned move.");
                 return;
             }
@@ -907,12 +937,12 @@ export default function RoomMoveModal({
         >
             <div className="space-y-4">
                 {error && (
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30">
                         {error}
                     </div>
                 )}
                 {saveNotice && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30">
                         {saveNotice}
                     </div>
                 )}
@@ -1009,7 +1039,7 @@ export default function RoomMoveModal({
                                 <div className="mt-3">
                                     <label className="form-label">Override Note</label>
                                     <textarea
-                                        className="form-input min-h-[84px]"
+                                        className="form-input min-h-[84px] dark:aria-invalid:bg-rose-500/10"
                                         value={overrideAssignedNote}
                                         onChange={(e) => setOverrideAssignedNote(e.target.value)}
                                         placeholder="Reason for overriding Do Not Move lock"
@@ -1042,7 +1072,7 @@ export default function RoomMoveModal({
                                 </div>
                             ) : (
                                 <select
-                                    className="form-select"
+                                    className="form-input dark:aria-invalid:bg-rose-500/10 px-3 py-2"
                                     value={nowRoomId}
                                     onChange={(e) => setNowRoomId(e.target.value)}
                                     disabled={saving || Boolean(effectiveTodayMove)}
@@ -1062,7 +1092,7 @@ export default function RoomMoveModal({
                         <div>
                             <label className="form-label">Reason</label>
                             <input
-                                className="form-input"
+                                className="form-input dark:aria-invalid:bg-rose-500/10"
                                 value={nowReason}
                                 onChange={(e) => setNowReason(e.target.value)}
                                 disabled={saving || Boolean(effectiveTodayMove)}
@@ -1099,7 +1129,7 @@ export default function RoomMoveModal({
                                     <div>
                                         <label className="form-label">Discount Value</label>
                                         <input
-                                            className="form-input"
+                                            className="form-input dark:aria-invalid:bg-rose-500/10"
                                             type="number"
                                             min={0}
                                             step="0.01"
@@ -1112,7 +1142,7 @@ export default function RoomMoveModal({
                                     <div className="sm:col-span-2">
                                         <label className="form-label">Discount Reason</label>
                                         <input
-                                            className="form-input"
+                                            className="form-input dark:aria-invalid:bg-rose-500/10"
                                             value={nowDiscountReason}
                                             onChange={(e) => setNowDiscountReason(e.target.value)}
                                             disabled={saving || Boolean(effectiveTodayMove)}
@@ -1130,7 +1160,7 @@ export default function RoomMoveModal({
                             <div>
                                 <label className="form-label">Override Planned Move Note</label>
                                 <textarea
-                                    className="form-input min-h-[84px]"
+                                    className="form-input min-h-[84px] dark:aria-invalid:bg-rose-500/10"
                                     value={overridePlannedNote}
                                     onChange={(e) => setOverridePlannedNote(e.target.value)}
                                     placeholder="Why are you overriding planned future room moves?"
@@ -1258,7 +1288,7 @@ export default function RoomMoveModal({
                                             <div className="mt-3">
                                                 <label className="form-label">Override Note</label>
                                                 <textarea
-                                                    className="form-input min-h-[84px]"
+                                                    className="form-input min-h-[84px] dark:aria-invalid:bg-rose-500/10"
                                                     value={overrideAssignedNote}
                                                     onChange={(e) => setOverrideAssignedNote(e.target.value)}
                                                     placeholder="Reason for overriding Do Not Move lock"
@@ -1290,7 +1320,7 @@ export default function RoomMoveModal({
                                         </div>
                                     </div>
 
-                                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
+                                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30">
                                         {clampedPlanStartDate && clampedPlanEndDate
                                             ? `${clampedPlanStartDate} → ${clampedPlanEndDate} = ${formatNightCount(planRemainingNights)}`
                                             : "Select start and end date"}
@@ -1317,7 +1347,7 @@ export default function RoomMoveModal({
                                             </div>
                                         ) : (
                                             <select
-                                                className="form-select"
+                                                className="form-input dark:aria-invalid:bg-rose-500/10 px-3 py-2"
                                                 value={planRoomId}
                                                 onChange={(e) => setPlanRoomId(e.target.value)}
                                                 disabled={saving}
@@ -1336,7 +1366,7 @@ export default function RoomMoveModal({
                                     <div>
                                         <label className="form-label">Move Reason</label>
                                         <input
-                                            className="form-input"
+                                            className="form-input dark:aria-invalid:bg-rose-500/10"
                                             value={planReason}
                                             onChange={(e) => setPlanReason(e.target.value)}
                                             disabled={saving}
@@ -1373,7 +1403,7 @@ export default function RoomMoveModal({
                                                 <div>
                                                     <label className="form-label">Discount Value</label>
                                                     <input
-                                                        className="form-input"
+                                                        className="form-input dark:aria-invalid:bg-rose-500/10"
                                                         type="number"
                                                         min={0}
                                                         step="0.01"
@@ -1386,7 +1416,7 @@ export default function RoomMoveModal({
                                                 <div className="sm:col-span-2">
                                                     <label className="form-label">Discount Reason</label>
                                                     <input
-                                                        className="form-input"
+                                                        className="form-input dark:aria-invalid:bg-rose-500/10"
                                                         value={planDiscountReason}
                                                         onChange={(e) => setPlanDiscountReason(e.target.value)}
                                                         disabled={saving}
@@ -1409,7 +1439,7 @@ export default function RoomMoveModal({
                                             <div>
                                                 <label className="form-label">Do Not Move Note</label>
                                                 <textarea
-                                                    className="form-input min-h-[72px]"
+                                                    className="form-input min-h-[72px] dark:aria-invalid:bg-rose-500/10"
                                                     value={planDoNotMoveNote}
                                                     onChange={(e) => setPlanDoNotMoveNote(e.target.value)}
                                                     disabled={saving}
@@ -1423,7 +1453,7 @@ export default function RoomMoveModal({
                                             <div>
                                                 <label className="form-label">Override Note</label>
                                                 <textarea
-                                                    className="form-input min-h-[72px]"
+                                                    className="form-input min-h-[72px] dark:aria-invalid:bg-rose-500/10"
                                                     value={planOverrideNote}
                                                     onChange={(e) => setPlanOverrideNote(e.target.value)}
                                                     disabled={saving}

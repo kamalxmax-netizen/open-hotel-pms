@@ -152,6 +152,31 @@ export async function GET(request: NextRequest) {
   const housekeepingTasksRaw = housekeepingResult.data;
   const housekeepingTasks = (housekeepingTasksRaw ?? []) as unknown as HousekeepingTaskRow[];
 
+  // Ignore stale planned moves when the reservation has already left its source room for today.
+  const activeStayRoomByReservationId = new Map<string, string>();
+  (reservationNights ?? []).forEach((night: any) => {
+    const reservationRef = Array.isArray(night?.reservations)
+      ? night.reservations[0]
+      : night?.reservations;
+    if (!reservationRef || reservationRef.status !== "active") return;
+    const reservationId = reservationRef?.id ? String(reservationRef.id) : "";
+    const roomId = night?.room_id ? String(night.room_id) : "";
+    if (!reservationId || !roomId) return;
+    if (!activeStayRoomByReservationId.has(reservationId)) {
+      activeStayRoomByReservationId.set(reservationId, roomId);
+    }
+  });
+
+  const effectivePlannedMoveRows = (effectivePlannedMoves ?? []).filter((row: any) => {
+    const reservationId = row?.reservation_id ? String(row.reservation_id) : "";
+    if (!reservationId) return false;
+    const sourceRoomId = row?.from_room_id_snapshot ? String(row.from_room_id_snapshot) : "";
+    if (!sourceRoomId) return true;
+    const todayAssignedRoomId = activeStayRoomByReservationId.get(reservationId);
+    if (!todayAssignedRoomId) return true;
+    return todayAssignedRoomId === sourceRoomId;
+  });
+
   const blocksByRoomId = new Map<string, { type: string; reason: string }>();
   (roomBlocksResult.data || []).forEach((b) => {
     if (b.room_id) blocksByRoomId.set(b.room_id, { type: b.block_type, reason: b.reason });
@@ -176,7 +201,7 @@ export async function GET(request: NextRequest) {
 
   // Compute remaining inputs for Wave 2 (pure JS, no DB)
   const effectivePlanReservationIds = Array.from(
-    new Set((effectivePlannedMoves ?? []).map((row: any) => row?.reservation_id ? String(row.reservation_id) : "").filter(Boolean))
+    new Set(effectivePlannedMoveRows.map((row: any) => row?.reservation_id ? String(row.reservation_id) : "").filter(Boolean))
   );
   const reservationIdsForCheckin = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
@@ -287,7 +312,7 @@ export async function GET(request: NextRequest) {
 
   const plannedMoveSourceGuestByRoomId = new Map<string, GuestSummary>();
   const plannedMoveTargetGuestByRoomId = new Map<string, GuestSummary>();
-  (effectivePlannedMoves ?? []).forEach((move: any) => {
+  effectivePlannedMoveRows.forEach((move: any) => {
     const reservationId = move?.reservation_id ? String(move.reservation_id) : null;
     if (!reservationId) return;
     const guest = effectivePlanReservationsById.get(reservationId);

@@ -55,6 +55,11 @@ export interface ReservationFolioLedgerRow {
   cashier_name: string | null;
   label: string;
   is_record_only?: boolean;
+  is_void_reversal?: boolean;
+  void_of?: string | null;
+  is_correction?: boolean;
+  correction_ref?: string | null;
+  correction_reason?: string | null;
 }
 
 export interface ReservationFolioResponse {
@@ -73,6 +78,7 @@ export interface ReservationFolioResponse {
     checked_out_at: string | null;
     deposit_note?: string | null;
     tax_invoice_requested?: boolean;
+    folio_reopened?: boolean;
   };
   summary: ReservationFolioSummary;
   ledger: ReservationFolioLedgerRow[];
@@ -86,6 +92,79 @@ export interface ReservationFolioResponse {
   }> | null;
   linked_stay?: LinkedStay | null;
 }
+
+// ── Admin Corrections (Phase 42) ──────────────────────────────
+
+export type AdminCorrectionAction =
+  | "void"
+  | "adjustment"
+  | "reinstate"
+  | "reopen_folio"
+  | "close_folio"
+  | "transfer_payment";
+
+export interface AdminCorrectionRecord {
+  id: string;
+  reservation_id: string;
+  action: AdminCorrectionAction;
+  actor_user_id: string;
+  actor_name?: string;
+  before_snapshot: Record<string, unknown>;
+  after_snapshot: Record<string, unknown>;
+  reason: string;
+  related_payment_ids: string[];
+  business_date: string;
+  created_at: string;
+}
+
+/** Payload for void action */
+export interface VoidPaymentPayload {
+  payment_id: string;
+  reason: string;
+}
+
+/** Payload for adjustment action */
+export interface AdjustmentPayload {
+  reservation_id: string;
+  direction: "add_charge" | "reduce_charge";
+  amount: number;
+  method: PaymentMethod;
+  original_payment_id?: string | null;
+  reason: string;
+}
+
+/** Payload for reinstate action */
+export interface ReinstatePayload {
+  reservation_id: string;
+  target_room_id?: string | null;
+  reason: string;
+}
+
+/** Payload for reopen/close folio action */
+export interface ReopenFolioPayload {
+  reservation_id: string;
+  reason: string;
+}
+
+/** Payload for transfer payment action */
+export interface TransferPaymentPayload {
+  source_reservation_id: string;
+  destination_reservation_id: string;
+  amount: number;
+  method: PaymentMethod;
+  reason: string;
+}
+
+/** Extended folio ledger row with correction metadata */
+export interface FolioLedgerCorrectionMeta {
+  is_void_reversal: boolean;
+  void_of: string | null;
+  is_correction: boolean;
+  correction_ref: string | null;
+  correction_reason: string | null;
+}
+
+// ── End Admin Corrections ─────────────────────────────────────
 
 export type ExtraFeeCategory = "service" | "penalty" | "damage" | "policy";
 export type RatePlanTierCode = "loyal" | "vip" | "longest";
@@ -1138,3 +1217,105 @@ export interface DayUseSettings {
   dayuse_extend_rate: number;
   dayuse_extend_min: number;
 }
+
+// ── Calendar & Room Planner (Phase 43) ─────────────────────────
+
+export type CalendarReservation = {
+    reservation_id: string;
+    booking_code: string;
+    booking_group_id?: string | null;
+    parent_reservation_id?: string | null;
+    linked_root_id?: string | null;
+    group_code?: string | null;
+    group_name?: string | null;
+    guest_name: string;
+    phone: string | null;
+    source: string;
+    status: string;           // 'active' | 'checked_out'
+    checked_in_at?: string | null;
+    checkin_date: string;
+    checkout_date: string;
+    total_price: number;
+    note: string | null;
+    nights: string[];
+    alert_count?: number;
+    first_alert_message?: string | null;
+    alert_severity?: "info" | "warning" | "critical" | null;
+    room_type_id: string;
+    room_type: string;
+    do_not_move?: boolean; // added for Room Planner
+};
+
+export type CalendarRoom = {
+    room_id: string;
+    room_type_id: string;
+    room_number: string;
+    room_type: string;
+    room_type_code: string;
+    is_sellable: boolean;
+    closure_reason: string | null;
+    is_dayuse?: boolean;
+    hk_status?: string | null; // "dirty" | "in_progress" | "paused" | "approved" | "available" | null
+    reservations: CalendarReservation[];
+};
+
+export type CalendarRoomBlock = {
+    id: string;
+    room_id: string;
+    block_type: "OOO" | "OOS";
+    start_date: string;
+    end_date: string;
+    reason: string;
+};
+
+export type CalendarPlannedMove = {
+    id: string;
+    reservation_id: string;
+    booking_code: string | null;
+    guest_name: string | null;
+    checkin_date: string | null;
+    checkout_date: string | null;
+    booking_group_id?: string | null;
+    group_code?: string | null;
+    group_name?: string | null;
+    start_date: string;
+    end_date: string;
+    from_room_id_snapshot: string | null;
+    from_room_number: string | null;
+    to_room_id: string;
+    to_room_number: string | null;
+    to_room_type_id: number;
+    move_reason: string | null;
+    pricing_policy: string;
+    do_not_move: boolean;
+    status: string;
+};
+
+export type CalendarData = {
+    success: boolean;
+    start_date: string;
+    end_date: string;
+    rooms: CalendarRoom[];
+    unassigned?: CalendarReservation[];
+    blocks?: CalendarRoomBlock[];
+    planned_moves?: CalendarPlannedMove[];
+};
+
+export type DraftActionType = "MOVE_WHOLE" | "ASSIGN" | "UNASSIGN";
+
+export type DraftAction = {
+    id: string;                    // unique draft action ID
+    type: DraftActionType;
+    reservation_id: string;
+    // MOVE_WHOLE & ASSIGN
+    from_room_id?: string;
+    to_room_id?: string;
+    // metadata
+    created_at: number;            // timestamp for ordering
+};
+
+export type DraftOverride = {
+    reservation_id: string;
+    type: "ghost" | "solid";
+    room_id: string;
+};

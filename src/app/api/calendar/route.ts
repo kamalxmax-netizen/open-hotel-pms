@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
                 nightly_price,
                 is_ota,
                 reservation_id,
+                room_type_id,
                 reservations!inner(
                   id,
                   booking_code,
@@ -52,7 +53,8 @@ export async function GET(request: NextRequest) {
                   checkin_date,
                   checkout_date,
                   total_price,
-                  note
+                  note,
+                  do_not_move_assigned_room
                 )
             `)
             .gte("stay_date", startDate)
@@ -148,9 +150,37 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const visiblePlannedMoves = plannedMoveRows.filter((row: any) =>
-            activePlannedReservationIds.has(String(row?.reservation_id ?? ""))
-        );
+        const nightRoomByReservationDate = new Map<string, string>();
+        for (const row of nights ?? []) {
+            const reservationRef = (row as any)?.reservations as { id?: string | null; status?: string | null } | null;
+            if (!reservationRef || String(reservationRef.status ?? "") !== "active") continue;
+            const reservationId = reservationRef.id ? String(reservationRef.id) : "";
+            const stayDate = String((row as any)?.stay_date ?? "");
+            const roomId = String((row as any)?.room_id ?? "");
+            if (!reservationId || !stayDate || !roomId) continue;
+            nightRoomByReservationDate.set(`${reservationId}::${stayDate}`, roomId);
+        }
+
+        const visiblePlannedMoves = plannedMoveRows.filter((row: any) => {
+            const reservationId = String(row?.reservation_id ?? "");
+            if (!reservationId || !activePlannedReservationIds.has(reservationId)) return false;
+            const sourceRoomId = String(row?.from_room_id_snapshot ?? "");
+            if (!sourceRoomId) return true;
+            const moveStartDate = String(row?.start_date ?? "");
+            const moveEndDate = String(row?.end_date ?? "");
+            if (!moveStartDate || !moveEndDate) return true;
+
+            // Keep future planned moves visible (important for Move-related filters + planning ahead).
+            if (moveStartDate > today) return true;
+
+            // For moves that should be effective today, hide stale rows whose source room no longer matches actual stay room.
+            const isEffectiveToday = moveStartDate <= today && moveEndDate > today;
+            if (!isEffectiveToday) return true;
+
+            const assignedRoomId = nightRoomByReservationDate.get(`${reservationId}::${today}`);
+            if (!assignedRoomId) return true;
+            return assignedRoomId === sourceRoomId;
+        });
         const plannedReservationIds = Array.from(new Set(visiblePlannedMoves.map((row: any) => String(row.reservation_id)).filter(Boolean)));
         const plannedRoomIds = Array.from(
             new Set(
@@ -270,6 +300,15 @@ export async function GET(request: NextRequest) {
         > = {};
         const unassignedMap = new Map<string, any>();
 
+        // Build room_type_id → name lookup from rooms data (already has room_types join)
+        const roomTypeNameById = new Map<string, string>();
+        for (const room of rooms ?? []) {
+            const rt = (room.room_types as unknown) as { name_en: string; code: string } | null;
+            if (room.room_type_id && rt?.name_en) {
+                roomTypeNameById.set(String(room.room_type_id), rt.name_en);
+            }
+        }
+
         const seen = new Map<string, { roomId: string | null, dates: Set<string> }>();
         const linkedRootIds = new Set<string>();
         for (const nightRow of nights ?? []) {
@@ -284,7 +323,7 @@ export async function GET(request: NextRequest) {
             const res = (n.reservations as unknown) as {
                 id: string; booking_code: string; booking_group_id: string | null; parent_reservation_id: string | null; guest_name: string; phone: string | null;
                 source: string; status: string; checked_in_at: string | null; checkin_date: string; checkout_date: string;
-                total_price: number; note: string | null;
+                total_price: number; note: string | null; do_not_move_assigned_room?: boolean;
             };
             if (!res) continue;
             const roomId = n.room_id;
@@ -315,6 +354,9 @@ export async function GET(request: NextRequest) {
                     total_price: res.total_price,
                     note: res.note,
                     nights: [],
+                    room_type_id: n.room_type_id ? String(n.room_type_id) : "",
+                    room_type: n.room_type_id ? (roomTypeNameById.get(String(n.room_type_id)) ?? "") : "",
+                    do_not_move: Boolean(res.do_not_move_assigned_room),
                     alert_count: alertSummaryByReservationId.get(String(res.id))?.count ?? 0,
                     first_alert_message: alertSummaryByReservationId.get(String(res.id))?.firstMessage ?? null,
                     alert_severity: alertSummaryByReservationId.get(String(res.id))?.highestSeverity ?? null,
@@ -342,6 +384,20 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // Fetch today's HK status per room
+        const hkStatusByRoomId = new Map<string, string>();
+        {
+            const { data: hkTasks } = await supabase
+                .from("housekeeping_tasks")
+                .select("room_id, status")
+                .eq("stay_date", today);
+            for (const task of hkTasks ?? []) {
+                if (task.room_id && task.status) {
+                    hkStatusByRoomId.set(String(task.room_id), String(task.status));
+                }
+            }
+        }
+
         // Build final rooms list with their reservations
         const data = (rooms ?? []).map((room) => {
             const rt = (room.room_types as unknown) as { name_en: string; code: string } | null;
@@ -354,6 +410,7 @@ export async function GET(request: NextRequest) {
                 is_sellable: room.is_sellable,
                 is_dayuse: room.is_dayuse ?? false,
                 closure_reason: room.closure_reason,
+                hk_status: hkStatusByRoomId.get(String(room.id)) ?? null,
                 reservations: resMap[room.id] ?? []
             };
         });
