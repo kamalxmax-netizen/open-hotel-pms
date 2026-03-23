@@ -1226,6 +1226,8 @@ export type CalendarReservation = {
     booking_group_id?: string | null;
     parent_reservation_id?: string | null;
     linked_root_id?: string | null;
+    linked_reservation_ids?: string[];
+    per_night_rooms?: Record<string, string>;
     group_code?: string | null;
     group_name?: string | null;
     guest_name: string;
@@ -1244,6 +1246,11 @@ export type CalendarReservation = {
     room_type_id: string;
     room_type: string;
     do_not_move?: boolean; // added for Room Planner
+    // Computed client-side for linked stay resize guards
+    is_linked_first?: boolean;
+    is_linked_last?: boolean;
+    ghost_nights?: string[];
+    solid_nights?: string[];
 };
 
 export type CalendarRoom = {
@@ -1301,21 +1308,30 @@ export type CalendarData = {
     planned_moves?: CalendarPlannedMove[];
 };
 
-export type DraftActionType = "MOVE_WHOLE" | "ASSIGN" | "UNASSIGN";
+export type DraftActionType = "MOVE_WHOLE" | "ASSIGN" | "UNASSIGN" | "MOVE_NIGHTS" | "EXTEND" | "SHORTEN";
 
 export type DraftAction = {
     id: string;                    // unique draft action ID
     type: DraftActionType;
     reservation_id: string;
-    // MOVE_WHOLE & ASSIGN
+    // MOVE_WHOLE & ASSIGN & MOVE_NIGHTS
     from_room_id?: string;
     to_room_id?: string;
+    // MOVE_NIGHTS
+    affected_nights?: string[];    // specific nights moved
+    // EXTEND / SHORTEN
+    new_checkout_date?: string;
+    new_checkin_date?: string;     // front-shorten
+    // OTA Pricing
+    ota_night_overrides?: { stay_date: string; price: number }[];
     // metadata
     created_at: number;            // timestamp for ordering
+    swap_pair_id?: string;
 };
 
 export type DraftOverride = {
     reservation_id: string;
     type: "ghost" | "solid";
     room_id: string;
+    nights?: string[];             // NEW: if present, only these nights are overridden
 };

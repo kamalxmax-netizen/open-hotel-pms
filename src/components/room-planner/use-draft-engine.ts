@@ -10,26 +10,105 @@ export function useDraftEngine() {
         type: DraftActionType,
         reservationId: string,
         fromRoomId?: string,
-        toRoomId?: string
+        toRoomId?: string,
+        swapPairId?: string
     ) => {
         setActions(prev => {
-            // If the booking is already moved/assigned in draft, we just append the new action
-            // Or we could try to collapse them? For an audit trail, appending is safer.
-            // But for simple "Undo", appending is also fine.
             const newAction: DraftAction = {
                 id: crypto.randomUUID(),
                 type,
                 reservation_id: reservationId,
                 from_room_id: fromRoomId,
                 to_room_id: toRoomId,
-                created_at: Date.now()
+                created_at: Date.now(),
+                swap_pair_id: swapPairId
             };
             return [...prev, newAction];
         });
     }, []);
 
+    const commitSwap = useCallback((
+        resIdA: string, roomIdA: string,
+        resIdB: string, roomIdB: string,
+        additionalTargetResIds?: string[]
+    ) => {
+        const swapId = crypto.randomUUID();
+        commitAction("MOVE_WHOLE", resIdA, roomIdA, roomIdB, swapId);
+        commitAction("MOVE_WHOLE", resIdB, roomIdB, roomIdA, swapId);
+        if (additionalTargetResIds) {
+            for (const extraResId of additionalTargetResIds) {
+                commitAction("MOVE_WHOLE", extraResId, roomIdB, roomIdA, swapId);
+            }
+        }
+    }, [commitAction]);
+
+    const commitMoveNights = useCallback((
+        reservationId: string,
+        fromRoomId: string,
+        toRoomId: string,
+        affectedNights: string[],
+        otaNightOverrides?: { stay_date: string; price: number }[]
+    ) => {
+        setActions(prev => [
+            ...prev,
+            {
+                id: crypto.randomUUID(),
+                type: "MOVE_NIGHTS",
+                reservation_id: reservationId,
+                from_room_id: fromRoomId,
+                to_room_id: toRoomId,
+                affected_nights: affectedNights,
+                ota_night_overrides: otaNightOverrides,
+                created_at: Date.now(),
+            }
+        ]);
+    }, []);
+
+    const commitExtend = useCallback((
+        reservationId: string,
+        newCheckoutDate?: string,
+        newCheckinDate?: string
+    ) => {
+        setActions(prev => [
+            ...prev,
+            {
+                id: crypto.randomUUID(),
+                type: "EXTEND",
+                reservation_id: reservationId,
+                new_checkout_date: newCheckoutDate,
+                new_checkin_date: newCheckinDate,
+                created_at: Date.now(),
+            }
+        ]);
+    }, []);
+
+    const commitShorten = useCallback((
+        reservationId: string,
+        newCheckoutDate?: string,
+        newCheckinDate?: string
+    ) => {
+        setActions(prev => [
+            ...prev,
+            {
+                id: crypto.randomUUID(),
+                type: "SHORTEN",
+                reservation_id: reservationId,
+                new_checkout_date: newCheckoutDate,
+                new_checkin_date: newCheckinDate,
+                created_at: Date.now(),
+            }
+        ]);
+    }, []);
+
     const undo = useCallback(() => {
-        setActions(prev => prev.slice(0, -1));
+        setActions(prev => {
+            if (prev.length === 0) return prev;
+            const last = prev[prev.length - 1];
+            if (last.swap_pair_id) {
+                return prev.filter(a => a.swap_pair_id !== last.swap_pair_id);
+            }
+            return prev.slice(0, -1);
+        });
     }, []);
 
     const clearDrafts = useCallback(() => {
@@ -37,60 +116,88 @@ export function useDraftEngine() {
     }, []);
 
     // Compute the net "overrides" mapping reservation_id -> DraftOverride[]
-    // We only care about the final location of a reservation in the draft state.
     const overridesByRes = useMemo(() => {
-        const result = new Map<string, {
+        const resStates = new Map<string, {
             originalRoomId?: string | null;
-            currentRoomId?: string | null;
-            isUnassigned?: boolean;
-            isNewlyAssigned?: boolean;
+            perNightAssignments: Map<string, string | null>;
+            isUnassigned: boolean;
+            isNewlyAssigned: boolean;
         }>();
 
         for (const action of actions) {
             const resId = action.reservation_id;
-            const state = result.get(resId) ?? {
-                originalRoomId: action.from_room_id, // captures first known location
-                currentRoomId: action.from_room_id
+            const state = resStates.get(resId) ?? {
+                originalRoomId: action.from_room_id,
+                perNightAssignments: new Map<string, string | null>(),
+                isUnassigned: false,
+                isNewlyAssigned: action.type === "ASSIGN"
             };
 
             if (action.type === "MOVE_WHOLE" || action.type === "ASSIGN") {
-                state.currentRoomId = action.to_room_id;
                 state.isUnassigned = false;
-                if (action.type === "ASSIGN") {
-                    state.isNewlyAssigned = true;
-                }
+                state.perNightAssignments.clear();
+                state.perNightAssignments.set("*", action.to_room_id!); 
             } else if (action.type === "UNASSIGN") {
-                state.currentRoomId = null;
                 state.isUnassigned = true;
+                state.perNightAssignments.clear();
+            } else if (action.type === "MOVE_NIGHTS") {
+                state.isUnassigned = false;
+                if (action.affected_nights) {
+                    for (const night of action.affected_nights) {
+                        state.perNightAssignments.set(night, action.to_room_id!);
+                    }
+                }
             }
 
-            result.set(resId, state);
+            resStates.set(resId, state);
         }
 
         const overrides: DraftOverride[] = [];
         
-        for (const [resId, state] of result.entries()) {
-            // Ignore if it moved back to its original location
-            if (state.originalRoomId === state.currentRoomId && !state.isUnassigned) {
+        for (const [resId, state] of resStates.entries()) {
+            if (state.isUnassigned) {
+                if (state.originalRoomId) {
+                    overrides.push({ reservation_id: resId, type: "ghost", room_id: state.originalRoomId });
+                }
                 continue;
             }
 
-            // Ghost for the original location (only if it had one)
-            if (state.originalRoomId && !state.isNewlyAssigned) {
-                overrides.push({
-                    reservation_id: resId,
-                    type: "ghost",
-                    room_id: state.originalRoomId
-                });
-            }
+            const catchAllRoomId = state.perNightAssignments.get("*");
+            
+            if (catchAllRoomId) {
+                if (catchAllRoomId !== state.originalRoomId) {
+                    if (state.originalRoomId && !state.isNewlyAssigned) {
+                        overrides.push({ reservation_id: resId, type: "ghost", room_id: state.originalRoomId });
+                    }
+                    overrides.push({ reservation_id: resId, type: "solid", room_id: catchAllRoomId });
+                }
+            } else if (state.perNightAssignments.size > 0) {
+                const nightsByRoom = new Map<string, string[]>();
+                for (const [night, roomId] of state.perNightAssignments.entries()) {
+                    if (!roomId) continue;
+                    const list = nightsByRoom.get(roomId) ?? [];
+                    list.push(night);
+                    nightsByRoom.set(roomId, list);
+                }
 
-            // Solid for the new location (only if it's currently assigned somewhere)
-            if (state.currentRoomId && !state.isUnassigned) {
-                overrides.push({
-                    reservation_id: resId,
-                    type: "solid",
-                    room_id: state.currentRoomId
-                });
+                const allMovedNights = Array.from(state.perNightAssignments.keys());
+                if (state.originalRoomId) {
+                    overrides.push({
+                        reservation_id: resId,
+                        type: "ghost",
+                        room_id: state.originalRoomId,
+                        nights: allMovedNights
+                    });
+                }
+
+                for (const [roomId, nights] of nightsByRoom.entries()) {
+                    overrides.push({
+                        reservation_id: resId,
+                        type: "solid",
+                        room_id: roomId,
+                        nights
+                    });
+                }
             }
         }
 
@@ -101,6 +208,10 @@ export function useDraftEngine() {
         actions,
         overrides: overridesByRes,
         commitAction,
+        commitSwap,
+        commitMoveNights,
+        commitExtend,
+        commitShorten,
         undo,
         clearDrafts,
         hasDrafts: actions.length > 0

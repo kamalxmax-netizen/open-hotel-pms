@@ -135,7 +135,17 @@ function resolveActiveSegmentId(
   return sorted[sorted.length - 1].reservation_id;
 }
 
+// ── In-memory cache for hotel checkout time (rarely changes) ──
+let _cachedCheckOutTime: string | null = null;
+let _cachedCheckOutTimeAt = 0;
+const CHECK_OUT_TIME_TTL_MS = 60_000; // 60 seconds
+
 async function loadHotelCheckOutTime(supabase: SupabaseLike, fallback = "12:00"): Promise<string> {
+  const now = Date.now();
+  if (_cachedCheckOutTime !== null && now - _cachedCheckOutTimeAt < CHECK_OUT_TIME_TTL_MS) {
+    return _cachedCheckOutTime;
+  }
+
   const { data, error } = await supabase
     .from("hotel_settings")
     .select("check_out_time")
@@ -143,7 +153,10 @@ async function loadHotelCheckOutTime(supabase: SupabaseLike, fallback = "12:00")
     .maybeSingle();
 
   if (error) return fallback;
-  return normalizeTimeHHmm(data?.check_out_time, fallback);
+  const resolved = normalizeTimeHHmm(data?.check_out_time, fallback);
+  _cachedCheckOutTime = resolved;
+  _cachedCheckOutTimeAt = now;
+  return resolved;
 }
 
 export async function resolveHotelCheckOutTime(
@@ -267,4 +280,206 @@ export async function resolveLinkedStay(
     combined_total: combinedTotal,
     active_segment_id: activeSegmentId,
   };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Batch version: resolves linked stays for many reservations
+// using only 2 batch DB queries instead of 3 per row.
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Build a LinkedStay result from pre-fetched reservation records.
+ * Pure function — no DB calls.
+ */
+function buildLinkedStayFromRecords(
+  current: ReservationRecord,
+  allRecords: Map<string, ReservationRecord>,
+  checkOutTimeHHmm: string
+): LinkedStay | null {
+  const rootReservationId = current.parent_reservation_id
+    ? String(current.parent_reservation_id)
+    : String(current.id);
+
+  // Collect root + children that belong to this linked chain
+  const rows = new Map<string, ReservationRecord>();
+  const root = allRecords.get(rootReservationId);
+  if (root) addReservation(rows, root);
+  // Also add self if it's the root
+  addReservation(rows, current);
+  // Add children of root
+  for (const row of allRecords.values()) {
+    if (row.parent_reservation_id && String(row.parent_reservation_id) === rootReservationId) {
+      addReservation(rows, row);
+    }
+  }
+
+  const linkedRecords = Array.from(rows.values()).filter((row) => {
+    if (!row.checkin_date || !row.checkout_date) return false;
+    if (String(row.id) === String(current.id)) return true;
+    return !shouldSuppressLinkedStatus(row.status);
+  }) as ReservationRecord[];
+
+  const hasParentLink = Boolean(current.parent_reservation_id);
+
+  if (!hasParentLink && linkedRecords.length <= 1) {
+    return null;
+  }
+
+  const segments = sortSegments(
+    linkedRecords.map((row) => ({
+      reservation_id: String(row.id),
+      parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+      booking_code: row.booking_code ?? null,
+      source: row.source ? String(row.source) : "walkin",
+      checkin_date: String(row.checkin_date),
+      checkout_date: String(row.checkout_date),
+      status: row.status ? String(row.status) : "active",
+      total_price: toNumber(row.total_price),
+      is_parent: String(row.id) === rootReservationId,
+    }))
+  );
+
+  if (!hasParentLink && segments.length <= 1) {
+    return null;
+  }
+
+  const fullCheckin = segments[0]?.checkin_date ?? "";
+  const fullCheckout = segments[segments.length - 1]?.checkout_date ?? "";
+  const fullNights = fullCheckin && fullCheckout ? listNights(fullCheckin, fullCheckout).length : 0;
+  const combinedTotal = segments.reduce((sum, segment) => sum + segment.total_price, 0);
+  const { today, timeHHmm } = getBangkokNowParts();
+  const activeSegmentId = resolveActiveSegmentId(segments, today, timeHHmm, checkOutTimeHHmm);
+
+  return {
+    segments,
+    full_checkin: fullCheckin,
+    full_checkout: fullCheckout,
+    full_nights: fullNights,
+    combined_total: combinedTotal,
+    active_segment_id: activeSegmentId,
+  };
+}
+
+const LINKED_STAY_SELECT = `
+  id,
+  parent_reservation_id,
+  booking_code,
+  source,
+  checkin_date,
+  checkout_date,
+  status,
+  total_price
+`;
+
+/**
+ * Batch resolve linked stays for multiple reservations.
+ * Uses only 2 DB queries total instead of 3 per row.
+ *
+ * @param reservations - array of reservation rows that already contain
+ *   at least { id, parent_reservation_id } (avoids re-fetching them).
+ */
+export async function resolveLinkedStayBatch(
+  supabase: SupabaseLike,
+  reservations: Array<{
+    id: string;
+    parent_reservation_id?: string | null;
+    booking_code?: string | null;
+    source?: string | null;
+    checkin_date?: string | null;
+    checkout_date?: string | null;
+    status?: string | null;
+    total_price?: number | string | null;
+  }>,
+  checkOutTimeHHmm = "12:00"
+): Promise<Map<string, LinkedStay | null>> {
+  const result = new Map<string, LinkedStay | null>();
+  if (reservations.length === 0) return result;
+
+  // Build a map of the input reservations (we already have their data)
+  const inputById = new Map<string, ReservationRecord>();
+  for (const r of reservations) {
+    const id = String(r.id ?? "");
+    if (!id) continue;
+    inputById.set(id, {
+      id,
+      parent_reservation_id: r.parent_reservation_id ? String(r.parent_reservation_id) : null,
+      booking_code: r.booking_code ?? null,
+      source: r.source ?? null,
+      checkin_date: r.checkin_date ?? null,
+      checkout_date: r.checkout_date ?? null,
+      status: r.status ?? null,
+      total_price: r.total_price ?? null,
+    });
+  }
+
+  // Collect all root IDs we need to look up
+  const rootIdsNeeded = new Set<string>();
+  // Also collect IDs that ARE roots (have children pointing to them)
+  const selfRootIds = new Set<string>();
+  for (const r of inputById.values()) {
+    if (r.parent_reservation_id) {
+      rootIdsNeeded.add(r.parent_reservation_id);
+    } else {
+      selfRootIds.add(r.id);
+    }
+  }
+
+  // All root IDs to fetch (those not already in inputById)
+  const missingRootIds = Array.from(rootIdsNeeded).filter((id) => !inputById.has(id));
+
+  // All root IDs for which we need to find children
+  const allRootIds = Array.from(new Set([...rootIdsNeeded, ...selfRootIds]));
+
+  // ── 2 batch queries instead of 3*N ──
+  const [rootsResult, childrenResult] = await Promise.all([
+    missingRootIds.length > 0
+      ? supabase
+          .from("reservations")
+          .select(LINKED_STAY_SELECT)
+          .in("id", missingRootIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    allRootIds.length > 0
+      ? supabase
+          .from("reservations")
+          .select(LINKED_STAY_SELECT)
+          .in("parent_reservation_id", allRootIds)
+          .order("checkin_date", { ascending: true })
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+
+  // If either query fails, fall back gracefully (return all null)
+  if (rootsResult.error || childrenResult.error) {
+    for (const r of reservations) result.set(String(r.id), null);
+    return result;
+  }
+
+  // Build a combined map of ALL reservation records we know about
+  const allRecords = new Map<string, ReservationRecord>(inputById);
+  for (const row of (rootsResult.data ?? []) as ReservationRecord[]) {
+    if (row?.id) allRecords.set(String(row.id), row);
+  }
+  for (const row of (childrenResult.data ?? []) as ReservationRecord[]) {
+    if (row?.id) allRecords.set(String(row.id), row);
+  }
+
+  // Now build LinkedStay for each input reservation using pure logic
+  for (const r of reservations) {
+    const id = String(r.id ?? "");
+    if (!id) {
+      result.set(id, null);
+      continue;
+    }
+    const current = allRecords.get(id);
+    if (!current) {
+      result.set(id, null);
+      continue;
+    }
+    try {
+      result.set(id, buildLinkedStayFromRecords(current, allRecords, checkOutTimeHHmm));
+    } catch {
+      result.set(id, null);
+    }
+  }
+
+  return result;
 }

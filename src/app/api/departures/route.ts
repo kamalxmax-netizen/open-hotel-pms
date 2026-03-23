@@ -5,7 +5,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { isValidDateString } from "@/lib/dates";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { applyVisibleTotal, fetchReservationOutstandingBalances, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
-import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
 
 export const dynamic = "force-dynamic";
 
@@ -111,8 +111,23 @@ export async function GET(request: NextRequest) {
         );
         const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
 
-        const departures = await Promise.all(
-            (data ?? []).map(async (r) => {
+        // Batch resolve linked stays (2 queries instead of 3 per row)
+        const linkedStayMap = await resolveLinkedStayBatch(
+            supabase,
+            (data ?? []).map((r: any) => ({
+                id: String(r.id),
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                booking_code: r.booking_code ?? null,
+                source: r.source ?? null,
+                checkin_date: r.checkin_date ?? null,
+                checkout_date: r.checkout_date ?? null,
+                status: r.status ?? null,
+                total_price: r.total_price ?? null,
+            })),
+            checkOutTimeHHmm
+        );
+
+        const departures = (data ?? []).map((r) => {
                 const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;
                 // Filter out cancelled nights only if nights exist
@@ -125,7 +140,7 @@ export async function GET(request: NextRequest) {
                     .map((n) => ({ date: n.stay_date, price: n.nightly_price }));
 
                 const loyalty = loyaltyByReservationId.get(String(r.id));
-                const linkedStay = await resolveLinkedStay(supabase, String(r.id), checkOutTimeHHmm);
+                const linkedStay = linkedStayMap.get(String(r.id)) ?? null;
                 return {
                 id: r.id,
                 booking_code: r.booking_code,
@@ -164,8 +179,7 @@ export async function GET(request: NextRequest) {
                 linked_full_checkout: linkedStay?.full_checkout ?? null,
                 linked_active_segment_id: linkedStay?.active_segment_id ?? null,
             };
-            })
-        );
+        });
 
         const { data: dayUseRows, error: dayUseError } = await supabase
             .from("reservations")

@@ -18,68 +18,81 @@ export async function GET(request: NextRequest) {
         const startDate = sp.get("start") ?? today;
         const endDate = sp.get("end") ?? defaultEnd;
 
-        // All rooms (visible on board), ordered
-        const { data: rooms, error: roomsErr } = await supabase
-            .from("rooms")
-            .select("id, room_type_id, room_number, is_sellable, closure_reason, is_dayuse, floor_number, wing, sort_order, room_types(name_en, code)")
-            .eq("is_visible_on_board", true)
-            .order("floor_number", { ascending: true, nullsFirst: false })
-            .order("wing", { ascending: true, nullsFirst: false })
-            .order("sort_order", { ascending: true, nullsFirst: false });
+        // ── Batch 1: Independent queries (no data dependencies) ──
+        const [
+            { data: rooms, error: roomsErr },
+            { data: nights, error: nightsErr },
+            { data: blocks, error: blocksErr },
+            { data: plannedMoves, error: plannedMovesError },
+            { data: hkTasks },
+        ] = await Promise.all([
+            // All rooms (visible on board), ordered
+            supabase
+                .from("rooms")
+                .select("id, room_type_id, room_number, is_sellable, closure_reason, is_dayuse, floor_number, wing, sort_order, room_types(name_en, code)")
+                .eq("is_visible_on_board", true)
+                .order("floor_number", { ascending: true, nullsFirst: false })
+                .order("wing", { ascending: true, nullsFirst: false })
+                .order("sort_order", { ascending: true, nullsFirst: false }),
+
+            // All reservation_nights in the date range (not cancelled)
+            // Include both 'active' AND 'checked_out' so Opera-style CO bars appear
+            supabase
+                .from("reservation_nights")
+                .select(`
+                    room_id,
+                    stay_date,
+                    nightly_price,
+                    is_ota,
+                    reservation_id,
+                    room_type_id,
+                    reservations!inner(
+                      id,
+                      booking_code,
+                      booking_group_id,
+                      parent_reservation_id,
+                      guest_name,
+                      phone,
+                      source,
+                      status,
+                      checked_in_at,
+                      checkin_date,
+                      checkout_date,
+                      total_price,
+                      note,
+                      do_not_move_assigned_room
+                    )
+                `)
+                .gte("stay_date", startDate)
+                .lte("stay_date", endDate)
+                .is("cancelled_at", null)
+                .in("reservations.status", ["active", "checked_out"]),
+
+            // Fetch Room Blocks
+            supabase
+                .from("room_blocks")
+                .select("*")
+                .or(`start_date.lte.${endDate},end_date.gte.${startDate}`),
+
+            // Planned moves
+            supabase
+                .from("reservation_room_plans")
+                .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id, move_reason, pricing_policy, do_not_move, status, reservations!inner(id, status)")
+                .eq("status", "planned")
+                .lt("start_date", addDays(endDate, 1))
+                .gt("end_date", startDate)
+                .order("start_date", { ascending: true }),
+
+            // Today's HK status per room (moved here from later in the function)
+            supabase
+                .from("housekeeping_tasks")
+                .select("room_id, status")
+                .eq("stay_date", today),
+        ]);
 
         if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
-
-        // All reservation_nights in the date range (not cancelled)
-        // Include both 'active' AND 'checked_out' so Opera-style CO bars appear
-        const { data: nights, error: nightsErr } = await supabase
-            .from("reservation_nights")
-            .select(`
-                room_id,
-                stay_date,
-                nightly_price,
-                is_ota,
-                reservation_id,
-                room_type_id,
-                reservations!inner(
-                  id,
-                  booking_code,
-                  booking_group_id,
-                  parent_reservation_id,
-                  guest_name,
-                  phone,
-                  source,
-                  status,
-                  checked_in_at,
-                  checkin_date,
-                  checkout_date,
-                  total_price,
-                  note,
-                  do_not_move_assigned_room
-                )
-            `)
-            .gte("stay_date", startDate)
-            .lte("stay_date", endDate)
-            .is("cancelled_at", null)
-            .in("reservations.status", ["active", "checked_out"]);
-
         if (nightsErr) return NextResponse.json({ error: nightsErr.message }, { status: 500 });
-
-        // Fetch Room Blocks
-        const { data: blocks, error: blocksErr } = await supabase
-            .from("room_blocks")
-            .select("*")
-            .or(`start_date.lte.${endDate},end_date.gte.${startDate}`);
-
         if (blocksErr) return NextResponse.json({ error: blocksErr.message }, { status: 500 });
-
-        const { data: plannedMoves, error: plannedMovesError } = await supabase
-            .from("reservation_room_plans")
-            .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id, move_reason, pricing_policy, do_not_move, status, reservations!inner(id, status)")
-            .eq("status", "planned")
-            .lt("start_date", addDays(endDate, 1))
-            .gt("end_date", startDate)
-            .order("start_date", { ascending: true });
-
         if (plannedMovesError) return NextResponse.json({ error: plannedMovesError.message }, { status: 500 });
 
         const plannedMoveRows = plannedMoves ?? [];
@@ -134,22 +147,77 @@ export async function GET(request: NextRequest) {
             }
         });
 
-        const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
-        if (groupIds.size > 0) {
-            const { data: groups, error: groupError } = await supabase
-                .from("booking_groups")
-                .select("id, group_code, group_name")
-                .in("id", Array.from(groupIds));
-            if (groupError) return NextResponse.json({ error: groupError.message }, { status: 500 });
+        const reservationIds = Array.from(
+            new Set((nights ?? []).map((row: any) => String(row?.reservation_id ?? "")).filter(Boolean))
+        );
 
-            (groups ?? []).forEach((g: any) => {
-                groupMetaById.set(String(g.id), {
-                    group_code: g.group_code ?? null,
-                    group_name: g.group_name ?? null
-                });
+        // ── Batch 2: Queries that depend on nights data (run in parallel) ──
+        const [groupsResult, alertsResult] = await Promise.all([
+            groupIds.size > 0
+                ? supabase
+                    .from("booking_groups")
+                    .select("id, group_code, group_name")
+                    .in("id", Array.from(groupIds))
+                : Promise.resolve({ data: [] as any[], error: null }),
+            reservationIds.length > 0
+                ? supabase
+                    .from("reservation_alerts")
+                    .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
+                    .in("reservation_id", reservationIds)
+                : Promise.resolve({ data: [] as any[], error: null }),
+        ]);
+
+        const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
+        if (groupsResult.error) return NextResponse.json({ error: groupsResult.error.message }, { status: 500 });
+        (groupsResult.data ?? []).forEach((g: any) => {
+            groupMetaById.set(String(g.id), {
+                group_code: g.group_code ?? null,
+                group_name: g.group_name ?? null
+            });
+        });
+
+        const alertSummaryByReservationId = new Map<string, {
+            count: number;
+            firstMessage: string | null;
+            highestSeverity: "info" | "warning" | "critical" | null;
+        }>();
+        if (alertsResult.error) return NextResponse.json({ error: alertsResult.error.message }, { status: 500 });
+        {
+            const reservationAlerts = alertsResult.data ?? [];
+            const legacyCodes = Array.from(
+                new Set(reservationAlerts.filter((row: any) => !row?.alert_template_id && row?.alert_code).map((row: any) => normalizeAlertCodeKey(row.alert_code)).filter(Boolean))
+            );
+            let templateMap = new Map<string, any>();
+            if (legacyCodes.length > 0) {
+                const { data: templates, error: templateError } = await supabase
+                    .from("alert_templates")
+                    .select("id, code, name, description, category, display_surfaces, severity, icon");
+                if (templateError) return NextResponse.json({ error: templateError.message }, { status: 500 });
+                templateMap = new Map((templates ?? []).map((template: any) => [normalizeAlertCodeKey(template.code), template]));
+            }
+            const resolvedRows = attachTemplateFallback(reservationAlerts, templateMap);
+
+            const grouped = new Map<string, any[]>();
+            for (const row of resolvedRows) {
+                const reservationId = String((row as any)?.reservation_id ?? "");
+                if (!reservationId) continue;
+                if (!grouped.has(reservationId)) grouped.set(reservationId, []);
+                grouped.get(reservationId)?.push(row);
+            }
+
+            grouped.forEach((rows, reservationId) => {
+                const alerts = rows
+                    .map((row) => mapEffectiveReservationAlert(row))
+                    .filter((alert) => !alert.is_dismissed);
+                const visibleAlerts = filterAlertsForSurface(alerts, "calendar");
+                const summary = summarizeAlerts(visibleAlerts);
+                if (summary.count > 0) {
+                    alertSummaryByReservationId.set(reservationId, summary);
+                }
             });
         }
 
+        // ── Planned moves visibility logic ──
         const nightRoomByReservationDate = new Map<string, string>();
         for (const row of nights ?? []) {
             const reservationRef = (row as any)?.reservations as { id?: string | null; status?: string | null } | null;
@@ -190,6 +258,22 @@ export async function GET(request: NextRequest) {
             )
         );
 
+        // ── Batch 3: Planned move metadata (parallel) ──
+        const [plannedReservationsResult, plannedRoomsResult] = await Promise.all([
+            plannedReservationIds.length > 0
+                ? supabase
+                    .from("reservations")
+                    .select("id, booking_code, guest_name, checkin_date, checkout_date, booking_group_id")
+                    .in("id", plannedReservationIds)
+                : Promise.resolve({ data: [] as any[], error: null }),
+            plannedRoomIds.length > 0
+                ? supabase
+                    .from("rooms")
+                    .select("id, room_number")
+                    .in("id", plannedRoomIds)
+                : Promise.resolve({ data: [] as any[], error: null }),
+        ]);
+
         const reservationMetaById = new Map<string, {
             booking_code: string | null;
             guest_name: string | null;
@@ -197,13 +281,8 @@ export async function GET(request: NextRequest) {
             checkout_date: string | null;
             booking_group_id: string | null;
         }>();
-        if (plannedReservationIds.length > 0) {
-            const { data: reservations, error: plannedReservationError } = await supabase
-                .from("reservations")
-                .select("id, booking_code, guest_name, checkin_date, checkout_date, booking_group_id")
-                .in("id", plannedReservationIds);
-            if (plannedReservationError) return NextResponse.json({ error: plannedReservationError.message }, { status: 500 });
-            (reservations ?? []).forEach((row: any) => {
+        if (!plannedReservationsResult.error) {
+            (plannedReservationsResult.data ?? []).forEach((row: any) => {
                 reservationMetaById.set(String(row.id), {
                     booking_code: row.booking_code ?? null,
                     guest_name: row.guest_name ?? null,
@@ -215,68 +294,12 @@ export async function GET(request: NextRequest) {
         }
 
         const plannedRoomNumberById = new Map<string, string>();
-        if (plannedRoomIds.length > 0) {
-            const { data: plannedRooms, error: plannedRoomError } = await supabase
-                .from("rooms")
-                .select("id, room_number")
-                .in("id", plannedRoomIds);
-            if (plannedRoomError) return NextResponse.json({ error: plannedRoomError.message }, { status: 500 });
-            (plannedRooms ?? []).forEach((row: any) => {
+        if (!plannedRoomsResult.error) {
+            (plannedRoomsResult.data ?? []).forEach((row: any) => {
                 plannedRoomNumberById.set(String(row.id), String(row.room_number));
             });
         }
 
-        const reservationIds = Array.from(
-            new Set((nights ?? []).map((row: any) => String(row?.reservation_id ?? "")).filter(Boolean))
-        );
-        const alertSummaryByReservationId = new Map<string, {
-            count: number;
-            firstMessage: string | null;
-            highestSeverity: "info" | "warning" | "critical" | null;
-        }>();
-        if (reservationIds.length > 0) {
-            const { data: reservationAlerts, error: reservationAlertsError } = await supabase
-                .from("reservation_alerts")
-                .select("id, reservation_id, alert_code, alert_template_id, note, custom_message, display_surfaces, severity, is_dismissed, created_at, created_by, alert_codes(code, description, dept, auto_on_co, icon), alert_templates(id, code, name, description, category, display_surfaces, severity, icon)")
-                .in("reservation_id", reservationIds);
-
-            if (reservationAlertsError) return NextResponse.json({ error: reservationAlertsError.message }, { status: 500 });
-
-            const legacyCodes = Array.from(
-                new Set((reservationAlerts ?? []).filter((row: any) => !row?.alert_template_id && row?.alert_code).map((row: any) => normalizeAlertCodeKey(row.alert_code)).filter(Boolean))
-            );
-            let templateMap = new Map<string, any>();
-            if (legacyCodes.length > 0) {
-                const { data: templates, error: templateError } = await supabase
-                    .from("alert_templates")
-                    .select("id, code, name, description, category, display_surfaces, severity, icon");
-                if (templateError) return NextResponse.json({ error: templateError.message }, { status: 500 });
-                templateMap = new Map((templates ?? []).map((template: any) => [normalizeAlertCodeKey(template.code), template]));
-            }
-            const resolvedRows = attachTemplateFallback(reservationAlerts ?? [], templateMap);
-
-            const grouped = new Map<string, any[]>();
-            for (const row of resolvedRows) {
-                const reservationId = String((row as any)?.reservation_id ?? "");
-                if (!reservationId) continue;
-                if (!grouped.has(reservationId)) grouped.set(reservationId, []);
-                grouped.get(reservationId)?.push(row);
-            }
-
-            grouped.forEach((rows, reservationId) => {
-                const alerts = rows
-                    .map((row) => mapEffectiveReservationAlert(row))
-                    .filter((alert) => !alert.is_dismissed);
-                const visibleAlerts = filterAlertsForSurface(alerts, "calendar");
-                const summary = summarizeAlerts(visibleAlerts);
-                if (summary.count > 0) {
-                    alertSummaryByReservationId.set(reservationId, summary);
-                }
-            });
-        }
-
-
-        // Build reservation map: room_id → list of reservations (with date spans)
         // Also collect unassigned reservations
         const resMap: Record<
             string,
@@ -286,6 +309,8 @@ export async function GET(request: NextRequest) {
                 booking_group_id: string | null;
                 group_code: string | null;
                 group_name: string | null;
+                linked_root_id: string | null;
+                linked_reservation_ids?: string[];
                 guest_name: string;
                 phone: string | null;
                 source: string;
@@ -310,6 +335,7 @@ export async function GET(request: NextRequest) {
         }
 
         const seen = new Map<string, { roomId: string | null, dates: Set<string> }>();
+        const perNightRoomsByReservation = new Map<string, Map<string, string>>();
         const linkedRootIds = new Set<string>();
         for (const nightRow of nights ?? []) {
             const reservationRef = (nightRow as any)?.reservations as { id?: string; parent_reservation_id?: string | null } | null;
@@ -329,6 +355,12 @@ export async function GET(request: NextRequest) {
             const roomId = n.room_id;
             const resId = res.id;
             const key = roomId ? `${roomId}::${resId}` : `unassigned::${resId}`;
+
+            if (resId && roomId) {
+                const nightToRoom = perNightRoomsByReservation.get(resId) ?? new Map<string, string>();
+                nightToRoom.set(String(n.stay_date), String(roomId));
+                perNightRoomsByReservation.set(resId, nightToRoom);
+            }
 
             if (!seen.has(key)) {
                 seen.set(key, { roomId, dates: new Set() });
@@ -384,17 +416,95 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Fetch today's HK status per room
+        // Build HK status from pre-fetched data (Batch 1)
         const hkStatusByRoomId = new Map<string, string>();
-        {
-            const { data: hkTasks } = await supabase
-                .from("housekeeping_tasks")
-                .select("room_id, status")
-                .eq("stay_date", today);
-            for (const task of hkTasks ?? []) {
-                if (task.room_id && task.status) {
-                    hkStatusByRoomId.set(String(task.room_id), String(task.status));
-                }
+        for (const task of hkTasks ?? []) {
+            if (task.room_id && task.status) {
+                hkStatusByRoomId.set(String(task.room_id), String(task.status));
+            }
+        }
+
+        const responseEntries: Array<{
+            reservation_id: string;
+            linked_root_id: string | null;
+            linked_reservation_ids?: string[];
+            per_night_rooms?: Record<string, string>;
+        }> = [];
+        for (const roomReservations of Object.values(resMap)) {
+            responseEntries.push(...roomReservations);
+        }
+        responseEntries.push(...Array.from(unassignedMap.values()));
+
+        const linkedRootIdsForResponse = Array.from(
+            new Set(
+                responseEntries
+                    .map((entry) => entry.linked_root_id ? String(entry.linked_root_id) : "")
+                    .filter(Boolean)
+            )
+        );
+
+        const linkedIdsByRoot = new Map<string, Set<string>>();
+        if (linkedRootIdsForResponse.length > 0) {
+            const { data: linkedRoots, error: linkedRootsError } = await supabase
+                .from("reservations")
+                .select("id")
+                .in("id", linkedRootIdsForResponse);
+            if (linkedRootsError) return NextResponse.json({ error: linkedRootsError.message }, { status: 500 });
+
+            const { data: linkedChildren, error: linkedChildrenError } = await supabase
+                .from("reservations")
+                .select("id, parent_reservation_id")
+                .in("parent_reservation_id", linkedRootIdsForResponse);
+            if (linkedChildrenError) return NextResponse.json({ error: linkedChildrenError.message }, { status: 500 });
+
+            for (const rootId of linkedRootIdsForResponse) {
+                linkedIdsByRoot.set(rootId, new Set<string>());
+            }
+
+            for (const row of linkedRoots ?? []) {
+                const id = String((row as any).id ?? "");
+                if (!id) continue;
+                const set = linkedIdsByRoot.get(id) ?? new Set<string>();
+                set.add(id);
+                linkedIdsByRoot.set(id, set);
+            }
+
+            for (const row of linkedChildren ?? []) {
+                const reservationId = String((row as any).id ?? "");
+                const parentId = String((row as any).parent_reservation_id ?? "");
+                if (!reservationId || !parentId) continue;
+                const set = linkedIdsByRoot.get(parentId) ?? new Set<string>();
+                set.add(parentId);
+                set.add(reservationId);
+                linkedIdsByRoot.set(parentId, set);
+            }
+        }
+
+        for (const entry of responseEntries) {
+            const linkedRootId = entry.linked_root_id ? String(entry.linked_root_id) : "";
+            if (!linkedRootId) continue;
+            const linkedSet = linkedIdsByRoot.get(linkedRootId) ?? new Set<string>([entry.reservation_id]);
+            linkedSet.add(entry.reservation_id);
+            entry.linked_reservation_ids = Array.from(linkedSet.values()).sort();
+        }
+
+        const splitPerNightRoomsByReservation = new Map<string, Record<string, string>>();
+        for (const [reservationId, nightToRoom] of perNightRoomsByReservation.entries()) {
+            const distinctRoomIds = new Set(Array.from(nightToRoom.values()).filter(Boolean));
+            if (distinctRoomIds.size <= 1) continue;
+            const orderedEntries = Array.from(nightToRoom.entries()).sort(([leftDate], [rightDate]) =>
+                leftDate.localeCompare(rightDate)
+            );
+            splitPerNightRoomsByReservation.set(
+                reservationId,
+                Object.fromEntries(orderedEntries)
+            );
+        }
+
+        for (const entry of responseEntries) {
+            const splitMap = splitPerNightRoomsByReservation.get(entry.reservation_id);
+            if (splitMap) {
+                entry.per_night_rooms = splitMap;
             }
         }
 

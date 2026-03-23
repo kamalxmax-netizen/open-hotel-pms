@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useRef, useCallback } from "react";
+import { forwardRef, useRef, useCallback, useMemo } from "react";
 import type { 
     CalendarRoom, 
     CalendarRoomBlock, 
@@ -88,7 +88,8 @@ export type RoomGridProps = {
     mode: "readonly" | "interactive";
     
     // Drag & Drop
-    onBarDragStart?: (res: CalendarReservation, roomNumber: string, e: React.DragEvent) => void;
+    onBarDragStart?: (res: CalendarReservation, roomNumber: string, e: React.DragEvent, isShift: boolean) => void;
+    onBarResizeStart?: (res: CalendarReservation, roomId: string, edge: "checkin" | "checkout", e: React.MouseEvent) => void;
     onCellDragOver?: (roomId: string, date: string, e: React.DragEvent) => void;
     onCellDrop?: (roomId: string, date: string, e: React.DragEvent) => void;
     onCellDragEnter?: (roomId: string, date: string, e: React.DragEvent) => void;
@@ -97,6 +98,8 @@ export type RoomGridProps = {
     // Interactions
     onBarClick?: (res: CalendarReservation, roomNumber: string) => void;
     onCellClick?: (roomId: string, date: string) => void;
+    isResizing?: boolean; // Disable draggable on bars while resize is active
+    isPerNightMode?: boolean; // Disable resize handles in per-night mode
     
     // View State
     hoverGroupId?: string | null;
@@ -130,6 +133,9 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     focusReservationId,
     onLinkHover,
     onFocusReservation,
+    onBarResizeStart,
+    isResizing = false,
+    isPerNightMode = false,
     draftOverrides = [],
     dropTargetRoomId = null
 }, scrollRef) {
@@ -151,46 +157,74 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
 
     function getBarsForRoom(room: CalendarRoom) {
         return room.reservations.flatMap((res) => {
-            const visibleNights = res.nights.filter((n) => n >= startDate && n <= endDate);
+            const solidNights = (res as any).solid_nights as string[] | undefined;
+            const ghostNights = (res as any).ghost_nights as string[] | undefined;
+
+            // nights to check
+            const baseNights = solidNights || res.nights;
+            const visibleNights = baseNights.filter(n => n >= startDate && n <= endDate).sort();
+
             if (visibleNights.length === 0) return [];
 
-            return splitConsecutiveNights(visibleNights)
-                .map((segmentNights) => {
-                    const firstNight = segmentNights[0];
-                    const lastNight = segmentNights[segmentNights.length - 1];
+            // Group by both continuity AND state
+            const segments: { nights: string[]; state: "ghost" | "solid" | "normal" }[] = [];
+            let current: { nights: string[]; state: "ghost" | "solid" | "normal" } | null = null;
 
-                    const startIdx = days.indexOf(firstNight);
-                    const spanCount = days.indexOf(lastNight) - startIdx + 1;
-                    if (startIdx < 0 || spanCount <= 0) return null;
+            for (const night of visibleNights) {
+                const isGhost = ghostNights?.includes(night);
+                const isSolid = !!solidNights;
+                const state = isGhost ? "ghost" : (isSolid ? "solid" : "normal");
 
-                    const clippedLeft = res.checkin_date < startDate && firstNight === startDate;
-                    const clippedRight = res.checkout_date > addDays(endDate, 1) && lastNight === endDate;
+                if (!current) {
+                    current = { nights: [night], state };
+                } else {
+                    const prevNight = current.nights[current.nights.length - 1];
+                    const isConsecutive = addDays(prevNight, 1) === night;
+                    if (isConsecutive && current.state === state) {
+                        current.nights.push(night);
+                    } else {
+                        segments.push(current);
+                        current = { nights: [night], state };
+                    }
+                }
+            }
+            if (current) segments.push(current);
 
-                    return {
-                        res,
-                        startIdx,
-                        spanCount,
-                        clippedLeft,
-                        clippedRight,
-                        segmentKey: `${firstNight}__${lastNight}`,
-                    };
-                })
-                .filter(Boolean) as {
-                    res: CalendarReservation;
-                    startIdx: number;
-                    spanCount: number;
-                    clippedLeft: boolean;
-                    clippedRight: boolean;
-                    segmentKey: string;
-                }[];
-        }) as {
-            res: CalendarReservation;
-            startIdx: number;
-            spanCount: number;
-            clippedLeft: boolean;
-            clippedRight: boolean;
-            segmentKey: string;
-        }[];
+            return segments.map((seg) => {
+                const firstNight = seg.nights[0];
+                const lastNight = seg.nights[seg.nights.length - 1];
+                const startIdx = days.indexOf(firstNight);
+                const spanCount = days.indexOf(lastNight) - startIdx + 1;
+
+                if (startIdx < 0 || spanCount <= 0 || isNaN(spanCount)) return null;
+
+                const isSegmentGhost = seg.state === "ghost";
+                const isSegmentSolidPartial = seg.state === "solid";
+
+                const clippedLeft = res.checkin_date < startDate && firstNight === startDate;
+                const clippedRight = res.checkout_date > addDays(endDate, 1) && lastNight === endDate;
+
+                return {
+                    res,
+                    startIdx,
+                    spanCount,
+                    clippedLeft,
+                    clippedRight,
+                    segmentKey: `${firstNight}__${lastNight}`,
+                    isSegmentGhost,
+                    isSegmentSolidPartial
+                };
+            }).filter((b): b is {
+                res: CalendarReservation;
+                startIdx: number;
+                spanCount: number;
+                clippedLeft: boolean;
+                clippedRight: boolean;
+                segmentKey: string;
+                isSegmentGhost: boolean;
+                isSegmentSolidPartial: boolean;
+            } => b !== null);
+        });
     }
 
     function getBlocksForRoom(room: CalendarRoom) {
@@ -241,6 +275,74 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
             .filter(Boolean) as { move: CalendarPlannedMove; startIdx: number; spanCount: number }[];
     }
 
+    function renderHKBadge(status?: string | null) {
+        if (!status) return null;
+        let colorClass = "bg-slate-200";
+        if (status === "dirty") colorClass = "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]";
+        if (status === "in_progress") colorClass = "bg-sky-500 shadow-[0_0_6px_rgba(14,165,233,0.6)]";
+        if (status === "paused") colorClass = "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]";
+        if (status === "approved" || status === "available") colorClass = "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.3)]";
+        
+        return (
+            <div className={`ml-auto w-2 h-2 rounded-full ${colorClass}`} title={`Housekeeping: ${status.replace("_", " ")}`} />
+        );
+    }
+
+    const linkedConnections = useMemo(() => {
+        const conns: React.ReactNode[] = [];
+        if (mode !== "interactive") return conns;
+
+        const groups = new Map<string, Array<{ roomId: string, resId: string, roomIndex: number, startIdx: number, spanCount: number }>>();
+
+        filteredRooms.forEach((room, roomIndex) => {
+            const bars = getBarsForRoom(room);
+            bars.forEach(b => {
+                const rootId = b.res.linked_root_id;
+                if (rootId && (b.res as any).draft_state !== "ghost") {
+                    if (!groups.has(rootId)) groups.set(rootId, []);
+                    groups.get(rootId)!.push({
+                        roomId: room.room_id,
+                        resId: b.res.reservation_id,
+                        roomIndex,
+                        startIdx: b.startIdx,
+                        spanCount: b.spanCount
+                    });
+                }
+            });
+        });
+
+        groups.forEach((members, rootId) => {
+            if (members.length < 2) return;
+            members.sort((a, b) => a.roomIndex - b.roomIndex);
+
+            for (let i = 0; i < members.length - 1; i++) {
+                const m1 = members[i];
+                const m2 = members[i+1];
+
+                const x1 = m1.startIdx * COL_W + (m1.spanCount * COL_W) / 2;
+                const y1 = m1.roomIndex * ROW_H + 34; // bottom of upper bar
+
+                const x2 = m2.startIdx * COL_W + (m2.spanCount * COL_W) / 2;
+                const y2 = m2.roomIndex * ROW_H + 6; // top of lower bar
+
+                const isHovered = hoverGroupId === `linked:${rootId}`;
+
+                conns.push(
+                    <path
+                        key={`conn-${rootId}-${i}`}
+                        d={`M ${x1} ${y1} C ${x1} ${y1 + 15}, ${x2} ${y2 - 15}, ${x2} ${y2}`}
+                        fill="none"
+                        className={`transition-opacity ${isHovered ? "stroke-indigo-500 dark:stroke-indigo-400 opacity-100" : "stroke-indigo-300 dark:stroke-indigo-600 opacity-40"}`}
+                        strokeWidth="2"
+                        strokeDasharray="4 2"
+                    />
+                );
+            }
+        });
+
+        return conns;
+    }, [filteredRooms, mode, hoverGroupId, days, startDate, endDate]);
+
     return (
         <div className="card overflow-hidden h-full flex flex-col">
             <div className="flex flex-1 overflow-hidden">
@@ -272,7 +374,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
                                         <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
-                                        {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
+                                        {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]" title="Out of Order / Out of Service">🚧</span>}
+                                        {renderHKBadge(room.hk_status)}
                                     </div>
                                 ))}
                                 {dayUseRooms.length > 0 && (
@@ -291,7 +394,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                             >
                                                 <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
                                                 <span className="text-[9px] text-[var(--dayuse-text)] font-bold uppercase truncate">Day Use</span>
-                                                {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]">🚧</span>}
+                                                {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]" title="Out of Order / Out of Service">🚧</span>}
+                                                {renderHKBadge(room.hk_status)}
                                             </div>
                                         ))}
                                     </>
@@ -336,14 +440,26 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                 </div>
                             ))
                         ) : (
-                            <>
+                            <div className="relative">
                                 {filteredRooms.map((room) => {
                                     const bars = getBarsForRoom(room);
                                     const roomBlocks = getBlocksForRoom(room);
                                     const plannedReleaseBars = getPlannedReleaseBarsForRoom(room);
                                     const plannedBars = getPlannedBarsForRoom(room);
+
+                                    const isDropTarget = dropTargetRoomId === room.room_id;
+                                    let dropTargetClasses = "";
+                                    if (isDropTarget) {
+                                        const isWarning = !room.is_sellable || room.hk_status === "dirty" || room.hk_status === "paused";
+                                        if (isWarning) {
+                                            dropTargetClasses = "ring-2 ring-inset ring-rose-400/70 bg-rose-50/20 dark:bg-rose-900/15";
+                                        } else {
+                                            dropTargetClasses = "ring-2 ring-inset ring-emerald-400/70 bg-emerald-50/20 dark:bg-emerald-900/15";
+                                        }
+                                    }
+
                                     return (
-                                        <div key={room.room_id} className={`relative flex border-b border-[var(--border-subtle)] ${dropTargetRoomId === room.room_id ? "ring-2 ring-inset ring-emerald-400/70 bg-emerald-50/20 dark:bg-emerald-900/15" : ""}`} style={{ height: ROW_H }}>
+                                        <div key={room.room_id} data-room-row className={`relative flex border-b border-[var(--border-subtle)] ${dropTargetClasses}`} style={{ height: ROW_H }}>
                                             {days.map((day) => (
                                                 <div
                                                     key={day}
@@ -449,7 +565,9 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 );
                                             })}
 
-                                            {bars.map(({ res, startIdx, spanCount, clippedLeft, clippedRight, segmentKey }) => {
+                                            {getBarsForRoom(room).map((b) => {
+                                                if (!b) return null;
+                                                const { res, startIdx, spanCount, clippedLeft, clippedRight, segmentKey, isSegmentGhost, isSegmentSolidPartial } = b;
                                                 const isCheckedOut = res.status === "checked_out";
                                                 const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                 const linkHoverKey = resolveLinkHoverKey(res);
@@ -458,17 +576,21 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                     ? res.reservation_id !== focusReservationId
                                                     : Boolean(hoverGroupId) && linkHoverKey !== hoverGroupId;
                                                 
-                                                // Check Draft Overrides
-                                                const draftStatus = draftOverrides.find(d => d.reservation_id === res.reservation_id && d.room_id === room.room_id)?.type;
-                                                const isGhost = draftStatus === "ghost";
-                                                const isSolid = draftStatus === "solid";
+                                                // Check Draft Overrides (whole move)
+                                                const draftStatus = draftOverrides.find(d => d.reservation_id === res.reservation_id && d.room_id === room.room_id && !d.nights)?.type;
+                                                const isWholeGhost = draftStatus === "ghost";
+                                                const isWholeSolid = draftStatus === "solid";
+
+                                                const isGhost = isWholeGhost || isSegmentGhost;
+                                                const isSolid = isWholeSolid || isSegmentSolidPartial;
 
                                                 const left = startIdx * COL_W + (clippedLeft ? 0 : 2);
                                                 const width = spanCount * COL_W - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
                                                 
-                                                const isDraggable = mode === "interactive" && !res.do_not_move && !isCheckedOut && !isGhost;
+                                                const canInteract = mode === "interactive" && !res.do_not_move && !isCheckedOut && !isGhost;
+                                                const isDraggable = canInteract && !isResizing;
 
-                                                let defaultClasses = `absolute top-1.5 rounded-md text-[10px] font-semibold overflow-hidden whitespace-nowrap px-2 shadow-sm transition z-10 ${clippedLeft ? "rounded-l-none" : ""} ${clippedRight ? "rounded-r-none" : ""}`;
+                                                let defaultClasses = `absolute top-1.5 rounded-md text-[10px] font-semibold flex items-center whitespace-nowrap px-2 shadow-sm transition z-10 ${clippedLeft ? "rounded-l-none" : ""} ${clippedRight ? "rounded-r-none" : ""}`;
                                                 
                                                 if (isGhost) {
                                                     defaultClasses += ` border-2 border-dashed border-[var(--border-strong)] opacity-30 cursor-default`;
@@ -476,7 +598,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                     defaultClasses += ` ${sc.bar} ${sc.text} ring-2 ring-brand-400 brightness-90 shadow-md cursor-grab`;
                                                 } else {
                                                     defaultClasses += ` ${sc.bar} ${sc.text} ${shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-60 cursor-default" : "hover:brightness-110"}`;
-                                                    if (isDraggable) defaultClasses += " cursor-ns-resize"; // Vertical drag only
+                                                    if (isDraggable) defaultClasses += " cursor-ns-resize"; // Vertical drag hint
                                                 }
 
                                                 if ((isGroupFocused || res.reservation_id === focusReservationId) && !isGhost) {
@@ -486,9 +608,48 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 return (
                                                     <div
                                                         key={`${res.reservation_id}-${room.room_id}-${segmentKey}`}
+                                                        className={defaultClasses}
+                                                        style={{ left, width, height: ROW_H - 12, top: 6 }}
                                                         draggable={isDraggable}
                                                         onDragStart={(e) => {
-                                                            if (isDraggable) onBarDragStart?.(res, room.room_number, e);
+                                                            if (isDraggable) onBarDragStart?.(res, room.room_number, e, false);
+                                                        }}
+                                                        onDragOver={(e) => {
+                                                            if (mode === "interactive") {
+                                                                e.preventDefault();
+                                                                e.dataTransfer.dropEffect = "move";
+                                                                // Resolve date from cursor position for accurate per-night targeting
+                                                                const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
+                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / COL_W)] || days[startIdx] || '') : (days[startIdx] || '');
+                                                                onCellDragOver?.(room.room_id, resolvedDate, e);
+                                                            }
+                                                        }}
+                                                        onDragEnter={(e) => {
+                                                            if (mode === "interactive") {
+                                                                const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
+                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / COL_W)] || days[startIdx] || '') : (days[startIdx] || '');
+                                                                onCellDragEnter?.(room.room_id, resolvedDate, e);
+                                                            }
+                                                        }}
+                                                        onDragLeave={(e) => {
+                                                            if (mode === "interactive") onCellDragLeave?.(room.room_id, days[startIdx] || '', e);
+                                                        }}
+                                                        onDrop={(e) => {
+                                                            if (mode === "interactive") {
+                                                                e.preventDefault();
+                                                                // Calculate actual date from mouse X position (not bar start)
+                                                                // This is critical for per-night mode: dropping on an existing bar
+                                                                // should resolve to the cell column under the cursor
+                                                                const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
+                                                                if (rect) {
+                                                                    const relX = e.clientX - rect.left;
+                                                                    const colIdx = Math.floor(relX / COL_W);
+                                                                    const resolvedDate = days[colIdx] || days[startIdx] || '';
+                                                                    onCellDrop?.(room.room_id, resolvedDate, e);
+                                                                } else {
+                                                                    onCellDrop?.(room.room_id, days[startIdx] || '', e);
+                                                                }
+                                                            }
                                                         }}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -497,22 +658,21 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                         onMouseEnter={() => onLinkHover?.(linkHoverKey)}
                                                         onMouseLeave={() => onLinkHover?.(null)}
                                                         onFocus={() => onLinkHover?.(linkHoverKey)}
-                                                        onBlur={() => onLinkHover?.(null)}
-                                                        className={defaultClasses}
-                                                        style={{ left, width, height: ROW_H - 12, transform: isGroupFocused ? "scaleY(1.08)" : undefined, transformOrigin: "center" }}
-                                                        title={`${isCheckedOut ? "✓ CO " : ""}${res.guest_name} · ${res.checkin_date} → ${res.checkout_date}${res.group_code ? ` · ${res.group_code}` : ""}${res.first_alert_message ? ` · Alert: ${res.first_alert_message}` : ""}`}
                                                     >
-                                                        {width > 60 ? (
-                                                            <span className={`flex items-center gap-1 ${isGhost ? "line-through" : ""}`}>
-                                                                {isCheckedOut && <span className="opacity-80">✓</span>}
-                                                                {res.guest_name}
-                                                                {isCheckedOut && width > 120 && <span className="ml-1 text-[9px] bg-[var(--bg-surface)]/30 rounded px-1">CO</span>}
-                                                                {isSolid && <span className="ml-1 px-1 rounded bg-black/20 text-[8px] uppercase tracking-wider">Moved</span>}
+                                                        {isSegmentSolidPartial && <span className="mr-1 px-1 bg-white/20 rounded text-[8px] uppercase font-bold tracking-wider">Plan</span>}
+                                                        
+                                                        {/* Reservation Text */}
+                                                        {width > 60 && (
+                                                            <span className={`truncate flex-1 flex items-center gap-1 ${isGhost ? "line-through" : ""}`}>
+                                                                {isCheckedOut && <span className="opacity-80 flex-shrink-0">✓</span>}
+                                                                <span className="truncate">{res.guest_name || res.booking_code}</span>
+                                                                {isCheckedOut && width > 120 && <span className="ml-1 text-[8px] bg-white/20 rounded px-1 flex-shrink-0">CO</span>}
                                                             </span>
-                                                        ) : null}
-                                                        {(res.alert_count ?? 0) > 0 && !isGhost && (
+                                                        )}
+
+                                                        {(res.alert_count ?? 0) > 0 && !isGhost && width > 30 && (
                                                             <span
-                                                                className={`absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-white/80 ${
+                                                                className={`absolute bottom-1 right-1 h-2 w-2 rounded-full border border-white/80 ${
                                                                     res.alert_severity === "critical"
                                                                         ? "bg-rose-500"
                                                                         : res.alert_severity === "warning"
@@ -522,12 +682,51 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 title={res.first_alert_message ?? "Alert"}
                                                             />
                                                         )}
+
+                                                        {/* Resize Handles — hidden in per-night mode, use canInteract so they stay visible during resize */}
+                                                        {mode === "interactive" && canInteract && !isPerNightMode && !clippedLeft && res.is_linked_first && (
+                                                            <div
+                                                                draggable={false}
+                                                                className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 group"
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    onBarResizeStart?.(res, room.room_id, "checkin", e);
+                                                                }}
+                                                                onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                            >
+                                                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-white/0 group-hover:bg-white/40 transition-colors rounded-l" />
+                                                                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-white/50 group-hover:bg-white rounded-full transition-colors" />
+                                                            </div>
+                                                        )}
+                                                        {mode === "interactive" && canInteract && !isPerNightMode && !clippedRight && res.is_linked_last && (
+                                                            <div
+                                                                draggable={false}
+                                                                className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 group"
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    onBarResizeStart?.(res, room.room_id, "checkout", e);
+                                                                }}
+                                                                onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                            >
+                                                                <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-white/0 group-hover:bg-white/40 transition-colors rounded-r" />
+                                                                <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-white/50 group-hover:bg-white rounded-full transition-colors" />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
                                         </div>
                                     );
                                 })}
+
+                                {/* SVG Line Layer for Linked Stays */}
+                                {linkedConnections.length > 0 && (
+                                    <svg className="absolute top-0 left-0 pointer-events-none z-[15]" style={{ width: totalGridW, height: filteredRooms.length * ROW_H }}>
+                                        {linkedConnections}
+                                    </svg>
+                                )}
 
                                 {dayUseRooms.length > 0 && (
                                     <>
@@ -576,7 +775,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                         })}
                                     </>
                                 )}
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>

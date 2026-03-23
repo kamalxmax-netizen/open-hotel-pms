@@ -14,11 +14,18 @@ const nightOverrideSchema = z.object({
 });
 
 const actionSchema = z.object({
-  type: z.enum(["MOVE_WHOLE", "ASSIGN", "UNASSIGN"]),
+  type: z.enum(["MOVE_WHOLE", "ASSIGN", "UNASSIGN", "MOVE_NIGHTS", "EXTEND", "SHORTEN"]),
   reservation_id: z.string().uuid("reservation_id must be uuid"),
+  from_room_id: z.string().uuid().optional().nullable(),
   to_room_id: z.string().uuid().optional().nullable(),
   pricing_policy: z.enum(["keep_rtc", "reprice_grid"]).optional(),
   ota_night_overrides: z.array(nightOverrideSchema).optional().nullable(),
+  swap_pair_id: z.string().min(1).optional().nullable(),
+  linked_root_id: z.string().uuid().optional().nullable(),
+  linked_reservation_ids: z.array(z.string().uuid()).optional().nullable(),
+  affected_nights: z.array(z.string()).optional().nullable(),
+  new_checkout_date: z.string().optional().nullable(),
+  new_checkin_date: z.string().optional().nullable(),
 });
 
 const payloadSchema = z.object({
@@ -49,17 +56,26 @@ export async function POST(request: NextRequest) {
       actorUserId: user.id,
     });
 
-    return NextResponse.json({
-      success: result.success,
-      executed: result.executed,
-      failed: result.failed,
-      rolled_back: result.rolled_back,
-      warnings: result.warnings,
-    });
+    const errorMsg = result.failed.length > 0
+      ? result.failed.map((f) => f.error).join("; ")
+      : undefined;
+
+    return NextResponse.json(
+      {
+        success: result.success,
+        error: errorMsg,
+        executed: result.executed,
+        failed: result.failed,
+        rolled_back: result.rolled_back,
+        warnings: result.warnings,
+      },
+      { status: result.success ? 200 : 409 }
+    );
   } catch (error) {
     if (error instanceof RoomPlannerEngineError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     }
+    console.error("[room-planner/commit] Unhandled error:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

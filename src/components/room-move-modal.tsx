@@ -552,11 +552,19 @@ export default function RoomMoveModal({
         };
     }, [planDiff, planPricingPolicy, planDiscountType, planDiscountValue, planRemainingNights]);
 
-    function resetPlanForm() {
+    function resetPlanForm(nextStartDate?: string) {
+        const boundedStart = nextStartDate
+            ? nextStartDate < earliestPlanStart
+                ? earliestPlanStart
+                : nextStartDate > latestPlanStart
+                    ? latestPlanStart
+                    : nextStartDate
+            : earliestPlanStart;
+        const boundedEnd = countNightsBetween(boundedStart, checkoutDate) > 0 ? addDays(boundedStart, 1) : checkoutDate;
         setShowValidation(false);
         setPlanEditingId(null);
-        setPlanStartDate(earliestPlanStart);
-        setPlanEndDate(countNightsBetween(earliestPlanStart, checkoutDate) > 0 ? addDays(earliestPlanStart, 1) : checkoutDate);
+        setPlanStartDate(boundedStart);
+        setPlanEndDate(boundedEnd);
         setPlanRoomTypeId(currentRoomTypeId);
         setPlanRoomId("");
         setPlanReason("");
@@ -748,24 +756,13 @@ export default function RoomMoveModal({
                 const rawError = typeof payload?.error === "string" ? payload.error : "";
                 if (!planEditingId && rawError.toLowerCase().includes("planned move overlaps existing segment")) {
                     const parsedRange = parseOverlapSegmentRange(rawError);
-                    const overlappingMove = parsedRange
-                        ? plannedMoves.find(
-                            (row) =>
-                                row.status === "planned" &&
-                                row.start_date === parsedRange.start &&
-                                row.end_date === parsedRange.end
-                        ) ?? null
-                        : plannedMoves.find(
-                            (row) =>
-                                row.status === "planned" &&
-                                clampedPlanStartDate < row.end_date &&
-                                clampedPlanEndDate > row.start_date
-                        ) ?? null;
-                    if (overlappingMove) {
-                        populatePlanForm(overlappingMove);
-                        setError("This date range already has a planned segment. Switched to Edit mode for that segment.");
-                        return;
-                    }
+                    const overlapLabel = parsedRange
+                        ? `${parsedRange.start} -> ${parsedRange.end}`
+                        : "an existing planned segment";
+                    setError(
+                        `This date range overlaps ${overlapLabel}. Please choose non-overlapping dates or edit that segment from the list above.`
+                    );
+                    return;
                 }
 
                 setError(payload.error ?? "Failed to save planned move.");
@@ -775,7 +772,12 @@ export default function RoomMoveModal({
             setSaveNotice(
                 `${planEditingId ? "Updated" : "Saved"} planned move: ${clampedPlanStartDate} → ${clampedPlanEndDate} (${nightLabel})${payload?.floated_conflicts ? ` · floated ${payload.floated_conflicts} dependent reservation(s)` : ""}.`
             );
-            resetPlanForm();
+            if (planEditingId) {
+                resetPlanForm();
+            } else {
+                const nextStartCandidate = clampedPlanEndDate <= latestPlanStart ? clampedPlanEndDate : latestPlanStart;
+                resetPlanForm(nextStartCandidate);
+            }
         } catch {
             setError("Network error.");
         } finally {
@@ -1264,7 +1266,7 @@ export default function RoomMoveModal({
                                     <p className="text-xs text-[var(--text-secondary)]">Use stay-style dates: 2026-03-09 → 2026-03-10 = 1 night. First stay night is excluded, so planning starts from the next night onward.</p>
                                 </div>
                                 {planEditingId && (
-                                    <button className="btn btn-secondary btn-sm" type="button" onClick={resetPlanForm} disabled={saving}>
+                                    <button className="btn btn-secondary btn-sm" type="button" onClick={() => resetPlanForm()} disabled={saving}>
                                         Clear Form
                                     </button>
                                 )}

@@ -13,6 +13,7 @@ import {
   listPlanImpactAssignments,
   normalizeDiscountType,
   normalizePricingPolicy,
+  projectReservationPlannedMovePricing,
   rebuildReservationFutureRoomPath,
   resolvePlannedMoveSourceSnapshotId,
   validatePlannedMoveDateRange,
@@ -280,6 +281,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       reservationId,
       startDateOverride: earliestAffectedStart,
       fallbackSourceRoomId: rebuildSourceRoomId,
+    });
+    await projectReservationPlannedMovePricing(supabase as any, {
+      reservationId,
+      startDateOverride: earliestAffectedStart,
     });
 
     return NextResponse.json({

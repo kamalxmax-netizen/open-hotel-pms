@@ -11,6 +11,7 @@ import {
   listReservationPlannedMoves,
   normalizeDiscountType,
   normalizePricingPolicy,
+  projectReservationPlannedMovePricing,
   rebuildReservationFutureRoomPath,
   resolvePlannedMoveSourceSnapshotId,
   validatePlannedMoveDateRange,
@@ -266,6 +267,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     await rebuildReservationFutureRoomPath(supabase as any, { reservationId });
+    await projectReservationPlannedMovePricing(supabase as any, {
+      reservationId,
+      startDateOverride: payload.start_date,
+    });
 
     await supabase.from("audit_logs").insert({
       action: "planned_room_move_created",

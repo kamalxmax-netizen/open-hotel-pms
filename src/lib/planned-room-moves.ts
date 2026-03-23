@@ -70,6 +70,118 @@ export function clampDiscountValue(value: unknown): number {
   return Math.max(0, Number(parsed.toFixed(2)));
 }
 
+function toNumber(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function round2(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function applyDiscount(rackRate: number, discountType: DiscountType, discountValue: number): number {
+  if (discountType === "percent") {
+    return round2(Math.max(0, rackRate * (1 - discountValue / 100)));
+  }
+  return round2(Math.max(0, rackRate - discountValue));
+}
+
+function buildRackKey(roomTypeId: number, stayDate: string) {
+  return `${roomTypeId}::${stayDate}`;
+}
+
+async function fetchRackRateByTypeAndDate(params: {
+  supabase: SupabaseLike;
+  roomTypeIds: number[];
+  stayDates: string[];
+}): Promise<Map<string, number>> {
+  const { supabase, roomTypeIds, stayDates } = params;
+  const result = new Map<string, number>();
+
+  const uniqueTypeIds = Array.from(
+    new Set(roomTypeIds.filter((value) => Number.isFinite(value) && value > 0))
+  );
+  const uniqueStayDates = Array.from(new Set(stayDates.filter((value) => isValidDateString(value))));
+  if (uniqueTypeIds.length === 0 || uniqueStayDates.length === 0) {
+    return result;
+  }
+
+  const { data: roomRows, error: roomError } = await supabase
+    .from("rooms")
+    .select("id, room_type_id")
+    .in("room_type_id", uniqueTypeIds)
+    .eq("is_sellable", true);
+  if (roomError) {
+    throw new PlannedRoomMoveError(roomError.message ?? "Failed to load rooms for rack lookup.", 500);
+  }
+
+  const roomTypeByRoomId = new Map<string, number>();
+  const roomIds: string[] = [];
+  for (const row of roomRows ?? []) {
+    const roomId = row?.id ? String(row.id) : "";
+    const roomTypeId = Number((row as any)?.room_type_id ?? 0);
+    if (!roomId || !Number.isFinite(roomTypeId) || roomTypeId <= 0) continue;
+    roomIds.push(roomId);
+    roomTypeByRoomId.set(roomId, roomTypeId);
+  }
+  if (roomIds.length === 0) {
+    return result;
+  }
+
+  const { data: rateRows, error: rateError } = await supabase
+    .from("rate_templates")
+    .select("room_id, stay_date, price")
+    .in("room_id", roomIds)
+    .in("stay_date", uniqueStayDates);
+  if (rateError) {
+    throw new PlannedRoomMoveError(rateError.message ?? "Failed to load rack rates.", 500);
+  }
+
+  const valuesByTypeDate = new Map<string, number[]>();
+  const allValuesByType = new Map<number, number[]>();
+  for (const row of rateRows ?? []) {
+    const roomId = String((row as any)?.room_id ?? "");
+    const stayDate = String((row as any)?.stay_date ?? "");
+    const roomTypeId = roomTypeByRoomId.get(roomId) ?? 0;
+    if (!roomId || !stayDate || !Number.isFinite(roomTypeId) || roomTypeId <= 0) continue;
+    const price = toNumber((row as any)?.price);
+
+    const key = buildRackKey(roomTypeId, stayDate);
+    const datedValues = valuesByTypeDate.get(key) ?? [];
+    datedValues.push(price);
+    valuesByTypeDate.set(key, datedValues);
+
+    const allValues = allValuesByType.get(roomTypeId) ?? [];
+    allValues.push(price);
+    allValuesByType.set(roomTypeId, allValues);
+  }
+
+  const fallbackByType = new Map<number, number>();
+  allValuesByType.forEach((values, roomTypeId) => {
+    if (values.length === 0) return;
+    fallbackByType.set(
+      roomTypeId,
+      round2(values.reduce((sum, value) => sum + value, 0) / values.length)
+    );
+  });
+
+  for (const roomTypeId of uniqueTypeIds) {
+    for (const stayDate of uniqueStayDates) {
+      const key = buildRackKey(roomTypeId, stayDate);
+      const values = valuesByTypeDate.get(key) ?? [];
+      if (values.length === 0) {
+        const fallback = fallbackByType.get(roomTypeId);
+        if (fallback !== undefined) result.set(key, fallback);
+        continue;
+      }
+      const nightlyAverage = values.reduce((sum, value) => sum + value, 0) / values.length;
+      result.set(key, round2(nightlyAverage));
+    }
+  }
+
+  return result;
+}
+
 export function overlapsNightlyRangeInclusive(params: {
   startDate: string;
   endDate: string;
@@ -520,7 +632,7 @@ export async function rebuildReservationFutureRoomPath(
     throw new PlannedRoomMoveError(baseNightError.message ?? "Failed to load base room for planned path rebuild.", 500);
   }
 
-  let currentRoomId =
+  const baseRoomId =
     fallbackSourceRoomId
       ? String(fallbackSourceRoomId)
       : baseNight?.room_id
@@ -528,30 +640,35 @@ export async function rebuildReservationFutureRoomPath(
         : plans[0]?.from_room_id_snapshot
           ? String(plans[0].from_room_id_snapshot)
           : null;
-  if (!currentRoomId) {
+  if (!baseRoomId) {
     throw new PlannedRoomMoveError("Could not resolve source room for planned path rebuild.", 409);
   }
 
   const roomTypeMap = await loadRoomTypeMapForRoomIds(
     supabase,
-    [currentRoomId, ...plans.map((row) => String(row.to_room_id)).filter(Boolean)].filter(Boolean) as string[]
+    [baseRoomId, ...plans.map((row) => String(row.to_room_id)).filter(Boolean)].filter(Boolean) as string[]
   );
 
-  const planByStartDate = new Map<string, PlannedRoomMoveRow>();
+  const activePlanByDate = new Map<string, PlannedRoomMoveRow>();
   for (const plan of plans) {
-    planByStartDate.set(plan.start_date, plan);
+    const segmentStart = compareDateStrings(plan.start_date, earliestStartDate) < 0 ? earliestStartDate : plan.start_date;
+    const segmentEnd = compareDateStrings(plan.end_date, String(reservation.checkout_date)) > 0 ? String(reservation.checkout_date) : plan.end_date;
+    if (compareDateStrings(segmentEnd, segmentStart) <= 0) continue;
+    for (const stayDate of listNights(segmentStart, segmentEnd)) {
+      if (!activePlanByDate.has(stayDate)) {
+        activePlanByDate.set(stayDate, plan);
+      }
+    }
   }
 
   for (const stayDate of stayDates) {
-    const startingPlan = planByStartDate.get(stayDate);
-    if (startingPlan) {
-      currentRoomId = String(startingPlan.to_room_id);
-    }
-    const roomTypeId = roomTypeMap.get(currentRoomId) ?? null;
+    const activePlan = activePlanByDate.get(stayDate);
+    const roomIdForStayDate = activePlan ? String(activePlan.to_room_id) : baseRoomId;
+    const roomTypeId = roomTypeMap.get(roomIdForStayDate) ?? null;
     const { error: updateError } = await supabase
       .from("reservation_nights")
       .update({
-        room_id: currentRoomId,
+        room_id: roomIdForStayDate,
         room_type_id: roomTypeId,
         assignment_source: null,
         dependency_plan_id: null,
@@ -567,6 +684,148 @@ export async function rebuildReservationFutureRoomPath(
   }
 
   return { rebuilt: true, stay_dates: stayDates };
+}
+
+export async function projectReservationPlannedMovePricing(
+  supabase: SupabaseLike,
+  params: {
+    reservationId: string;
+    startDateOverride?: string | null;
+  }
+) {
+  const { reservationId, startDateOverride = null } = params;
+
+  const { data: reservation, error: reservationError } = await supabase
+    .from("reservations")
+    .select("id, source")
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (reservationError) {
+    throw new PlannedRoomMoveError(reservationError.message ?? "Failed to load reservation for planned pricing projection.", 500);
+  }
+  if (!reservation) {
+    throw new PlannedRoomMoveError("Reservation not found.", 404);
+  }
+
+  const { data: nights, error: nightsError } = await supabase
+    .from("reservation_nights")
+    .select("id, stay_date, room_type_id, nightly_price")
+    .eq("reservation_id", reservationId)
+    .is("cancelled_at", null)
+    .order("stay_date", { ascending: true });
+  if (nightsError) {
+    throw new PlannedRoomMoveError(nightsError.message ?? "Failed to load reservation nights for planned pricing projection.", 500);
+  }
+  if (!nights || nights.length === 0) {
+    return { updated_nights: 0, reservation_total_price: 0 };
+  }
+
+  const projectionStart =
+    startDateOverride && isValidDateString(startDateOverride)
+      ? startDateOverride
+      : String((nights[0] as any).stay_date);
+
+  const targetNights = (nights as any[])
+    .map((row) => ({
+      id: String(row.id ?? ""),
+      stay_date: String(row.stay_date ?? ""),
+      room_type_id: Number(row.room_type_id ?? 0),
+      nightly_price: round2(toNumber(row.nightly_price)),
+    }))
+    .filter((row) => row.id && row.stay_date && compareDateStrings(row.stay_date, projectionStart) >= 0);
+
+  if (targetNights.length === 0) {
+    const reservationTotal = round2(
+      (nights as any[]).reduce((sum, row) => sum + toNumber((row as any).nightly_price), 0)
+    );
+    return { updated_nights: 0, reservation_total_price: reservationTotal };
+  }
+
+  const plans = (await listReservationPlannedMoves(supabase, reservationId))
+    .filter((row) => row.status === "planned")
+    .sort((left, right) => left.start_date.localeCompare(right.start_date) || left.created_at.localeCompare(right.created_at));
+
+  const stayDates = Array.from(new Set(targetNights.map((row) => row.stay_date)));
+  const roomTypeIds = Array.from(new Set(targetNights.map((row) => row.room_type_id).filter((value) => Number.isFinite(value) && value > 0)));
+  const rackByTypeDate = await fetchRackRateByTypeAndDate({
+    supabase,
+    roomTypeIds,
+    stayDates,
+  });
+
+  const planByDate = new Map<string, PlannedRoomMoveRow>();
+  for (const plan of plans) {
+    for (const stayDate of listNights(plan.start_date, plan.end_date)) {
+      if (!planByDate.has(stayDate)) {
+        planByDate.set(stayDate, plan);
+      }
+    }
+  }
+
+  const reservationSource = String((reservation as any).source ?? "").toLowerCase();
+  const isOtaReservation = reservationSource === "ota";
+  const updates: Array<{ id: string; nightly_price: number }> = [];
+
+  for (const night of targetNights) {
+    const plan = planByDate.get(night.stay_date) ?? null;
+    const currentPrice = round2(toNumber(night.nightly_price));
+    const rackPrice = rackByTypeDate.get(buildRackKey(night.room_type_id, night.stay_date)) ?? currentPrice;
+
+    let projectedPrice = currentPrice;
+    if (plan) {
+      if (plan.pricing_policy === "reprice_grid") {
+        projectedPrice = round2(rackPrice);
+      } else if (plan.pricing_policy === "reprice_grid_discount") {
+        projectedPrice = applyDiscount(
+          round2(rackPrice),
+          plan.discount_type === "fixed" ? "fixed" : "percent",
+          clampDiscountValue(plan.discount_value)
+        );
+      }
+    } else if (!isOtaReservation) {
+      // For non-OTA, nights outside active segments should normalize back to current room's rack grid.
+      projectedPrice = round2(rackPrice);
+    }
+
+    if (Math.abs(projectedPrice - currentPrice) >= 0.01) {
+      updates.push({ id: night.id, nightly_price: projectedPrice });
+    }
+  }
+
+  for (const row of updates) {
+    const { error: updateNightError } = await supabase
+      .from("reservation_nights")
+      .update({ nightly_price: row.nightly_price })
+      .eq("id", row.id);
+    if (updateNightError) {
+      throw new PlannedRoomMoveError(updateNightError.message ?? "Failed to update projected nightly price.", 500);
+    }
+  }
+
+  const { data: refreshedNights, error: refreshedNightsError } = await supabase
+    .from("reservation_nights")
+    .select("nightly_price")
+    .eq("reservation_id", reservationId)
+    .is("cancelled_at", null);
+  if (refreshedNightsError) {
+    throw new PlannedRoomMoveError(refreshedNightsError.message ?? "Failed to recalculate reservation total after planned pricing projection.", 500);
+  }
+
+  const totalPrice = round2(
+    (refreshedNights ?? []).reduce((sum: number, row: any) => sum + toNumber(row?.nightly_price), 0)
+  );
+  const { error: updateReservationError } = await supabase
+    .from("reservations")
+    .update({ total_price: totalPrice })
+    .eq("id", reservationId);
+  if (updateReservationError) {
+    throw new PlannedRoomMoveError(updateReservationError.message ?? "Failed to update reservation total after planned pricing projection.", 500);
+  }
+
+  return {
+    updated_nights: updates.length,
+    reservation_total_price: totalPrice,
+  };
 }
 
 export async function syncReservationNightDependencyMetadata(

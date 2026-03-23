@@ -14,11 +14,18 @@ const nightOverrideSchema = z.object({
 });
 
 const actionSchema = z.object({
-  type: z.enum(["MOVE_WHOLE", "ASSIGN", "UNASSIGN"]),
+  type: z.enum(["MOVE_WHOLE", "ASSIGN", "UNASSIGN", "MOVE_NIGHTS", "EXTEND", "SHORTEN"]),
   reservation_id: z.string().uuid("reservation_id must be uuid"),
+  from_room_id: z.string().uuid().optional().nullable(),
   to_room_id: z.string().uuid().optional().nullable(),
   pricing_policy: z.enum(["keep_rtc", "reprice_grid"]).optional(),
   ota_night_overrides: z.array(nightOverrideSchema).optional().nullable(),
+  swap_pair_id: z.string().min(1).optional().nullable(),
+  linked_root_id: z.string().uuid().optional().nullable(),
+  linked_reservation_ids: z.array(z.string().uuid()).optional().nullable(),
+  affected_nights: z.array(z.string()).optional().nullable(),
+  new_checkout_date: z.string().optional().nullable(),
+  new_checkin_date: z.string().optional().nullable(),
 });
 
 const payloadSchema = z.object({

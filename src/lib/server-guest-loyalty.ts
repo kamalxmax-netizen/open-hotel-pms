@@ -63,10 +63,33 @@ export async function fetchGuestLoyaltyByProfileId(
   const map = new Map<string, GuestLoyaltySnapshot>();
   if (profileIds.length === 0) return map;
 
-  const profileResult = await supabase
-    .from("guest_profiles")
-    .select("id, vip_tier")
-    .in("id", profileIds);
+  // ── Run all 3 queries in parallel (they all only depend on profileIds) ──
+  const [profileResult, partyResult, primaryFallbackResult] = await Promise.all([
+    supabase
+      .from("guest_profiles")
+      .select("id, vip_tier")
+      .in("id", profileIds),
+    supabase
+      .from("reservation_guests")
+      .select(`
+        reservation_id,
+        guest_profile_id,
+        role,
+        reservations!inner(
+          id,
+          status,
+          checkin_date,
+          checkout_date
+        )
+      `)
+      .in("guest_profile_id", profileIds)
+      .eq("reservations.status", "checked_out"),
+    supabase
+      .from("reservations")
+      .select("id, guest_profile_id, checkin_date, checkout_date, status")
+      .in("guest_profile_id", profileIds)
+      .eq("status", "checked_out"),
+  ]);
 
   if (profileResult.error) {
     throw new Error(profileResult.error.message ?? "Failed to load guest loyalty fields.");
@@ -88,22 +111,6 @@ export async function fetchGuestLoyaltyByProfileId(
       })
     );
   }
-
-  const partyResult = await supabase
-    .from("reservation_guests")
-    .select(`
-      reservation_id,
-      guest_profile_id,
-      role,
-      reservations!inner(
-        id,
-        status,
-        checkin_date,
-        checkout_date
-      )
-    `)
-    .in("guest_profile_id", profileIds)
-    .eq("reservations.status", "checked_out");
 
   if (partyResult.error) {
     throw new Error(partyResult.error.message ?? "Failed to load guest loyalty reservation party history.");
@@ -142,12 +149,6 @@ export async function fetchGuestLoyaltyByProfileId(
     }
     map.set(profileId, snapshot);
   }
-
-  const primaryFallbackResult = await supabase
-    .from("reservations")
-    .select("id, guest_profile_id, checkin_date, checkout_date, status")
-    .in("guest_profile_id", profileIds)
-    .eq("status", "checked_out");
 
   if (primaryFallbackResult.error) {
     throw new Error(primaryFallbackResult.error.message ?? "Failed to load fallback primary guest loyalty history.");

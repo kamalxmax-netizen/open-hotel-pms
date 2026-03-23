@@ -6,7 +6,7 @@ import { isValidDateString } from "@/lib/dates";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { applyVisibleTotal, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
 import { mapEffectiveReservationAlert } from "@/lib/reservation-alerts";
-import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
 
 export async function GET(request: NextRequest) {
     noStore();
@@ -165,21 +165,20 @@ export async function GET(request: NextRequest) {
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
         const pendingRows = rows.filter((r: any) => !r.checked_in_at && !checkedInSet.has(String(r.id)));
         const hotelCheckOutTime = await resolveHotelCheckOutTime(supabase);
-        const linkedStayByReservationId = new Map<string, Awaited<ReturnType<typeof resolveLinkedStay>>>();
-        if (pendingRows.length > 0) {
-            const linkedResults = await Promise.all(
-                pendingRows.map(async (row: any) => {
-                    const reservationId = String(row?.id ?? "");
-                    if (!reservationId) return [reservationId, null] as const;
-                    const linkedStay = await resolveLinkedStay(supabase as any, reservationId, hotelCheckOutTime);
-                    return [reservationId, linkedStay] as const;
-                })
-            );
-            for (const [reservationId, linkedStay] of linkedResults) {
-                if (!reservationId) continue;
-                linkedStayByReservationId.set(reservationId, linkedStay);
-            }
-        }
+        const linkedStayMap = await resolveLinkedStayBatch(
+            supabase,
+            pendingRows.map((r: any) => ({
+                id: String(r.id),
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                booking_code: r.booking_code ?? null,
+                source: r.source ?? null,
+                checkin_date: r.checkin_date ?? null,
+                checkout_date: r.checkout_date ?? null,
+                status: r.status ?? null,
+                total_price: r.total_price ?? null,
+            })),
+            hotelCheckOutTime
+        );
 
         const arrivals = pendingRows
             .map((r: any) => {
@@ -199,7 +198,7 @@ export async function GET(request: NextRequest) {
                 : [];
 
             const loyalty = loyaltyByReservationId.get(String(r.id));
-            const linkedStay = linkedStayByReservationId.get(String(r.id)) ?? null;
+            const linkedStay = linkedStayMap.get(String(r.id)) ?? null;
             return {
                 id: r.id,
                 booking_code: r.booking_code,

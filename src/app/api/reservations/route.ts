@@ -1,7 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { applyVisibleTotal, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
-import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
 
 export async function GET(request: NextRequest) {
     try {
@@ -172,11 +172,27 @@ export async function GET(request: NextRequest) {
 
         const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
 
+        // Batch resolve linked stays (2 queries instead of 3 per row)
+        const linkedStayMap = await resolveLinkedStayBatch(
+            supabase,
+            rows.map((r: any) => ({
+                id: String(r.id),
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                booking_code: r.booking_code ?? null,
+                source: r.source ?? null,
+                checkin_date: r.checkin_date ?? null,
+                checkout_date: r.checkout_date ?? null,
+                status: r.status ?? null,
+                total_price: r.total_price ?? null,
+            })),
+            checkOutTimeHHmm
+        );
+
         // Pick display room from active night first; fallback to first historical night (e.g. cancelled bookings).
-        const reservations = await Promise.all(rows.map(async (r: any) => {
+        const reservations = rows.map((r: any) => {
             const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
             const groupMeta = groupId ? groupMetaById.get(groupId) : null;
-            const linkedStay = await resolveLinkedStay(supabase, String(r.id), checkOutTimeHHmm).catch(() => null);
+            const linkedStay = linkedStayMap.get(String(r.id)) ?? null;
             const nights = (Array.isArray(r.reservation_nights)
                 ? r.reservation_nights
                 : r.reservation_nights
@@ -228,7 +244,7 @@ export async function GET(request: NextRequest) {
                     (new Date(r.checkout_date).getTime() - new Date(r.checkin_date).getTime()) / 86400000
                 )
             };
-        }));
+        });
 
         return NextResponse.json({
             success: true,

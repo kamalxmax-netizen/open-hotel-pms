@@ -8,6 +8,7 @@ import {
   floatPlanImpactAssignments,
   listPlanImpactAssignments,
   listReservationPlannedMoves,
+  projectReservationPlannedMovePricing,
   rebuildReservationFutureRoomPath,
 } from "@/lib/planned-room-moves";
 
@@ -127,6 +128,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       reservationId,
       startDateOverride: move.start_date,
       fallbackSourceRoomId: move.from_room_id_snapshot ?? null,
+    });
+    await projectReservationPlannedMovePricing(supabase as any, {
+      reservationId,
+      startDateOverride: move.start_date,
     });
 
     return NextResponse.json({ success: true, floated_conflicts: impactedAssignments.length });
