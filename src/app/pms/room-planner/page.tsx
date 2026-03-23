@@ -1205,29 +1205,9 @@ export default function RoomPlannerPage() {
                     setBarPopover(null);
                     setLoading(true);
                     try {
-                        // Step 1: If linked, unlink first to break the circular lock
-                        if (isLinked && linkedRootId) {
-                            // Unlink this reservation (child or parent)
-                            const unlinkId = res.parent_reservation_id
-                                ? res.reservation_id  // This is a child → unlink child
-                                : linkedRootId;        // This is parent → unlink from root
-                            const unlinkResp = await fetch(
-                                `/api/bookings/${unlinkId}/link-stay`,
-                                {
-                                    method: "DELETE",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        note: "Auto-unlink for Plan Move cancel from Room Planner",
-                                    }),
-                                }
-                            );
-                            if (!unlinkResp.ok) {
-                                const body = await unlinkResp.json().catch(() => ({}));
-                                throw new Error(`Unlink failed: ${body.error || unlinkResp.status}`);
-                            }
-                        }
-
-                        // Step 2: Cancel all plan moves
+                        // Step 1: Cancel all plan moves FIRST
+                        // (Unlink API requires no pending plans, so cancel must come first)
+                        let cancelledCount = 0;
                         for (const plan of bookingPlans) {
                             const resp = await fetch(
                                 `/api/bookings/${res.reservation_id}/planned-room-moves/${plan.id}/cancel`,
@@ -1251,7 +1231,33 @@ export default function RoomPlannerPage() {
                                 }
                                 throw new Error(body.error || `Cancel failed (${resp.status})`);
                             }
+                            cancelledCount++;
                         }
+
+                        // Step 2: If linked AND all plans cancelled → Unlink
+                        if (isLinked && linkedRootId && cancelledCount === bookingPlans.length) {
+                            const unlinkId = res.parent_reservation_id
+                                ? res.reservation_id  // Child → unlink child
+                                : linkedRootId;        // Parent → unlink from root
+                            const unlinkResp = await fetch(
+                                `/api/bookings/${unlinkId}/link-stay`,
+                                {
+                                    method: "DELETE",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        note: "Auto-unlink after Plan Move cancel from Room Planner",
+                                    }),
+                                }
+                            );
+                            if (!unlinkResp.ok) {
+                                const body = await unlinkResp.json().catch(() => ({}));
+                                // Plans already cancelled, warn about unlink failure
+                                alert(`✅ Plan Move ยกเลิกแล้ว แต่ Unlink ไม่สำเร็จ:\n${body.error || unlinkResp.status}\n\nกรุณาไป Unlink เองที่หน้า Booking Detail`);
+                                load();
+                                return;
+                            }
+                        }
+
                         const successMsg = isLinked
                             ? "✅ ยกเลิก Plan Move + Unlink เรียบร้อย\n⚠️ กรุณาไป Link ใหม่ถ้าต้องการ"
                             : "✅ ยกเลิก Plan Move ทั้งหมดเรียบร้อย";
