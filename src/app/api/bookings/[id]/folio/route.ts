@@ -177,6 +177,10 @@ function buildReservationSummary(
   const outstandingAfterDiscount = fromSatang(
     toSatang(feeSummary.balance) - toSatang(discountTotal)
   );
+  const refundDueFromOverpayment = Math.max(0, -outstandingAfterDiscount);
+  const refundsDisplayTotal = Number(
+    Math.max(refundsTotal, refundDueFromOverpayment).toFixed(2)
+  );
 
   return {
     room_charges_total: feeSummary.room_charges_total,
@@ -184,7 +188,7 @@ function buildReservationSummary(
     extra_charges_total: feeSummary.extra_charges_total,
     grand_total: grandTotalAfterDiscount,
     payments_total: Number(paymentsTotal.toFixed(2)),
-    refunds_total: Number(refundsTotal.toFixed(2)),
+    refunds_total: refundsDisplayTotal,
     deposit_held: feeSummary.deposit_held,
     outstanding_balance: outstandingAfterDiscount,
   };
