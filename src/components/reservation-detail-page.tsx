@@ -1914,12 +1914,17 @@ export default function ReservationDetailPage({
     async function handleUnlockAssignedRoom() {
         if (!reservationId) return;
         if (!confirm("Unlock this Do Not Move room lock?")) return;
+        const unlockReason = window.prompt("Reason for unlocking this room lock:", "")?.trim() ?? "";
+        if (!unlockReason) {
+            setError("Please enter a reason before unlocking this room.");
+            return;
+        }
         setAssignedRoomLockLoading(true);
         try {
             const response = await fetch(`/api/bookings/${reservationId}/room-lock`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: false }),
+                body: JSON.stringify({ enabled: false, reason: unlockReason }),
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || payload?.success === false) {
@@ -2537,10 +2542,11 @@ export default function ReservationDetailPage({
         mode !== "checkin" &&
         Boolean(checkedInAt);
     const lockMessage = loading ? "Saving changes..." : rateRefreshing ? "Updating rates..." : "";
+    const bangkokTodayYmd = dateToYmd(getBangkokTodayDate());
     const canEditDeposit =
         !dayUseAmountOnlyMode &&
         (
-            mode === "checkin" ||
+            (mode === "checkin" && checkinDate <= bangkokTodayYmd) ||
             (mode === "edit" && reservationStatus === "active" && Boolean(checkedInAt))
         );
 
@@ -2947,7 +2953,7 @@ export default function ReservationDetailPage({
                     return;
                 }
             }
-            if (mode === "checkout" && reservationId && !dayUseAmountOnlyMode) {
+            if (mode === "checkout" && reservationId && !dayUseAmountOnlyMode && !isDayUse) {
                 const nowCheckout = formatBangkokDateTimeLocal(new Date());
                 const timePart = nowCheckout.split('T')[1].slice(0, 5);
                 if (timePart >= "13:01" && !showLateCheckoutModal) {

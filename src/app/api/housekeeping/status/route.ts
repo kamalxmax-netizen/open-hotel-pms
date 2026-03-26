@@ -1463,9 +1463,11 @@ export async function POST(request: NextRequest) {
 
             const { data: existingTask, error: existingTaskError } = await supabase
                 .from("housekeeping_tasks")
-                .select("id, status, assigned_maid_name, started_at, finished_at, approved_at")
+                .select("id, task_seq, status, assigned_maid_name, started_at, finished_at, approved_at")
                 .eq("room_id", room_id)
                 .eq("stay_date", date)
+                .order("task_seq", { ascending: false })
+                .limit(1)
                 .maybeSingle();
             if (existingTaskError && existingTaskError.code !== "PGRST116") {
                 return NextResponse.json({ error: existingTaskError.message }, { status: 500 });
@@ -1497,6 +1499,17 @@ export async function POST(request: NextRequest) {
                         reason_code: "hk_task_locked_completed",
                         current_status: taskStatus,
                         assigned_maid_name: existingTask?.assigned_maid_name ?? null,
+                    },
+                    { status: 409 }
+                );
+            }
+
+            if (markAsNoService && Number(existingTask?.task_seq ?? 1) > 1) {
+                return NextResponse.json(
+                    {
+                        error: "No Service is only available on the first housekeeping cycle.",
+                        reason_code: "hk_task_reclean_no_service_blocked",
+                        task_seq: Number(existingTask?.task_seq ?? 1),
                     },
                     { status: 409 }
                 );

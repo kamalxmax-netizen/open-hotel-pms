@@ -76,6 +76,17 @@ function formatBusinessDate(dateString: string): string {
     });
 }
 
+function formatBangkokDateTime(value: string | null | undefined): string {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return parsed.toLocaleString("th-TH", {
+        timeZone: "Asia/Bangkok",
+        dateStyle: "short",
+        timeStyle: "short",
+    });
+}
+
 export default function InHousePage() {
     const [reservations, setReservations] = useState<InHouseReservation[]>([]);
     const [dayUseReservations, setDayUseReservations] = useState<InHouseDayUseReservation[]>([]);
@@ -477,6 +488,9 @@ export default function InHousePage() {
                                         <td>
                                             <div className="font-semibold text-[var(--text-primary)]">{r.guest_name}</div>
                                             {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
+                                            <div className="text-xs text-[var(--text-muted)]">
+                                                Started: {formatBangkokDateTime(r.checked_in_at)}
+                                            </div>
                                         </td>
                                         <td className="w-1/4 min-w-[140px]">
                                             <div className="bg-[var(--bg-surface)] border border-[var(--dayuse-border)] rounded-lg p-2 inline-block shadow-sm">

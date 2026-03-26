@@ -74,6 +74,46 @@ function splitConsecutiveNights(nights: string[]) {
     return segments;
 }
 
+type RoomDiaryState = "due_in" | "due_out" | "inhouse" | "back_to_back" | "available";
+
+function getRoomDiaryStateForToday(
+    room: CalendarRoom,
+    plannedMoves: CalendarPlannedMove[],
+    today: string
+): RoomDiaryState | null {
+    if (!room.is_sellable || room.is_dayuse) return null;
+
+    const activeReservations = room.reservations.filter((res) => res.status === "active");
+    const hasPlannedSourceToday = plannedMoves.some(
+        (move) =>
+            move.status === "planned" &&
+            move.from_room_id_snapshot === room.room_id &&
+            move.start_date <= today &&
+            move.end_date > today
+    );
+    const hasPlannedTargetToday = plannedMoves.some(
+        (move) =>
+            move.status === "planned" &&
+            move.to_room_id === room.room_id &&
+            move.start_date <= today &&
+            move.end_date > today
+    );
+
+    const hasDueOut = hasPlannedSourceToday || activeReservations.some((res) => res.checkout_date === today);
+    const hasDueIn =
+        hasPlannedTargetToday ||
+        activeReservations.some((res) => res.checkin_date === today && !res.checked_in_at);
+    const hasInHouse = activeReservations.some(
+        (res) => Boolean(res.checked_in_at) && res.checkin_date <= today && res.checkout_date > today
+    );
+
+    if (hasDueOut && hasDueIn) return "back_to_back";
+    if (hasDueOut) return "due_out";
+    if (hasDueIn) return "due_in";
+    if (hasInHouse) return "inhouse";
+    return "available";
+}
+
 /* ─── Props ───────────────────────────────────── */
 export type RoomGridProps = {
     isLoading: boolean;
@@ -288,6 +328,57 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
         );
     }
 
+    function renderDiaryStateBadge(state: RoomDiaryState | null) {
+        if (!state || state === "available") return null;
+
+        const config: Record<Exclude<RoomDiaryState, "available">, { label: string; className: string; title: string }> = {
+            due_in: {
+                label: "DI",
+                className:
+                    "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30",
+                title: "Due In",
+            },
+            due_out: {
+                label: "DO",
+                className:
+                    "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30",
+                title: "Due Out",
+            },
+            inhouse: {
+                label: "IH",
+                className:
+                    "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30",
+                title: "In-House",
+            },
+            back_to_back: {
+                label: "B2B",
+                className:
+                    "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30",
+                title: "Back-to-Back",
+            },
+        };
+
+        const token = config[state as Exclude<RoomDiaryState, "available">];
+        if (!token) return null;
+
+        return (
+            <span
+                className={`inline-flex items-center rounded border px-1 py-0.5 text-[8px] font-bold leading-none tracking-wide ${token.className}`}
+                title={token.title}
+            >
+                {token.label}
+            </span>
+        );
+    }
+
+    const diaryStateByRoomId = useMemo(() => {
+        const map = new Map<string, RoomDiaryState | null>();
+        for (const room of filteredRooms) {
+            map.set(room.room_id, getRoomDiaryStateForToday(room, plannedMoves, today));
+        }
+        return map;
+    }, [filteredRooms, plannedMoves, today]);
+
     const linkedConnections = useMemo(() => {
         const conns: React.ReactNode[] = [];
         if (mode !== "interactive") return conns;
@@ -374,6 +465,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
                                         <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
+                                        {renderDiaryStateBadge(diaryStateByRoomId.get(room.room_id) ?? null)}
                                         {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]" title="Out of Order / Out of Service">🚧</span>}
                                         {renderHKBadge(room.hk_status)}
                                     </div>

@@ -33,6 +33,7 @@ type GuestSummary = {
 
 type HousekeepingTaskSummary = {
   status: HousekeepingStatus;
+  task_seq: number | null;
   assigned_maid_name: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -44,6 +45,7 @@ type HousekeepingTaskSummary = {
 type HousekeepingTaskRow = {
   room_id: string;
   status: HousekeepingStatus;
+  task_seq?: number | null;
   assigned_maid_name: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
 
   // ── Wave 1: All independent queries in parallel ─────────────────────────
   const tW1Start = performance.now();
-  const hkSelectBase = "room_id, status, assigned_maid_name, started_at, finished_at, approved_at, is_no_service";
+  const hkSelectBase = "room_id, task_seq, status, assigned_maid_name, started_at, finished_at, approved_at, is_no_service";
   const [
     roomsResult,
     reservationNightsResult,
@@ -122,7 +124,8 @@ export async function GET(request: NextRequest) {
     supabase
       .from("housekeeping_tasks")
       .select(`${hkSelectBase}, no_service_note`)
-      .eq("stay_date", date),
+      .eq("stay_date", date)
+      .order("task_seq", { ascending: true }),
     supabase
       .from("room_blocks")
       .select("room_id, block_type, reason")
@@ -581,6 +584,7 @@ export async function GET(request: NextRequest) {
   housekeepingTasks.forEach((task) => {
     housekeepingByRoomId.set(task.room_id, {
       status: task.status as HousekeepingStatus,
+      task_seq: Number(task.task_seq ?? 1),
       assigned_maid_name: task.assigned_maid_name ?? null,
       started_at: task.started_at ?? null,
       finished_at: task.finished_at ?? null,
@@ -806,6 +810,7 @@ export async function GET(request: NextRequest) {
       alert_severity: alertSummary?.highestSeverity ?? null,
       diary_state,
       hk_status: housekeepingTask?.status ?? null,
+      hk_task_seq: housekeepingTask?.task_seq ?? null,
       hk_assigned_maid: housekeepingTask?.assigned_maid_name ?? null,
       hk_started_at: housekeepingTask?.started_at ?? null,
       hk_finished_at: housekeepingTask?.finished_at ?? null,

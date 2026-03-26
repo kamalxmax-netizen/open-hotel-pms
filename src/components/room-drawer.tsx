@@ -52,6 +52,7 @@ export type RoomDrawerRoom = {
     } | null;
     is_dayuse?: boolean;
     hk_status?: string | null;
+    hk_task_seq?: number | null;
     hk_assigned_maid?: string | null;
     hk_started_at?: string | null;
     hk_finished_at?: string | null;
@@ -68,6 +69,7 @@ export type RoomDrawerRoom = {
 
 type DrawerHousekeepingState = {
     hk_status: HousekeepingDrawerStatus;
+    hk_task_seq: number | null;
     hk_assigned_maid: string | null;
     hk_started_at: string | null;
     hk_finished_at: string | null;
@@ -89,6 +91,7 @@ function buildDrawerHousekeepingState(room: RoomDrawerRoom): DrawerHousekeepingS
 
     return {
         hk_status: normalizedStatus,
+        hk_task_seq: room.hk_task_seq != null ? Number(room.hk_task_seq) : null,
         hk_assigned_maid: room.hk_assigned_maid ?? null,
         hk_started_at: room.hk_started_at ?? null,
         hk_finished_at: room.hk_finished_at ?? null,
@@ -544,6 +547,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             : `Housekeeping already finished${hkView.hk_assigned_maid ? ` by ${hkView.hk_assigned_maid}` : ""}. Dirty / No Service is locked.`
         : null;
     const disableInHouseControls = hkActionLoading !== null || housekeepingLocked;
+    const noServiceAllowed = (hkView.hk_task_seq ?? 1) <= 1;
     const transferAlertEnabled = transferAlertEnabledLocal;
     const transferAlertToggleReady = canToggleTransferAlertNow(room.transfer_pickup_at);
     const editMode: "edit" | "inhouse" = diaryState === "due_in" ? "edit" : "inhouse";
@@ -567,6 +571,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     }, [
         room.room_id,
         room.hk_status,
+        room.hk_task_seq,
         room.hk_assigned_maid,
         room.hk_started_at,
         room.hk_finished_at,
@@ -683,6 +688,11 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     async function handleUnlockAssignedLock() {
         if (!res?.id) return;
         if (!confirm("Unlock this Do Not Move room lock?")) return;
+        const unlockReason = window.prompt("Reason for unlocking this room lock:", "")?.trim() ?? "";
+        if (!unlockReason) {
+            setMsg("Please enter a reason before unlocking this room.");
+            return;
+        }
         setLockLoading(true);
         try {
             const response = await fetch(`/api/bookings/${res.id}/room-lock`, {
@@ -690,6 +700,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     enabled: false,
+                    reason: unlockReason,
                 }),
             });
             const payload = await response.json().catch(() => ({}));
@@ -704,6 +715,25 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             }
             setMsg("Do Not Move cleared.");
             onRefresh();
+        } finally {
+            setLockLoading(false);
+        }
+    }
+
+    async function handleDayUseCheckout() {
+        if (!res?.id) return;
+        if (!confirm(`Are you sure you want to check out Day Use room ${room.room_number}?`)) return;
+        setLockLoading(true);
+        try {
+            const response = await fetch(`/api/dayuse/${res.id}/checkout`, { method: "POST" });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload?.success === false) {
+                setMsg(payload?.error ?? "Failed to check out Day Use.");
+                return;
+            }
+            setMsg("Day Use checked out.");
+            onRefresh();
+            onClose();
         } finally {
             setLockLoading(false);
         }
@@ -931,10 +961,20 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                         </div>
                                     </div>
 
-                                    {room.is_dayuse && res.dayuse_expires_at && (
-                                        <div className="rounded-lg border border-[var(--dayuse-border)] bg-[var(--dayuse-bg)] px-3 py-2 flex items-center justify-between">
-                                            <span className="text-xs font-semibold text-[var(--dayuse-text)] uppercase tracking-widest pl-1">Remaining Time</span>
-                                            <DayUseTimer expiresAt={res.dayuse_expires_at} className="bg-[var(--bg-surface)] shadow-sm" />
+                                    {room.is_dayuse && (
+                                        <div className="rounded-lg border border-[var(--dayuse-border)] bg-[var(--dayuse-bg)] px-3 py-2 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-[var(--dayuse-text)] uppercase tracking-widest pl-1">Started</span>
+                                                <span className="text-xs font-semibold text-[var(--dayuse-text-secondary)]">
+                                                    {fmtBangkokDateTime(res.checked_in_at)}
+                                                </span>
+                                            </div>
+                                            {res.dayuse_expires_at && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-[var(--dayuse-text)] uppercase tracking-widest pl-1">Remaining Time</span>
+                                                    <DayUseTimer expiresAt={res.dayuse_expires_at} className="bg-[var(--bg-surface)] shadow-sm" />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -1022,7 +1062,13 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                             {canCheckOut && (
                                                 <button
                                                     className="btn btn-sm flex items-center gap-1 bg-rose-600 text-white hover:bg-rose-700"
-                                                    onClick={() => setDetailMode("checkout")}
+                                                    onClick={() => {
+                                                        if (room.is_dayuse) {
+                                                            void handleDayUseCheckout();
+                                                            return;
+                                                        }
+                                                        setDetailMode("checkout");
+                                                    }}
                                                 >
                                                     Check-out
                                                 </button>
@@ -1360,21 +1406,28 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                             >
                                                 {hkActionLoading === "dirty" ? "Sending..." : "Mark Dirty"}
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setShowNoServiceBox((prev) => !prev)}
-                                                disabled={disableInHouseControls}
-                                            >
-                                                {showNoServiceBox ? "Close No Service" : "No Service"}
-                                            </button>
+                                            {noServiceAllowed ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setShowNoServiceBox((prev) => !prev)}
+                                                    disabled={disableInHouseControls}
+                                                >
+                                                    {showNoServiceBox ? "Close No Service" : "No Service"}
+                                                </button>
+                                            ) : null}
                                         </div>
+                                        {!noServiceAllowed && (
+                                            <p className="text-[11px] text-[var(--text-muted)]">
+                                                No Service is not available for re-clean tasks.
+                                            </p>
+                                        )}
                                         {housekeepingLockMessage ? (
                                             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                                 {housekeepingLockMessage}
                                             </div>
                                         ) : null}
-                                        {showNoServiceBox && (
+                                        {showNoServiceBox && noServiceAllowed && (
                                             <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] p-2 space-y-2">
                                                 <label className="text-[11px] font-semibold text-[var(--text-secondary)] block">
                                                     Note for maid (optional)

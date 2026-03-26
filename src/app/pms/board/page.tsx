@@ -60,6 +60,7 @@ type ApiRoom = {
     accompanying_stay_count?: number;
     accompanying_night_count?: number;
     hk_status?: HousekeepingRawStatus | null;
+    hk_task_seq?: number | null;
     hk_assigned_maid?: string | null;
     hk_started_at?: string | null;
     hk_finished_at?: string | null;
@@ -248,6 +249,7 @@ function mapDayUseToApiRoom(room: DayUseRoomStatus): ApiRoom {
         source: "walkin",
         diary_state: room.current_reservation ? "inhouse" : "available",
         hk_status: room.hk_status ?? null,
+        hk_task_seq: null,
         is_dayuse: true,
         dayuse_expires_at: room.current_reservation?.dayuse_expires_at ?? null,
         dayuse_timer_state: room.timer_state ?? null,
@@ -922,6 +924,7 @@ export default function BoardPage() {
                 const mergedReservation = prevRoom.current_reservation && nextRoom.current_reservation
                     ? {
                         ...prevRoom.current_reservation,
+                        checked_in_at: nextRoom.current_reservation.checked_in_at,
                         dayuse_expires_at: nextRoom.current_reservation.dayuse_expires_at,
                     }
                     : prevRoom.current_reservation;
@@ -982,6 +985,7 @@ export default function BoardPage() {
             status: mappedRoom.status,
             diary_state: mappedRoom.diary_state ?? null,
             hk_status: dayUseRoom.hk_status ?? null,
+            hk_task_seq: null,
             hk_assigned_maid: null,
             hk_started_at: null,
             hk_finished_at: null,
@@ -1010,6 +1014,7 @@ export default function BoardPage() {
                     deposit_amount: 0,
                     deposit_note: null,
                     deposit_paid_at: null,
+                    checked_in_at: dayUseRoom.current_reservation.checked_in_at,
                     dayuse_expires_at: dayUseRoom.current_reservation.dayuse_expires_at,
                 }
                 : null,
@@ -1028,6 +1033,7 @@ export default function BoardPage() {
                 status: room.status,
                 diary_state: room.diary_state ?? null,
                 hk_status: room.hk_status ?? null,
+                hk_task_seq: room.hk_task_seq ?? null,
                 hk_assigned_maid: room.hk_assigned_maid ?? null,
                 hk_started_at: room.hk_started_at ?? null,
                 hk_finished_at: room.hk_finished_at ?? null,
@@ -1059,6 +1065,7 @@ export default function BoardPage() {
                 status: room.status,
                 diary_state: room.diary_state ?? null,
                 hk_status: room.hk_status ?? null,
+                hk_task_seq: room.hk_task_seq ?? null,
                 hk_assigned_maid: room.hk_assigned_maid ?? null,
                 hk_started_at: room.hk_started_at ?? null,
                 hk_finished_at: room.hk_finished_at ?? null,
@@ -1107,6 +1114,7 @@ export default function BoardPage() {
                 status: room.status,
                 diary_state: room.diary_state ?? null,
                 hk_status: room.hk_status ?? null,
+                hk_task_seq: room.hk_task_seq ?? null,
                 hk_assigned_maid: room.hk_assigned_maid ?? null,
                 hk_started_at: room.hk_started_at ?? null,
                 hk_finished_at: room.hk_finished_at ?? null,

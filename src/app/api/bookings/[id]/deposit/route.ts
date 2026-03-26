@@ -15,7 +15,7 @@ async function assertDepositEditable(
 ) {
     const { data: reservation, error } = await supabase
         .from("reservations")
-        .select("id, status, checked_in_at")
+        .select("id, status, checked_in_at, checkin_date")
         .eq("id", reservationId)
         .maybeSingle();
 
@@ -42,6 +42,27 @@ async function assertDepositEditable(
                 { status: 409 }
             )
         };
+    }
+    if (!reservation.checked_in_at && allowDuringCheckin) {
+        const { data: settings, error: settingsError } = await supabase
+            .from("hotel_settings")
+            .select("business_date")
+            .eq("id", 1)
+            .maybeSingle();
+        if (settingsError) {
+            return { ok: false as const, response: NextResponse.json({ error: settingsError.message }, { status: 500 }) };
+        }
+        const businessDate = String(settings?.business_date ?? "");
+        const checkinDate = String((reservation as { checkin_date?: string | null }).checkin_date ?? "");
+        if (!businessDate || !checkinDate || businessDate < checkinDate) {
+            return {
+                ok: false as const,
+                response: NextResponse.json(
+                    { error: "Deposit can be collected on or after check-in date only." },
+                    { status: 409 }
+                )
+            };
+        }
     }
     return { ok: true as const };
 }

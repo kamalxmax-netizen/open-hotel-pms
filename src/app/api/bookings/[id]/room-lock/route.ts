@@ -28,6 +28,13 @@ export async function POST(
       return NextResponse.json(result);
     }
 
+    if (!reason) {
+      return NextResponse.json(
+        { success: false, error: "Unlock reason is required." },
+        { status: 400 }
+      );
+    }
+
     const result = await clearAssignedRoomLock({
       supabase: supabase as any,
       reservationId,
