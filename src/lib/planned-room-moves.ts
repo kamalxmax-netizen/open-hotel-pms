@@ -86,6 +86,90 @@ function applyDiscount(rackRate: number, discountType: DiscountType, discountVal
   return round2(Math.max(0, rackRate - discountValue));
 }
 
+type RatePlanDiscountType = "percent" | "fixed" | "override";
+
+type PlannedMoveRatePlanContext = {
+  id: string;
+  discount_type: RatePlanDiscountType;
+  discount_value: number;
+  valid_from: string | null;
+  valid_until: string | null;
+  min_nights: number;
+  max_nights: number | null;
+  apply_to_room_types: number[];
+};
+
+function applyRatePlanDiscount(rackRate: number, discountType: RatePlanDiscountType, discountValue: number): number {
+  if (discountType === "percent") {
+    return round2(Math.max(0, rackRate * (1 - discountValue / 100)));
+  }
+  if (discountType === "fixed") {
+    return round2(Math.max(0, rackRate - discountValue));
+  }
+  return round2(Math.max(0, discountValue));
+}
+
+function isRatePlanRoomTypeAllowed(roomTypeId: number, plan: PlannedMoveRatePlanContext): boolean {
+  if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) return false;
+  if (plan.apply_to_room_types.length === 0) return true;
+  return plan.apply_to_room_types.includes(roomTypeId);
+}
+
+function isRatePlanNightCountAllowed(totalNightCount: number, plan: PlannedMoveRatePlanContext): boolean {
+  if (totalNightCount < plan.min_nights) return false;
+  if (plan.max_nights != null && totalNightCount > plan.max_nights) return false;
+  return true;
+}
+
+function isRatePlanNightDateAllowed(stayDate: string, plan: PlannedMoveRatePlanContext): boolean {
+  if (plan.valid_from && stayDate < plan.valid_from) return false;
+  if (plan.valid_until && stayDate > plan.valid_until) return false;
+  return true;
+}
+
+async function loadPlannedMoveRatePlanContext(params: {
+  supabase: SupabaseLike;
+  ratePlanId: string | null | undefined;
+}): Promise<PlannedMoveRatePlanContext | null> {
+  const { supabase, ratePlanId } = params;
+  if (!ratePlanId) return null;
+
+  const { data, error } = await supabase
+    .from("rate_plans")
+    .select("id, discount_type, discount_value, valid_from, valid_until, min_nights, max_nights, apply_to_room_types, is_active")
+    .eq("id", ratePlanId)
+    .maybeSingle();
+  if (error) {
+    throw new PlannedRoomMoveError(error.message ?? "Failed to load rate plan for pricing projection.", 500);
+  }
+  if (!data) return null;
+
+  const rawType = String((data as any).discount_type ?? "percent").toLowerCase();
+  const discountType: RatePlanDiscountType =
+    rawType === "fixed" ? "fixed" : rawType === "override" ? "override" : "percent";
+
+  const applyToRoomTypesRaw = Array.isArray((data as any).apply_to_room_types)
+    ? ((data as any).apply_to_room_types as Array<number | string>)
+    : [];
+  const applyToRoomTypes = applyToRoomTypesRaw
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    id: String((data as any).id),
+    discount_type: discountType,
+    discount_value: round2(toNumber((data as any).discount_value)),
+    valid_from: (data as any).valid_from ? String((data as any).valid_from) : null,
+    valid_until: (data as any).valid_until ? String((data as any).valid_until) : null,
+    min_nights: Math.max(1, Math.trunc(toNumber((data as any).min_nights ?? 1))),
+    max_nights:
+      (data as any).max_nights == null
+        ? null
+        : Math.max(1, Math.trunc(toNumber((data as any).max_nights))),
+    apply_to_room_types: applyToRoomTypes,
+  };
+}
+
 function buildRackKey(roomTypeId: number, stayDate: string) {
   return `${roomTypeId}::${stayDate}`;
 }
@@ -697,7 +781,7 @@ export async function projectReservationPlannedMovePricing(
 
   const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
-    .select("id, source")
+    .select("id, source, checkin_date, checkout_date, rate_plan_id")
     .eq("id", reservationId)
     .maybeSingle();
   if (reservationError) {
@@ -764,6 +848,22 @@ export async function projectReservationPlannedMovePricing(
 
   const reservationSource = String((reservation as any).source ?? "").toLowerCase();
   const isOtaReservation = reservationSource === "ota";
+  let reservationNightCount = 0;
+  try {
+    reservationNightCount = listNights(
+      String((reservation as any).checkin_date),
+      String((reservation as any).checkout_date)
+    ).length;
+  } catch {
+    reservationNightCount = 0;
+  }
+  const ratePlanContext =
+    !isOtaReservation
+      ? await loadPlannedMoveRatePlanContext({
+        supabase,
+        ratePlanId: (reservation as any).rate_plan_id ? String((reservation as any).rate_plan_id) : null,
+      })
+      : null;
   const updates: Array<{ id: string; nightly_price: number }> = [];
 
   for (const night of targetNights) {
@@ -772,9 +872,17 @@ export async function projectReservationPlannedMovePricing(
     const rackPrice = rackByTypeDate.get(buildRackKey(night.room_type_id, night.stay_date)) ?? currentPrice;
 
     let projectedPrice = currentPrice;
+    const canApplyRatePlan =
+      !!ratePlanContext &&
+      isRatePlanRoomTypeAllowed(night.room_type_id, ratePlanContext) &&
+      isRatePlanNightCountAllowed(reservationNightCount, ratePlanContext) &&
+      isRatePlanNightDateAllowed(night.stay_date, ratePlanContext);
+
     if (plan) {
       if (plan.pricing_policy === "reprice_grid") {
-        projectedPrice = round2(rackPrice);
+        projectedPrice = canApplyRatePlan
+          ? applyRatePlanDiscount(round2(rackPrice), ratePlanContext.discount_type, ratePlanContext.discount_value)
+          : round2(rackPrice);
       } else if (plan.pricing_policy === "reprice_grid_discount") {
         projectedPrice = applyDiscount(
           round2(rackPrice),
@@ -784,7 +892,9 @@ export async function projectReservationPlannedMovePricing(
       }
     } else if (!isOtaReservation) {
       // For non-OTA, nights outside active segments should normalize back to current room's rack grid.
-      projectedPrice = round2(rackPrice);
+      projectedPrice = canApplyRatePlan
+        ? applyRatePlanDiscount(round2(rackPrice), ratePlanContext.discount_type, ratePlanContext.discount_value)
+        : round2(rackPrice);
     }
 
     if (Math.abs(projectedPrice - currentPrice) >= 0.01) {

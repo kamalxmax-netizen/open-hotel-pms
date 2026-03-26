@@ -142,6 +142,12 @@ export default function MonthlyAuditPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [availableSources, setAvailableSources] = useState<string[]>([]);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewEntries, setPreviewEntries] = useState<AuditEntry[]>([]);
+  const [previewSummary, setPreviewSummary] = useState<AuditSummary | null>(null);
+  const [previewSources, setPreviewSources] = useState<string[]>([]);
+  const [previewGeneratedAt, setPreviewGeneratedAt] = useState<string | null>(null);
 
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -204,9 +210,41 @@ export default function MonthlyAuditPage() {
     }
   }, [selectedYear, selectedMonth, sourceFilter, taxFilter, correctionFilter, search]);
 
+  const loadPreviewData = useCallback(async () => {
+    setPreviewLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("year", String(selectedYear));
+      params.set("month", String(selectedMonth));
+      if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (taxFilter !== "all") params.set("tax_invoice", taxFilter);
+      if (correctionFilter !== "all") params.set("has_corrections", correctionFilter);
+      if (search.trim()) params.set("search", search.trim());
+
+      const res = await fetch(`/api/audit/monthly/preview?${params.toString()}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Failed to load preview");
+
+      setPreviewEnabled(true);
+      setPreviewEntries(json.entries ?? []);
+      setPreviewSummary(json.summary ?? null);
+      setPreviewSources(json.filters?.available_sources ?? []);
+      setPreviewGeneratedAt(typeof json.generated_at === "string" ? json.generated_at : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load preview");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [selectedYear, selectedMonth, sourceFilter, taxFilter, correctionFilter, search]);
+
   useEffect(() => {
+    if (previewEnabled) {
+      void loadPreviewData();
+      return;
+    }
     void loadPeriodData();
-  }, [loadPeriodData]);
+  }, [previewEnabled, loadPreviewData, loadPeriodData]);
 
   // ============================================================
   // Actions
@@ -224,6 +262,11 @@ export default function MonthlyAuditPage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
+      setPreviewEnabled(false);
+      setPreviewEntries([]);
+      setPreviewSummary(null);
+      setPreviewSources([]);
+      setPreviewGeneratedAt(null);
       await loadPeriodData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to close month");
@@ -317,6 +360,10 @@ export default function MonthlyAuditPage() {
   const canApprove = period?.status === "reviewing";
   const canExport = period?.status === "audited" || period?.status === "locked";
   const canReopen = period?.status === "audited";
+  const isPreviewMode = previewEnabled;
+  const displayedEntries = isPreviewMode ? previewEntries : entries;
+  const displayedSummary = isPreviewMode ? previewSummary : summary;
+  const displayedSources = isPreviewMode ? previewSources : availableSources;
 
   const yearOptions = useMemo(() => {
     const years: number[] = [];
@@ -385,13 +432,28 @@ export default function MonthlyAuditPage() {
 
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2">
-        {!period && (
+        <button
+          onClick={() => void loadPreviewData()}
+          disabled={previewLoading}
+          className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-colors"
+        >
+          {previewLoading ? "Loading Preview..." : previewEnabled ? "Refresh Preview" : "Preview (Live)"}
+        </button>
+        {previewEnabled && (
+          <button
+            onClick={() => setPreviewEnabled(false)}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
+          >
+            Back to Snapshot
+          </button>
+        )}
+        {(!period || period.status === "reviewing") && (
           <button
             onClick={handleCloseMonth}
             disabled={closing}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {closing ? "Generating..." : `Close ${MONTHS[selectedMonth - 1]}`}
+            {closing ? "Generating..." : period ? "Re-generate Snapshot" : `Generate Snapshot (${MONTHS[selectedMonth - 1]})`}
           </button>
         )}
         {canApprove && (
@@ -419,19 +481,17 @@ export default function MonthlyAuditPage() {
             Export CSV
           </button>
         )}
-        {period && period.status === "open" && (
-          <button
-            onClick={handleCloseMonth}
-            disabled={closing}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {closing ? "Generating..." : "Re-generate Snapshot"}
-          </button>
-        )}
       </div>
 
+      {isPreviewMode && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+          Preview mode: ข้อมูลนี้เป็นยอดสดจากระบบ ยังไม่ได้ freeze เดือน
+          {previewGeneratedAt ? ` (refresh ${new Date(previewGeneratedAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })})` : ""}
+        </div>
+      )}
+
       {/* Filters */}
-      {period && entries.length > 0 && (
+      {(period || isPreviewMode) && displayedEntries.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-3">
           <select
             className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
@@ -439,7 +499,7 @@ export default function MonthlyAuditPage() {
             onChange={(e) => setSourceFilter(e.target.value)}
           >
             <option value="all">All Sources</option>
-            {availableSources.map((s) => (
+            {displayedSources.map((s) => (
               <option key={s} value={s}>{SOURCE_LABELS[s] ?? s}</option>
             ))}
           </select>
@@ -475,28 +535,36 @@ export default function MonthlyAuditPage() {
       )}
 
       {/* Loading */}
-      {loading && (
+      {(loading || previewLoading) && (
         <div className="py-12 text-center text-sm text-[var(--text-muted)]">Loading...</div>
       )}
 
       {/* No period */}
-      {!loading && !period && (
+      {!loading && !previewLoading && !period && !previewEnabled && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-12 text-center">
           <p className="text-[var(--text-muted)]">
             No audit data for {MONTHS[selectedMonth - 1]} {selectedYear}
           </p>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Click &quot;Close {MONTHS[selectedMonth - 1]}&quot; to generate a snapshot
+            กด Preview เพื่อดูยอดสดก่อน หรือกด Generate Snapshot เพื่อ freeze เดือน
+          </p>
+        </div>
+      )}
+
+      {!loading && !previewLoading && isPreviewMode && displayedEntries.length === 0 && (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-12 text-center">
+          <p className="text-[var(--text-muted)]">
+            Preview: ยังไม่มี checked-out reservations สำหรับ {MONTHS[selectedMonth - 1]} {selectedYear}
           </p>
         </div>
       )}
 
       {/* Summary */}
-      {!loading && summary && (
+      {!loading && !previewLoading && displayedSummary && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
           <div className="p-3 border-b border-[var(--border)]">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              Summary — {summary.total_reservations} reservations
+              Summary — {displayedSummary.total_reservations} reservations
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -517,7 +585,7 @@ export default function MonthlyAuditPage() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(summary.by_source)
+                {Object.entries(displayedSummary.by_source)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([source, s]) => (
                     <tr key={source} className="border-b border-[var(--border)] hover:bg-[var(--bg-muted)]">
@@ -539,18 +607,18 @@ export default function MonthlyAuditPage() {
                 {/* Totals row */}
                 <tr className="bg-[var(--bg-muted)] font-semibold">
                   <td className="p-2 text-[var(--text-primary)]">Total</td>
-                  <td className="p-2 text-right text-[var(--text-primary)]">{summary.totals.count}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.total_revenue)}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.paid_cash)}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.paid_transfer)}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.paid_credit_card)}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.paid_other)}</td>
-                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(summary.totals.total_paid)}</td>
-                  <td className="p-2 text-right font-mono text-rose-600">{summary.totals.refund_total > 0 ? `-${fmt(summary.totals.refund_total)}` : "-"}</td>
-                  <td className={`p-2 text-right font-mono ${summary.totals.outstanding > 0 ? "text-amber-600" : "text-[var(--text-muted)]"}`}>
-                    {summary.totals.outstanding !== 0 ? fmt(summary.totals.outstanding) : "-"}
+                  <td className="p-2 text-right text-[var(--text-primary)]">{displayedSummary.totals.count}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.total_revenue)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.paid_cash)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.paid_transfer)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.paid_credit_card)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.paid_other)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedSummary.totals.total_paid)}</td>
+                  <td className="p-2 text-right font-mono text-rose-600">{displayedSummary.totals.refund_total > 0 ? `-${fmt(displayedSummary.totals.refund_total)}` : "-"}</td>
+                  <td className={`p-2 text-right font-mono ${displayedSummary.totals.outstanding > 0 ? "text-amber-600" : "text-[var(--text-muted)]"}`}>
+                    {displayedSummary.totals.outstanding !== 0 ? fmt(displayedSummary.totals.outstanding) : "-"}
                   </td>
-                  <td className="p-2 text-right text-[var(--text-primary)]">{summary.totals.tax_invoice_count || "-"}</td>
+                  <td className="p-2 text-right text-[var(--text-primary)]">{displayedSummary.totals.tax_invoice_count || "-"}</td>
                 </tr>
               </tbody>
             </table>
@@ -559,7 +627,7 @@ export default function MonthlyAuditPage() {
       )}
 
       {/* Entries table */}
-      {!loading && entries.length > 0 && (
+      {!loading && !previewLoading && displayedEntries.length > 0 && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -584,7 +652,7 @@ export default function MonthlyAuditPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => {
+                {displayedEntries.map((entry) => {
                   const hasCorrected = (entry.corrections?.length ?? 0) > 0;
                   const isExpanded = expandedRow === entry.id;
 

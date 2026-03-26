@@ -100,6 +100,15 @@ export interface SourceSummary {
   tax_invoice_count: number;
 }
 
+export interface MonthlyAuditPreviewResult {
+  year: number;
+  month: number;
+  entries: MonthlyAuditEntry[];
+  summary: MonthlyAuditSummary;
+  available_sources: string[];
+  generated_at: string;
+}
+
 // Correctable fields in monthly_audit_entries
 export const CORRECTABLE_FIELDS = [
   "guest_name",
@@ -230,7 +239,7 @@ export async function closeMonth(params: {
 }): Promise<{ period: MonthlyAuditPeriod; entries: MonthlyAuditEntry[]; summary: MonthlyAuditSummary }> {
   const { supabase, year, month, closedByUserId } = params;
 
-  // 1. Check no existing period in reviewing/audited/locked
+  // 1. Check existing period state
   const { data: existing, error: existingError } = await supabase
     .from("monthly_audit_periods")
     .select("id, status")
@@ -242,13 +251,22 @@ export async function closeMonth(params: {
     throw new MonthlyAuditError(existingError.message, 500);
   }
   if (existing) {
-    if (existing.status !== "open") {
+    // Allow re-snapshot from open/reviewing for operational retest.
+    // Keep audited/locked protected.
+    if (existing.status === "locked") {
       throw new MonthlyAuditError(
-        `Month ${year}-${String(month).padStart(2, "0")} is already ${existing.status}. Cannot re-close.`,
+        `Month ${year}-${String(month).padStart(2, "0")} is locked and cannot be regenerated.`,
         409
       );
     }
-    // Delete existing open period and its entries to re-snapshot
+    if (existing.status === "audited") {
+      throw new MonthlyAuditError(
+        `Month ${year}-${String(month).padStart(2, "0")} is audited. Reopen it first before regenerating snapshot.`,
+        409
+      );
+    }
+
+    // Delete existing open/reviewing period and its entries to re-snapshot
     await supabase.from("monthly_audit_entries").delete().eq("period_id", existing.id);
     await supabase.from("monthly_audit_periods").delete().eq("id", existing.id);
   }
@@ -578,6 +596,225 @@ export async function closeMonth(params: {
     },
     entries,
     summary,
+  };
+}
+
+// ============================================================
+// Preview Month — Live read-only (no DB writes)
+// ============================================================
+
+export async function previewMonth(params: {
+  supabase: SupabaseLike;
+  year: number;
+  month: number;
+}): Promise<MonthlyAuditPreviewResult> {
+  const { supabase, year, month } = params;
+  const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
+
+  // 1) Load checked-out reservations in this month
+  const { data: reservations, error: resError } = await supabase
+    .from("reservations")
+    .select(
+      "id, booking_code, guest_name, source, checkin_date, checkout_date, total_price, tax_invoice_requested, guest_profile_id"
+    )
+    .eq("status", "checked_out")
+    .gte("checkout_date", dateFrom)
+    .lte("checkout_date", dateTo)
+    .order("checkout_date", { ascending: true });
+
+  if (resError) {
+    throw new MonthlyAuditError(`Failed to load reservations: ${resError.message}`, 500);
+  }
+
+  const reservationRows = (reservations ?? []) as any[];
+  if (reservationRows.length === 0) {
+    return {
+      year,
+      month,
+      entries: [],
+      summary: computeSummary([]),
+      available_sources: [],
+      generated_at: new Date().toISOString(),
+    };
+  }
+
+  const reservationIds = reservationRows.map((r: any) => String(r.id));
+
+  // 2) Load folio data
+  const { data: folioRows, error: folioError } = await supabase
+    .from("folio_payments")
+    .select("reservation_id, tx_type, method, amount, revenue_category, is_record_only")
+    .in("reservation_id", reservationIds)
+    .eq("is_record_only", false);
+
+  if (folioError) {
+    throw new MonthlyAuditError(`Failed to load folio data: ${folioError.message}`, 500);
+  }
+
+  // 3) Load room assignments (latest night per reservation for room number)
+  const { data: nightRows, error: nightError } = await supabase
+    .from("reservation_nights")
+    .select("reservation_id, room_id, rooms(room_number, room_type_id, room_types(name_en))")
+    .in("reservation_id", reservationIds)
+    .is("cancelled_at", null)
+    .order("stay_date", { ascending: false });
+
+  if (nightError) {
+    throw new MonthlyAuditError(`Failed to load room assignments: ${nightError.message}`, 500);
+  }
+
+  // 4) Load guest profiles for identity data
+  const guestProfileIds = reservationRows.map((r: any) => r.guest_profile_id).filter(Boolean);
+  let guestProfileMap = new Map<string, any>();
+  if (guestProfileIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("guest_profiles")
+      .select("id, nationality, passport_number, id_card_number")
+      .in("id", guestProfileIds);
+
+    if (profiles) {
+      guestProfileMap = new Map((profiles as any[]).map((p: any) => [String(p.id), p]));
+    }
+  }
+
+  // 5) Build lookup maps
+  type FolioAgg = {
+    room_revenue: number;
+    extra_revenue: number;
+    pos_revenue: number;
+    paid_cash: number;
+    paid_transfer: number;
+    paid_credit_card: number;
+    paid_other: number;
+    refund_total: number;
+  };
+
+  const folioMap = new Map<string, FolioAgg>();
+  for (const row of (folioRows ?? []) as any[]) {
+    const resId = String(row.reservation_id);
+    if (!folioMap.has(resId)) {
+      folioMap.set(resId, {
+        room_revenue: 0,
+        extra_revenue: 0,
+        pos_revenue: 0,
+        paid_cash: 0,
+        paid_transfer: 0,
+        paid_credit_card: 0,
+        paid_other: 0,
+        refund_total: 0,
+      });
+    }
+    const agg = folioMap.get(resId)!;
+    const amount = num(row.amount);
+    const txType = str(row.tx_type).toLowerCase();
+    const category = str(row.revenue_category).toLowerCase();
+    const method = str(row.method).toLowerCase();
+
+    if (txType === "refund") {
+      if (category !== "deposit") {
+        agg.refund_total += amount;
+      }
+    } else if (txType === "payment") {
+      if (category === "room_revenue" || category === "dayuse_revenue") agg.room_revenue += amount;
+      else if (category === "extra_charge" || category === "no_show_fee") agg.extra_revenue += amount;
+      else if (category === "pos_revenue") agg.pos_revenue += amount;
+
+      if (category !== "deposit") {
+        if (method === "cash") agg.paid_cash += amount;
+        else if (method === "transfer") agg.paid_transfer += amount;
+        else if (method === "credit_card") agg.paid_credit_card += amount;
+        else agg.paid_other += amount;
+      }
+    }
+  }
+
+  const roomMap = new Map<string, { room_number: string; room_type_name: string }>();
+  for (const row of (nightRows ?? []) as any[]) {
+    const resId = String(row.reservation_id);
+    if (roomMap.has(resId)) continue;
+    const roomObj = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
+    const typeObj = roomObj?.room_types
+      ? (Array.isArray(roomObj.room_types) ? roomObj.room_types[0] : roomObj.room_types)
+      : null;
+    roomMap.set(resId, {
+      room_number: str(roomObj?.room_number),
+      room_type_name: str(typeObj?.name_en),
+    });
+  }
+
+  const nightCountMap = new Map<string, number>();
+  for (const row of (nightRows ?? []) as any[]) {
+    const resId = String(row.reservation_id);
+    nightCountMap.set(resId, (nightCountMap.get(resId) ?? 0) + 1);
+  }
+
+  // 6) Build in-memory entries only (no inserts)
+  const entries: MonthlyAuditEntry[] = [];
+
+  for (const res of reservationRows) {
+    const resId = String(res.id);
+    const folio = folioMap.get(resId) ?? {
+      room_revenue: 0,
+      extra_revenue: 0,
+      pos_revenue: 0,
+      paid_cash: 0,
+      paid_transfer: 0,
+      paid_credit_card: 0,
+      paid_other: 0,
+      refund_total: 0,
+    };
+    const room = roomMap.get(resId) ?? { room_number: "", room_type_name: "" };
+    const profile = guestProfileMap.get(String(res.guest_profile_id ?? ""));
+    const nightCount = nightCountMap.get(resId) ?? 1;
+
+    const totalRevenue = num(folio.room_revenue + folio.extra_revenue + folio.pos_revenue);
+    const totalPaid = num(folio.paid_cash + folio.paid_transfer + folio.paid_credit_card + folio.paid_other);
+    const outstanding = num(totalRevenue - totalPaid + folio.refund_total);
+
+    entries.push({
+      id: `preview-${resId}`,
+      period_id: "preview",
+      reservation_id: resId,
+      booking_code: str(res.booking_code) || null,
+      guest_name: str(res.guest_name),
+      source: str(res.source),
+      checkin_date: str(res.checkin_date),
+      checkout_date: str(res.checkout_date),
+      room_number: room.room_number || null,
+      room_type_name: room.room_type_name || null,
+      total_nights: nightCount,
+      room_revenue: num(folio.room_revenue),
+      extra_revenue: num(folio.extra_revenue),
+      pos_revenue: num(folio.pos_revenue),
+      total_revenue: totalRevenue,
+      paid_cash: num(folio.paid_cash),
+      paid_transfer: num(folio.paid_transfer),
+      paid_credit_card: num(folio.paid_credit_card),
+      paid_other: num(folio.paid_other),
+      total_paid: totalPaid,
+      refund_total: num(folio.refund_total),
+      outstanding,
+      tax_invoice_requested: Boolean(res.tax_invoice_requested),
+      tax_invoice_name: null,
+      tax_id: null,
+      nationality: str(profile?.nationality) || null,
+      passport_number: str(profile?.passport_number) || null,
+      id_card_number: str(profile?.id_card_number) || null,
+      guest_count: 1,
+      corrections: [],
+    });
+  }
+
+  const summary = computeSummary(entries);
+  const availableSources = Array.from(new Set(entries.map((e) => e.source).filter(Boolean))).sort();
+
+  return {
+    year,
+    month,
+    entries,
+    summary,
+    available_sources: availableSources,
+    generated_at: new Date().toISOString(),
   };
 }
 

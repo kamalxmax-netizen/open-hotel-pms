@@ -425,8 +425,8 @@
           <strong>📌 กฎทอง:</strong> คิดค่าห้องเฉพาะคืนที่แขก <u>พักจริง</u> เท่านั้น
           <ul class="mt-2" style="font-size:14px">
             <li>พักคืนเดียว → คิดแค่คืนนั้น</li>
-            <li>พัก 2 คืนจาก 4 คืนที่จอง → คิด 2 คืน</li>
-            <li>ถ้า Pre-paid เกิน → คืนเงินส่วนต่าง (หักค่าปรับก่อน ถ้ามี)</li>
+            <li>พัก 2 คืนจาก 4 คืนที่จอง → ขึ้นกับเวลาที่มาแจ้ง  </li>
+            <li>ถ้า Pre-paid เกิน → คืนเงินส่วนต่าง (หักค่าปรับก่อน ถ้ามี ติดต่อ ผจก)</li>
           </ul>
         </div>
 
@@ -458,7 +458,7 @@
           <div class="step">
             <div class="step-body">
               <div class="step-title">ระบบดึง Settlement Preview อัตโนมัติ</div>
-              <div class="step-desc">หลังจากบันทึกวันออกใหม่ ระบบจะเรียก API <code>/settlement-preview?action=shorten</code> และแสดง <strong>Shorten Fee Modal</strong> พร้อมตัวเลขครบถ้วน</div>
+              <div class="step-desc">หลังจากบันทึกวันออกใหม่ ระบบจะเรียก API <code>/settlement-preview?action=shorten</code> และแสดง <strong>Shorten Fee Modal</strong> พร้อมตัวเลขครบถ้วน กรณี ไม่ได้มีปัญหา ลูกค้าออกก่อน ก็เอาราคาที่พักของคืนนั้นมาใส่ เช่นพัก 1 คืน ลูกค้า มา C/O 20:00 </div>
             </div>
           </div>
           <div class="step">

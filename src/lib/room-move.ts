@@ -1,4 +1,4 @@
-import { addDays, compareDateStrings, isValidDateString } from "@/lib/dates";
+import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import {
   appendReservationNoteLine,
@@ -41,6 +41,91 @@ function applyDiscount(rackRate: number, discountType: DiscountType, discountVal
     return round2(Math.max(0, rackRate * (1 - discountValue / 100)));
   }
   return round2(Math.max(0, rackRate - discountValue));
+}
+
+type RatePlanDiscountType = "percent" | "fixed" | "override";
+
+type RatePlanMoveContext = {
+  id: string;
+  discount_type: RatePlanDiscountType;
+  discount_value: number;
+  valid_from: string | null;
+  valid_until: string | null;
+  min_nights: number;
+  max_nights: number | null;
+  apply_to_room_types: number[];
+};
+
+function applyRatePlanDiscount(rackRate: number, discountType: RatePlanDiscountType, discountValue: number): number {
+  if (discountType === "percent") {
+    return round2(Math.max(0, rackRate * (1 - discountValue / 100)));
+  }
+  if (discountType === "fixed") {
+    return round2(Math.max(0, rackRate - discountValue));
+  }
+  return round2(Math.max(0, discountValue));
+}
+
+function isRatePlanNightValid(stayDate: string, plan: RatePlanMoveContext): boolean {
+  if (plan.valid_from && stayDate < plan.valid_from) return false;
+  if (plan.valid_until && stayDate > plan.valid_until) return false;
+  return true;
+}
+
+function isRatePlanRoomTypeAllowed(roomTypeId: number, plan: RatePlanMoveContext): boolean {
+  if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) return false;
+  if (plan.apply_to_room_types.length === 0) return true;
+  return plan.apply_to_room_types.includes(roomTypeId);
+}
+
+function isRatePlanNightCountAllowed(totalNightCount: number, plan: RatePlanMoveContext): boolean {
+  if (totalNightCount < plan.min_nights) return false;
+  if (plan.max_nights != null && totalNightCount > plan.max_nights) return false;
+  return true;
+}
+
+async function loadRatePlanMoveContext(params: {
+  supabase: SupabaseLike;
+  ratePlanId: string | null | undefined;
+}): Promise<RatePlanMoveContext | null> {
+  const { supabase, ratePlanId } = params;
+  if (!ratePlanId) return null;
+
+  const { data, error } = await supabase
+    .from("rate_plans")
+    .select("id, discount_type, discount_value, valid_from, valid_until, min_nights, max_nights, apply_to_room_types, is_active")
+    .eq("id", ratePlanId)
+    .maybeSingle();
+
+  if (error) {
+    throw new RoomMoveError(error.message ?? "Failed to load rate plan.", 500);
+  }
+  if (!data) return null;
+
+  const rawType = String((data as any).discount_type ?? "percent").toLowerCase();
+  const discountType: RatePlanDiscountType =
+    rawType === "fixed" ? "fixed" : rawType === "override" ? "override" : "percent";
+
+  const applyToRoomTypesRaw = Array.isArray((data as any).apply_to_room_types)
+    ? ((data as any).apply_to_room_types as Array<number | string>)
+    : [];
+  const applyToRoomTypes = applyToRoomTypesRaw
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    id: String((data as any).id),
+    discount_type: discountType,
+    discount_value: round2(toNumber((data as any).discount_value)),
+    valid_from: (data as any).valid_from ? String((data as any).valid_from) : null,
+    valid_until: (data as any).valid_until ? String((data as any).valid_until) : null,
+    min_nights: Math.max(1, Math.trunc(toNumber((data as any).min_nights ?? 1))),
+    max_nights:
+      (data as any).max_nights == null
+        ? null
+        : Math.max(1, Math.trunc(toNumber((data as any).max_nights))),
+    apply_to_room_types: applyToRoomTypes,
+  };
 }
 
 async function fetchRackRateByDate(params: {
@@ -293,7 +378,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
 
   const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
-    .select("id, status, note, checkout_date")
+    .select("id, status, note, checkin_date, checkout_date, rate_plan_id")
     .eq("id", reservationId)
     .maybeSingle();
   if (reservationError) throw new RoomMoveError(reservationError.message ?? "Failed to load reservation.", 500);
@@ -362,6 +447,25 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
   }
 
   const newRoomTypeId = toNumber(newRoom.room_type_id);
+  let reservationNightCount = 0;
+  try {
+    reservationNightCount = listNights(String(reservation.checkin_date), String(reservation.checkout_date)).length;
+  } catch {
+    reservationNightCount = 0;
+  }
+  const ratePlanContext =
+    pricingPolicy === "reprice_grid"
+      ? await loadRatePlanMoveContext({
+        supabase,
+        ratePlanId: reservation.rate_plan_id ? String(reservation.rate_plan_id) : null,
+      })
+      : null;
+  const shouldApplyRatePlanDiscount =
+    pricingPolicy === "reprice_grid" &&
+    !!ratePlanContext &&
+    isRatePlanRoomTypeAllowed(newRoomTypeId, ratePlanContext) &&
+    isRatePlanNightCountAllowed(reservationNightCount, ratePlanContext);
+
   const rackByDate =
     pricingPolicy === "keep_rtc"
       ? new Map<string, number>()
@@ -378,7 +482,11 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
 
     let nextNightlyPrice = oldNightlyPrice;
     if (pricingPolicy === "reprice_grid") {
-      nextNightlyPrice = rackNightlyPrice;
+      const canApplyRatePlanForNight =
+        shouldApplyRatePlanDiscount && !!ratePlanContext && isRatePlanNightValid(stayDate, ratePlanContext);
+      nextNightlyPrice = canApplyRatePlanForNight
+        ? applyRatePlanDiscount(rackNightlyPrice, ratePlanContext.discount_type, ratePlanContext.discount_value)
+        : rackNightlyPrice;
     } else if (pricingPolicy === "reprice_grid_discount") {
       nextNightlyPrice = applyDiscount(rackNightlyPrice, discountType, discountValue);
     }
@@ -389,6 +497,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       old_nightly_price: oldNightlyPrice,
       rack_nightly_price: rackNightlyPrice,
       new_nightly_price: round2(nextNightlyPrice),
+      rate_plan_applied: pricingPolicy === "reprice_grid" && shouldApplyRatePlanDiscount,
     };
   });
 
@@ -476,7 +585,9 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
     `${pricingPolicy === "keep_rtc"
       ? "POLICY: Keep RTC (Free Upgrade)"
       : pricingPolicy === "reprice_grid"
-        ? "POLICY: Update RTC to Rate Grid"
+        ? shouldApplyRatePlanDiscount
+          ? "POLICY: Update RTC to Rate Grid + Rate Plan"
+          : "POLICY: Update RTC to Rate Grid"
         : `POLICY: Update RTC + Discount (${discountType}:${discountValue})`} | ` +
     `${futureDelta >= 0 ? "Δ+฿" : "Δ-฿"}${Math.abs(futureDelta).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` +
     `${pricingPolicy === "reprice_grid_discount" ? ` | DISCOUNT REASON: ${String(discountReason ?? "").trim()}` : ""}` +
@@ -521,6 +632,8 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       pricing_policy: pricingPolicy,
       future_total: newFutureTotal,
       future_delta: futureDelta,
+      rate_plan_id: shouldApplyRatePlanDiscount && ratePlanContext ? ratePlanContext.id : null,
+      rate_plan_auto_applied: shouldApplyRatePlanDiscount,
       discount_type: pricingPolicy === "reprice_grid_discount" ? discountType : null,
       discount_value: pricingPolicy === "reprice_grid_discount" ? discountValue : null,
       discount_reason: pricingPolicy === "reprice_grid_discount" ? String(discountReason ?? "").trim() || null : null,
