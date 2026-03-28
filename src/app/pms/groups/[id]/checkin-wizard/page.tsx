@@ -473,24 +473,24 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   // --- Phase 50 Mobile Scans Polling ---
   useEffect(() => {
     if (currentStep !== 2 || !groupId) return;
-    
+
     const poll = async () => {
       if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}`);
         if (res.ok) {
-           const json = await res.json();
-           if (json.success && json.pool) setMobileScans(json.pool);
+          const json = await res.json();
+          if (json.success && json.pool) setMobileScans(json.pool);
         } else {
-           const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
-           setMobileScans(mock.pool);
+          const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
+          setMobileScans(mock.pool);
         }
       } catch (err) {
         const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
         setMobileScans(mock.pool);
       }
     };
-    
+
     poll(); // immediate
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
@@ -525,7 +525,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   async function importAllReadyScans() {
     const readyScans = filteredMobileScans.filter((s: any) => s.pool_status === "ready" && s.guest_profile_id);
     if (readyScans.length === 0) return;
-    
+
     setIsImportingAll(true);
     setStep2Busy(true);
     setError("");
@@ -543,7 +543,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           console.error("Failed importing row", scan.scan_id, e);
         }
       }
-      
+
       fetch(`/api/checkin/group-ocr-pool/${groupId}/import-to-wizard`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -651,21 +651,21 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         });
         const hydratedPool: ScannedPoolItem[] = draftStep2Ids
           .map((id: string, idx: number) => {
-              const known = knownGuestMap.get(id);
-              return {
-                ...(known ?? {
-                  id,
-                  first_name: null,
-                  last_name: null,
-                  phone: null,
-                  member_no: null,
-                  profile_status: null,
-                  nationality_code: null,
-                }),
-                source: sourceById.get(id) ?? "search",
-                scan_order: orderById.get(id) ?? idx + 1,
-                display_name: displayById.get(id) ?? known?.first_name ?? id,
-              } as ScannedPoolItem;
+            const known = knownGuestMap.get(id);
+            return {
+              ...(known ?? {
+                id,
+                first_name: null,
+                last_name: null,
+                phone: null,
+                member_no: null,
+                profile_status: null,
+                nationality_code: null,
+              }),
+              source: sourceById.get(id) ?? "search",
+              scan_order: orderById.get(id) ?? idx + 1,
+              display_name: displayById.get(id) ?? known?.first_name ?? id,
+            } as ScannedPoolItem;
           })
           .sort((a: ScannedPoolItem, b: ScannedPoolItem) => a.scan_order - b.scan_order);
         setScannedGuestPool(hydratedPool);
@@ -1173,8 +1173,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       }
       await reloadReservationSnapshot();
       setInfo(
-        `${targetRole === "primary" ? "Primary linked" : "Accompanying added"} for room ${
-          selectedReservations.find((row) => row.id === targetReservationId)?.room_number ?? targetReservationId
+        `${targetRole === "primary" ? "Primary linked" : "Accompanying added"} for room ${selectedReservations.find((row) => row.id === targetReservationId)?.room_number ?? targetReservationId
         }.`
       );
     } catch (err) {
@@ -1476,17 +1475,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
       const results: ConfirmRoomResult[] = Array.isArray(data.results)
         ? data.results.map((row: any) => ({
-            reservation_id: String(row.reservation_id),
-            booking_code: row.booking_code ? String(row.booking_code) : null,
-            guest_name: row.guest_name ? String(row.guest_name) : null,
-            status: row.status,
-            codes: Array.isArray(row.codes) ? row.codes.map((code: unknown) => String(code)) : [],
-            error: row.error ? String(row.error) : undefined,
-            missing_fields: Array.isArray(row.missing_fields)
-              ? row.missing_fields.map((field: unknown) => String(field))
-              : undefined,
-            checked_in_at: row.checked_in_at ? String(row.checked_in_at) : undefined,
-          }))
+          reservation_id: String(row.reservation_id),
+          booking_code: row.booking_code ? String(row.booking_code) : null,
+          guest_name: row.guest_name ? String(row.guest_name) : null,
+          status: row.status,
+          codes: Array.isArray(row.codes) ? row.codes.map((code: unknown) => String(code)) : [],
+          error: row.error ? String(row.error) : undefined,
+          missing_fields: Array.isArray(row.missing_fields)
+            ? row.missing_fields.map((field: unknown) => String(field))
+            : undefined,
+          checked_in_at: row.checked_in_at ? String(row.checked_in_at) : undefined,
+        }))
         : [];
 
       setConfirmResults(results);
@@ -1517,8 +1516,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg-body)]">
-      <header className="bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+    <div className="min-h-screen flex flex-col bg-[var(--bg-body)] dark:bg-[#0B0E14]">
+      <header className="bg-[var(--bg-surface)] dark:bg-[#0B0E14] border-b border-[var(--border-default)] dark:border-[#1E2530] px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <div>
           <div className="flex items-center gap-3">
             <Link href={backHref} className="text-[var(--text-secondary)] hover:text-indigo-700 text-sm font-semibold">
@@ -1551,7 +1550,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       </header>
 
       <main className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-6xl mx-auto bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm p-6">
+        <div className="max-w-6xl mx-auto bg-[var(--bg-surface)] dark:bg-[#151921] rounded-xl border border-[var(--border-default)] dark:border-[#2D333D] shadow-sm p-6">
           {error ? <div className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
           {info ? <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div> : null}
 
@@ -1567,9 +1566,9 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                 </div>
               </div>
 
-              <div className="overflow-auto border border-[var(--border-default)] rounded-xl">
+              <div className="overflow-auto border border-[var(--border-default)] dark:border-[#2D333D] rounded-xl">
                 <table className="w-full text-sm">
-                  <thead className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+                  <thead className="bg-[var(--bg-body)] dark:bg-[#0B0E14] border-b border-[var(--border-default)] dark:border-[#2D333D]">
                     <tr>
                       <th className="p-3 w-10 text-left">
                         <input
@@ -1592,7 +1591,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                       return (
                         <tr
                           key={row.id}
-                          className={`border-t border-[var(--border-subtle)] ${row.selected ? "bg-indigo-50/50" : ""} ${disabled ? "opacity-60" : "hover:bg-[var(--bg-body)]"}`}
+                          className={`border-t border-[var(--border-subtle)] dark:border-[#1E2530] ${row.selected ? "bg-indigo-50/50 dark:bg-slate-700/40" : ""} ${disabled ? "opacity-60" : "hover:bg-[var(--bg-body)] dark:hover:bg-slate-800/30 transition-colors"}`}
                           onClick={() => {
                             if (!disabled) toggleSelection(row.id);
                           }}
@@ -1642,7 +1641,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-7 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
-                  
+
                   {/* --- Phase 50 Mobile Scans Panel --- */}
                   <div className="bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 rounded-xl p-3 mb-4 space-y-2">
                     <div className="flex items-center justify-between">
@@ -1665,38 +1664,38 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     ) : (
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                         {filteredMobileScans.map((scan, i) => (
-                           <div key={scan.scan_id + i} className="flex items-center justify-between bg-white dark:bg-[#1a1c23] border border-violet-100 dark:border-violet-900/50 p-2 rounded-lg text-sm shadow-sm">
-                              <div>
-                                {scan.pool_status === "ocr_failed" ? (
-                                  <div className="font-bold text-rose-600 dark:text-rose-400">Failed Scan</div>
-                                ) : (
-                                  <div className="font-semibold text-violet-900 dark:text-violet-100">{scan.display_name}</div>
-                                )}
-                                <div className="text-xs text-violet-600/70 dark:text-violet-400/70 mt-0.5">
-                                  {scan.pool_status === "ocr_failed" ? "รอการแก้ข้อมูลรูปถ่าย" : `${scan.passport_no || "—"} · ${scan.nationality_code || "—"}`}
-                                </div>
+                          <div key={scan.scan_id + i} className="flex items-center justify-between bg-white dark:bg-[#1a1c23] border border-violet-100 dark:border-violet-900/50 p-2 rounded-lg text-sm shadow-sm">
+                            <div>
+                              {scan.pool_status === "ocr_failed" ? (
+                                <div className="font-bold text-rose-600 dark:text-rose-400">Failed Scan</div>
+                              ) : (
+                                <div className="font-semibold text-violet-900 dark:text-violet-100">{scan.display_name}</div>
+                              )}
+                              <div className="text-xs text-violet-600/70 dark:text-violet-400/70 mt-0.5">
+                                {scan.pool_status === "ocr_failed" ? "รอการแก้ข้อมูลรูปถ่าย" : `${scan.passport_no || "—"} · ${scan.nationality_code || "—"}`}
                               </div>
-                              <div>
-                                {scan.pool_status === "ready" ? (
-                                   <button 
-                                     onClick={() => importSingleScan(scan)}
-                                     disabled={step2Busy || isImportingAll}
-                                     className="text-xs font-bold bg-violet-100 dark:bg-violet-900/40 hover:bg-violet-200 text-violet-700 dark:text-violet-300 px-3 py-1.5 rounded"
-                                   >
-                                     Import
-                                   </button>
-                                ) : scan.pool_status === "ocr_failed" ? (
-                                   <button 
-                                     onClick={() => setShowFailedModal({ scanId: scan.scan_id, imagePath: scan.image_path })}
-                                     className="text-xs font-bold bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 px-3 py-1.5 rounded"
-                                   >
-                                     View Photo
-                                   </button>
-                                ) : (
-                                  <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded">Processing</span>
-                                )}
-                              </div>
-                           </div>
+                            </div>
+                            <div>
+                              {scan.pool_status === "ready" ? (
+                                <button
+                                  onClick={() => importSingleScan(scan)}
+                                  disabled={step2Busy || isImportingAll}
+                                  className="text-xs font-bold bg-violet-100 dark:bg-violet-900/40 hover:bg-violet-200 text-violet-700 dark:text-violet-300 px-3 py-1.5 rounded"
+                                >
+                                  Import
+                                </button>
+                              ) : scan.pool_status === "ocr_failed" ? (
+                                <button
+                                  onClick={() => setShowFailedModal({ scanId: scan.scan_id, imagePath: scan.image_path })}
+                                  className="text-xs font-bold bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 px-3 py-1.5 rounded"
+                                >
+                                  View Photo
+                                </button>
+                              ) : (
+                                <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded">Processing</span>
+                              )}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1809,7 +1808,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{searchError}</div>
                   ) : null}
 
-                  <div className="border border-[var(--border-default)] rounded-lg bg-[var(--bg-surface)] max-h-80 overflow-auto">
+                  <div className="border border-[var(--border-default)] dark:border-[#2D333D] rounded-lg bg-[var(--bg-surface)] dark:bg-[#0B0E14] max-h-80 overflow-auto">
                     {searchResults.length === 0 ? (
                       <div className="px-3 py-4 text-sm text-[var(--text-secondary)]">No search result yet.</div>
                     ) : (
@@ -1861,11 +1860,10 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                 {selectedReservations.map((row) => (
                   <div
                     key={row.id}
-                    className={`border rounded-lg p-4 ${
-                      targetReservationId === row.id
-                        ? "border-indigo-300 bg-indigo-50/40"
-                        : "border-[var(--border-default)] bg-[var(--bg-body)]"
-                    }`}
+                    className={`border rounded-lg p-4 transition-colors ${targetReservationId === row.id
+                        ? "border-indigo-300 bg-indigo-50/40 dark:bg-slate-700/40 dark:border-indigo-500/50"
+                        : "border-[var(--border-default)] bg-[var(--bg-body)] dark:bg-[#151921] dark:border-[#2D333D]"
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -1898,7 +1896,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                      <div className="rounded border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-surface)] dark:bg-[#0B0E14] p-3">
                         <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Primary</div>
                         {row.party.primary ? (
                           <div className="mt-1">
@@ -1927,7 +1925,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                         )}
                       </div>
 
-                      <div className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+                      <div className="rounded border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-surface)] dark:bg-[#0B0E14] p-3">
                         <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-2">Accompanying</div>
                         {row.party.accompanying.length === 0 ? (
                           <div className="text-sm text-[var(--text-secondary)]">No accompanying guest</div>
@@ -1989,17 +1987,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 text-sm text-[var(--text-table-cell)]">
+                <div className="rounded-xl border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-body)] dark:bg-[#0B0E14] p-4 text-sm text-[var(--text-table-cell)]">
                   <div className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Current Remaining</div>
-                  <div className="font-bold text-lg mt-1">
+                  <div className="font-bold text-lg mt-1 text-[var(--text-primary)]">
                     ฿ {selectedRemainingTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
-                  <div className="text-xs uppercase tracking-wide text-indigo-600">Planned Payment</div>
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 p-4 text-sm text-indigo-800 dark:text-indigo-300">
+                  <div className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Planned Payment</div>
                   <div className="font-bold text-lg mt-1">฿ {plannedPaymentTotal.toFixed(2)}</div>
                 </div>
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
                   <div className="text-xs uppercase tracking-wide text-emerald-600">Projected Remaining</div>
                   <div className="font-bold text-lg mt-1">฿ {projectedRemainingTotal.toFixed(2)}</div>
                 </div>
@@ -2243,35 +2241,35 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2">Ready: {step4Buckets.ready.length}</div>
-                <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">Not Ready: {step4Buckets.notReady.length}</div>
-                <div className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">Already Done: {step4Buckets.done.length}</div>
+                <div className="rounded border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/15 px-3 py-2 text-emerald-700 dark:text-emerald-400">Ready: {step4Buckets.ready.length}</div>
+                <div className="rounded border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/15 px-3 py-2 text-amber-700 dark:text-amber-400">Not Ready: {step4Buckets.notReady.length}</div>
+                <div className="rounded border border-[var(--border-default)] dark:border-[#2D333D] bg-[var(--bg-body)] dark:bg-[#0B0E14] px-3 py-2 text-[var(--text-secondary)]">Already Done: {step4Buckets.done.length}</div>
               </div>
 
               <div className="space-y-3">
                 {step4Buckets.ready.map((row) => (
-                  <div key={row.id} className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                  <div key={row.id} className="rounded border border-emerald-200 dark:border-emerald-500/10 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
                     {row.booking_code} · Room {row.room_number} · {row.guest_name || "—"}
                   </div>
                 ))}
                 {step4Buckets.notReady.map(({ row, reasons }) => (
-                  <div key={row.id} className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                  <div key={row.id} className="rounded border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                     <div>{row.booking_code} · Room {row.room_number} · {row.guest_name || "—"}</div>
-                    <div className="text-amber-700 text-xs mt-1">{reasons.join(", ")}</div>
+                    <div className="text-amber-700 dark:text-amber-400 text-xs mt-1">{reasons.join(", ")}</div>
                     {!row.profile_completeness.is_complete ? (
                       <div className="text-amber-700 text-xs">Missing: {row.profile_completeness.missing_fields.join(", ")}</div>
                     ) : null}
                   </div>
                 ))}
                 {step4Buckets.done.map((row) => (
-                  <div key={row.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <div key={row.id} className="rounded border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-body)] dark:bg-[#0B0E14] px-3 py-2 text-sm text-[var(--text-secondary)]">
                     {row.booking_code} · Room {row.room_number} already checked in
                   </div>
                 ))}
               </div>
 
               {confirmResults ? (
-                <div className="rounded border border-[var(--border-default)] p-3 bg-[var(--bg-surface)]">
+                <div className="rounded border border-[var(--border-default)] dark:border-[#2D333D] p-3 bg-[var(--bg-surface)] dark:bg-[#151921]">
                   <h3 className="font-semibold text-[var(--text-primary)] mb-2">Confirm Results</h3>
                   <div className="space-y-2 text-sm">
                     {confirmResults.map((row) => (
@@ -2293,7 +2291,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         </div>
       </main>
 
-      <footer className="bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex items-center justify-between sticky bottom-0 z-20">
+      <footer className="bg-[var(--bg-surface)] dark:bg-[#0B0E14] border-t border-[var(--border-default)] dark:border-[#1E2530] px-6 py-4 flex items-center justify-between sticky bottom-0 z-20">
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost" onClick={handleSaveAndExit} disabled={busy || step2Busy}>
             Save Draft & Exit
@@ -2321,46 +2319,46 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       {/* Failed OCR Modal */}
       {showFailedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between bg-[var(--bg-body)]">
-                 <div>
-                    <h3 className="font-bold text-lg text-[var(--text-primary)]">OCR Failed - Manual Entry</h3>
-                    <p className="text-xs font-medium text-[var(--text-secondary)]">Please use Manual Assign to look up or create the profile using this photo.</p>
-                 </div>
-                 <button 
-                   onClick={() => setShowFailedModal(null)}
-                   className="text-[var(--text-muted)] hover:text-rose-500 bg-[var(--bg-surface-hover)] p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition"
-                 >
-                   ✕
-                 </button>
+          <div className="bg-[var(--bg-surface)] dark:bg-[#151921] border border-[var(--border-default)] dark:border-[#2D333D] rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-[var(--border-default)] dark:border-[#1E2530] flex items-center justify-between bg-[var(--bg-body)] dark:bg-[#0B0E14]">
+              <div>
+                <h3 className="font-bold text-lg text-[var(--text-primary)]">OCR Failed - Manual Entry</h3>
+                <p className="text-xs font-medium text-[var(--text-secondary)]">Please use Manual Assign to look up or create the profile using this photo.</p>
               </div>
-              <div className="p-4 bg-[var(--bg-body)] flex justify-center">
-                 {/* Provide placeholder UI since we don't have real S3 buckets setup right now */}
-                 <div className="w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border-4 border-[var(--border-subtle)] relative">
-                    <img 
-                       src="/placeholder-passport.jpg" 
-                       onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-                       className="w-full h-full object-cover opacity-80" 
-                    />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-300 gap-2">
-                       <span className="bg-black/50 px-3 py-1 rounded text-sm font-code backdrop-blur-sm">
-                         Path: {showFailedModal.imagePath || "groups/null/failed.jpg"}
-                       </span>
-                    </div>
-                 </div>
+              <button
+                onClick={() => setShowFailedModal(null)}
+                className="text-[var(--text-muted)] hover:text-rose-500 bg-[var(--bg-surface-hover)] p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 bg-[var(--bg-body)] flex justify-center">
+              {/* Provide placeholder UI since we don't have real S3 buckets setup right now */}
+              <div className="w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border-4 border-[var(--border-subtle)] relative">
+                <img
+                  src="/placeholder-passport.jpg"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  className="w-full h-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-300 gap-2">
+                  <span className="bg-black/50 px-3 py-1 rounded text-sm font-code backdrop-blur-sm">
+                    Path: {showFailedModal.imagePath || "groups/null/failed.jpg"}
+                  </span>
+                </div>
               </div>
-              <div className="p-5 border-t border-[var(--border-default)] bg-[var(--bg-surface)] flex justify-end gap-3">
-                 <button className="btn btn-secondary" onClick={() => setShowFailedModal(null)}>
-                   Close
-                 </button>
-                 <button 
-                  className="btn btn-primary"
-                  onClick={() => setShowFailedModal(null)}
-                 >
-                   Acknowledged
-                 </button>
-              </div>
-           </div>
+            </div>
+            <div className="p-5 border-t border-[var(--border-default)] bg-[var(--bg-surface)] flex justify-end gap-3">
+              <button className="btn btn-secondary" onClick={() => setShowFailedModal(null)}>
+                Close
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowFailedModal(null)}
+              >
+                Acknowledged
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

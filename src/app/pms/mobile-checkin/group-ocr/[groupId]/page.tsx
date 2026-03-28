@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Camera, Image as ImageIcon, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { mockGroupOcrPool, mockGroupOcrScanSuccess } from "@/lib/mock/group-ocr";
+import { buildPassportMrzBlob, PASSPORT_OCR_MAX_FILE_BYTES } from "@/lib/passport-ocr/client-preprocess";
 
 type ScanState = "idle" | "uploading" | "result" | "done";
 
@@ -79,20 +80,23 @@ export default function GroupOcrCameraLoop() {
       setError("Please upload a valid image file (JPEG, PNG).");
       return;
     }
-    
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File size exceeds 5MB limit. Please capture a smaller photo.");
+
+    if (file.size > PASSPORT_OCR_MAX_FILE_BYTES) {
+      setError("File size exceeds 10MB limit. Please capture a smaller photo.");
       return;
     }
 
-    // Set preview
+    // Set preview from original file
     const url = URL.createObjectURL(file);
     setLastPreview(url);
     setState("uploading");
 
     try {
+      // Phase 48 preprocessing: resize → crop MRZ zone → optimize
+      const mrzBlob = await buildPassportMrzBlob(file);
+
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("image", mrzBlob, "passport-mrz.jpg");
       formData.append("booking_group_id", groupId);
 
       const res = await fetch("/api/checkin/group-ocr-scan", {
