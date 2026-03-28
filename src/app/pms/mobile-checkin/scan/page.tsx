@@ -64,7 +64,10 @@ export default function ScanPassport() {
         const res2 = await fetch("/api/checkin/match-booking", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ocr_name: ocrName })
+          body: JSON.stringify({
+            ocr_name: ocrName,
+            scan_id: scanData.scan_id,
+          })
         });
         if (!res2.ok) throw new Error("API not ready");
         const json2 = await res2.json();

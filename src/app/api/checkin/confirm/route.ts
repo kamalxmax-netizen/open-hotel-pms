@@ -3,6 +3,7 @@ import {
   fetchProfileCompleteness,
   getBusinessDate,
   insertCheckinAudit,
+  levenshteinRatioPercent,
   mapCheckinPaymentMethod,
   MobileAccompanyingInput,
   MobileCheckinError,
@@ -50,6 +51,34 @@ const bodySchema = z.object({
   booking_name_note: z.string().optional().nullable(),
 });
 
+function buildReservationImagePath(reservationId: string, currentPath: string): string {
+  const rawName = String(currentPath || "").split("/").pop() || `scan_${Date.now()}.jpg`;
+  const fileName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${reservationId}/${fileName}`;
+}
+
+async function moveScanImageToReservationFolder(params: {
+  supabase: any;
+  scanId: string;
+  reservationId: string;
+  imagePath: string | null;
+}): Promise<void> {
+  const { supabase, scanId, reservationId, imagePath } = params;
+  const fromPath = String(imagePath ?? "").trim();
+  if (!fromPath || !fromPath.startsWith("unmatched/")) return;
+
+  const toPath = buildReservationImagePath(reservationId, fromPath);
+  if (toPath === fromPath) return;
+
+  const { error: copyError } = await supabase.storage
+    .from("passport-photos")
+    .copy(fromPath, toPath);
+  if (copyError) return;
+
+  await supabase.storage.from("passport-photos").remove([fromPath]);
+  await supabase.from("passport_scans").update({ image_path: toPath }).eq("id", scanId);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -83,16 +112,18 @@ export async function POST(request: NextRequest) {
     if (reservation.checked_in_at) {
       throw new MobileCheckinError("Reservation is already checked in.", 409, "ALREADY_CHECKED_IN");
     }
+    const reservationGuestName = String(reservation.guest_name ?? "").trim();
 
     // NOTE: this value comes from passport_scans.match_confidence and is
     // a name-match ratio (Levenshtein 0-100), not MRZ/OCR extraction quality.
     let scanNameMatchConfidence: number | null = null;
     let scanParsed: Record<string, unknown> | null = null;
+    let scanImagePath: string | null = null;
 
     if (payload.scan_id) {
       const { data: scanRow, error: scanError } = await supabase
         .from("passport_scans")
-        .select("id, reservation_id, ocr_parsed, match_confidence")
+        .select("id, reservation_id, ocr_parsed, match_confidence, image_path")
         .eq("id", payload.scan_id)
         .maybeSingle();
 
@@ -103,15 +134,29 @@ export async function POST(request: NextRequest) {
         throw new MobileCheckinError("Passport scan not found.", 404, "SCAN_NOT_FOUND");
       }
 
-      scanNameMatchConfidence = Number(scanRow.match_confidence ?? 0);
-      if (!Number.isFinite(scanNameMatchConfidence)) scanNameMatchConfidence = 0;
+      scanImagePath = String(scanRow.image_path ?? "").trim() || null;
+      const rawConfidence = scanRow.match_confidence;
+      scanNameMatchConfidence = rawConfidence == null ? null : Number(rawConfidence);
+      if (scanNameMatchConfidence != null && !Number.isFinite(scanNameMatchConfidence)) {
+        scanNameMatchConfidence = null;
+      }
       scanParsed = (scanRow.ocr_parsed as Record<string, unknown> | null) ?? null;
+
+      if (scanNameMatchConfidence == null && scanParsed) {
+        const first = String(scanParsed.firstName ?? "").trim();
+        const family = String(scanParsed.familyName ?? "").trim();
+        const parsedName = `${first} ${family}`.trim();
+        if (parsedName && reservationGuestName) {
+          scanNameMatchConfidence = levenshteinRatioPercent(parsedName, reservationGuestName);
+        }
+      }
     }
 
-    const scanBelowThreshold = scanNameMatchConfidence != null && scanNameMatchConfidence < 80;
+    const scanBelowThreshold = payload.scan_id
+      ? scanNameMatchConfidence == null || scanNameMatchConfidence < 80
+      : false;
 
     const guestInfoInput = payload.guest_info as MobileGuestInfoInput;
-    const reservationGuestName = String(reservation.guest_name ?? "").trim();
     const effectiveName = payload.force_draft || scanBelowThreshold
       ? reservationGuestName || guestInfoInput.full_name || "Unknown Guest"
       : guestInfoInput.full_name || reservationGuestName || "Unknown Guest";
@@ -138,7 +183,7 @@ export async function POST(request: NextRequest) {
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const isDraft = Boolean(payload.force_draft || scanBelowThreshold || !completeness.is_complete);
+    const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
 
     const checkinNow = new Date();
     const checkedInAt = isDraft ? null : checkinNow.toISOString();
@@ -180,6 +225,13 @@ export async function POST(request: NextRequest) {
       if (scanUpdateError) {
         throw new MobileCheckinError(scanUpdateError.message, 500, "SCAN_LINK_FAILED");
       }
+
+      await moveScanImageToReservationFolder({
+        supabase,
+        scanId: payload.scan_id,
+        reservationId: payload.reservation_id,
+        imagePath: scanImagePath,
+      });
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
@@ -216,7 +268,7 @@ export async function POST(request: NextRequest) {
       },
       note: [
         isDraft
-          ? "Mobile check-in saved as draft due to incomplete profile or low OCR confidence."
+          ? "Mobile check-in saved as draft due to forced draft mode or low OCR name-match confidence."
           : "Mobile check-in completed.",
         payload.booking_name_note || "",
       ].filter(Boolean).join(" "),

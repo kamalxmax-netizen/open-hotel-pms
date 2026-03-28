@@ -147,6 +147,8 @@ export default function GuestInfo() {
       try {
         const formData = new FormData();
         formData.append("image", file);
+        formData.append("reservation_id", resId);
+        formData.append("guest_index", "0");
         const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
         if (!res.ok) throw new Error("API not ready");
         const json = await res.json();
@@ -199,6 +201,8 @@ export default function GuestInfo() {
       try {
         const formData = new FormData();
         formData.append("image", file);
+        formData.append("reservation_id", resId);
+        formData.append("guest_index", String(idx + 1));
         const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
         if (!res.ok) throw new Error("API not ready");
         const json = await res.json();

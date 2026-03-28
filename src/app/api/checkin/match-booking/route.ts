@@ -22,6 +22,35 @@ function toSortableRoom(roomNumber: string | null): string {
   return String(roomNumber ?? "").trim();
 }
 
+function buildReservationImagePath(reservationId: string, currentPath: string): string {
+  const rawName = String(currentPath || "").split("/").pop() || `scan_${Date.now()}.jpg`;
+  const fileName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${reservationId}/${fileName}`;
+}
+
+async function moveScanImageToReservationFolder(params: {
+  supabase: any;
+  scanId: string;
+  reservationId: string;
+  imagePath: string | null;
+}): Promise<void> {
+  const { supabase, scanId, reservationId, imagePath } = params;
+  const fromPath = String(imagePath ?? "").trim();
+  if (!fromPath || !fromPath.startsWith("unmatched/")) return;
+
+  const toPath = buildReservationImagePath(reservationId, fromPath);
+  if (toPath === fromPath) return;
+
+  const { error: copyError } = await supabase.storage
+    .from("passport-photos")
+    .copy(fromPath, toPath);
+
+  if (copyError) return;
+
+  await supabase.storage.from("passport-photos").remove([fromPath]);
+  await supabase.from("passport_scans").update({ image_path: toPath }).eq("id", scanId);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -114,6 +143,29 @@ export async function POST(request: NextRequest) {
 
       if (scanUpdateError) {
         throw new MobileCheckinError(scanUpdateError.message, 500, "SCAN_UPDATE_FAILED");
+      }
+
+      if (autoMatched && best?.reservation_id) {
+        const { data: linkedScan, error: linkError } = await supabase
+          .from("passport_scans")
+          .update({
+            reservation_id: best.reservation_id,
+            matched_reservation_id: best.reservation_id,
+          })
+          .eq("id", scanId)
+          .select("id, image_path")
+          .maybeSingle();
+
+        if (linkError) {
+          throw new MobileCheckinError(linkError.message, 500, "SCAN_LINK_FAILED");
+        }
+
+        await moveScanImageToReservationFolder({
+          supabase,
+          scanId,
+          reservationId: best.reservation_id,
+          imagePath: linkedScan?.image_path ? String(linkedScan.image_path) : null,
+        });
       }
     }
 

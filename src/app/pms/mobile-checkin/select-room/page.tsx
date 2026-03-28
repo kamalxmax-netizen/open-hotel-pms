@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
@@ -16,6 +17,9 @@ interface Room {
 }
 
 export default function SelectRoom() {
+  const searchParams = useSearchParams();
+  const scanId = searchParams.get("scan_id");
+  const forceDraft = searchParams.get("force_draft") === "true";
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,11 +93,16 @@ export default function SelectRoom() {
           <div className="divide-y divide-[var(--border-default)]">
             {sortedRooms.map((room) => {
               const isDraft = room.status === "draft_checkin";
+              const nextParams = new URLSearchParams();
+              if (scanId) nextParams.set("scan_id", scanId);
+              if (forceDraft || isDraft) nextParams.set("draft", "true");
+              if (forceDraft) nextParams.set("force_draft", "true");
+              const qs = nextParams.toString();
               
               return (
                 <Link 
                   key={room.reservation_id}
-                  href={`/pms/mobile-checkin/guest-info/${room.reservation_id}${isDraft ? "?draft=true" : ""}`}
+                  href={`/pms/mobile-checkin/guest-info/${room.reservation_id}${qs ? `?${qs}` : ""}`}
                   className="block p-4 active:bg-[var(--bg-surface-hover)] transition-colors hover:bg-[var(--bg-surface-hover)]"
                 >
                   <div className="flex justify-between items-start">
