@@ -29,17 +29,27 @@ export async function GET(
       throw new MobileCheckinError("Missing scan id.", 400, "MISSING_SCAN_ID");
     }
     const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
+    const guestIndexParam = request.nextUrl.searchParams.get("guest_index");
 
     let scanQuery = supabase
       .from("passport_scans")
-      .select("id, reservation_id, image_path, ocr_parsed, created_at");
+      .select("id, reservation_id, guest_index, image_path, ocr_parsed, created_at");
 
     if (scanId === "latest") {
       if (!reservationId) {
         throw new MobileCheckinError("reservation_id is required for latest scan.", 400, "MISSING_RESERVATION_ID");
       }
+      scanQuery = scanQuery.eq("reservation_id", reservationId);
+
+      // Filter by guest_index to return the correct guest's scan
+      if (guestIndexParam != null && guestIndexParam !== "") {
+        const gi = Number(guestIndexParam);
+        if (Number.isFinite(gi) && gi >= 0) {
+          scanQuery = scanQuery.eq("guest_index", gi);
+        }
+      }
+
       scanQuery = scanQuery
-        .eq("reservation_id", reservationId)
         .order("created_at", { ascending: false })
         .limit(1);
     } else {
@@ -80,6 +90,7 @@ export async function GET(
       success: true,
       data: {
         scan_id: scanRow.id,
+        guest_index: (scanRow as any).guest_index ?? 0,
         url: signed.signedUrl,
         ocr_parsed: scanRow.ocr_parsed ?? null,
         created_at: scanRow.created_at,

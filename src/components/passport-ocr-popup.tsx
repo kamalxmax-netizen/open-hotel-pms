@@ -186,6 +186,7 @@ export default function PassportOcrPopup() {
   const importTarget = searchParams.get("target") === "accompany" ? "accompany" : "main";
   const scanId = searchParams.get("scan_id");
   const reservationId = searchParams.get("reservation_id");
+  const guestIndex = searchParams.get("guest_index");
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -233,7 +234,10 @@ export default function PassportOcrPopup() {
       setStatusText("Loading saved passport data...");
       try {
         const targetScanId = scanId || "latest";
-        const qs = reservationId ? `?reservation_id=${encodeURIComponent(reservationId)}` : "";
+        const qsParts: string[] = [];
+        if (reservationId) qsParts.push(`reservation_id=${encodeURIComponent(reservationId)}`);
+        if (guestIndex != null && guestIndex !== "") qsParts.push(`guest_index=${encodeURIComponent(guestIndex)}`);
+        const qs = qsParts.length > 0 ? `?${qsParts.join("&")}` : "";
         const res = await fetch(`/api/checkin/passport-photo/${targetScanId}${qs}`);
         const payload = await res.json().catch(() => null);
         if (!res.ok || !payload?.success) {
@@ -273,7 +277,7 @@ export default function PassportOcrPopup() {
     };
     
     loadSavedScan();
-  }, [reservationId, scanId]);
+  }, [reservationId, scanId, guestIndex]);
 
   const updateSelectedFile = (file: File | null) => {
     setSelectedFile(file);

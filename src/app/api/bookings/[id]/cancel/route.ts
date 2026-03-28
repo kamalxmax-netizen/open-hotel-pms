@@ -3,6 +3,12 @@ import { z } from "zod";
 import { mapBookingErrorToStatus } from "@/lib/bookings";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { assertBusinessDayOpen, normalizeOperatorPaymentMethod, toLocalDate } from "@/lib/folio-fees";
+import {
+  loadReservationSheetSyncGroups,
+  pushToGoogleSheet,
+  type ReservationSheetSyncGroup,
+  type SheetSyncDateEntry,
+} from "@/lib/google-sheet-sync";
 import { computePrepaidNetAmount, suggestRefundMethod } from "@/lib/settlement-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
@@ -105,6 +111,42 @@ async function resolveDirtyRoomIdForReservation(params: {
   const roomForToday = nights.find((row: any) => String(row?.stay_date ?? "") === localDate);
   const fallbackRoom = roomForToday ?? nights[0];
   return fallbackRoom?.room_id ? String(fallbackRoom.room_id) : null;
+}
+
+function mergeSheetSyncGroupsByRoom(
+  groupedByReservationId: Map<string, ReservationSheetSyncGroup[]>,
+  reservationIds: string[]
+): ReservationSheetSyncGroup[] {
+  const byRoom = new Map<string, Map<string, SheetSyncDateEntry>>();
+
+  for (const reservationId of reservationIds) {
+    const groups = groupedByReservationId.get(reservationId) ?? [];
+    for (const group of groups) {
+      const roomNumber = String(group.room_number ?? "").trim();
+      if (!roomNumber) continue;
+      if (!byRoom.has(roomNumber)) {
+        byRoom.set(roomNumber, new Map<string, SheetSyncDateEntry>());
+      }
+      const byDate = byRoom.get(roomNumber)!;
+      for (const entry of group.dates ?? []) {
+        const stayDate = String(entry?.date ?? "").trim();
+        if (!stayDate) continue;
+        byDate.set(stayDate, {
+          date: stayDate,
+          guest_name: null,
+          price: 0,
+          is_ota: false,
+        });
+      }
+    }
+  }
+
+  return Array.from(byRoom.entries())
+    .map(([roomNumber, byDate]) => ({
+      room_number: roomNumber,
+      dates: Array.from(byDate.values()).sort((left, right) => left.date.localeCompare(right.date)),
+    }))
+    .filter((group) => group.dates.length > 0);
 }
 
 export async function POST(
@@ -269,6 +311,32 @@ export async function POST(
   }
 
   const secondaryCancelTargets = activeCancelTargets.filter((row) => row.id !== reservationId);
+  const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
+  const shouldAttemptGoogleSheetSync = Boolean(syncApiKey);
+  const preCancelSyncGroupsByReservationId = new Map<string, ReservationSheetSyncGroup[]>();
+
+  if (shouldAttemptGoogleSheetSync) {
+    await Promise.all(
+      activeCancelTargets.map(async (target) => {
+        try {
+          const groups = await loadReservationSheetSyncGroups({
+            supabase: supabase as any,
+            reservationId: target.id,
+            action: "clear",
+            includeCancelledNights: false,
+          });
+          preCancelSyncGroupsByReservationId.set(target.id, groups);
+        } catch (error) {
+          cancellationWarnings.push(
+            `Google Sheet pre-cancel snapshot failed (${target.booking_code ?? target.id}): ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+      })
+    );
+  }
+
   const checkinByReservationId = new Map<string, boolean>();
   const dirtyRoomIdByReservationId = new Map<string, string | null>();
   await Promise.all(
@@ -506,6 +574,28 @@ export async function POST(
       const warningMessage = `Group status sync after cancel failed (${groupId}): ${String((syncError as any)?.message ?? syncError)}`;
       cancellationWarnings.push(warningMessage);
       console.error("group status sync after cancel failed:", groupId, syncError);
+    }
+  }
+
+  if (shouldAttemptGoogleSheetSync) {
+    const groupedByRoom = mergeSheetSyncGroupsByRoom(
+      preCancelSyncGroupsByReservationId,
+      cancelledReservationIds
+    );
+
+    if (groupedByRoom.length > 0) {
+      void Promise.allSettled(
+        groupedByRoom.map((group) =>
+          pushToGoogleSheet({
+            action: "clear",
+            room_number: group.room_number,
+            dates: group.dates,
+            api_key: syncApiKey,
+          })
+        )
+      ).catch((error) => {
+        console.error("[GoogleSheetSync] cancel sync failed:", error);
+      });
     }
   }
 

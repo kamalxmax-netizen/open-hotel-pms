@@ -1646,16 +1646,19 @@ export default function ReservationDetailPage({
         popup.focus();
     }, []);
 
-    const openPassportOcr = useCallback((target: IdentityImportTarget = "main") => {
+    const openPassportOcr = useCallback((target: IdentityImportTarget = "main", guestIndex?: number) => {
         if (typeof window === "undefined") return;
         const params = new URLSearchParams({
             popup: "1",
             target,
             t: String(Date.now())
         });
-        if (reservationId && target === "main") {
+        if (reservationId) {
             params.set("scan_id", "latest");
             params.set("reservation_id", reservationId);
+            // guest_index: 0=main, 1+=accompanying (maps to display_order - 1)
+            const gi = target === "main" ? 0 : (guestIndex ?? 0);
+            params.set("guest_index", String(gi));
         }
         const url = `${window.location.origin}/passport-ocr?${params.toString()}`;
         const popup = window.open(
@@ -5098,7 +5101,13 @@ export default function ReservationDetailPage({
                                         <button
                                             type="button"
                                             className="btn btn-secondary btn-sm"
-                                            onClick={() => openPassportOcr("accompany")}
+                                            onClick={() => {
+                                                const member = partyDraft.linkedMemberId
+                                                    ? displayedParty.find((m) => m.id === partyDraft.linkedMemberId)
+                                                    : null;
+                                                const gi = member ? (member.display_order ?? 1) - 1 : accompanyingGuests.length;
+                                                openPassportOcr("accompany", Math.max(1, gi));
+                                            }}
                                             disabled={isReadonly}
                                         >
                                             Passport OCR

@@ -163,6 +163,79 @@ export function levenshteinRatioPercent(a: string, b: string): number {
   return Math.max(0, Math.min(100, Math.round(ratio * 100)));
 }
 
+/**
+ * Token Subset Matching:
+ * ตรวจว่าทุก token ของชื่อที่สั้นกว่า อยู่ในชื่อที่ยาวกว่าหรือไม่
+ * เหมาะกับกรณี: จอง "DOORTJE DE VRIES" → Passport "DOORTJE CARICE MADELIEF DE VRIES"
+ */
+function tokenSubsetConfidence(a: string, b: string): number {
+  const tokensA = normalizeForNameMatch(a).split(" ").filter(Boolean);
+  const tokensB = normalizeForNameMatch(b).split(" ").filter(Boolean);
+  if (!tokensA.length || !tokensB.length) return 0;
+
+  // shorter = query tokens, longer = target tokens
+  const [shorter, longer] = tokensA.length <= tokensB.length
+    ? [tokensA, tokensB]
+    : [tokensB, tokensA];
+
+  let matched = 0;
+  const used = new Set<number>();
+  for (const token of shorter) {
+    for (let i = 0; i < longer.length; i++) {
+      if (used.has(i)) continue;
+      // Allow fuzzy per-token match (1 char difference for tokens > 3 chars)
+      if (token === longer[i] ||
+          (token.length > 3 && longer[i].length > 3 &&
+           levenshteinDistance(token, longer[i]) <= 1)) {
+        matched++;
+        used.add(i);
+        break;
+      }
+    }
+  }
+
+  // All tokens of the shorter name must be found in the longer name
+  const ratio = matched / shorter.length;
+  return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+}
+
+/**
+ * First + Last Name Matching:
+ * เทียบชื่อแรก + นามสกุลท้าย แยกกัน แล้วเฉลี่ย
+ * เหมาะกับชื่อที่มี middle name หลายตัว
+ */
+function firstLastConfidence(a: string, b: string): number {
+  const tokensA = normalizeForNameMatch(a).split(" ").filter(Boolean);
+  const tokensB = normalizeForNameMatch(b).split(" ").filter(Boolean);
+  if (!tokensA.length || !tokensB.length) return 0;
+
+  const firstA = tokensA[0];
+  const lastA = tokensA[tokensA.length - 1];
+  const firstB = tokensB[0];
+  const lastB = tokensB[tokensB.length - 1];
+
+  const firstScore = levenshteinRatioPercent(firstA, firstB);
+  const lastScore = levenshteinRatioPercent(lastA, lastB);
+
+  // Both first and last name must match well (weighted: 40% first, 60% last)
+  // If either is very low, penalize heavily
+  if (firstScore < 50 || lastScore < 50) return Math.min(firstScore, lastScore);
+  return Math.round(firstScore * 0.4 + lastScore * 0.6);
+}
+
+/**
+ * Smart Name Confidence — Multi-Strategy (เอาคะแนนสูงสุดจาก 3 วิธี):
+ * 1. Levenshtein (char-by-char) — ดีสำหรับ typo
+ * 2. Token Subset — ดีสำหรับชื่อจองไม่ครบ / มี middle name
+ * 3. First+Last — ดีสำหรับชื่อยาวมาก แต่ชื่อ-นามสกุลตรง
+ */
+export function smartNameConfidence(a: string, b: string): number {
+  const lev = levenshteinRatioPercent(a, b);
+  const subset = tokenSubsetConfidence(a, b);
+  const fl = firstLastConfidence(a, b);
+  return Math.max(lev, subset, fl);
+}
+
 export function mapCheckinPaymentMethod(raw: unknown): "cash" | "transfer" | "credit_card" | null {
   const value = String(raw ?? "").trim().toLowerCase();
   if (!value) return null;

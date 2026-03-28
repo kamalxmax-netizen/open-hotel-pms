@@ -1,7 +1,7 @@
 import {
   getBusinessDate,
   isUuid,
-  levenshteinRatioPercent,
+  smartNameConfidence,
   MobileCheckinError,
   requireMobileCheckinAuth,
 } from "@/lib/mobile-checkin";
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       .from("reservations")
       .select("id, guest_name, checkin_date, checkout_date, source, status")
       .eq("checkin_date", businessDate)
-      .in("status", ["active", "draft_checkin"])
+      .eq("status", "active")
       .is("checked_in_at", null);
 
     if (dueError) {
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         checkin_date: row.checkin_date,
         checkout_date: row.checkout_date,
         source: row.source,
-        confidence: levenshteinRatioPercent(ocrName, row.guest_name),
+        confidence: smartNameConfidence(ocrName, row.guest_name),
       }))
       .sort((a, b) => {
         if (b.confidence !== a.confidence) return b.confidence - a.confidence;
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     const autoMatched = Boolean(best && best.confidence >= 80);
 
     if (scanId && isUuid(scanId)) {
-      // NOTE: match_confidence stores name-match ratio (Levenshtein 0-100),
+      // NOTE: match_confidence stores name-match ratio (smart multi-strategy 0-100),
       // not OCR/MRZ extraction quality.
       const { error: scanUpdateError } = await supabase
         .from("passport_scans")

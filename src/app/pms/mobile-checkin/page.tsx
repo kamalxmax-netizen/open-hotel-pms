@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw } from "lucide-react";
+import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload } from "lucide-react";
 
 interface Room {
   reservation_id: string;
@@ -105,6 +105,28 @@ export default function MobileCheckinLanding() {
                   </span>
                 </div>
               )}
+            </div>
+          </Link>
+        </div>
+
+        {/* Fill OCR */}
+        <div>
+          <Link href="/pms/mobile-checkin/fill-ocr" className="block">
+            <div className="relative overflow-hidden rounded-2xl bg-indigo-600 p-6 shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center gap-5">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white shrink-0">
+                <Upload className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-white tracking-widest uppercase">
+                  Fill OCR
+                </h2>
+                <p className="mt-1 text-indigo-200 font-medium text-sm">
+                  Upload passport photo &rarr; auto-fill guest info
+                </p>
+                <p className="text-indigo-300 text-xs font-semibold mt-0.5">
+                  ไม่บันทึกรูป — เก็บแค่ข้อมูลตัวอักษร
+                </p>
+              </div>
             </div>
           </Link>
         </div>

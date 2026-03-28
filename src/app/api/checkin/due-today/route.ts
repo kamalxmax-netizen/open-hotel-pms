@@ -155,12 +155,70 @@ export async function GET(request: NextRequest) {
         })
       );
 
+    // Optional: include in-house rooms (for Fill OCR feature)
+    const includeInhouse = request.nextUrl.searchParams.get("include_inhouse") === "1";
+    let inhouse: typeof rooms = [];
+
+    if (includeInhouse) {
+      const { data: inhouseRows, error: inhouseError } = await supabase
+        .from("reservations")
+        .select("id, guest_name, source, checkin_date, checkout_date, total_price, status, guest_profile_id, checked_in_at")
+        .eq("status", "active")
+        .not("checked_in_at", "is", null)
+        .lte("checkin_date", businessDate)
+        .gt("checkout_date", businessDate)
+        .order("id", { ascending: true });
+
+      if (!inhouseError && inhouseRows) {
+        const inhouseIds = inhouseRows.map((row: any) => String(row.id));
+        const inhouseRoomMap = new Map<string, string | null>();
+
+        if (inhouseIds.length > 0) {
+          const { data: inhouseNights } = await supabase
+            .from("reservation_nights")
+            .select("reservation_id, rooms(room_number)")
+            .in("reservation_id", inhouseIds)
+            .eq("stay_date", businessDate)
+            .is("cancelled_at", null);
+
+          for (const row of inhouseNights ?? []) {
+            const rid = String((row as any).reservation_id ?? "");
+            if (!rid || inhouseRoomMap.has(rid)) continue;
+            const roomRef = Array.isArray((row as any).rooms) ? (row as any).rooms[0] : (row as any).rooms;
+            inhouseRoomMap.set(rid, roomRef?.room_number ? String(roomRef.room_number) : null);
+          }
+        }
+
+        inhouse = inhouseRows.map((row: any) => ({
+          reservation_id: String(row.id),
+          room_number: inhouseRoomMap.get(String(row.id)) ?? null,
+          guest_name: String(row.guest_name ?? "").trim(),
+          source: String(row.source ?? "walkin"),
+          checkin_date: String(row.checkin_date ?? ""),
+          checkout_date: String(row.checkout_date ?? ""),
+          nights: daysBetween(String(row.checkin_date ?? ""), String(row.checkout_date ?? "")),
+          total_price: Number(row.total_price ?? 0),
+          status: "in_house",
+          reservation_status: "active",
+          has_passport_scan: false,
+          profile_complete: true,
+          missing_fields: [] as string[],
+        })).sort((a, b) =>
+          toSortableRoom(a.room_number).localeCompare(toSortableRoom(b.room_number), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         business_date: businessDate,
         server_date: toBangkokDate(),
         rooms,
+        ...(includeInhouse ? { inhouse } : {}),
       },
     });
   } catch (error) {

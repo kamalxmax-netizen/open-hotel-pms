@@ -22,6 +22,7 @@ import {
 } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
+import { loadReservationSheetSyncGroups, pushToGoogleSheet } from "@/lib/google-sheet-sync";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -606,6 +607,36 @@ export async function POST(request: NextRequest) {
     }
   } catch (auditError) {
     console.error("booking create audit ensure failed", auditError);
+  }
+
+  const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
+  if (syncApiKey) {
+    const reservationIdForSync = String((reservation as any)?.id ?? "");
+    if (reservationIdForSync) {
+      void (async () => {
+        try {
+          const grouped = await loadReservationSheetSyncGroups({
+            supabase: supabase as any,
+            reservationId: reservationIdForSync,
+            action: "upsert",
+            includeCancelledNights: false,
+          });
+
+          await Promise.allSettled(
+            grouped.map((group) =>
+              pushToGoogleSheet({
+                action: "upsert",
+                room_number: group.room_number,
+                dates: group.dates,
+                api_key: syncApiKey,
+              })
+            )
+          );
+        } catch (error) {
+          console.error("[GoogleSheetSync] booking create sync failed:", error);
+        }
+      })();
+    }
   }
 
   return NextResponse.json(

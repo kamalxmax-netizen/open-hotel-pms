@@ -107,7 +107,8 @@ export default function GuestInfo() {
         if (parsed.selected_profile_id) {
           setSelectedProfileId(String(parsed.selected_profile_id));
         }
-        if (parsed.accompanying) setAccompanying(parsed.accompanying);
+        if (parsed.accompanying_guests) setAccompanying(parsed.accompanying_guests);
+        else if (parsed.accompanying) setAccompanying(parsed.accompanying);
         return;
       }
 
@@ -213,13 +214,13 @@ export default function GuestInfo() {
   const onNext = () => {
     if (!mainGuest.full_name.trim()) return alert("Main Guest Name is required.");
     
-    // Save to session
+    // Save to session — key must be "accompanying_guests" to match API schema
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify({
       scan_id: mainScanId,
       force_draft: forceDraft,
       selected_profile_id: selectedProfileId,
       guest_info: mainGuest,
-      accompanying,
+      accompanying_guests: accompanying,
       booking_name_note: bookingNameNote,
     }));
     

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { loadReservationSheetSyncGroups, pushToGoogleSheet } from "@/lib/google-sheet-sync";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createLinkedExtensionReservation, isKnownLinkedExtensionError } from "@/lib/linked-extension";
 
@@ -48,6 +49,34 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         copy_preferences: Boolean(parsedBody.data.copy_preferences),
       },
     });
+
+    const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
+    if (syncApiKey && result?.reservation_id) {
+      const reservationIdForSync = String(result.reservation_id);
+      void (async () => {
+        try {
+          const grouped = await loadReservationSheetSyncGroups({
+            supabase: supabase as any,
+            reservationId: reservationIdForSync,
+            action: "upsert",
+            includeCancelledNights: false,
+          });
+
+          await Promise.allSettled(
+            grouped.map((group) =>
+              pushToGoogleSheet({
+                action: "upsert",
+                room_number: group.room_number,
+                dates: group.dates,
+                api_key: syncApiKey,
+              })
+            )
+          );
+        } catch (error) {
+          console.error("[GoogleSheetSync] linked extension create sync failed:", error);
+        }
+      })();
+    }
 
     return NextResponse.json(result);
   } catch (error) {

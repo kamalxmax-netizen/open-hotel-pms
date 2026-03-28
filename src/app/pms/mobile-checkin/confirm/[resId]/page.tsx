@@ -174,9 +174,9 @@ export default function ConfirmStep() {
                   ) : <span className="text-rose-500 font-bold">No Nation</span>}
                 </p>
 
-                {sessionData.accompanying?.length > 0 && (
+                {(sessionData.accompanying_guests?.length > 0 || sessionData.accompanying?.length > 0) && (
                   <p className="text-xs font-semibold text-[var(--text-muted)] mt-2">
-                    + {sessionData.accompanying.length} accompanying passenger(s)
+                    + {(sessionData.accompanying_guests || sessionData.accompanying).length} accompanying passenger(s)
                   </p>
                 )}
               </div>
