@@ -71,7 +71,7 @@ export async function POST(
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
-      .select("id, guest_name, guest_profile_id, status, checked_in_at")
+      .select("id, guest_name, guest_profile_id, status, checked_in_at, checkin_time")
       .eq("id", reservationId)
       .maybeSingle();
 
@@ -120,7 +120,9 @@ export async function POST(
 
     const checkinNow = new Date();
     const checkedInAt = canComplete ? checkinNow.toISOString() : null;
-    const checkinTime = canComplete ? toBangkokTimeHHmm(checkinNow) : null;
+    const existingCheckinTime = String((reservation as any)?.checkin_time ?? "").trim();
+    const nowCheckinTime = toBangkokTimeHHmm(checkinNow);
+    const checkinTime = canComplete ? nowCheckinTime : existingCheckinTime || nowCheckinTime;
 
     const { error: reservationUpdateError } = await supabase
       .from("reservations")

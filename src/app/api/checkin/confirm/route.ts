@@ -11,6 +11,7 @@ import {
   requireMobileCheckinAuth,
   resolvePrimaryGuestProfile,
   syncAccompanyingGuests,
+  toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
-      .select("id, booking_code, guest_name, guest_profile_id, status, checked_in_at, note")
+      .select("id, booking_code, guest_name, guest_profile_id, status, checked_in_at, checkin_time, note")
       .eq("id", payload.reservation_id)
       .maybeSingle();
 
@@ -229,6 +230,8 @@ export async function POST(request: NextRequest) {
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
     const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
+    const existingCheckinTime = String((reservation as any)?.checkin_time ?? "").trim();
+    const draftCapturedCheckinTime = existingCheckinTime || toBangkokTimeHHmm(new Date());
 
     // Mobile check-in only saves guest data — FO does actual C/I from desktop.
     // No checked_in_at stamp here.
@@ -239,14 +242,20 @@ export async function POST(request: NextRequest) {
       guest_profile_id: reservation.guest_profile_id ?? null,
     };
 
+    const reservationUpdatePayload: Record<string, unknown> = {
+      status: "active",
+      guest_name: effectiveName,
+      guest_profile_id: resolvedPrimary.guestProfileId,
+      note: nextReservationNote,
+    };
+    if (isDraft) {
+      // Capture arrival/check-in attempt time for draft without marking as in-house.
+      reservationUpdatePayload.checkin_time = draftCapturedCheckinTime;
+    }
+
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
-      .update({
-        status: "active",
-        guest_name: effectiveName,
-        guest_profile_id: resolvedPrimary.guestProfileId,
-        note: nextReservationNote,
-      })
+      .update(reservationUpdatePayload)
       .eq("id", payload.reservation_id);
 
     if (reservationUpdateError) {
@@ -304,6 +313,7 @@ export async function POST(request: NextRequest) {
         checked_in_at: null,
         guest_profile_id: resolvedPrimary.guestProfileId,
         is_draft: isDraft,
+        checkin_time: isDraft ? draftCapturedCheckinTime : existingCheckinTime || null,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
       },

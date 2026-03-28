@@ -10,7 +10,7 @@ export default function DepositStep() {
   const resId = params.resId as string;
 
   const [method, setMethod] = useState<string>("cash");
-  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [depositAmount, setDepositAmount] = useState<string>("200");
 
   useEffect(() => {
     const saved = sessionStorage.getItem(`mobile-checkin-${resId}`);
@@ -20,7 +20,11 @@ export default function DepositStep() {
     }
     const parsed = JSON.parse(saved);
     if (parsed.deposit_method) setMethod(parsed.deposit_method);
-    if (parsed.deposit_amount != null) setDepositAmount(String(parsed.deposit_amount));
+    if (parsed.deposit_amount != null) {
+      setDepositAmount(String(parsed.deposit_amount));
+    } else {
+      setDepositAmount("200");
+    }
   }, [resId, router]);
 
   const onNext = () => {
