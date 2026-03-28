@@ -52,6 +52,44 @@ const bodySchema = z.object({
   booking_name_note: z.string().optional().nullable(),
 });
 
+const BOOKED_NAME_NOTE_PREFIX = "จองมาในชื่อ ";
+
+function buildUpsertedBookingNameNote(params: {
+  existingNote: unknown;
+  bookingNameNote: unknown;
+  originalReservationName: string;
+  effectiveGuestName: string;
+}): string | null {
+  const existingNote = String(params.existingNote ?? "").trim();
+  const explicitNoteRaw = String(params.bookingNameNote ?? "").trim();
+  const hasPrefix = explicitNoteRaw.startsWith(BOOKED_NAME_NOTE_PREFIX);
+  let nextBookedNameLine = explicitNoteRaw;
+
+  if (explicitNoteRaw && !hasPrefix) {
+    nextBookedNameLine = `${BOOKED_NAME_NOTE_PREFIX}${explicitNoteRaw}`.trim();
+  }
+
+  if (!nextBookedNameLine) {
+    const original = String(params.originalReservationName ?? "").trim();
+    const current = String(params.effectiveGuestName ?? "").trim();
+    if (original && current && original.toLowerCase() !== current.toLowerCase()) {
+      nextBookedNameLine = `${BOOKED_NAME_NOTE_PREFIX}${original}`;
+    }
+  }
+
+  const retained = existingNote
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim() && !line.trim().startsWith(BOOKED_NAME_NOTE_PREFIX.trim()));
+
+  if (nextBookedNameLine) {
+    retained.push(nextBookedNameLine);
+  }
+
+  const merged = retained.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return merged || null;
+}
+
 function buildReservationImagePath(reservationId: string, currentPath: string): string {
   const rawName = String(currentPath || "").split("/").pop() || `scan_${Date.now()}.jpg`;
   const fileName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -95,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
-      .select("id, booking_code, guest_name, guest_profile_id, status, checked_in_at")
+      .select("id, booking_code, guest_name, guest_profile_id, status, checked_in_at, note")
       .eq("id", payload.reservation_id)
       .maybeSingle();
 
@@ -160,6 +198,12 @@ export async function POST(request: NextRequest) {
     const guestInfoInput = payload.guest_info as MobileGuestInfoInput;
     // Always use OCR/form name — booking name goes to booking_name_note
     const effectiveName = guestInfoInput.full_name || reservationGuestName || "Unknown Guest";
+    const nextReservationNote = buildUpsertedBookingNameNote({
+      existingNote: (reservation as any)?.note ?? null,
+      bookingNameNote: payload.booking_name_note ?? null,
+      originalReservationName: reservationGuestName,
+      effectiveGuestName: effectiveName,
+    });
 
     const resolvedPrimary = await resolvePrimaryGuestProfile({
       supabase,
@@ -201,6 +245,7 @@ export async function POST(request: NextRequest) {
         status: "active",
         guest_name: effectiveName,
         guest_profile_id: resolvedPrimary.guestProfileId,
+        note: nextReservationNote,
       })
       .eq("id", payload.reservation_id);
 
