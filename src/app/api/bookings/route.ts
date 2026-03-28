@@ -21,6 +21,7 @@ import {
   syncReservationNightDependencyMetadata,
 } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
+import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -119,6 +120,7 @@ const createBookingSchema = z.object({
   source: z.enum(["walkin", "ota", "direct", "agent"]).default("walkin"),
   phone: z.string().optional(),
   checkin_time: z.string().optional(),
+  expected_arrival_time: z.string().optional().nullable(),
   note: z.string().optional(),
   ota_ref: z.string().optional(),
   ota_prices: z.array(z.number()).optional(),
@@ -242,6 +244,12 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = parsed.data;
+  let normalizedExpectedArrivalTime: string | null = null;
+  try {
+    normalizedExpectedArrivalTime = normalizeExpectedArrivalTime(payload.expected_arrival_time);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
   const normalizedRoomTypeText = typeof payload.room_type_id === "string" ? payload.room_type_id.trim() : "";
   if (normalizedRoomTypeText && !/^\d+$/u.test(normalizedRoomTypeText)) {
     return NextResponse.json({ error: "Invalid room_type_id format." }, { status: 400 });
@@ -446,10 +454,11 @@ export async function POST(request: NextRequest) {
       discount_value: payload.discount_value ?? payload.discount_percent ?? 0,
       discount_reason: payload.discount_reason?.trim() || null,
       rate_plan_id: payload.rate_plan_id || null,
-      booking_group_id: payload.booking_group_id || null
+      booking_group_id: payload.booking_group_id || null,
+      expected_arrival_time: normalizedExpectedArrivalTime,
     })
     .eq("id", reservation.id);
-  if (reservationExtraError && /discount_type|discount_value/i.test(reservationExtraError.message)) {
+  if (reservationExtraError && /discount_type|discount_value|expected_arrival_time/i.test(reservationExtraError.message)) {
     const fallbackExtra = await supabase
       .from("reservations")
       .update({
@@ -459,13 +468,23 @@ export async function POST(request: NextRequest) {
         discount_percent: payload.discount_percent ?? 0,
         discount_reason: payload.discount_reason?.trim() || null,
         rate_plan_id: payload.rate_plan_id || null,
-        booking_group_id: payload.booking_group_id || null
+        booking_group_id: payload.booking_group_id || null,
       })
       .eq("id", reservation.id);
     reservationExtraError = fallbackExtra.error;
   }
   if (reservationExtraError) {
     return NextResponse.json({ error: reservationExtraError.message }, { status: 500 });
+  }
+
+  try {
+    await syncExpectedArrivalAlert({
+      supabase,
+      reservationId: String(reservation.id),
+      expectedArrivalTime: normalizedExpectedArrivalTime,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 
   if (payload.guest_profile_id) {

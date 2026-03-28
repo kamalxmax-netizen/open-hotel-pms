@@ -8,6 +8,7 @@ import RoomMoveModal from "./room-move-modal";
 import LinkedExtensionModal from "./linked-extension-modal";
 import LinkStayModal from "./link-stay-modal";
 import CancelFeeModal, { CancelFeePayload } from "./cancel-fee-modal";
+import LateCheckoutFeeModal, { PolicyFeePayload } from "./late-checkout-fee-modal";
 import { DayUseTimer } from "./dayuse-timer";
 import type { LinkedStay } from "@/lib/types";
 import { LinkedStayBadge } from "./linked-stay-badge";
@@ -35,6 +36,7 @@ export type RoomDrawerRoom = {
         source: BookingSource;
         checkin_date: string;
         checkout_date: string;
+        expected_arrival_time?: string | null;
         checked_in_at?: string | null;
         total_price: number;
         note?: string | null;
@@ -235,6 +237,9 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [showLinkStayModal, setShowLinkStayModal] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showEarlyCheckoutConfirm, setShowEarlyCheckoutConfirm] = useState(false);
+    const [showLateCheckoutModal, setShowLateCheckoutModal] = useState(false);
+    const [lateCheckoutSuggestedFee, setLateCheckoutSuggestedFee] = useState(0);
+    const [lateCheckoutAfter1600, setLateCheckoutAfter1600] = useState(false);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [cancelLoading, setCancelLoading] = useState(false);
     const [msg, setMsg] = useState("");
@@ -283,6 +288,37 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             return `Housekeeping already finished${maidSuffix}. Dirty / No Service is locked.`;
         }
         return payload.error ?? "Room housekeeping state is locked.";
+    }
+
+    function getBangkokTimeHHmm(date = new Date()): string {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Asia/Bangkok",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        }).formatToParts(date);
+        const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+        const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+        return `${hour}:${minute}`;
+    }
+
+    async function resolveLastNightRate(reservationId: string, fallbackRate: number): Promise<number> {
+        try {
+            const response = await fetch(`/api/bookings/${reservationId}`, { cache: "no-store" });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) return fallbackRate;
+            const reservation = payload?.reservation as { reservation_nights?: any[] } | undefined;
+            const nights = Array.isArray(reservation?.reservation_nights) ? reservation!.reservation_nights : [];
+            const activeNights = nights
+                .filter((row) => !row?.cancelled_at)
+                .sort((a, b) => String(a?.stay_date ?? "").localeCompare(String(b?.stay_date ?? "")));
+            if (activeNights.length === 0) return fallbackRate;
+            const lastNight = activeNights[activeNights.length - 1];
+            const parsed = Number(lastNight?.nightly_price ?? fallbackRate);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackRate;
+        } catch {
+            return fallbackRate;
+        }
     }
 
     // ESC to close
@@ -517,6 +553,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const assignedLockRoomNumber = res?.do_not_move_room_number_snapshot ?? room.room_number;
     const canLockRoom = Boolean(res && res.id && room.room_id && !res.checked_in_at);
     const canEarlyCheckout = Boolean(res && diaryState === "inhouse");
+    const canLateCheckout = Boolean(res && !room.is_dayuse && (diaryState === "due_out" || diaryState === "back_to_back"));
     const canManageDeposit = Boolean(res?.checked_in_at);
     const canShowMore = Boolean(
         canManageDeposit || 
@@ -524,6 +561,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
         (canInHouseActions && res?.room_type_id) || 
         (canLockRoom && !assignedLockActive) || 
         (canLockRoom && assignedLockActive) || 
+        canLateCheckout ||
         canEarlyCheckout || 
         canCancel
     );
@@ -736,6 +774,48 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             onClose();
         } finally {
             setLockLoading(false);
+        }
+    }
+
+    async function handleOpenLateCheckoutModal() {
+        if (!res?.id) return;
+        const nowHHmm = getBangkokTimeHHmm();
+        const isAfter1600 = nowHHmm >= "16:01";
+        const fallbackLastNightRate = nights > 0 ? stayTotalPrice / nights : 0;
+        const lastNightRate = await resolveLastNightRate(res.id, fallbackLastNightRate);
+        setLateCheckoutAfter1600(isAfter1600);
+        setLateCheckoutSuggestedFee(isAfter1600 ? lastNightRate : lastNightRate * 0.5);
+        setShowLateCheckoutModal(true);
+    }
+
+    async function handleConfirmLateCheckout(payload: PolicyFeePayload | null) {
+        if (!res?.id) return;
+        if (!payload) {
+            setShowLateCheckoutModal(false);
+            setMsg("Late C/O pre-approve cancelled.");
+            return;
+        }
+        try {
+            const response = await fetch(`/api/bookings/${res.id}/late-checkout`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    amount: payload.amount,
+                    payment_method: payload.payment_method,
+                    note: payload.note,
+                }),
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result?.success === false) {
+                setMsg(result?.error ?? "Failed to save Late C/O.");
+                return;
+            }
+            setMsg(result?.note_appended ? "Late C/O saved and note appended." : "Late C/O saved.");
+            setShowLateCheckoutModal(false);
+            setFolioRefreshToken((value) => value + 1);
+            onRefresh();
+        } catch {
+            setMsg("Network error while saving Late C/O.");
         }
     }
 
@@ -987,6 +1067,15 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                         </p>
                                     )}
 
+                                    {res.expected_arrival_time && (
+                                        <p
+                                            className="text-xs text-[var(--text-muted)] bg-sky-50 border border-sky-100 dark:bg-sky-500/5 dark:border-sky-500/20 rounded-lg px-3 py-2"
+                                            title={`Expected arrival ${res.expected_arrival_time}`}
+                                        >
+                                            🕒 Expected arrival {String(res.expected_arrival_time).slice(0, 5)}
+                                        </p>
+                                    )}
+
                                     {(alertsLoading || inlineAlerts.length > 0) && (
                                         <div className="space-y-2">
                                             {alertsLoading && inlineAlerts.length === 0 ? (
@@ -1182,7 +1271,19 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                                 </button>
                                                             )}
                                                             
-                                                            {(canEarlyCheckout || canCancel) && <hr className="my-1 border-[var(--border-default)]" />}
+                                                            {(canLateCheckout || canEarlyCheckout || canCancel) && <hr className="my-1 border-[var(--border-default)]" />}
+
+                                                            {canLateCheckout && (
+                                                                <button
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-indigo-600"
+                                                                    onClick={() => { setShowMoreMenu(false); void handleOpenLateCheckoutModal(); }}
+                                                                >
+                                                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-12a.75.75 0 00-1.5 0v4.19l-2.22 1.48a.75.75 0 10.84 1.24l2.55-1.7a.75.75 0 00.33-.62V6z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Late C/O
+                                                                </button>
+                                                            )}
                                                             
                                                             {canEarlyCheckout && (
                                                                 <button
@@ -1590,6 +1691,18 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     }}
                 />
             )}
+
+            <LateCheckoutFeeModal
+                isOpen={showLateCheckoutModal}
+                isAfter1600={lateCheckoutAfter1600}
+                suggestedFee={lateCheckoutSuggestedFee}
+                onClose={() => setShowLateCheckoutModal(false)}
+                onExtendStay={() => {
+                    setShowLateCheckoutModal(false);
+                    setMsg("Please extend stay first, then continue checkout.");
+                }}
+                onConfirm={(payload) => { void handleConfirmLateCheckout(payload); }}
+            />
 
             {showLinkStayModal && res && (
                 <LinkStayModal

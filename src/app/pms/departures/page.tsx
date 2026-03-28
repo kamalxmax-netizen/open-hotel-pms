@@ -5,6 +5,7 @@ import Link from "next/link";
 import ReservationDetailPage from "@/components/reservation-detail-page";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import LinkedExtensionModal from "@/components/linked-extension-modal";
+import LateCheckoutFeeModal, { PolicyFeePayload } from "@/components/late-checkout-fee-modal";
 import { formatShortGroupCode } from "@/lib/group-label";
 import { DayUseTimer } from "@/components/dayuse-timer";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
@@ -81,6 +82,9 @@ export default function DeparturesPage() {
     const [checkoutResId, setCheckoutResId] = useState<string | null>(null);
     const [optionsState, setOptionsState] = useState<{ reservation: Departure; initialTab?: "traces" | "alerts" | "guest" | "loans" } | null>(null);
     const [linkedExtensionReservation, setLinkedExtensionReservation] = useState<Departure | null>(null);
+    const [lateCheckoutReservation, setLateCheckoutReservation] = useState<Departure | null>(null);
+    const [lateCheckoutSuggestedFee, setLateCheckoutSuggestedFee] = useState(0);
+    const [lateCheckoutAfter1600, setLateCheckoutAfter1600] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
     useEffect(() => {
@@ -119,6 +123,71 @@ export default function DeparturesPage() {
     function showToast(msg: string) {
         setToast(msg);
         setTimeout(() => setToast(""), 3500);
+    }
+
+    function getBangkokTimeHHmm(date = new Date()): string {
+        const parts = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Asia/Bangkok",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        }).formatToParts(date);
+        const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+        const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+        return `${hour}:${minute}`;
+    }
+
+    function resolveLastNightRate(departure: Departure): number {
+        const nights = Array.isArray(departure.nightly_breakdown) ? departure.nightly_breakdown : [];
+        const sorted = [...nights].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        const lastNight = sorted[sorted.length - 1];
+        if (lastNight && Number.isFinite(Number(lastNight.price))) {
+            return Number(lastNight.price);
+        }
+        const fallbackNights = Number(departure.nights_count ?? 0);
+        if (fallbackNights > 0) {
+            return Number(departure.total_price ?? 0) / fallbackNights;
+        }
+        return Number(departure.total_price ?? 0);
+    }
+
+    function openLateCheckoutModal(departure: Departure) {
+        const nowHHmm = getBangkokTimeHHmm();
+        const isAfter1600 = nowHHmm >= "16:01";
+        const lastNightRate = resolveLastNightRate(departure);
+        setLateCheckoutAfter1600(isAfter1600);
+        setLateCheckoutSuggestedFee(isAfter1600 ? lastNightRate : lastNightRate * 0.5);
+        setLateCheckoutReservation(departure);
+    }
+
+    async function handleLateCheckoutConfirm(payload: PolicyFeePayload | null) {
+        if (!lateCheckoutReservation?.id) return;
+        if (!payload) {
+            setLateCheckoutReservation(null);
+            showToast("Late C/O pre-approve cancelled.");
+            return;
+        }
+        try {
+            const response = await fetch(`/api/bookings/${lateCheckoutReservation.id}/late-checkout`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    amount: payload.amount,
+                    payment_method: payload.payment_method,
+                    note: payload.note,
+                }),
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result?.success === false) {
+                showToast(result?.error ?? "Failed to save Late C/O.");
+                return;
+            }
+            showToast(result?.note_appended ? "✓ Late C/O saved + note appended" : "✓ Late C/O saved");
+            setLateCheckoutReservation(null);
+            load();
+        } catch {
+            showToast("Network error.");
+        }
     }
 
     function handleCheckoutSuccess() {
@@ -300,6 +369,15 @@ export default function DeparturesPage() {
                                                                             </svg>
                                                                             Extend Stay
                                                                         </button>
+                                                                        <button
+                                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-indigo-600"
+                                                                            onClick={() => { setShowMoreMenu(null); openLateCheckoutModal(d); }}
+                                                                        >
+                                                                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-12a.75.75 0 00-1.5 0v4.19l-2.22 1.48a.75.75 0 10.84 1.24l2.55-1.7a.75.75 0 00.33-.62V6z" clipRule="evenodd" />
+                                                                            </svg>
+                                                                            Late C/O
+                                                                        </button>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -421,6 +499,18 @@ export default function DeparturesPage() {
                     }}
                 />
             )}
+
+            <LateCheckoutFeeModal
+                isOpen={Boolean(lateCheckoutReservation)}
+                isAfter1600={lateCheckoutAfter1600}
+                suggestedFee={lateCheckoutSuggestedFee}
+                onClose={() => setLateCheckoutReservation(null)}
+                onExtendStay={() => {
+                    setLateCheckoutReservation(null);
+                    showToast("Please extend stay first, then continue checkout.");
+                }}
+                onConfirm={(payload) => { void handleLateCheckoutConfirm(payload); }}
+            />
 
             {/* Toast */}
             {toast && (

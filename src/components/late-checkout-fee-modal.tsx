@@ -13,6 +13,7 @@ interface LateCheckoutFeeModalProps {
     isOpen: boolean;
     isAfter1600: boolean;
     suggestedFee: number;
+    skipFeeFormAfterWarning?: boolean;
     onClose: () => void;
     onExtendStay: () => void;
     onConfirm: (payload: PolicyFeePayload | null) => void;
@@ -22,6 +23,7 @@ export default function LateCheckoutFeeModal({
     isOpen,
     isAfter1600,
     suggestedFee,
+    skipFeeFormAfterWarning = false,
     onClose,
     onExtendStay,
     onConfirm
@@ -95,7 +97,13 @@ export default function LateCheckoutFeeModal({
                         </button>
                         <button
                             className="btn bg-[var(--bg-surface)] border border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-bold w-full"
-                            onClick={() => setStep(1)}
+                            onClick={() => {
+                                if (skipFeeFormAfterWarning) {
+                                    onConfirm(null);
+                                    return;
+                                }
+                                setStep(1);
+                            }}
                         >
                             Continue Checkout
                         </button>

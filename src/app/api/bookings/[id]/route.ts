@@ -29,6 +29,7 @@ import {
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError, getAssignedRoomLockContext } from "@/lib/assigned-room-lock";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -41,7 +42,7 @@ function isLegacyUpdateRpcMismatch(message?: string | null): boolean {
 
 function isMissingColumnError(message?: string | null): boolean {
   if (!message) return false;
-  return /checked_in_at|discount_type|discount_value|parent_reservation_id/i.test(message);
+  return /checked_in_at|discount_type|discount_value|parent_reservation_id|expected_arrival_time/i.test(message);
 }
 
 async function resolveRoomNumberById(supabase: any, roomId?: string | null): Promise<string | null> {
@@ -179,6 +180,7 @@ const updateBookingSchema = z.object({
   source: z.enum(["walkin", "ota", "direct", "agent"]).default("walkin"),
   phone: z.string().optional(),
   checkin_time: z.string().optional(),
+  expected_arrival_time: z.string().optional().nullable(),
   note: z.string().optional(),
   ota_prices: z.array(z.number()).optional(),
   guest_profile_id: z.string().uuid().optional().nullable(),
@@ -218,6 +220,7 @@ export async function GET(
     checkin_date,
     checkout_date,
     checkin_time,
+    expected_arrival_time,
     note,
     ota_ref,
     specials,
@@ -292,6 +295,7 @@ export async function GET(
     checkin_date,
     checkout_date,
     checkin_time,
+    expected_arrival_time,
     note,
     ota_ref,
     specials,
@@ -413,6 +417,7 @@ export async function GET(
       checkin_date: row.checkin_date,
       checkout_date: row.checkout_date,
       checkin_time: row.checkin_time,
+      expected_arrival_time: row.expected_arrival_time ?? null,
       checked_in_at: row.checked_in_at ?? null,
       note: row.note,
       ota_ref: row.ota_ref,
@@ -474,9 +479,18 @@ export async function PUT(
 
   const payload = parsed.data;
   const hasSpecialsField = Object.prototype.hasOwnProperty.call(json ?? {}, "specials");
+  const hasExpectedArrivalField = Object.prototype.hasOwnProperty.call(json ?? {}, "expected_arrival_time");
   const normalizedSpecials = hasSpecialsField
     ? (typeof payload.specials === "string" ? payload.specials.trim() : "")
     : null;
+  let normalizedExpectedArrivalTime: string | null = null;
+  if (hasExpectedArrivalField) {
+    try {
+      normalizedExpectedArrivalTime = normalizeExpectedArrivalTime(payload.expected_arrival_time);
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
+  }
   const explicitRoomUnassignRequested =
     Object.prototype.hasOwnProperty.call(json ?? {}, "room_id") &&
     payload.room_id === null;
@@ -508,7 +522,7 @@ export async function PUT(
   const supabase = createServerSupabaseClient();
   const { data: currentReservation, error: currentReservationError } = await supabase
     .from("reservations")
-    .select("id, checkin_date, checkout_date, source")
+    .select("id, checkin_date, checkout_date, source, expected_arrival_time")
     .eq("id", reservationId)
     .maybeSingle();
   if (currentReservationError) {
@@ -713,6 +727,7 @@ export async function PUT(
         checkin_date: payload.checkin_date,
         checkout_date: payload.checkout_date,
         checkin_time: payload.checkin_time?.trim() || null,
+        ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
         note: payload.note?.trim() || null,
       })
       .eq("id", reservationId)
@@ -788,12 +803,13 @@ export async function PUT(
     discount_reason: payload.discount_reason?.trim() || null,
     ...(payload.rate_plan_id !== undefined ? { rate_plan_id: payload.rate_plan_id || null } : {}),
     ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
+    ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
   };
   let { error: reservationExtraError } = await supabase
     .from("reservations")
     .update(reservationExtraPatch)
     .eq("id", reservationId);
-  if (reservationExtraError && /discount_type|discount_value/i.test(reservationExtraError.message)) {
+  if (reservationExtraError && /discount_type|discount_value|expected_arrival_time/i.test(reservationExtraError.message)) {
     const reservationLegacyExtraPatch: Record<string, unknown> = {
       adults: payload.adults ?? 1,
       children: payload.children ?? 0,
@@ -810,6 +826,21 @@ export async function PUT(
   }
   if (reservationExtraError) {
     return NextResponse.json({ error: reservationExtraError.message }, { status: 500 });
+  }
+
+  if (hasExpectedArrivalField) {
+    try {
+      const previousExpectedArrivalTime = normalizeExpectedArrivalTime(currentReservation.expected_arrival_time ?? null);
+      if (previousExpectedArrivalTime !== normalizedExpectedArrivalTime) {
+        await syncExpectedArrivalAlert({
+          supabase,
+          reservationId,
+          expectedArrivalTime: normalizedExpectedArrivalTime,
+        });
+      }
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    }
   }
 
   if (payload.guest_profile_id !== undefined) {

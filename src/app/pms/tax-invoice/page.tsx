@@ -90,50 +90,8 @@ export default function TaxInvoiceListPage() {
   const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/tax-invoice?include_pending=true", { cache: "no-store" });
-        const result = await res.json();
-        if (!result?.success) {
-          throw new Error(String(result?.error || "Failed to load tax invoice list"));
-        }
-
-        const nextPending: PendingRequest[] = Array.isArray(result.pending_reservations)
-          ? result.pending_reservations.map((row: any) => ({
-              reservation_id: String(row.reservation_id || row.id || ""),
-              booking_code: String(row.booking_code || "-"),
-              guest_name: String(row.guest_name || "-"),
-              room_numbers: Array.isArray(row.room_numbers) ? row.room_numbers.map((x: any) => String(x)) : [],
-              checkin_date: String(row.checkin_date || ""),
-              checkout_date: String(row.checkout_date || ""),
-              total_amount: Number(row.total_amount || 0),
-            }))
-          : [];
-
-        const nextHistory: InvoiceHistoryItem[] = Array.isArray(result.data)
-          ? result.data.map((row: any) => ({
-              id: String(row.id || ""),
-              invoice_no: String(row.invoice_no || "Draft"),
-              reservation_id: String(row.reservation_id || ""),
-              guest_name: String(row.reservation?.guest_name || row.customer_name || "-"),
-              issue_date: String(row.issue_date || ""),
-              status: String(row.status || "draft") as TaxInvoiceStatus,
-              grand_total: Number(row.grand_total || 0),
-              language: (String(row.language || "th") === "en" ? "en" : "th") as TaxInvoiceLanguage,
-            }))
-          : [];
-
-        setPending(nextPending);
-        setHistory(nextHistory);
-      } catch (error) {
-        console.error("Failed to fetch tax invoice list:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchData() {
@@ -334,49 +292,115 @@ export default function TaxInvoiceListPage() {
                   <td colSpan={5} className="px-6 py-12 text-center text-[var(--text-muted)] italic">No invoice history found</td>
                 </tr>
               ) : (
-                filteredHistory.map((h) => (
-                  <tr key={h.id} className="hover:bg-[var(--bg-body)]/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-brand-600 dark:text-brand-400">{h.invoice_no}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] uppercase">{fmtDate(h.issue_date, "en")}</p>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--text-primary)] font-medium">
-                      {h.guest_name}
-                      <span className="ml-2 text-[10px] px-1 bg-[var(--bg-muted)] rounded text-[var(--text-muted)] border border-[var(--border-subtle)]">
-                        {h.language.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusBadge status={h.status} />
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono font-semibold text-[var(--text-primary)]">
-                      {fmtMoney(h.grand_total)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link 
-                          href={`/pms/tax-invoice/edit/${h.id}`}
-                          className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-brand-600 transition"
-                          title="Edit"
-                        >
-                          ✏️
-                        </Link>
-                        <Link 
-                          href={`/pms/tax-invoice/preview/${h.id}`}
-                          className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-sky-600 transition"
-                          title="Preview & Print"
-                        >
-                          🖨️
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredHistory.map((h) => {
+                  const isCancelled = h.status === "cancelled";
+                  return (
+                    <tr key={h.id} className={`transition-colors ${isCancelled ? "opacity-50 bg-rose-50/30 dark:bg-rose-500/5" : "hover:bg-[var(--bg-body)]/50"}`}>
+                      <td className="px-6 py-4">
+                        <p className={`text-sm font-bold ${isCancelled ? "text-rose-400 line-through" : "text-brand-600 dark:text-brand-400"}`}>
+                          {h.invoice_no}
+                        </p>
+                        <p className="text-[10px] text-[var(--text-muted)] uppercase">{fmtDate(h.issue_date, "en")}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-[var(--text-primary)] font-medium">
+                        {h.guest_name}
+                        <span className="ml-2 text-[10px] px-1 bg-[var(--bg-muted)] rounded text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                          {h.language.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={h.status} />
+                      </td>
+                      <td className={`px-6 py-4 text-right font-mono font-semibold ${isCancelled ? "text-[var(--text-muted)] line-through" : "text-[var(--text-primary)]"}`}>
+                        {fmtMoney(h.grand_total)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {!isCancelled && (
+                            <Link
+                              href={`/pms/tax-invoice/edit/${h.id}`}
+                              className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-brand-600 transition"
+                              title="Edit"
+                            >
+                              ✏️
+                            </Link>
+                          )}
+                          <Link
+                            href={`/pms/tax-invoice/preview/${h.id}`}
+                            className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-sky-600 transition"
+                            title="Preview & Print"
+                          >
+                            🖨️
+                          </Link>
+                          {!isCancelled && (
+                            <button
+                              onClick={() => { setCancelTarget({ id: h.id, invoiceNo: h.invoice_no }); setCancelReason(""); setCancelError(""); }}
+                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/20 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition"
+                              title="Cancel Invoice (Admin)"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Cancel Modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] w-full max-w-md rounded-2xl shadow-2xl border border-[var(--border-default)] overflow-hidden">
+            <div className="bg-rose-50 dark:bg-rose-500/10 p-6 flex items-center gap-4 border-b border-rose-100 dark:border-rose-500/20">
+              <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center text-2xl">🗑️</div>
+              <div>
+                <h3 className="text-lg font-bold text-rose-900 dark:text-rose-400">ยกเลิก Invoice</h3>
+                <p className="text-xs text-rose-700/70 dark:text-rose-400/60 mt-0.5 font-mono">{cancelTarget.invoiceNo}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-400 leading-relaxed">
+                ⚠️ เลข Invoice <strong>{cancelTarget.invoiceNo}</strong> จะถูกขีดฆ่า แต่ยังคงอยู่ใน record เพื่อ Audit Trail — เลขถัดไปจะรันต่อเนื่อง ไม่ถูก skip
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-[var(--text-primary)] mb-2">
+                  เหตุผลการยกเลิก <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => { setCancelReason(e.target.value); setCancelError(""); }}
+                  placeholder="ระบุเหตุผล เช่น ออกเลขผิด, ลูกค้าเปลี่ยนใจ..."
+                  rows={3}
+                  className="form-input w-full resize-none"
+                />
+                {cancelError && <p className="mt-1 text-xs text-rose-600">{cancelError}</p>}
+              </div>
+            </div>
+            <div className="bg-[var(--bg-muted)] p-4 flex gap-3 justify-end border-t border-[var(--border-default)]">
+              <button
+                onClick={() => { setCancelTarget(null); setCancelReason(""); setCancelError(""); }}
+                disabled={cancelLoading}
+                className="px-6 py-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-body)] transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                disabled={cancelLoading || cancelReason.trim().length < 3}
+                className="px-8 py-2 rounded-xl bg-rose-600 text-white text-sm font-extrabold shadow-lg hover:bg-rose-700 transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {cancelLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                ยืนยันยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

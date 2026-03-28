@@ -88,6 +88,7 @@ export default function TaxInvoiceEditPage() {
         initialData={formInitialData}
         invoiceId={id}
         mode="edit"
+        reservationId={data.reservation_id}
         existingInvoice={{
           language: data.language,
           customer_name: data.customer_name,

@@ -56,7 +56,7 @@ export async function GET(
         // 2. Sum all existing payments
         const { data: payments } = await supabase
             .from("folio_payments")
-            .select("amount, tx_type, revenue_category, note, is_record_only")
+            .select("amount, tx_type, revenue_category, note, is_record_only, fee_template_code")
             .eq("reservation_id", reservationId);
 
         const {
@@ -66,6 +66,14 @@ export async function GET(
         } = computeCheckoutNetPaidSatang(payments ?? []);
         const depositAmountSatang = toSatang(computeHeldDepositFromRows(payments ?? []));
         const extraChargeNetSatang = computeExtraChargeNetSatang(payments ?? []);
+        const lateCheckoutFeeNetSatang = (payments ?? []).reduce((sum, row: any) => {
+            if (String(row?.fee_template_code ?? "").toUpperCase() !== "LATE_CHECKOUT_FEE") return sum;
+            if (String(row?.revenue_category ?? "") !== "extra_charge") return sum;
+            if (row?.is_record_only === true) return sum;
+            const amountSatang = toSatang(row?.amount ?? 0);
+            if (String(row?.tx_type ?? "") === "refund") return sum - amountSatang;
+            return sum + amountSatang;
+        }, 0);
         const balanceDueSatang = totalPriceSatang + extraChargeNetSatang - netPaidSatang;
 
         // 3. Open loan items (traces with loan_item_code that are still open)
@@ -167,6 +175,8 @@ export async function GET(
             total_paid: fromSatang(totalPaidSatang),
             total_refunded: fromSatang(totalRefundedSatang),
             extra_charges_total: fromSatang(extraChargeNetSatang),
+            late_checkout_fee_total: fromSatang(lateCheckoutFeeNetSatang),
+            has_late_checkout_fee_paid: lateCheckoutFeeNetSatang > 0,
             balance_due: fromSatang(balanceDueSatang),
             is_after_hard_limit: isAfterHardLimit,
             open_loans: openLoans,

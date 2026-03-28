@@ -75,6 +75,13 @@ export default function RoomPlannerPage() {
 
     /* ─── Drag highlight state ─── */
     const [dropTarget, setDropTarget] = useState<{ roomId: string; date: string } | null>(null);
+    const mouseDragPayloadRef = useRef<{
+        type: "ASSIGNED" | "UNASSIGNED";
+        reservation_id: string;
+        from_room_id?: string;
+        linked_root_id?: string | null;
+        booking_code?: string;
+    } | null>(null);
 
     /* ─── Linked group hover highlight ─── */
     const [hoverGroupId, setHoverGroupId] = useState<string | null>(null);
@@ -489,28 +496,55 @@ export default function RoomPlannerPage() {
 
     /* ─── Drag handlers ─── */
     const handleDragStartUnassigned = (e: React.DragEvent<HTMLDivElement>, res: CalendarReservation) => {
-        e.dataTransfer.setData("application/json", JSON.stringify({
+        const payload = JSON.stringify({
             type: "UNASSIGNED",
             reservation_id: res.reservation_id,
             booking_code: res.booking_code,
             linked_root_id: res.linked_root_id
-        }));
+        });
+        e.dataTransfer.setData("application/json", payload);
+        e.dataTransfer.setData("text/plain", payload);
         e.dataTransfer.effectAllowed = "move";
     };
 
     const handleBarDragStart = (res: CalendarReservation, roomNumber: string, e: React.DragEvent, _isShift: boolean) => {
         // Per-night mode: Shift key (via reliable keydown listener) OR toggle button
         isShiftDragRef.current = perNightModeRef.current;
+        // Failsafe: if resize state got stuck, clear it before drag starts.
+        if (resizingState) setResizingState(null);
         // Find the current room_id for this reservation
         const currentRoom = mergedData?.rooms.find(r => r.room_number === roomNumber);
-        e.dataTransfer.setData("application/json", JSON.stringify({
+        const payload = JSON.stringify({
             type: "ASSIGNED",
             reservation_id: res.reservation_id,
             from_room_id: currentRoom?.room_id ?? "",
             linked_root_id: res.linked_root_id
-        }));
+        });
+        e.dataTransfer.setData("application/json", payload);
+        e.dataTransfer.setData("text/plain", payload);
         e.dataTransfer.effectAllowed = "move";
     };
+
+    // Fallback for environments where HTML5 drag events are unreliable.
+    // This does NOT change move logic; it only preserves drag intent payload.
+    const handleBarMouseDown = useCallback((res: CalendarReservation, roomNumber: string, e: React.MouseEvent) => {
+        if (e.button !== 0) return; // left-click only
+        const currentRoom = mergedData?.rooms.find(r => r.room_number === roomNumber);
+        mouseDragPayloadRef.current = {
+            type: "ASSIGNED",
+            reservation_id: res.reservation_id,
+            from_room_id: currentRoom?.room_id ?? "",
+            linked_root_id: res.linked_root_id,
+        };
+    }, [mergedData]);
+
+    useEffect(() => {
+        const clearMousePayload = () => {
+            mouseDragPayloadRef.current = null;
+        };
+        window.addEventListener("mouseup", clearMousePayload);
+        return () => window.removeEventListener("mouseup", clearMousePayload);
+    }, []);
 
     const handleBarResizeStart = useCallback((res: CalendarReservation, roomId: string, edge: "checkin" | "checkout", e: React.MouseEvent) => {
         // Guard: linked stay middle segments
@@ -612,18 +646,12 @@ export default function RoomPlannerPage() {
     }, []);
 
     /* ─── Drop guard: check if target room is droppable ─── */
-    const isRoomDroppable = useCallback((roomId: string, reservationId: string): string | null => {
+    const isRoomDroppable = useCallback((roomId: string, reservationId: string, dropDate?: string): string | null => {
         const targetRoom = mergedData?.rooms.find(r => r.room_id === roomId);
         if (!targetRoom) return "Room not found";
 
         // Block drop onto non-sellable rooms (OOO/Renovation)
         if (!targetRoom.is_sellable) return "Room is out of order / renovation";
-
-        // Block drop onto dirty / in-progress rooms
-        const hk = targetRoom.hk_status;
-        if (hk === "dirty" || hk === "in_progress" || hk === "paused") {
-            return `Room is not ready (HK status: ${hk === "in_progress" ? "cleaning in progress" : hk})`;
-        }
 
         // Block drop onto rooms with active OOO/OOS blocks overlapping the reservation dates
         const res = (() => {
@@ -634,26 +662,59 @@ export default function RoomPlannerPage() {
             return (mergedData?.unassigned ?? []).find(r => r.reservation_id === reservationId);
         })();
 
+        if (res) {
+            // HK guard should only apply when move can become effective "today".
+            // Future planning should not be blocked by today's HK status.
+            const hk = targetRoom.hk_status;
+            if (hk === "dirty" || hk === "in_progress" || hk === "paused") {
+                const touchesToday = dropDate ? dropDate <= today : (res.checked_in_at ? true : res.checkin_date <= today);
+                if (touchesToday) {
+                    return `Room is not ready (HK status: ${hk === "in_progress" ? "cleaning in progress" : hk})`;
+                }
+            }
+        }
+
         if (res && mergedData?.blocks) {
+            const addOneDay = (date: string) => {
+                const [y, m, d] = date.split("-").map(Number);
+                const dt = new Date(y, m - 1, d + 1);
+                return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+            };
             const hasBlockConflict = mergedData.blocks.some(block => {
                 if (block.room_id !== roomId) return false;
-                // Check if block dates overlap with reservation dates
+
+                // Per-night drop: check overlap for that specific stay night only.
+                if (dropDate) {
+                    const nightEnd = addOneDay(dropDate);
+                    return !(block.end_date <= dropDate || block.start_date >= nightEnd);
+                }
+
+                // Whole move / assign: check overlap for the booking span.
                 return !(block.end_date < res.checkin_date || block.start_date >= res.checkout_date);
             });
             if (hasBlockConflict) return "Room has an active OOO/OOS block during this stay";
         }
 
         return null; // droppable
-    }, [mergedData]);
+    }, [mergedData, today]);
 
     const handleCellDrop = (roomId: string, date: string, e: React.DragEvent) => {
         e.preventDefault();
         setDropTarget(null); // Clear highlight on drop
         try {
-            const payload = JSON.parse(e.dataTransfer.getData("application/json"));
+            const rawPayload =
+                e.dataTransfer.getData("application/json") ||
+                e.dataTransfer.getData("text/plain");
+
+            if (!rawPayload) {
+                alert("Drag payload is empty. กรุณาลองลากใหม่อีกครั้ง");
+                return;
+            }
+
+            const payload = JSON.parse(rawPayload);
 
             // Guard: check target room
-            const blockReason = isRoomDroppable(roomId, payload.reservation_id);
+            const blockReason = isRoomDroppable(roomId, payload.reservation_id, date);
             if (blockReason) {
                 alert(blockReason);
                 return;
@@ -843,10 +904,26 @@ export default function RoomPlannerPage() {
             }
         } catch (err) {
             console.error("Drop failed", err);
+            alert("Drop failed. กรุณาลองอีกครั้ง");
         } finally {
             isShiftDragRef.current = false;
         }
     };
+
+    const handleCellMouseUp = useCallback((roomId: string, date: string) => {
+        const payload = mouseDragPayloadRef.current;
+        if (!payload) return;
+
+        const fakeEvent = {
+            preventDefault: () => { },
+            dataTransfer: {
+                getData: (type: string) => (type === "application/json" ? JSON.stringify(payload) : "")
+            }
+        } as unknown as React.DragEvent;
+
+        handleCellDrop(roomId, date, fakeEvent);
+        mouseDragPayloadRef.current = null;
+    }, [handleCellDrop]);
 
     /* ─── Bar click handler — popover + swap-by-button ─── */
     const handleBarClick = useCallback((res: CalendarReservation, roomNumber: string) => {
@@ -1361,7 +1438,9 @@ export default function RoomPlannerPage() {
                         onCellDragOver={handleCellDragOver}
                         onCellDragLeave={handleCellDragLeave}
                         onCellDrop={handleCellDrop}
+                        onCellMouseUp={handleCellMouseUp}
                         onBarClick={handleBarClick}
+                        onBarMouseDown={handleBarMouseDown}
                         onFocusReservation={id => setHoverGroupId(id ? `res:${id}` : null)}
                         focusReservationId={swapSource?.res.reservation_id ?? null}
                         isResizing={resizingState !== null}

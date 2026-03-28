@@ -134,6 +134,8 @@ export type RoomGridProps = {
     onCellDrop?: (roomId: string, date: string, e: React.DragEvent) => void;
     onCellDragEnter?: (roomId: string, date: string, e: React.DragEvent) => void;
     onCellDragLeave?: (roomId: string, date: string, e: React.DragEvent) => void;
+    onCellMouseUp?: (roomId: string, date: string, e: React.MouseEvent) => void;
+    onBarMouseDown?: (res: CalendarReservation, roomNumber: string, e: React.MouseEvent) => void;
     
     // Interactions
     onBarClick?: (res: CalendarReservation, roomNumber: string) => void;
@@ -167,6 +169,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     onCellDrop,
     onCellDragEnter,
     onCellDragLeave,
+    onCellMouseUp,
+    onBarMouseDown,
     onBarClick,
     onCellClick,
     hoverGroupId,
@@ -601,6 +605,11 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                             onCellDrop?.(room.room_id, day, e);
                                                         }
                                                     }}
+                                                    onMouseUp={(e) => {
+                                                        if (mode === "interactive") {
+                                                            onCellMouseUp?.(room.room_id, day, e);
+                                                        }
+                                                    }}
                                                     title={room.is_sellable ? `Room ${room.room_number} on ${day}` : undefined}
                                                 />
                                             ))}
@@ -677,7 +686,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 if (!b) return null;
                                                 const { res, startIdx, spanCount, clippedLeft, clippedRight, segmentKey, isSegmentGhost, isSegmentSolidPartial } = b;
                                                 const isCheckedOut = res.status === "checked_out";
-                                                const sc = isCheckedOut ? { bar: "bg-[var(--bg-muted)]", text: "text-[var(--text-secondary)]" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
+                                                const sc = isCheckedOut ? { bar: "bg-slate-200 dark:bg-slate-700/80", text: "text-slate-600 dark:text-slate-300" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                 const linkHoverKey = resolveLinkHoverKey(res);
                                                 const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && linkHoverKey === hoverGroupId;
                                                 const shouldFadeGroup = focusReservationId
@@ -696,7 +705,9 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 const width = spanCount * COL_W - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
                                                 
                                                 const canInteract = mode === "interactive" && !res.do_not_move && !isCheckedOut && !isGhost;
-                                                const isDraggable = canInteract && !isResizing;
+                                                // Hotfix: never hard-disable drag by global resize state.
+                                                // Resize handles still use dedicated edge hitboxes, so dragging bars remains safe.
+                                                const isDraggable = canInteract;
 
                                                 let defaultClasses = `absolute top-1.5 rounded-md text-[10px] font-semibold flex items-center whitespace-nowrap px-2 shadow-sm transition z-10 ${clippedLeft ? "rounded-l-none" : ""} ${clippedRight ? "rounded-r-none" : ""}`;
                                                 
@@ -705,7 +716,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 } else if (isSolid) {
                                                     defaultClasses += ` ${sc.bar} ${sc.text} ring-2 ring-brand-400 brightness-90 shadow-md cursor-grab`;
                                                 } else {
-                                                    defaultClasses += ` ${sc.bar} ${sc.text} ${shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-60 cursor-default" : "hover:brightness-110"}`;
+                                                    defaultClasses += ` ${sc.bar} ${sc.text} ${shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-100 cursor-default border border-slate-300 dark:border-slate-600" : "hover:brightness-110"}`;
                                                     if (isDraggable) defaultClasses += " cursor-ns-resize"; // Vertical drag hint
                                                 }
 
@@ -723,6 +734,11 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                             if (isDraggable) {
                                                                 applyHiddenDragPreview(e);
                                                                 onBarDragStart?.(res, room.room_number, e, false);
+                                                            }
+                                                        }}
+                                                        onMouseDown={(e) => {
+                                                            if (mode === "interactive") {
+                                                                onBarMouseDown?.(res, room.room_number, e);
                                                             }
                                                         }}
                                                         onDragOver={(e) => {

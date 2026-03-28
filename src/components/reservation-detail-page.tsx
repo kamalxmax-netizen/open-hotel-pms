@@ -69,6 +69,12 @@ function extractHHmmFromLocalDateTime(localValue: string): string | undefined {
     return /^\d{2}:\d{2}$/.test(timePart) ? timePart : undefined;
 }
 
+function normalizeExpectedArrivalTimeDraft(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    return /^\d{2}:\d{2}$/.test(trimmed) ? trimmed : "";
+}
+
 function toMoneyInput(value: unknown): string {
     return fromSatang(toSatang(value)).toFixed(2);
 }
@@ -858,6 +864,8 @@ export default function ReservationDetailPage({
     // Notes
     const [note, setNote] = useState("");
     const [specials, setSpecials] = useState("");
+    const [expectedArrivalTime, setExpectedArrivalTime] = useState("");
+    const [initialExpectedArrivalTime, setInitialExpectedArrivalTime] = useState("");
 
     // Pricing
     const [nightlyRates, setNightlyRates] = useState<NightlyRate[]>([]);
@@ -902,6 +910,7 @@ export default function ReservationDetailPage({
     const [depositAction, setDepositAction] = useState<"apply" | "refund">("refund");
     const [forceCheckout, setForceCheckout] = useState(false);
     const [preCheckoutLoaded, setPreCheckoutLoaded] = useState(false);
+    const [hasPrepaidLateCheckout, setHasPrepaidLateCheckout] = useState(false);
     const [openLoans, setOpenLoans] = useState<any[]>([]);
     const [coAlerts, setCoAlerts] = useState<any[]>([]);
     const [reservationAlerts, setReservationAlerts] = useState<any[]>([]);
@@ -1750,6 +1759,7 @@ export default function ReservationDetailPage({
         setSuggestedPolicyFee(0);
         setIsAfter1600(false);
         setBypassPolicy(false);
+        setHasPrepaidLateCheckout(false);
         setPolicyFeePayload(null);
         policyFeePayloadRef.current = null;
         setShowCheckinFieldValidation(false);
@@ -1782,6 +1792,8 @@ export default function ReservationDetailPage({
             setManualGuestSearchQ("");
             setManualGuestResults([]);
             setUseSelectedRoomTypeForCharge(true);
+            setExpectedArrivalTime("");
+            setInitialExpectedArrivalTime("");
             return;
         }
         setFetching(true);
@@ -1859,6 +1871,11 @@ export default function ReservationDetailPage({
                     setOtaRef(res.ota_ref || "");
                     setNote(res.note || "");
                     setSpecials(res.specials || "");
+                    const normalizedExpectedArrival = normalizeExpectedArrivalTimeDraft(
+                        typeof res.expected_arrival_time === "string" ? res.expected_arrival_time.slice(0, 5) : ""
+                    );
+                    setExpectedArrivalTime(normalizedExpectedArrival);
+                    setInitialExpectedArrivalTime(normalizedExpectedArrival);
                     setDiscountType(
                         res.discount_type === "fixed_total" || res.discount_type === "fixed_per_night" || res.discount_type === "percent"
                             ? res.discount_type
@@ -2072,6 +2089,7 @@ export default function ReservationDetailPage({
                 setOpenLoans(data.open_loans ?? []);
                 setCoAlerts(data.co_alerts ?? []);
                 setPreCheckoutBalance(nextBalance);
+                setHasPrepaidLateCheckout(Boolean(data.has_late_checkout_fee_paid));
                 if (resetPaymentAmount) {
                     setPaymentAmount((current) => {
                         if (policyFeePayloadRef.current) return current;
@@ -2910,6 +2928,10 @@ export default function ReservationDetailPage({
             setError("Thai ID must be exactly 13 digits.");
             return;
         }
+        if (expectedArrivalTime.trim() && !/^\d{2}:\d{2}$/.test(expectedArrivalTime.trim())) {
+            setError("Expected arrival time must be HH:mm.");
+            return;
+        }
         setLoading(true);
         setError("");
         setSuccessMessage("");
@@ -2957,6 +2979,12 @@ export default function ReservationDetailPage({
                 const nowCheckout = formatBangkokDateTimeLocal(new Date());
                 const timePart = nowCheckout.split('T')[1].slice(0, 5);
                 if (timePart >= "13:01" && !showLateCheckoutModal) {
+                    const shouldShowLatePolicyModal = timePart >= "16:01" || !hasPrepaidLateCheckout;
+                    if (!shouldShowLatePolicyModal) {
+                        // Late checkout fee already collected on Due Out day.
+                        // Skip 13:01-16:00 prompt to avoid charging twice.
+                        setShowLateCheckoutModal(false);
+                    } else {
                     const lastNightRate = nightlyRates.length > 0 ? nightlyRates[nightlyRates.length - 1].rate : 0;
                     if (timePart >= "16:01") {
                         setIsAfter1600(true);
@@ -2968,11 +2996,16 @@ export default function ReservationDetailPage({
                     setShowLateCheckoutModal(true);
                     setLoading(false);
                     return;
+                    }
                 }
             }
         }
 
         try {
+            const normalizedExpectedArrival = normalizeExpectedArrivalTimeDraft(expectedArrivalTime);
+            const normalizedInitialExpectedArrival = normalizeExpectedArrivalTimeDraft(initialExpectedArrivalTime);
+            const shouldSendExpectedArrivalField =
+                mode === "create" || normalizedExpectedArrival !== normalizedInitialExpectedArrival;
             let syncedGuestProfileId = guestProfileId;
             if (!dayUseAmountOnlyMode && (mode === "create" || mode === "edit" || mode === "checkin" || mode === "inhouse")) {
                 try {
@@ -3029,6 +3062,7 @@ export default function ReservationDetailPage({
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
                 if (bookingGroupId) payload.booking_group_id = bookingGroupId;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
+                if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") {
                     payload.ota_prices = nightlyRates.map(r => r.rate);
                     if (otaRef) payload.ota_ref = otaRef;
@@ -3083,6 +3117,7 @@ export default function ReservationDetailPage({
                 if (roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
+                if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
 
                 if (shouldUseShortenSettlement) {
@@ -3146,6 +3181,7 @@ export default function ReservationDetailPage({
                 if (roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
+                if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
 
                 if (shouldUseShortenSettlement) {
@@ -3252,6 +3288,7 @@ export default function ReservationDetailPage({
                 if (chargeRoomTypeId) updatePayload.room_type_id = chargeRoomTypeId;
                 if (ratePlanId) updatePayload.rate_plan_id = ratePlanId;
                 if (syncedGuestProfileId) updatePayload.guest_profile_id = syncedGuestProfileId;
+                if (shouldSendExpectedArrivalField) updatePayload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") updatePayload.ota_prices = nightlyRates.map(r => r.rate);
 
                 const updateRes = await fetch(`/api/bookings/${reservationId}`, {
@@ -4498,7 +4535,7 @@ export default function ReservationDetailPage({
 
                                         <CollapsibleSection id="guest-notes" title="Notes" icon="📝">
                                             <div className="space-y-3">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                     <div>
                                                         <label className="form-label">Reservation Notes</label>
                                                         <textarea
@@ -4521,6 +4558,21 @@ export default function ReservationDetailPage({
                                                             placeholder="Guest requests..."
                                                         />
                                                     </div>
+                                                    {(mode === "create" || mode === "edit" || mode === "checkin" || mode === "inhouse") && (
+                                                        <div>
+                                                            <label className="form-label">Expected Arrival Time</label>
+                                                            <input
+                                                                type="time"
+                                                                className="form-input h-10 text-sm"
+                                                                value={expectedArrivalTime}
+                                                                onChange={(e) => setExpectedArrivalTime(e.target.value)}
+                                                                disabled={isReadonly}
+                                                            />
+                                                            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                                                Before 14:00 creates auto alert.
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <label className="form-label">Profile Notes</label>
@@ -5307,6 +5359,7 @@ export default function ReservationDetailPage({
                 isOpen={showLateCheckoutModal}
                 isAfter1600={isAfter1600}
                 suggestedFee={suggestedPolicyFee}
+                skipFeeFormAfterWarning={hasPrepaidLateCheckout}
                 onClose={closePolicyModalOnly}
                 onExtendStay={() => {
                     closePolicyModalOnly();
