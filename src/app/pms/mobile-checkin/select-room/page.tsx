@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
@@ -17,9 +16,8 @@ interface Room {
 }
 
 export default function SelectRoom() {
-  const searchParams = useSearchParams();
-  const scanId = searchParams.get("scan_id");
-  const forceDraft = searchParams.get("force_draft") === "true";
+  const [scanId, setScanId] = useState<string | null>(null);
+  const [forceDraft, setForceDraft] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +40,13 @@ export default function SelectRoom() {
 
   useEffect(() => {
     fetchRooms();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setScanId(params.get("scan_id"));
+    setForceDraft(params.get("force_draft") === "true");
   }, []);
 
   // Sort by room number, treating them as numbers when possible.
