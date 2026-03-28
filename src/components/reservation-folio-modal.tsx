@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock } from "lucide-react";
+import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock, ShieldAlert, CheckCircle2 } from "lucide-react";
 import PmsModal from "./pms-modal";
+import { toBangkokDateString } from "@/lib/audit-utils";
 import { PostChargeModal } from "./post-charge-modal";
 import { SettlementDrawer } from "./settlement-drawer";
 import LinkedStayPanel from "./linked-stay-panel";
@@ -129,6 +130,8 @@ export function ReservationFolioModal({
   const [showSettlement, setShowSettlement] = useState(false);
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
   const [taxInvoiceLoading, setTaxInvoiceLoading] = useState(false);
+  const [taxInvoiceNo, setTaxInvoiceNo] = useState<string | null>(null);
+  const [businessDate, setBusinessDate] = useState<string>(toBangkokDateString());
 
   const loadFolio = useCallback(async () => {
     if (!reservationId) return;
@@ -158,6 +161,8 @@ export function ReservationFolioModal({
   useEffect(() => {
     if (folio?.reservation?.tax_invoice_requested !== undefined) {
       setTaxInvoiceRequested(Boolean(folio.reservation.tax_invoice_requested));
+      // In the future, Agent B will add tax_invoice_no to the folio response
+      // setTaxInvoiceNo(folio.reservation.tax_invoice_no || null);
     }
   }, [folio]);
 
@@ -606,29 +611,54 @@ export function ReservationFolioModal({
                       ฿{formatMoney(fromSatang(billingData?.outstandingSatang ?? toSatang(folio?.summary.outstanding_balance ?? 0)))}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] pt-2 mt-1">
-                    <label htmlFor="tax-invoice-toggle" className="cursor-pointer select-none">
-                      Tax Invoice
-                    </label>
-                    <button
-                      id="tax-invoice-toggle"
-                      type="button"
-                      role="switch"
-                      aria-checked={taxInvoiceRequested}
-                      disabled={taxInvoiceLoading}
-                      onClick={() => void handleToggleTaxInvoice()}
-                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 ${
-                        taxInvoiceRequested
-                          ? "bg-[var(--accent)]"
-                          : "bg-[var(--border-default)]"
-                      } ${taxInvoiceLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
-                          taxInvoiceRequested ? "translate-x-[18px]" : "translate-x-[3px]"
-                        }`}
-                      />
-                    </button>
+                  <div className="border-t border-[var(--border-default)] pt-3 mt-1 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col">
+                        <label htmlFor="tax-invoice-toggle" className="text-sm font-semibold text-[var(--text-primary)] cursor-pointer select-none">
+                          Tax Invoice
+                        </label>
+                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-tight">
+                          {taxInvoiceNo ? (
+                            <span className="text-brand-600 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> {taxInvoiceNo}
+                            </span>
+                          ) : taxInvoiceRequested ? (
+                            <span className="text-amber-600 font-bold">Pending Request</span>
+                          ) : (
+                            "Not Requested"
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        id="tax-invoice-toggle"
+                        type="button"
+                        role="switch"
+                        aria-checked={taxInvoiceRequested}
+                        disabled={taxInvoiceLoading}
+                        onClick={() => void handleToggleTaxInvoice()}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 ${
+                          taxInvoiceRequested
+                            ? "bg-[var(--accent)]"
+                            : "bg-[var(--border-default)]"
+                        } ${taxInvoiceLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                            taxInvoiceRequested ? "translate-x-[18px]" : "translate-x-[3px]"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    
+                    {/* Locking logic: Business Date > Checkout Date requires Admin bypass */}
+                    {folio?.reservation.checkout_date && businessDate > folio.reservation.checkout_date && (
+                      <div className="flex items-start gap-2 p-2 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20">
+                        <ShieldAlert className="h-3 w-3 text-rose-600 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-rose-700 dark:text-rose-400 leading-tight">
+                          Folio locked after checkout date. Changes require Admin bypass.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

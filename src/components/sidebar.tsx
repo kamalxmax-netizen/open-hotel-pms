@@ -38,7 +38,8 @@ const NAV_ITEMS = [
             { href: "/pms/revenue-daily", label: "Revenue Daily", icon: RevenueIcon },
             { href: "/pms/payments", label: "Payment Report", icon: PaymentIcon },
             { href: "/pms/payment-daily", label: "Payment Daily", icon: PaymentIcon },
-            { href: "/pms/accounting", label: "Com and Tips", icon: PaymentIcon }
+            { href: "/pms/accounting", label: "Com and Tips", icon: PaymentIcon },
+            { href: "/pms/tax-invoice", label: "Tax Invoice", icon: FileTextIcon }
         ]
     },
     {

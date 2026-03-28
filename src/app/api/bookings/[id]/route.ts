@@ -3,7 +3,7 @@ import { z } from "zod";
 import { mapBookingErrorToStatus, normalizeMoney } from "@/lib/bookings";
 import { isValidDateString, listNights } from "@/lib/dates";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import {
   applyNightlyRatesToReservation,
   calculateAppliedRateNights,
@@ -1045,7 +1045,7 @@ export async function PATCH(
 
   const { data: existingReservation, error: existingReservationError } = await supabase
     .from("reservations")
-    .select("id, tax_invoice_requested")
+    .select("id, tax_invoice_requested, checkout_date")
     .eq("id", reservationId)
     .maybeSingle();
 
@@ -1057,6 +1057,43 @@ export async function PATCH(
   }
 
   const previousTaxInvoiceRequested = Boolean(existingReservation.tax_invoice_requested ?? false);
+  const nextTaxInvoiceRequested =
+    typeof patch.tax_invoice_requested === "boolean"
+      ? patch.tax_invoice_requested
+      : previousTaxInvoiceRequested;
+
+  let role: string | null = null;
+  let businessDate = toLocalDate(new Date());
+  try {
+    role = await getUserRole(supabase as any, user.id);
+  } catch (roleError) {
+    console.error("Failed to resolve role for booking PATCH:", roleError);
+  }
+
+  const { data: settingsRow, error: settingsError } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!settingsError && settingsRow?.business_date) {
+    const resolvedBusinessDate = String(settingsRow.business_date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(resolvedBusinessDate)) {
+      businessDate = resolvedBusinessDate;
+    }
+  }
+
+  const checkoutDateRaw = String(existingReservation.checkout_date ?? "").trim();
+  const checkoutDate = /^\d{4}-\d{2}-\d{2}$/.test(checkoutDateRaw) ? checkoutDateRaw : null;
+  const isRetroactiveToggle = Boolean(checkoutDate && businessDate > checkoutDate);
+  const normalizedRole = String(role ?? "").trim().toLowerCase();
+  const isAdmin = normalizedRole === "admin";
+
+  if (isRetroactiveToggle && previousTaxInvoiceRequested !== nextTaxInvoiceRequested && !isAdmin) {
+    return NextResponse.json(
+      { error: "Only admin can toggle tax invoice after checkout day is closed." },
+      { status: 403 }
+    );
+  }
 
   const { error } = await supabase
     .from("reservations")
@@ -1067,11 +1104,6 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const nextTaxInvoiceRequested =
-    typeof patch.tax_invoice_requested === "boolean"
-      ? patch.tax_invoice_requested
-      : previousTaxInvoiceRequested;
-
   if (previousTaxInvoiceRequested !== nextTaxInvoiceRequested) {
     try {
       await supabase.from("audit_logs").insert({
@@ -1081,11 +1113,35 @@ export async function PATCH(
         entity_id: reservationId,
         before_json: { tax_invoice_requested: previousTaxInvoiceRequested },
         after_json: { tax_invoice_requested: nextTaxInvoiceRequested },
-        business_date: toLocalDate(new Date()),
+        business_date: businessDate,
         source: "manual",
       });
     } catch (auditError) {
       console.error("Failed to write audit log for tax invoice toggle:", auditError);
+    }
+
+    if (isRetroactiveToggle && isAdmin) {
+      try {
+        await supabase.from("audit_logs").insert({
+          actor_user_id: user.id,
+          action: "tax_invoice_admin_override",
+          entity_type: "reservation",
+          entity_id: reservationId,
+          source: "manual",
+          business_date: businessDate,
+          note:
+            nextTaxInvoiceRequested
+              ? "Admin enabled tax invoice retroactively"
+              : "Admin disabled tax invoice retroactively",
+          after_json: {
+            tax_invoice_requested: nextTaxInvoiceRequested,
+            checkout_date: checkoutDate,
+            toggled_by: user.id,
+          },
+        });
+      } catch (overrideAuditError) {
+        console.error("Failed to write admin override audit log:", overrideAuditError);
+      }
     }
   }
 

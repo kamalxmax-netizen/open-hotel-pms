@@ -191,6 +191,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     const today = new Date().toISOString().slice(0, 10);
     const endDate = addDays(startDate, spanDays - 1);
     const totalGridW = days.length * COL_W;
+    const todayIdx = days.indexOf(today);
     
     const filteredRooms = rooms.filter((r) => !r.is_dayuse);
     const dayUseRooms = rooms.filter((r) => r.is_dayuse);
@@ -328,6 +329,14 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
         );
     }
 
+    function applyHiddenDragPreview(e: React.DragEvent) {
+        // Hide default browser drag ghost so the reservation bar does not float over the date header.
+        const pixel = document.createElement("canvas");
+        pixel.width = 1;
+        pixel.height = 1;
+        e.dataTransfer.setDragImage(pixel, 0, 0);
+    }
+
     function renderDiaryStateBadge(state: RoomDiaryState | null) {
         if (!state || state === "available") return null;
 
@@ -444,7 +453,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                     style={{ width: ROOM_COL_W }}
                 >
                     <div
-                        className="flex items-center px-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] sticky top-0 z-20"
+                        className="flex items-center px-3 border-b border-[var(--border-default)] bg-[var(--bg-body)] text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] sticky top-0 z-40"
                         style={{ height: ROW_H }}
                     >
                         Room
@@ -498,10 +507,17 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
 
                 {/* Scrollable grid */}
                 <div ref={scrollRef} className="overflow-auto flex-1" onScroll={handleGridScroll}>
-                    <div style={{ width: totalGridW, minWidth: totalGridW }}>
+                    <div className="relative" style={{ width: totalGridW, minWidth: totalGridW }}>
+                        {todayIdx >= 0 && (
+                            <div
+                                className="pointer-events-none absolute top-0 bottom-0 w-[2px] bg-brand-500/80 shadow-[0_0_10px_rgba(37,99,235,0.45)] z-[12]"
+                                style={{ left: `${todayIdx * COL_W + Math.floor(COL_W / 2)}px` }}
+                                title="Today"
+                            />
+                        )}
                         {/* Date header */}
                         <div
-                            className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] sticky top-0 z-10"
+                            className="flex border-b border-[var(--border-default)] bg-[var(--bg-body)] sticky top-0 z-40"
                             style={{ height: ROW_H }}
                         >
                             {days.map((day) => {
@@ -704,7 +720,10 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                         style={{ left, width, height: ROW_H - 12, top: 6 }}
                                                         draggable={isDraggable}
                                                         onDragStart={(e) => {
-                                                            if (isDraggable) onBarDragStart?.(res, room.room_number, e, false);
+                                                            if (isDraggable) {
+                                                                applyHiddenDragPreview(e);
+                                                                onBarDragStart?.(res, room.room_number, e, false);
+                                                            }
                                                         }}
                                                         onDragOver={(e) => {
                                                             if (mode === "interactive") {

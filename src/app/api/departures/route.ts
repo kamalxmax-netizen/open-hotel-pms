@@ -130,11 +130,13 @@ export async function GET(request: NextRequest) {
         const departures = (data ?? []).map((r) => {
                 const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;
-                // Filter out cancelled nights only if nights exist
+                // For departures, always show the room of the final active stay night.
                 const allNights = Array.isArray(r.reservation_nights) ? r.reservation_nights : [];
-                const nights = allNights.filter((n) => n && !n.cancelled_at);
-                const firstNight = nights[0] ?? allNights[0] ?? null;
-                const room = (firstNight?.rooms as unknown) as { room_number: string; room_types: { name_en: string } | null } | null;
+                const nights = allNights
+                    .filter((n) => n && !n.cancelled_at)
+                    .sort((a, b) => String(a?.stay_date ?? "").localeCompare(String(b?.stay_date ?? "")));
+                const departureNight = nights[nights.length - 1] ?? allNights[allNights.length - 1] ?? null;
+                const room = (departureNight?.rooms as unknown) as { room_number: string; room_types: { name_en: string } | null } | null;
                 const nightlyBreakdown = nights
                     .sort((a, b) => (a.stay_date > b.stay_date ? 1 : -1))
                     .map((n) => ({ date: n.stay_date, price: n.nightly_price }));

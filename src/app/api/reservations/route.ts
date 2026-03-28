@@ -199,8 +199,11 @@ export async function GET(request: NextRequest) {
                     ? [r.reservation_nights]
                     : []
             ).sort((a: any, b: any) => String(a?.stay_date ?? "").localeCompare(String(b?.stay_date ?? "")));
-            const activeNight = nights.find((n: any) => !n?.cancelled_at);
-            const displayNight = activeNight ?? nights[0] ?? null;
+            const activeNights = nights.filter((n: any) => !n?.cancelled_at);
+            const displayNight =
+                r.status === "checked_out"
+                    ? activeNights[activeNights.length - 1] ?? nights[nights.length - 1] ?? null
+                    : activeNights[0] ?? nights[0] ?? null;
             const roomRef = Array.isArray((displayNight as any)?.rooms)
                 ? (displayNight as any).rooms[0]
                 : (displayNight as any)?.rooms;
