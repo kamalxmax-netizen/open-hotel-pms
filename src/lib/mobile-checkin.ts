@@ -1,5 +1,5 @@
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
-import { resolveGuestProfile } from "@/lib/guest-resolution";
+import { findExistingGuestProfileByDocument, resolveGuestProfile } from "@/lib/guest-resolution";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { assertBusinessDayOpen } from "@/lib/folio-fees";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
@@ -294,11 +294,19 @@ async function updateGuestProfile(
 export async function resolvePrimaryGuestProfile(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   reservationId: string;
+  preferredGuestProfileId?: string | null;
   existingGuestProfileId?: string | null;
   guestInfo: MobileGuestInfoInput;
   passportRaw?: Record<string, unknown> | null;
 }): Promise<{ guestProfileId: string; fullName: string }> {
-  const { supabase, reservationId, existingGuestProfileId, guestInfo, passportRaw } = params;
+  const {
+    supabase,
+    reservationId,
+    preferredGuestProfileId,
+    existingGuestProfileId,
+    guestInfo,
+    passportRaw,
+  } = params;
   const normalizedName = normalizeWhitespace(guestInfo.full_name);
   const fallbackName = normalizedName || "Unknown Guest";
 
@@ -310,10 +318,48 @@ export async function resolvePrimaryGuestProfile(params: {
     passportRaw
   );
 
-  let profileId = String(existingGuestProfileId ?? "").trim();
+  const preferredProfileId = String(preferredGuestProfileId ?? "").trim();
+  const existingProfileId = String(existingGuestProfileId ?? "").trim();
+  const profileCandidateId = preferredProfileId || existingProfileId;
+
+  let profileId = "";
+  if (profileCandidateId) {
+    const { data: profileRow, error: profileReadError } = await supabase
+      .from("guest_profiles")
+      .select("id")
+      .eq("id", profileCandidateId)
+      .maybeSingle();
+    if (profileReadError) {
+      throw new MobileCheckinError(profileReadError.message, 500, "PROFILE_READ_FAILED");
+    }
+    if (profileRow?.id) {
+      profileId = String(profileRow.id);
+    }
+  }
+  const lockToPreferredProfile = Boolean(preferredProfileId);
 
   if (profileId) {
+    const passportNo = normalizePassportNo(guestInfo.passport_no);
+    if (!lockToPreferredProfile && passportNo) {
+      const existingByPassport = await findExistingGuestProfileByDocument(supabase as any, {
+        idType: "passport",
+        idNumber: passportNo,
+      });
+      if (existingByPassport?.id && String(existingByPassport.id) !== profileId) {
+        profileId = String(existingByPassport.id);
+      }
+    }
     await updateGuestProfile(supabase, profileId, patch);
+
+    const { error: reservationUpdateError } = await supabase
+      .from("reservations")
+      .update({ guest_profile_id: profileId })
+      .eq("id", reservationId);
+
+    if (reservationUpdateError) {
+      throw new MobileCheckinError(reservationUpdateError.message, 500, "RESERVATION_LINK_PROFILE_FAILED");
+    }
+
     return { guestProfileId: profileId, fullName: fallbackName };
   }
 

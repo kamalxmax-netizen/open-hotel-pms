@@ -6,6 +6,32 @@ import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Camera, ShieldAlert, Loader2, AlertTriangle } from "lucide-react";
 import { buildPassportMrzBlob, PASSPORT_OCR_MAX_FILE_BYTES } from "@/lib/passport-ocr/client-preprocess";
 
+type ExistingProfileCandidate = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  passport_no?: string | null;
+  id_number?: string | null;
+  nationality_code?: string | null;
+  phone?: string | null;
+  profile_status?: string | null;
+};
+
+function normalizePassportNo(value: unknown): string {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9]/g, "")
+    .trim();
+}
+
+function composeProfileName(profile: ExistingProfileCandidate | null): string {
+  if (!profile) return "";
+  const first = String(profile.first_name ?? "").trim();
+  const last = String(profile.last_name ?? "").trim();
+  return `${first} ${last}`.trim();
+}
+
 export default function GuestInfo() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -32,6 +58,11 @@ export default function GuestInfo() {
   const [mainScanning, setMainScanning] = useState(false);
   const [accScanning, setAccScanning] = useState<number | null>(null);
   const [accOcrWarnings, setAccOcrWarnings] = useState<Map<number, string[]>>(new Map());
+  const [profileLookupLoading, setProfileLookupLoading] = useState(false);
+  const [profileLookupError, setProfileLookupError] = useState<string | null>(null);
+  const [profileCandidate, setProfileCandidate] = useState<ExistingProfileCandidate | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const lookupRequestRef = useRef(0);
   const mainCameraRef = useRef<HTMLInputElement>(null);
   const accCameraRef = useRef<HTMLInputElement>(null);
   const [originalBookingName, setOriginalBookingName] = useState("");
@@ -73,6 +104,9 @@ export default function GuestInfo() {
         } else if (_originalName) {
           setMainGuest((prev) => ({ ...prev, full_name: _originalName }));
         }
+        if (parsed.selected_profile_id) {
+          setSelectedProfileId(String(parsed.selected_profile_id));
+        }
         if (parsed.accompanying) setAccompanying(parsed.accompanying);
         return;
       }
@@ -100,6 +134,66 @@ export default function GuestInfo() {
     processHydration();
   }, [resId, scanId, forceDraft]);
 
+  useEffect(() => {
+    const passportNo = normalizePassportNo(mainGuest.passport_no);
+    const requestId = ++lookupRequestRef.current;
+
+    if (!passportNo || passportNo.length < 4) {
+      setProfileCandidate(null);
+      setProfileLookupError(null);
+      setProfileLookupLoading(false);
+      setSelectedProfileId((prev) => (prev ? null : prev));
+      return;
+    }
+
+    setProfileLookupLoading(true);
+    setProfileLookupError(null);
+    const timer = setTimeout(async () => {
+      try {
+        const qs = new URLSearchParams({
+          id_type: "passport",
+          id_number: passportNo,
+        });
+        const res = await fetch(`/api/guests/by-id?${qs.toString()}`);
+        const json = await res.json().catch(() => null);
+        if (requestId !== lookupRequestRef.current) return;
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || "ค้นหาโปรไฟล์ไม่สำเร็จ");
+        }
+
+        const found = (json.profile ?? null) as ExistingProfileCandidate | null;
+        setProfileCandidate(found);
+        if (found) {
+          setSelectedProfileId((prev) => (prev && found.id !== prev ? null : prev));
+        }
+      } catch (err) {
+        if (requestId !== lookupRequestRef.current) return;
+        setProfileCandidate(null);
+        setSelectedProfileId(null);
+        setProfileLookupError(err instanceof Error ? err.message : "ค้นหาโปรไฟล์ไม่สำเร็จ");
+      } finally {
+        if (requestId === lookupRequestRef.current) {
+          setProfileLookupLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [mainGuest.passport_no]);
+
+  const useExistingProfile = () => {
+    if (!profileCandidate?.id) return;
+    const profileName = composeProfileName(profileCandidate);
+    const profilePassport = normalizePassportNo(profileCandidate.passport_no || profileCandidate.id_number || "");
+    setSelectedProfileId(profileCandidate.id);
+    setMainGuest((prev) => ({
+      ...prev,
+      full_name: profileName || prev.full_name,
+      passport_no: profilePassport || prev.passport_no,
+      nationality: String(profileCandidate.nationality_code ?? prev.nationality ?? "").toUpperCase(),
+    }));
+  };
+
   const addAccompanying = () => {
     if (accompanying.length >= 3) return;
     setAccompanying([...accompanying, { full_name: "", passport_no: "", nationality: "", date_of_birth: "", gender: "", source: "manual" }]);
@@ -123,6 +217,7 @@ export default function GuestInfo() {
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify({
       scan_id: mainScanId,
       force_draft: forceDraft,
+      selected_profile_id: selectedProfileId,
       guest_info: mainGuest,
       accompanying,
       booking_name_note: bookingNameNote,
@@ -349,6 +444,66 @@ export default function GuestInfo() {
                 />
               </div>
             </div>
+
+            {(profileLookupLoading || profileCandidate || profileLookupError) && (
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-muted)] p-3 space-y-2">
+                {profileLookupLoading && (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    กำลังค้นหาโปรไฟล์เดิม...
+                  </div>
+                )}
+
+                {!profileLookupLoading && profileLookupError && (
+                  <p className="text-xs font-semibold text-rose-500">{profileLookupError}</p>
+                )}
+
+                {!profileLookupLoading && profileCandidate && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                      พบโปรไฟล์เดิมในระบบ
+                    </p>
+                    <div className="rounded-lg border border-emerald-300/40 bg-emerald-50/50 dark:bg-emerald-500/10 p-2.5">
+                      <p className="text-sm font-bold text-[var(--text-primary)]">
+                        {composeProfileName(profileCandidate) || "-"}
+                      </p>
+                      <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                        Passport: {profileCandidate.passport_no || profileCandidate.id_number || "-"}
+                        {" · "}
+                        Nation: {profileCandidate.nationality_code || "-"}
+                      </p>
+                      {profileCandidate.phone && (
+                        <p className="text-xs font-semibold text-[var(--text-secondary)] mt-0.5">
+                          Phone: {profileCandidate.phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={useExistingProfile}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          selectedProfileId === profileCandidate.id
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200"
+                        }`}
+                      >
+                        {selectedProfileId === profileCandidate.id ? "เลือกโปรไฟล์นี้แล้ว" : "ใช้โปรไฟล์นี้"}
+                      </button>
+                      {selectedProfileId && selectedProfileId === profileCandidate.id && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProfileId(null)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[var(--border-input)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] transition"
+                        >
+                          ยกเลิกการเลือก
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

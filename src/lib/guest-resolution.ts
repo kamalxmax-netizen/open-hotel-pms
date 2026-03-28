@@ -38,7 +38,10 @@ function normalizeDigits(value: unknown): string {
 export function normalizeGuestDocumentNumber(idType: GuestDocumentType, raw: string): string {
   const trimmed = raw.trim();
   if (idType === "thai_id") return trimmed.replace(/\D+/g, "");
-  return trimmed;
+  if (idType === "passport") {
+    return trimmed.toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9]/g, "");
+  }
+  return trimmed.replace(/\s+/g, " ");
 }
 
 function buildDisplayLastName(input: GuestResolutionInput): string {
@@ -81,6 +84,19 @@ export async function findExistingGuestProfileByDocument(
       throw new Error(fallback.error.message ?? "Failed to lookup guest profile by Thai ID fallback.");
     }
     data = fallback.data;
+  }
+
+  if (!data || data.length === 0) {
+    const fallbackByIdNumber = await supabase
+      .from("guest_profiles")
+      .select(baseSelect)
+      .neq("profile_status", "merged")
+      .eq("id_number", normalized)
+      .limit(1);
+    if (fallbackByIdNumber.error) {
+      throw new Error(fallbackByIdNumber.error.message ?? "Failed to lookup guest profile by id_number fallback.");
+    }
+    data = fallbackByIdNumber.data;
   }
 
   return (data ?? [])[0] ?? null;
@@ -182,6 +198,21 @@ export async function resolveGuestProfile(
     .maybeSingle();
 
   if (createError) {
+    const duplicateIdNumber = /duplicate key value|unique constraint|idx_guest_profiles_id_number_unique/i.test(
+      createError.message ?? ""
+    );
+    if (duplicateIdNumber && idType && rawIdNumber) {
+      const existing = await findExistingGuestProfileByDocument(supabase, {
+        idType,
+        idNumber: rawIdNumber,
+      });
+      if (existing) {
+        return {
+          action: "document_match",
+          profile: existing,
+        };
+      }
+    }
     throw new Error(createError.message ?? "Failed to create draft guest profile.");
   }
 

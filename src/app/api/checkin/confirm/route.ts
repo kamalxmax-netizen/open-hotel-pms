@@ -40,6 +40,7 @@ const accompanyingSchema = z.object({
 
 const bodySchema = z.object({
   reservation_id: z.string().uuid(),
+  selected_profile_id: z.string().uuid().optional().nullable(),
   guest_info: guestInfoSchema,
   accompanying_guests: z.array(accompanyingSchema).optional().default([]),
   payment_method: z.string().optional(),
@@ -165,6 +166,7 @@ export async function POST(request: NextRequest) {
     const resolvedPrimary = await resolvePrimaryGuestProfile({
       supabase,
       reservationId: payload.reservation_id,
+      preferredGuestProfileId: payload.selected_profile_id ?? null,
       existingGuestProfileId: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
       guestInfo: {
         ...guestInfoInput,
