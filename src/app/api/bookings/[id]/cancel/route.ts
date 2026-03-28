@@ -584,18 +584,20 @@ export async function POST(
     );
 
     if (groupedByRoom.length > 0) {
-      void Promise.allSettled(
-        groupedByRoom.map((group) =>
-          pushToGoogleSheet({
-            action: "clear",
-            room_number: group.room_number,
-            dates: group.dates,
-            api_key: syncApiKey,
-          })
-        )
-      ).catch((error) => {
+      try {
+        await Promise.allSettled(
+          groupedByRoom.map((group) =>
+            pushToGoogleSheet({
+              action: "clear",
+              room_number: group.room_number,
+              dates: group.dates,
+              api_key: syncApiKey,
+            })
+          )
+        );
+      } catch (error) {
         console.error("[GoogleSheetSync] cancel sync failed:", error);
-      });
+      }
     }
   }
 

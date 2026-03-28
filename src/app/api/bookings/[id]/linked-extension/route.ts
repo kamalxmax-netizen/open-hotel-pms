@@ -53,29 +53,27 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
     if (syncApiKey && result?.reservation_id) {
       const reservationIdForSync = String(result.reservation_id);
-      void (async () => {
-        try {
-          const grouped = await loadReservationSheetSyncGroups({
-            supabase: supabase as any,
-            reservationId: reservationIdForSync,
-            action: "upsert",
-            includeCancelledNights: false,
-          });
+      try {
+        const grouped = await loadReservationSheetSyncGroups({
+          supabase: supabase as any,
+          reservationId: reservationIdForSync,
+          action: "upsert",
+          includeCancelledNights: false,
+        });
 
-          await Promise.allSettled(
-            grouped.map((group) =>
-              pushToGoogleSheet({
-                action: "upsert",
-                room_number: group.room_number,
-                dates: group.dates,
-                api_key: syncApiKey,
-              })
-            )
-          );
-        } catch (error) {
-          console.error("[GoogleSheetSync] linked extension create sync failed:", error);
-        }
-      })();
+        await Promise.allSettled(
+          grouped.map((group) =>
+            pushToGoogleSheet({
+              action: "upsert",
+              room_number: group.room_number,
+              dates: group.dates,
+              api_key: syncApiKey,
+            })
+          )
+        );
+      } catch (error) {
+        console.error("[GoogleSheetSync] linked extension create sync failed:", error);
+      }
     }
 
     return NextResponse.json(result);

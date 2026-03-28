@@ -613,29 +613,27 @@ export async function POST(request: NextRequest) {
   if (syncApiKey) {
     const reservationIdForSync = String((reservation as any)?.id ?? "");
     if (reservationIdForSync) {
-      void (async () => {
-        try {
-          const grouped = await loadReservationSheetSyncGroups({
-            supabase: supabase as any,
-            reservationId: reservationIdForSync,
-            action: "upsert",
-            includeCancelledNights: false,
-          });
+      try {
+        const grouped = await loadReservationSheetSyncGroups({
+          supabase: supabase as any,
+          reservationId: reservationIdForSync,
+          action: "upsert",
+          includeCancelledNights: false,
+        });
 
-          await Promise.allSettled(
-            grouped.map((group) =>
-              pushToGoogleSheet({
-                action: "upsert",
-                room_number: group.room_number,
-                dates: group.dates,
-                api_key: syncApiKey,
-              })
-            )
-          );
-        } catch (error) {
-          console.error("[GoogleSheetSync] booking create sync failed:", error);
-        }
-      })();
+        await Promise.allSettled(
+          grouped.map((group) =>
+            pushToGoogleSheet({
+              action: "upsert",
+              room_number: group.room_number,
+              dates: group.dates,
+              api_key: syncApiKey,
+            })
+          )
+        );
+      } catch (error) {
+        console.error("[GoogleSheetSync] booking create sync failed:", error);
+      }
     }
   }
 
