@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
-import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
 interface Room {
   reservation_id: string;
@@ -20,19 +19,22 @@ export default function SelectRoom() {
   const [forceDraft, setForceDraft] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const fetchRooms = async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/checkin/due-today");
-      if (!res.ok) throw new Error("API not ready");
-      const json = await res.json();
-      if (!json.success) throw new Error("Failed");
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Failed to load due-in list.");
+      }
       setRooms(json.data.rooms || []);
     } catch (err) {
-      // Mock fallback
-      const mock = await mockDueToday();
-      setRooms(mock.data.rooms);
+      const message = err instanceof Error ? err.message : "Failed to load due-in list.";
+      setError(message);
+      setRooms([]);
     } finally {
       setLoading(false);
     }
@@ -86,6 +88,11 @@ export default function SelectRoom() {
       </div>
 
       <main className="flex-1 overflow-y-auto">
+        {error && (
+          <div className="p-4 text-sm font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-xl m-4">
+            {error}
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center py-12">
              <span className="w-8 h-8 border-4 border-[var(--border-default)] border-t-brand-500 rounded-full animate-spin"></span>

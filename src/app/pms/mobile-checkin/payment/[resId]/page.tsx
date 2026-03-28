@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CreditCard, Banknote, ArrowRightLeft, AlertTriangle } from "lucide-react";
-import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
 export default function PaymentStep() {
   const params = useParams();
@@ -21,14 +20,11 @@ export default function PaymentStep() {
     const loadData = async () => {
       try {
         const res = await fetch("/api/checkin/due-today");
-        let data;
-        if (!res.ok) {
-          const mock = await mockDueToday();
-          data = mock.data.rooms;
-        } else {
-          const json = await res.json();
-          data = json.data.rooms;
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || "Failed to load room details.");
         }
+        const data = json.data.rooms;
         
         const room = data.find((r: any) => r.reservation_id === resId);
         if (room) setRoomData(room);

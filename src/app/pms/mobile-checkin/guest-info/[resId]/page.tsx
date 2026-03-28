@@ -43,15 +43,11 @@ export default function GuestInfo() {
     const loadOriginalName = async () => {
       try {
         const res = await fetch("/api/checkin/due-today");
-        let data;
-        if (!res.ok) {
-          const { mockDueToday } = await import("@/lib/mock/mobile-checkin");
-          const mock = await mockDueToday();
-          data = mock.data.rooms;
-        } else {
-          const json = await res.json();
-          data = json.data.rooms;
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || "Failed to load due-in list.");
         }
+        const data = json.data.rooms;
         
         const room = data.find((r: any) => r.reservation_id === resId);
         if (room) {
@@ -144,23 +140,18 @@ export default function GuestInfo() {
     }
     setMainScanning(true);
     try {
-      let scanData;
-      try {
-        const mrzBlob = await buildPassportMrzBlob(file);
-        const formData = new FormData();
-        formData.append("image", mrzBlob, "passport-mrz.jpg");
-        formData.append("source", "tight_mrz");
-        formData.append("reservation_id", resId);
-        formData.append("guest_index", "0");
-        const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("API not ready");
-        const json = await res.json();
-        scanData = json.data;
-      } catch {
-        const { mockScanPassport } = await import("@/lib/mock/mobile-checkin");
-        const mock = await mockScanPassport();
-        scanData = mock.data;
+      const mrzBlob = await buildPassportMrzBlob(file);
+      const formData = new FormData();
+      formData.append("image", mrzBlob, "passport-mrz.jpg");
+      formData.append("source", "tight_mrz");
+      formData.append("reservation_id", resId);
+      formData.append("guest_index", "0");
+      const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Passport scan failed.");
       }
+      const scanData = json.data;
 
       const ocrName = `${scanData.parsed.firstName ?? ""} ${scanData.parsed.familyName ?? ""}`.trim();
       const currentName = mainGuest.full_name.trim() || originalBookingName;
@@ -182,8 +173,9 @@ export default function GuestInfo() {
         scan_id: scanData.scan_id,
         parsed: scanData.parsed,
       }));
-    } catch {
-      alert("Scan failed. Please try again.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Scan failed. Please try again.";
+      alert(message);
     } finally {
       setMainScanning(false);
       if (mainCameraRef.current) mainCameraRef.current.value = "";
@@ -200,23 +192,18 @@ export default function GuestInfo() {
       return;
     }
     try {
-      let scanData;
-      try {
-        const mrzBlob = await buildPassportMrzBlob(file);
-        const formData = new FormData();
-        formData.append("image", mrzBlob, "passport-mrz.jpg");
-        formData.append("source", "tight_mrz");
-        formData.append("reservation_id", resId);
-        formData.append("guest_index", String(idx + 1));
-        const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("API not ready");
-        const json = await res.json();
-        scanData = json.data;
-      } catch {
-        const { mockScanPassport } = await import("@/lib/mock/mobile-checkin");
-        const mock = await mockScanPassport();
-        scanData = mock.data;
+      const mrzBlob = await buildPassportMrzBlob(file);
+      const formData = new FormData();
+      formData.append("image", mrzBlob, "passport-mrz.jpg");
+      formData.append("source", "tight_mrz");
+      formData.append("reservation_id", resId);
+      formData.append("guest_index", String(idx + 1));
+      const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Passport scan failed.");
       }
+      const scanData = json.data;
 
       const parsed = scanData.parsed;
       const ocrName = `${parsed.firstName ?? ""} ${parsed.familyName ?? ""}`.trim();
@@ -244,8 +231,9 @@ export default function GuestInfo() {
       } else {
         setAccOcrWarnings(prev => { const m = new Map(prev); m.delete(idx); return m; });
       }
-    } catch {
-      alert("Scan failed. Please try again.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Scan failed. Please try again.";
+      alert(message);
     } finally {
       setAccScanning(null);
       if (accCameraRef.current) accCameraRef.current.value = "";

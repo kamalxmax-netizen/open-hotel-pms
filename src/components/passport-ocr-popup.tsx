@@ -235,16 +235,11 @@ export default function PassportOcrPopup() {
         const targetScanId = scanId || "latest";
         const qs = reservationId ? `?reservation_id=${encodeURIComponent(reservationId)}` : "";
         const res = await fetch(`/api/checkin/passport-photo/${targetScanId}${qs}`);
-        let payload;
-        if (!res.ok) {
-          const { mockPassportPhoto } = await import("@/lib/mock/mobile-checkin");
-          payload = await mockPassportPhoto(targetScanId);
-        } else {
-          payload = await res.json();
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error || "Cannot load photo");
         }
 
-        if (!payload || !payload.success) throw new Error(payload?.error || "Cannot load photo");
-        
         setPreviewUrl(payload.data.url);
         const p = payload.data.ocr_parsed;
         

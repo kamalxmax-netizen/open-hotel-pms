@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Camera, CheckCircle2, AlertTriangle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
-import { mockScanPassport, mockMatchBooking } from "@/lib/mock/mobile-checkin";
 import { buildPassportMrzBlob, PASSPORT_OCR_MAX_FILE_BYTES } from "@/lib/passport-ocr/client-preprocess";
 
 type Step = "capture" | "processing" | "result";
@@ -42,46 +41,33 @@ export default function ScanPassport() {
     // Process APIs
     try {
       // 1. Scan Passport
-      let scanData;
-      try {
-        const mrzBlob = await buildPassportMrzBlob(file);
-        const formData = new FormData();
-        formData.append("image", mrzBlob, "passport-mrz.jpg");
-        formData.append("source", "tight_mrz");
-        const res1 = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
-        if (!res1.ok) throw new Error("API not ready");
-        const json1 = await res1.json();
-        scanData = json1.data;
-      } catch (err) {
-        // Fallback to mock
-        console.warn("Scan API failed running mock:", err);
-        const mock1 = await mockScanPassport();
-        scanData = mock1.data;
+      const mrzBlob = await buildPassportMrzBlob(file);
+      const formData = new FormData();
+      formData.append("image", mrzBlob, "passport-mrz.jpg");
+      formData.append("source", "tight_mrz");
+      const res1 = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
+      const json1 = await res1.json().catch(() => null);
+      if (!res1.ok || !json1?.success) {
+        throw new Error(json1?.error || "Passport scan failed.");
       }
+      const scanData = json1.data;
       setScanResult(scanData);
 
       // 2. Match Booking
-      let matchData;
-      try {
-        const ocrName = `${scanData.parsed.firstName} ${scanData.parsed.familyName}`;
-        const res2 = await fetch("/api/checkin/match-booking", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ocr_name: ocrName,
-            scan_id: scanData.scan_id,
-          })
-        });
-        if (!res2.ok) throw new Error("API not ready");
-        const json2 = await res2.json();
-        matchData = json2.data;
-      } catch (err) {
-        // Fallback to mock
-        console.warn("Match API failed running mock:", err);
-        const ocrName = `${scanData.parsed.firstName} ${scanData.parsed.familyName}`;
-        const mock2 = await mockMatchBooking(ocrName);
-        matchData = mock2.data;
+      const ocrName = `${scanData.parsed.firstName} ${scanData.parsed.familyName}`;
+      const res2 = await fetch("/api/checkin/match-booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ocr_name: ocrName,
+          scan_id: scanData.scan_id,
+        })
+      });
+      const json2 = await res2.json().catch(() => null);
+      if (!res2.ok || !json2?.success) {
+        throw new Error(json2?.error || "Booking match failed.");
       }
+      const matchData = json2.data;
       setMatchResult(matchData);
       
       // Store OCR data temporarily so guest-info can grab it 
@@ -95,7 +81,8 @@ export default function ScanPassport() {
 
       setStep("result");
     } catch (err) {
-      alert("Processing failed. Please try again manually.");
+      const message = err instanceof Error ? err.message : "Processing failed. Please try again.";
+      alert(message);
       setStep("capture");
     }
   };

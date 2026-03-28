@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, AlertTriangle, User, Bed, Wallet, MapPin, Loader2 } from "lucide-react";
-import { mockConfirmCheckin, mockDueToday } from "@/lib/mock/mobile-checkin";
 
 export default function ConfirmStep() {
   const params = useParams();
@@ -20,19 +19,17 @@ export default function ConfirmStep() {
     const loadData = async () => {
       try {
         const res = await fetch("/api/checkin/due-today");
-        let data;
-        if (!res.ok) {
-          const mock = await mockDueToday();
-          data = mock.data.rooms;
-        } else {
-          const json = await res.json();
-          data = json.data.rooms;
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || "Failed to load due-in list.");
         }
+        const data = json.data.rooms;
         
         const room = data.find((r: any) => r.reservation_id === resId);
         if (room) setRoomData(room);
       } catch (err) {
-        console.error(err);
+        const message = err instanceof Error ? err.message : "Failed to load room details.";
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -57,22 +54,17 @@ export default function ConfirmStep() {
       ...sessionData
     };
 
-    let result;
     try {
-      try {
-        const res = await fetch("/api/checkin/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error || "Failed to confirm check-in");
-        result = json.data;
-      } catch (err) {
-        console.warn("API failed, attempting mock:", err);
-        const mockResult = await mockConfirmCheckin(payload);
-        result = mockResult.data;
+      const res = await fetch("/api/checkin/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Failed to confirm check-in");
       }
+      const result = json.data;
 
       setSubmitting(false);
       

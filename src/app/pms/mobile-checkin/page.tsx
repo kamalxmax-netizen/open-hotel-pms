@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw } from "lucide-react";
-import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
 interface Room {
   reservation_id: string;
@@ -24,15 +23,14 @@ export default function MobileCheckinLanding() {
     setError(null);
     try {
       const res = await fetch("/api/checkin/due-today");
-      if (!res.ok) throw new Error("API not ready");
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Fetch failed");
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Fetch failed");
+      }
       setData(json.data);
     } catch (err: any) {
-      console.warn("API failed running fallback mock:", err.message);
-      // Fallback to mock data for dev before Agent B completes endpoints
-      const mock = await mockDueToday();
-      setData(mock.data);
+      setError(err?.message || "Failed to load due-in data.");
+      setData(null);
     } finally {
       setLoading(false);
     }
