@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Camera, CheckCircle2, AlertTriangle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { mockScanPassport, mockMatchBooking } from "@/lib/mock/mobile-checkin";
+import { buildPassportMrzBlob, PASSPORT_OCR_MAX_FILE_BYTES } from "@/lib/passport-ocr/client-preprocess";
 
 type Step = "capture" | "processing" | "result";
 
@@ -28,8 +29,8 @@ export default function ScanPassport() {
       return;
     }
     
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File size exceeds 5MB limit. Please capture a smaller photo.");
+    if (file.size > PASSPORT_OCR_MAX_FILE_BYTES) {
+      alert("File size exceeds 10MB limit. Please capture a smaller photo.");
       return;
     }
 
@@ -43,8 +44,10 @@ export default function ScanPassport() {
       // 1. Scan Passport
       let scanData;
       try {
+        const mrzBlob = await buildPassportMrzBlob(file);
         const formData = new FormData();
-        formData.append("image", file);
+        formData.append("image", mrzBlob, "passport-mrz.jpg");
+        formData.append("source", "tight_mrz");
         const res1 = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
         if (!res1.ok) throw new Error("API not ready");
         const json1 = await res1.json();

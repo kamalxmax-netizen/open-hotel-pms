@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Camera, ShieldAlert, Loader2, AlertTriangle } from "lucide-react";
+import { buildPassportMrzBlob, PASSPORT_OCR_MAX_FILE_BYTES } from "@/lib/passport-ocr/client-preprocess";
 
 export default function GuestInfo() {
   const params = useParams();
@@ -137,16 +138,18 @@ export default function GuestInfo() {
   const handleMainGuestScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
-      alert("Please upload a valid image under 5MB.");
+    if (!file.type.startsWith("image/") || file.size > PASSPORT_OCR_MAX_FILE_BYTES) {
+      alert("Please upload a valid image under 10MB.");
       return;
     }
     setMainScanning(true);
     try {
       let scanData;
       try {
+        const mrzBlob = await buildPassportMrzBlob(file);
         const formData = new FormData();
-        formData.append("image", file);
+        formData.append("image", mrzBlob, "passport-mrz.jpg");
+        formData.append("source", "tight_mrz");
         formData.append("reservation_id", resId);
         formData.append("guest_index", "0");
         const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
@@ -191,16 +194,18 @@ export default function GuestInfo() {
     const file = e.target.files?.[0];
     const idx = accScanning;
     if (!file || idx == null) return;
-    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
-      alert("Please upload a valid image under 5MB.");
+    if (!file.type.startsWith("image/") || file.size > PASSPORT_OCR_MAX_FILE_BYTES) {
+      alert("Please upload a valid image under 10MB.");
       setAccScanning(null);
       return;
     }
     try {
       let scanData;
       try {
+        const mrzBlob = await buildPassportMrzBlob(file);
         const formData = new FormData();
-        formData.append("image", file);
+        formData.append("image", mrzBlob, "passport-mrz.jpg");
+        formData.append("source", "tight_mrz");
         formData.append("reservation_id", resId);
         formData.append("guest_index", String(idx + 1));
         const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
