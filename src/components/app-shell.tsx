@@ -17,7 +17,7 @@ export default function AppShell({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const isMaidApp = pathname.startsWith("/maid");
+  const isMaidApp = pathname.startsWith("/maid") || pathname.startsWith("/pms/mobile-checkin");
   const isLoginPage = pathname === "/login";
   const isStandalonePopup =
     pathname === "/smart-card" ||

@@ -2,7 +2,7 @@ export type UserRole = "admin" | "frontdesk" | "maid" | "supervisor";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 
-export type ReservationStatus = "active" | "cancelled" | "checked_out" | "no_show";
+export type ReservationStatus = "active" | "draft_checkin" | "cancelled" | "checked_out" | "no_show";
 
 export type LinkedStaySegment = {
   reservation_id: string;

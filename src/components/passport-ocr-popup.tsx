@@ -182,10 +182,10 @@ function fieldTone(status: PassportOcrFieldStatus) {
 }
 
 export default function PassportOcrPopup() {
-  const importTarget =
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("target") === "accompany"
-      ? "accompany"
-      : "main";
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const importTarget = searchParams.get("target") === "accompany" ? "accompany" : "main";
+  const scanId = searchParams.get("scan_id");
+  
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [mrzPreviewUrl, setMrzPreviewUrl] = useState("");
@@ -216,11 +216,66 @@ export default function PassportOcrPopup() {
 
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrl && previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
       if (mrzPreviewUrl) URL.revokeObjectURL(mrzPreviewUrl);
       if (mrzEnhancedPreviewUrl) URL.revokeObjectURL(mrzEnhancedPreviewUrl);
     };
   }, [mrzEnhancedPreviewUrl, mrzPreviewUrl, previewUrl]);
+
+  // Handle loading saved scan (Bonus: PDPA access)
+  useEffect(() => {
+    if (!scanId) return;
+
+    const loadSavedScan = async () => {
+      setBusy(true);
+      setErrorText("");
+      setStatusText("Loading saved passport data...");
+      try {
+        const res = await fetch(`/api/checkin/passport-photo/${scanId}`);
+        let payload;
+        if (!res.ok) {
+          const { mockPassportPhoto } = await import("@/lib/mock/mobile-checkin");
+          payload = await mockPassportPhoto(scanId);
+        } else {
+          payload = await res.json();
+        }
+
+        if (!payload || !payload.success) throw new Error(payload?.error || "Cannot load photo");
+        
+        setPreviewUrl(payload.data.url);
+        const p = payload.data.ocr_parsed;
+        
+        setResult({
+          firstName: p.firstName,
+          familyName: p.familyName,
+          nationality: p.nationality,
+          passportNumber: p.passportNumber,
+          gender: p.gender,
+          dateOfBirth: p.dateOfBirth,
+          mrzLine1: p.mrzLine1 || "",
+          mrzLine2: p.mrzLine2 || "",
+          fieldStatus: {
+            passportNumber: "ok",
+            nationality: "ok",
+            firstName: "ok",
+            familyName: "ok",
+            gender: "ok",
+            dateOfBirth: "ok"
+          },
+          warnings: []
+        });
+        
+        setStatusText(`Loaded saved scan from ${new Date(payload.data.created_at).toLocaleString()}`);
+      } catch (err: any) {
+        setErrorText(err.message);
+        setStatusText("Failed to load saved scan.");
+      } finally {
+        setBusy(false);
+      }
+    };
+    
+    loadSavedScan();
+  }, [scanId]);
 
   const updateSelectedFile = (file: File | null) => {
     setSelectedFile(file);

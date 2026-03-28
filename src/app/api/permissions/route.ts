@@ -10,6 +10,7 @@ const ALL_PAGES = [
   { path: "/pms/inhouse", label: "In-House", section: "Front Desk" },
   { path: "/pms/departures", label: "Departures", section: "Front Desk" },
   { path: "/pms/reservations", label: "Reservations", section: "Front Desk" },
+  { path: "/pms/mobile-checkin", label: "Mobile Check-in", section: "Front Desk" },
   { path: "/pms/groups", label: "Group Bookings", section: "Front Desk" },
   { path: "/pms/availability", label: "Availability", section: "Front Desk" },
   { path: "/pms/guests", label: "Guest Profiles", section: "Client Relations" },

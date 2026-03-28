@@ -15,6 +15,7 @@ const NAV_ITEMS = [
             { href: "/pms/room-planner", label: "Room Planner", icon: GridIcon },
             { href: "/pms/calendar", label: "Calendar", icon: CalendarIcon },
             { href: "/pms/arrivals", label: "Arrivals", icon: ArrivalsIcon },
+            { href: "/pms/mobile-checkin", label: "Mobile Check-in", icon: MobileCheckinIcon },
             { href: "/pms/inhouse", label: "In-House", icon: InHouseIcon },
             { href: "/pms/departures", label: "Departures", icon: DeparturesIcon },
             { href: "/pms/reservations", label: "Reservations", icon: ListIcon },
@@ -237,6 +238,13 @@ function ArrivalsIcon() {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M3 10a1 1 0 011-1h8.586L9.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L12.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
+        </svg>
+    );
+}
+function MobileCheckinIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2z" />
         </svg>
     );
 }
