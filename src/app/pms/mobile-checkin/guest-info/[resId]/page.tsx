@@ -126,7 +126,7 @@ export default function GuestInfo() {
     // Save to session
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify({
       scan_id: mainScanId,
-      force_draft: forceDraft || isDraftFromUrl,
+      force_draft: forceDraft,
       guest_info: mainGuest,
       accompanying,
       booking_name_note: bookingNameNote,

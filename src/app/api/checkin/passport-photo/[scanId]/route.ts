@@ -28,12 +28,25 @@ export async function GET(
     if (!scanId) {
       throw new MobileCheckinError("Missing scan id.", 400, "MISSING_SCAN_ID");
     }
+    const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
 
-    const { data: scanRow, error: scanError } = await supabase
+    let scanQuery = supabase
       .from("passport_scans")
-      .select("id, reservation_id, image_path, ocr_parsed, created_at")
-      .eq("id", scanId)
-      .maybeSingle();
+      .select("id, reservation_id, image_path, ocr_parsed, created_at");
+
+    if (scanId === "latest") {
+      if (!reservationId) {
+        throw new MobileCheckinError("reservation_id is required for latest scan.", 400, "MISSING_RESERVATION_ID");
+      }
+      scanQuery = scanQuery
+        .eq("reservation_id", reservationId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+    } else {
+      scanQuery = scanQuery.eq("id", scanId);
+    }
+
+    const { data: scanRow, error: scanError } = await scanQuery.maybeSingle();
 
     if (scanError) {
       throw new MobileCheckinError(scanError.message, 500, "SCAN_READ_FAILED");
@@ -66,6 +79,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
+        scan_id: scanRow.id,
         url: signed.signedUrl,
         ocr_parsed: scanRow.ocr_parsed ?? null,
         created_at: scanRow.created_at,

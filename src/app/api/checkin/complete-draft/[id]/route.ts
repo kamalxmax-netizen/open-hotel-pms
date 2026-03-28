@@ -42,6 +42,7 @@ const bodySchema = z.object({
   accompanying_guests: z.array(accompanyingSchema).optional().default([]),
   payment_method: z.string().optional(),
   payment_amount: z.number().optional(),
+  deposit_method: z.string().optional(),
   deposit_amount: z.number().optional(),
   cashier_name: z.string().optional(),
 });
@@ -135,6 +136,7 @@ export async function POST(
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
+    const depositMethod = mapCheckinPaymentMethod(payload.deposit_method) ?? paymentMethod;
     const paymentAmount = Number(payload.payment_amount ?? 0);
     const depositAmount = Number(payload.deposit_amount ?? 0);
     if ((Number.isFinite(paymentAmount) && paymentAmount > 0) || (Number.isFinite(depositAmount) && depositAmount > 0)) {
@@ -142,6 +144,7 @@ export async function POST(
         supabase,
         reservationId,
         method: paymentMethod,
+        depositMethod,
         paymentAmount,
         depositAmount,
         cashierName: payload.cashier_name,

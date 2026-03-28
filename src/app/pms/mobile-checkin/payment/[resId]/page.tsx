@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CreditCard, Banknote, QrCode, ArrowRightLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CreditCard, Banknote, ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { mockDueToday } from "@/lib/mock/mobile-checkin";
 
 export default function PaymentStep() {
@@ -13,8 +13,8 @@ export default function PaymentStep() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [roomData, setRoomData] = useState<any>(null);
-  const [method, setMethod] = useState<string>("card");
-  const [deposit, setDeposit] = useState<string>("");
+  const [method, setMethod] = useState<string>("cash");
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
 
   useEffect(() => {
     // 1. Fetch Room Summary
@@ -44,7 +44,7 @@ export default function PaymentStep() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.payment_method) setMethod(parsed.payment_method);
-        if (parsed.deposit_amount) setDeposit(parsed.deposit_amount.toString());
+        if (parsed.payment_amount != null) setPaymentAmount(String(parsed.payment_amount));
       } else {
         router.replace("/pms/mobile-checkin");
       }
@@ -53,10 +53,18 @@ export default function PaymentStep() {
     loadData();
   }, [resId, router]);
 
+  useEffect(() => {
+    if (!roomData || paymentAmount) return;
+    const total = Number(roomData?.total_price ?? 0);
+    if (Number.isFinite(total) && total > 0) {
+      setPaymentAmount(String(total));
+    }
+  }, [roomData, paymentAmount]);
+
   const onNext = () => {
-    const depVal = parseFloat(deposit);
-    if (deposit && (isNaN(depVal) || depVal < 0 || depVal > 999999)) {
-      alert("Please enter a valid deposit amount.");
+    const payVal = parseFloat(paymentAmount);
+    if (paymentAmount && (isNaN(payVal) || payVal < 0 || payVal > 999999)) {
+      alert("Please enter a valid room payment amount.");
       return;
     }
 
@@ -65,16 +73,15 @@ export default function PaymentStep() {
     const session = savedLine ? JSON.parse(savedLine) : {};
     
     session.payment_method = method;
-    session.deposit_amount = deposit ? depVal : undefined;
+    session.payment_amount = paymentAmount ? payVal : 0;
     
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify(session));
-    router.push(`/pms/mobile-checkin/confirm/${resId}`);
+    router.push(`/pms/mobile-checkin/deposit/${resId}`);
   };
 
   const paymentOptions = [
     { id: "cash", label: "Cash", icon: Banknote },
-    { id: "card", label: "Credit Card", icon: CreditCard },
-    { id: "qr", label: "QR Code", icon: QrCode },
+    { id: "credit_card", label: "Credit Card", icon: CreditCard },
     { id: "transfer", label: "Transfer", icon: ArrowRightLeft },
   ];
 
@@ -90,8 +97,8 @@ export default function PaymentStep() {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-brand-600 tracking-wider">STEP 2/3</span>
-            <h1 className="text-xl font-bold tracking-tight">Payment</h1>
+            <span className="text-xs font-bold text-brand-600 tracking-wider">STEP 2/4</span>
+            <h1 className="text-xl font-bold tracking-tight">Room Payment</h1>
           </div>
         </div>
       </header>
@@ -149,9 +156,9 @@ export default function PaymentStep() {
           </div>
         </section>
 
-        {/* Deposit */}
+        {/* Room Payment Amount */}
         <section className="space-y-3 pt-4 border-t border-[var(--border-default)]">
-          <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">Deposit (Optional)</h3>
+          <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">Room Payment Amount</h3>
           
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] font-black text-lg">
@@ -161,8 +168,8 @@ export default function PaymentStep() {
               type="number" 
               min="0"
               max="999999"
-              value={deposit}
-              onChange={(e) => setDeposit(e.target.value)}
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
               placeholder="0.00"
               className="w-full h-14 pl-10 pr-4 rounded-xl border border-[var(--border-input)] bg-[var(--bg-surface)] text-xl font-bold text-[var(--text-primary)] focus:ring-2 focus:ring-brand-500"
             />
@@ -177,7 +184,7 @@ export default function PaymentStep() {
             onClick={onNext}
             className="w-full h-14 bg-brand-600 text-white rounded-2xl font-black tracking-widest uppercase shadow-xl shadow-brand-500/30 active:scale-[0.98] transition-all flex items-center justify-center"
           >
-            Review Check-in <ArrowLeft className="w-6 h-6 ml-2 rotate-180" />
+            Next: Deposit <ArrowLeft className="w-6 h-6 ml-2 rotate-180" />
           </button>
         </div>
       </div>

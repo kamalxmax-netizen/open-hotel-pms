@@ -93,7 +93,7 @@ export default function ConfirmStep() {
 
   if (!sessionData) return null; // Avoid flicker
 
-  const isDraft = sessionData.force_draft || !sessionData.guest_info?.passport_no || !sessionData.guest_info?.nationality;
+  const isDraft = Boolean(sessionData.force_draft);
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-muted)] pb-24">
@@ -108,7 +108,7 @@ export default function ConfirmStep() {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-brand-600 tracking-wider">STEP 3/3</span>
+            <span className="text-xs font-bold text-brand-600 tracking-wider">STEP 4/4</span>
             <h1 className="text-xl font-bold tracking-tight">Confirm</h1>
           </div>
         </div>
@@ -199,11 +199,14 @@ export default function ConfirmStep() {
                 <p className="text-sm font-bold text-[var(--text-muted)] uppercase mb-1">Payment Method</p>
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="inline-block px-3 py-1 bg-[var(--bg-muted)] border border-[var(--border-input)] rounded-full text-sm font-bold capitalize text-[var(--text-primary)]">
-                    {sessionData.payment_method || "Card"}
+                    Room: {sessionData.payment_method || "cash"}
+                  </span>
+                  <span className="inline-block px-3 py-1 bg-[var(--bg-muted)] border border-[var(--border-input)] rounded-full text-sm font-bold text-[var(--text-primary)]">
+                    ฿{Number(sessionData.payment_amount || 0).toLocaleString()}
                   </span>
                   {sessionData.deposit_amount && (
                     <span className="inline-block px-3 py-1 bg-brand-50 border border-brand-200 dark:bg-brand-500/10 dark:border-brand-500/30 rounded-full text-sm font-bold text-brand-700 dark:text-brand-400">
-                      Dep: ฿{sessionData.deposit_amount.toLocaleString()}
+                      Deposit: {sessionData.deposit_method || sessionData.payment_method || "cash"} · ฿{Number(sessionData.deposit_amount).toLocaleString()}
                     </span>
                   )}
                 </div>

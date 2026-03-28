@@ -44,6 +44,7 @@ const bodySchema = z.object({
   accompanying_guests: z.array(accompanyingSchema).optional().default([]),
   payment_method: z.string().optional(),
   payment_amount: z.number().optional(),
+  deposit_method: z.string().optional(),
   deposit_amount: z.number().optional(),
   scan_id: z.string().uuid().optional(),
   force_draft: z.boolean().optional().default(false),
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
     }
 
     const reservationStatus = String(reservation.status ?? "active");
-    if (reservationStatus !== "active") {
+    if (reservationStatus !== "active" && reservationStatus !== "draft_checkin") {
       throw new MobileCheckinError("Reservation is not eligible for check-in.", 409, "RESERVATION_STATUS_BLOCKED");
     }
     if (reservation.checked_in_at) {
@@ -186,8 +187,8 @@ export async function POST(request: NextRequest) {
     const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
 
     const checkinNow = new Date();
-    const checkedInAt = isDraft ? null : checkinNow.toISOString();
-    const checkinTime = isDraft ? null : toBangkokTimeHHmm(checkinNow);
+    const checkedInAt = checkinNow.toISOString();
+    const checkinTime = toBangkokTimeHHmm(checkinNow);
 
     const beforeJson = {
       status: reservationStatus,
@@ -195,8 +196,7 @@ export async function POST(request: NextRequest) {
       guest_profile_id: reservation.guest_profile_id ?? null,
     };
 
-    // Draft = save guest info only, keep status active, no checked_in_at
-    // Full check-in = status active + checked_in_at set
+    // Mobile check-in always stamps check-in timestamp at submit time.
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
@@ -235,6 +235,7 @@ export async function POST(request: NextRequest) {
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
+    const depositMethod = mapCheckinPaymentMethod(payload.deposit_method) ?? paymentMethod;
     const paymentAmount = Number(payload.payment_amount ?? 0);
     const depositAmount = Number(payload.deposit_amount ?? 0);
     if ((Number.isFinite(paymentAmount) && paymentAmount > 0) || (Number.isFinite(depositAmount) && depositAmount > 0)) {
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
         supabase,
         reservationId: payload.reservation_id,
         method: paymentMethod,
+        depositMethod,
         paymentAmount,
         depositAmount,
         cashierName: payload.cashier_name,

@@ -185,6 +185,7 @@ export default function PassportOcrPopup() {
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const importTarget = searchParams.get("target") === "accompany" ? "accompany" : "main";
   const scanId = searchParams.get("scan_id");
+  const reservationId = searchParams.get("reservation_id");
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -224,18 +225,20 @@ export default function PassportOcrPopup() {
 
   // Handle loading saved scan (Bonus: PDPA access)
   useEffect(() => {
-    if (!scanId) return;
+    if (!scanId && !reservationId) return;
 
     const loadSavedScan = async () => {
       setBusy(true);
       setErrorText("");
       setStatusText("Loading saved passport data...");
       try {
-        const res = await fetch(`/api/checkin/passport-photo/${scanId}`);
+        const targetScanId = scanId || "latest";
+        const qs = reservationId ? `?reservation_id=${encodeURIComponent(reservationId)}` : "";
+        const res = await fetch(`/api/checkin/passport-photo/${targetScanId}${qs}`);
         let payload;
         if (!res.ok) {
           const { mockPassportPhoto } = await import("@/lib/mock/mobile-checkin");
-          payload = await mockPassportPhoto(scanId);
+          payload = await mockPassportPhoto(targetScanId);
         } else {
           payload = await res.json();
         }
@@ -275,7 +278,7 @@ export default function PassportOcrPopup() {
     };
     
     loadSavedScan();
-  }, [scanId]);
+  }, [reservationId, scanId]);
 
   const updateSelectedFile = (file: File | null) => {
     setSelectedFile(file);

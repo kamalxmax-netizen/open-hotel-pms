@@ -1653,6 +1653,10 @@ export default function ReservationDetailPage({
             target,
             t: String(Date.now())
         });
+        if (reservationId && target === "main") {
+            params.set("scan_id", "latest");
+            params.set("reservation_id", reservationId);
+        }
         const url = `${window.location.origin}/passport-ocr?${params.toString()}`;
         const popup = window.open(
             url,
@@ -1664,7 +1668,7 @@ export default function ReservationDetailPage({
             return;
         }
         popup.focus();
-    }, []);
+    }, [reservationId]);
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {

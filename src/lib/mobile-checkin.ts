@@ -460,6 +460,7 @@ export async function applyCheckinFinancials(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   reservationId: string;
   method: "cash" | "transfer" | "credit_card" | null;
+  depositMethod?: "cash" | "transfer" | "credit_card" | null;
   paymentAmount?: number | null;
   depositAmount?: number | null;
   cashierName?: string | null;
@@ -469,6 +470,7 @@ export async function applyCheckinFinancials(params: {
     supabase,
     reservationId,
     method,
+    depositMethod,
     paymentAmount,
     depositAmount,
     cashierName,
@@ -476,6 +478,7 @@ export async function applyCheckinFinancials(params: {
   } = params;
 
   const safeMethod = method ?? "cash";
+  const safeDepositMethod = depositMethod ?? safeMethod;
   const safeCashier = normalizeWhitespace(cashierName) || "FO Mobile";
   const payment = Number(paymentAmount ?? 0);
   const deposit = Number(depositAmount ?? 0);
@@ -503,7 +506,7 @@ export async function applyCheckinFinancials(params: {
   }
 
   if (Number.isFinite(deposit) && deposit > 0) {
-    const lines = [{ method: safeMethod, amount: deposit, note: "Mobile check-in deposit" }];
+    const lines = [{ method: safeDepositMethod, amount: deposit, note: "Mobile check-in deposit" }];
     const { error: depositError } = await supabase.rpc("apply_deposit_snapshot_lines", {
       p_reservation_id: reservationId,
       p_lines: lines,
