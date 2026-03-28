@@ -264,6 +264,10 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   const [targetReservationId, setTargetReservationId] = useState("");
   const [targetRole, setTargetRole] = useState<"primary" | "accompanying">("primary");
 
+  const [mobileScans, setMobileScans] = useState<any[]>([]);
+  const [isImportingAll, setIsImportingAll] = useState(false);
+  const [showFailedModal, setShowFailedModal] = useState<{ scanId: string; imagePath: string } | null>(null);
+
   const [loadingPaymentPreview, setLoadingPaymentPreview] = useState(false);
   const [paymentPreview, setPaymentPreview] = useState<PaymentPreviewData | null>(null);
 
@@ -465,6 +469,98 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   useEffect(() => {
     setPaymentPreview(null);
   }, [paymentMode, selectedReservationIds.join(","), masterPayments, splitPlans]);
+
+  // --- Phase 50 Mobile Scans Polling ---
+  useEffect(() => {
+    if (currentStep !== 2 || !groupId) return;
+    
+    const poll = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}`);
+        if (res.ok) {
+           const json = await res.json();
+           if (json.success && json.pool) setMobileScans(json.pool);
+        } else {
+           const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
+           setMobileScans(mock.pool);
+        }
+      } catch (err) {
+        const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
+        setMobileScans(mock.pool);
+      }
+    };
+    
+    poll(); // immediate
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [currentStep, groupId]);
+
+  const filteredMobileScans = useMemo(() => {
+    const existingIds = new Set(scannedGuestPool.map(g => g.id));
+    return mobileScans.filter(scan => {
+      if (scan.guest_profile_id && existingIds.has(scan.guest_profile_id)) return false;
+      return true;
+    });
+  }, [mobileScans, scannedGuestPool]);
+
+  async function importSingleScan(scan: any) {
+    if (!scan.guest_profile_id) return;
+    setStep2Busy(true);
+    setError("");
+    setInfo("");
+    try {
+      await ingestIdentityToPool({
+        source: "search",
+        guestProfileId: scan.guest_profile_id,
+      });
+      setInfo(`Imported ${scan.display_name} from mobile scan.`);
+    } catch (err: any) {
+      setError(err?.message || "Failed to import scan.");
+    } finally {
+      setStep2Busy(false);
+    }
+  }
+
+  async function importAllReadyScans() {
+    const readyScans = filteredMobileScans.filter((s: any) => s.pool_status === "ready" && s.guest_profile_id);
+    if (readyScans.length === 0) return;
+    
+    setIsImportingAll(true);
+    setStep2Busy(true);
+    setError("");
+    setInfo("");
+    try {
+      let imported = 0;
+      for (const scan of readyScans) {
+        try {
+          await ingestIdentityToPool({
+            source: "search",
+            guestProfileId: scan.guest_profile_id,
+          });
+          imported++;
+        } catch (e) {
+          console.error("Failed importing row", scan.scan_id, e);
+        }
+      }
+      
+      fetch(`/api/checkin/group-ocr-pool/${groupId}/import-to-wizard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scan_ids: readyScans.map((s: any) => s.scan_id),
+          business_date: businessDate,
+        }),
+      }).catch(console.error);
+
+      setInfo(`Imported ${imported} profiles from Mobile Scans into local pool.`);
+    } catch (err: any) {
+      setError(err?.message || "Failed to import all scans.");
+    } finally {
+      setIsImportingAll(false);
+      setStep2Busy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1546,6 +1642,67 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <div className="lg:col-span-7 border border-[var(--border-default)] rounded-xl p-4 bg-[var(--bg-surface)] space-y-3">
+                  
+                  {/* --- Phase 50 Mobile Scans Panel --- */}
+                  <div className="bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 rounded-xl p-3 mb-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-violet-900 dark:text-violet-100 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse"></span>
+                        Mobile Scans (Auto)
+                      </h3>
+                      {filteredMobileScans.some(s => s.pool_status === "ready") && (
+                        <button
+                          className="text-xs font-bold bg-violet-600 text-white px-3 py-1.5 rounded-lg active:scale-95 transition-all"
+                          onClick={importAllReadyScans}
+                          disabled={isImportingAll || step2Busy}
+                        >
+                          {isImportingAll ? "Importing..." : "Import All Ready"}
+                        </button>
+                      )}
+                    </div>
+                    {filteredMobileScans.length === 0 ? (
+                      <p className="text-xs text-violet-700/60 dark:text-violet-300/60 font-medium">รอการสแกนจากโทรศัพท์...</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {filteredMobileScans.map((scan, i) => (
+                           <div key={scan.scan_id + i} className="flex items-center justify-between bg-white dark:bg-[#1a1c23] border border-violet-100 dark:border-violet-900/50 p-2 rounded-lg text-sm shadow-sm">
+                              <div>
+                                {scan.pool_status === "ocr_failed" ? (
+                                  <div className="font-bold text-rose-600 dark:text-rose-400">Failed Scan</div>
+                                ) : (
+                                  <div className="font-semibold text-violet-900 dark:text-violet-100">{scan.display_name}</div>
+                                )}
+                                <div className="text-xs text-violet-600/70 dark:text-violet-400/70 mt-0.5">
+                                  {scan.pool_status === "ocr_failed" ? "รอการแก้ข้อมูลรูปถ่าย" : `${scan.passport_no || "—"} · ${scan.nationality_code || "—"}`}
+                                </div>
+                              </div>
+                              <div>
+                                {scan.pool_status === "ready" ? (
+                                   <button 
+                                     onClick={() => importSingleScan(scan)}
+                                     disabled={step2Busy || isImportingAll}
+                                     className="text-xs font-bold bg-violet-100 dark:bg-violet-900/40 hover:bg-violet-200 text-violet-700 dark:text-violet-300 px-3 py-1.5 rounded"
+                                   >
+                                     Import
+                                   </button>
+                                ) : scan.pool_status === "ocr_failed" ? (
+                                   <button 
+                                     onClick={() => setShowFailedModal({ scanId: scan.scan_id, imagePath: scan.image_path })}
+                                     className="text-xs font-bold bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 text-rose-700 dark:text-rose-300 px-3 py-1.5 rounded"
+                                   >
+                                     View Photo
+                                   </button>
+                                ) : (
+                                  <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded">Processing</span>
+                                )}
+                              </div>
+                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* --------------------------------- */}
+
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-semibold text-[var(--text-primary)]">Scan Pool</h3>
                     <button
@@ -2160,6 +2317,52 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           )}
         </div>
       </footer>
+
+      {/* Failed OCR Modal */}
+      {showFailedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between bg-[var(--bg-body)]">
+                 <div>
+                    <h3 className="font-bold text-lg text-[var(--text-primary)]">OCR Failed - Manual Entry</h3>
+                    <p className="text-xs font-medium text-[var(--text-secondary)]">Please use Manual Assign to look up or create the profile using this photo.</p>
+                 </div>
+                 <button 
+                   onClick={() => setShowFailedModal(null)}
+                   className="text-[var(--text-muted)] hover:text-rose-500 bg-[var(--bg-surface-hover)] p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition"
+                 >
+                   ✕
+                 </button>
+              </div>
+              <div className="p-4 bg-[var(--bg-body)] flex justify-center">
+                 {/* Provide placeholder UI since we don't have real S3 buckets setup right now */}
+                 <div className="w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border-4 border-[var(--border-subtle)] relative">
+                    <img 
+                       src="/placeholder-passport.jpg" 
+                       onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                       className="w-full h-full object-cover opacity-80" 
+                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-300 gap-2">
+                       <span className="bg-black/50 px-3 py-1 rounded text-sm font-code backdrop-blur-sm">
+                         Path: {showFailedModal.imagePath || "groups/null/failed.jpg"}
+                       </span>
+                    </div>
+                 </div>
+              </div>
+              <div className="p-5 border-t border-[var(--border-default)] bg-[var(--bg-surface)] flex justify-end gap-3">
+                 <button className="btn btn-secondary" onClick={() => setShowFailedModal(null)}>
+                   Close
+                 </button>
+                 <button 
+                  className="btn btn-primary"
+                  onClick={() => setShowFailedModal(null)}
+                 >
+                   Acknowledged
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload } from "lucide-react";
+import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users } from "lucide-react";
 
 interface Room {
   reservation_id: string;
@@ -125,6 +125,25 @@ export default function MobileCheckinLanding() {
                 </p>
                 <p className="text-indigo-300 text-xs font-semibold mt-0.5">
                   ไม่บันทึกรูป — เก็บแค่ข้อมูลตัวอักษร
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Group OCR */}
+        <div>
+          <Link href="/pms/mobile-checkin/group-ocr" className="block">
+            <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-surface)] p-6 border border-[var(--border-default)] shadow-sm active:scale-[0.98] transition-all flex items-center gap-5">
+              <div className="w-14 h-14 bg-violet-100 dark:bg-violet-900/30 rounded-full flex items-center justify-center text-violet-600 dark:text-violet-400 shrink-0">
+                <Users className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-[var(--text-primary)] tracking-widest uppercase">
+                  Group OCR
+                </h2>
+                <p className="mt-1 text-[var(--text-secondary)] font-medium text-sm">
+                  Scan passports for group check-in
                 </p>
               </div>
             </div>

@@ -686,7 +686,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 if (!b) return null;
                                                 const { res, startIdx, spanCount, clippedLeft, clippedRight, segmentKey, isSegmentGhost, isSegmentSolidPartial } = b;
                                                 const isCheckedOut = res.status === "checked_out";
-                                                const sc = isCheckedOut ? { bar: "bg-slate-200 dark:bg-slate-700/80", text: "text-slate-600 dark:text-slate-300" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
+                                                const sc = isCheckedOut ? { bar: "bg-slate-200 dark:bg-slate-600", text: "text-slate-700 dark:text-slate-200" } : (SOURCE_COLOR[res.source] ?? DEFAULT_COLOR);
                                                 const linkHoverKey = resolveLinkHoverKey(res);
                                                 const isGroupFocused = !focusReservationId && Boolean(hoverGroupId) && linkHoverKey === hoverGroupId;
                                                 const shouldFadeGroup = focusReservationId
@@ -716,7 +716,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 } else if (isSolid) {
                                                     defaultClasses += ` ${sc.bar} ${sc.text} ring-2 ring-brand-400 brightness-90 shadow-md cursor-grab`;
                                                 } else {
-                                                    defaultClasses += ` ${sc.bar} ${sc.text} ${shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-100 cursor-default border border-slate-300 dark:border-slate-600" : "hover:brightness-110"}`;
+                                                    defaultClasses += ` ${sc.bar} ${sc.text} ${shouldFadeGroup ? "opacity-10" : isCheckedOut ? "opacity-100 cursor-default border border-slate-300 dark:border-slate-500" : "hover:brightness-110"}`;
                                                     if (isDraggable) defaultClasses += " cursor-ns-resize"; // Vertical drag hint
                                                 }
 
