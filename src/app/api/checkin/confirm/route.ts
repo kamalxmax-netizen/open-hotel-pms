@@ -47,6 +47,7 @@ const bodySchema = z.object({
   scan_id: z.string().uuid().optional(),
   force_draft: z.boolean().optional().default(false),
   cashier_name: z.string().optional(),
+  booking_name_note: z.string().optional().nullable(),
 });
 
 export async function POST(request: NextRequest) {
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const reservationStatus = String(reservation.status ?? "active");
-    if (!["active", "draft_checkin"].includes(reservationStatus)) {
+    if (reservationStatus !== "active") {
       throw new MobileCheckinError("Reservation is not eligible for check-in.", 409, "RESERVATION_STATUS_BLOCKED");
     }
     if (reservation.checked_in_at) {
@@ -149,10 +150,12 @@ export async function POST(request: NextRequest) {
       guest_profile_id: reservation.guest_profile_id ?? null,
     };
 
+    // Draft = save guest info only, keep status active, no checked_in_at
+    // Full check-in = status active + checked_in_at set
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
-        status: isDraft ? "draft_checkin" : "active",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         guest_name: effectiveName,
@@ -202,24 +205,28 @@ export async function POST(request: NextRequest) {
       businessDate,
       beforeJson,
       afterJson: {
-        status: isDraft ? "draft_checkin" : "active",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         guest_profile_id: resolvedPrimary.guestProfileId,
+        is_draft: isDraft,
         forced_name: payload.force_draft || scanBelowThreshold,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
       },
-      note: isDraft
-        ? "Mobile check-in saved as draft due to incomplete profile or low OCR confidence."
-        : "Mobile check-in completed.",
+      note: [
+        isDraft
+          ? "Mobile check-in saved as draft due to incomplete profile or low OCR confidence."
+          : "Mobile check-in completed.",
+        payload.booking_name_note || "",
+      ].filter(Boolean).join(" "),
     });
 
     return NextResponse.json({
       success: true,
       data: {
         reservation_id: payload.reservation_id,
-        status: isDraft ? "draft_checkin" : "active",
+        status: "active",
         is_draft: isDraft,
         profile_complete: completeness.is_complete,
         missing_fields: completeness.missing_fields,

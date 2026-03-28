@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Camera, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Camera, ShieldAlert, Loader2, AlertTriangle } from "lucide-react";
 
 export default function GuestInfo() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const resId = params.resId as string;
   const scanId = searchParams.get("scan_id");
   const forceDraft = searchParams.get("force_draft") === "true";
@@ -23,9 +23,17 @@ export default function GuestInfo() {
     date_of_birth: "",
     gender: ""
   });
-  
+
   const [accompanying, setAccompanying] = useState<any[]>([]);
   const [loadingName, setLoadingName] = useState(true);
+  const [bookingNameNote, setBookingNameNote] = useState<string | null>(null);
+  const [mainScanId, setMainScanId] = useState<string | null>(scanId);
+  const [mainScanning, setMainScanning] = useState(false);
+  const [accScanning, setAccScanning] = useState<number | null>(null);
+  const [accOcrWarnings, setAccOcrWarnings] = useState<Map<number, string[]>>(new Map());
+  const mainCameraRef = useRef<HTMLInputElement>(null);
+  const accCameraRef = useRef<HTMLInputElement>(null);
+  const [originalBookingName, setOriginalBookingName] = useState("");
 
   // Hydrate OCR data & Load Session & Fetch Original Name
   useEffect(() => {
@@ -47,6 +55,7 @@ export default function GuestInfo() {
         const room = data.find((r: any) => r.reservation_id === resId);
         if (room) {
           _originalName = room.guest_name;
+          setOriginalBookingName(_originalName);
         }
       } catch (e) {
         console.error("Failed fetching original name", e);
@@ -96,7 +105,7 @@ export default function GuestInfo() {
 
   const addAccompanying = () => {
     if (accompanying.length >= 3) return;
-    setAccompanying([...accompanying, { full_name: "", passport_no: "", source: "manual" }]);
+    setAccompanying([...accompanying, { full_name: "", passport_no: "", nationality: "", date_of_birth: "", gender: "", source: "manual" }]);
   };
 
   const removeAccompanying = (index: number) => {
@@ -115,13 +124,128 @@ export default function GuestInfo() {
     
     // Save to session
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify({
-      scan_id: scanId,
+      scan_id: mainScanId,
       force_draft: forceDraft || isDraftFromUrl,
       guest_info: mainGuest,
-      accompanying
+      accompanying,
+      booking_name_note: bookingNameNote,
     }));
     
     router.push(`/pms/mobile-checkin/payment/${resId}`);
+  };
+
+  const handleMainGuestScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      alert("Please upload a valid image under 5MB.");
+      return;
+    }
+    setMainScanning(true);
+    try {
+      let scanData;
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("API not ready");
+        const json = await res.json();
+        scanData = json.data;
+      } catch {
+        const { mockScanPassport } = await import("@/lib/mock/mobile-checkin");
+        const mock = await mockScanPassport();
+        scanData = mock.data;
+      }
+
+      const ocrName = `${scanData.parsed.firstName ?? ""} ${scanData.parsed.familyName ?? ""}`.trim();
+      const currentName = mainGuest.full_name.trim() || originalBookingName;
+
+      if (currentName && ocrName && ocrName.toLowerCase() !== currentName.toLowerCase()) {
+        setBookingNameNote(`จองมาในชื่อ ${currentName}`);
+      }
+
+      setMainGuest({
+        full_name: ocrName || mainGuest.full_name,
+        passport_no: scanData.parsed.passportNumber || mainGuest.passport_no,
+        nationality: scanData.parsed.nationality || mainGuest.nationality,
+        date_of_birth: scanData.parsed.dateOfBirth || mainGuest.date_of_birth,
+        gender: scanData.parsed.gender || mainGuest.gender,
+      });
+      setMainScanId(scanData.scan_id);
+
+      sessionStorage.setItem("mobile-checkin-temp-ocr", JSON.stringify({
+        scan_id: scanData.scan_id,
+        parsed: scanData.parsed,
+      }));
+    } catch {
+      alert("Scan failed. Please try again.");
+    } finally {
+      setMainScanning(false);
+      if (mainCameraRef.current) mainCameraRef.current.value = "";
+    }
+  };
+
+  const handleAccompanyingScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const idx = accScanning;
+    if (!file || idx == null) return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      alert("Please upload a valid image under 5MB.");
+      setAccScanning(null);
+      return;
+    }
+    try {
+      let scanData;
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await fetch("/api/checkin/scan-passport", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("API not ready");
+        const json = await res.json();
+        scanData = json.data;
+      } catch {
+        const { mockScanPassport } = await import("@/lib/mock/mobile-checkin");
+        const mock = await mockScanPassport();
+        scanData = mock.data;
+      }
+
+      const parsed = scanData.parsed;
+      const ocrName = `${parsed.firstName ?? ""} ${parsed.familyName ?? ""}`.trim();
+
+      const newAcc = [...accompanying];
+      newAcc[idx] = {
+        ...newAcc[idx],
+        full_name: ocrName || newAcc[idx].full_name,
+        passport_no: parsed.passportNumber || newAcc[idx].passport_no || "",
+        nationality: parsed.nationality || newAcc[idx].nationality || "",
+        date_of_birth: parsed.dateOfBirth || newAcc[idx].date_of_birth || "",
+        gender: parsed.gender || newAcc[idx].gender || "",
+        source: "ocr",
+      };
+      setAccompanying(newAcc);
+
+      const missing: string[] = [];
+      if (!ocrName) missing.push("Name");
+      if (!parsed.passportNumber) missing.push("Passport No.");
+      if (!parsed.nationality) missing.push("Nationality");
+      if (!parsed.dateOfBirth) missing.push("DOB");
+      if (!parsed.gender) missing.push("Gender");
+      if (missing.length > 0) {
+        setAccOcrWarnings(prev => new Map(prev).set(idx, missing));
+      } else {
+        setAccOcrWarnings(prev => { const m = new Map(prev); m.delete(idx); return m; });
+      }
+    } catch {
+      alert("Scan failed. Please try again.");
+    } finally {
+      setAccScanning(null);
+      if (accCameraRef.current) accCameraRef.current.value = "";
+    }
+  };
+
+  const triggerAccScan = (idx: number) => {
+    setAccScanning(idx);
+    setTimeout(() => accCameraRef.current?.click(), 50);
   };
 
   return (
@@ -165,23 +289,47 @@ export default function GuestInfo() {
         <section className="bg-[var(--bg-surface)] rounded-2xl shadow-sm border border-[var(--border-default)] overflow-hidden">
           <div className="bg-brand-50/50 dark:bg-[var(--bg-surface-hover)] px-5 py-3 border-b border-[var(--border-default)] flex justify-between items-center">
             <h2 className="font-bold text-brand-700 dark:text-brand-400">Main Guest</h2>
-            {scanId && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase">
-                <Camera className="w-3 h-3" /> OCR Verified
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {mainScanId && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase">
+                  <Camera className="w-3 h-3" /> OCR
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => mainCameraRef.current?.click()}
+                disabled={mainScanning}
+                className="inline-flex items-center gap-1 text-xs font-bold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-400 px-3 py-1.5 rounded-full hover:bg-brand-200 dark:hover:bg-brand-500/30 transition disabled:opacity-50"
+              >
+                {mainScanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                {mainScanning ? "Scanning..." : "Scan Passport"}
+              </button>
+              <input
+                ref={mainCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleMainGuestScan}
+              />
+            </div>
           </div>
           
           <div className="p-5 space-y-4">
             <div>
               <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Full Name</label>
-              <input 
-                value={mainGuest.full_name} 
+              <input
+                value={mainGuest.full_name}
                 onChange={(e) => setMainGuest({...mainGuest, full_name: e.target.value})}
-                disabled={forceDraft} 
+                disabled={forceDraft}
                 className="w-full h-12 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                 placeholder="Required"
               />
+              {bookingNameNote && (
+                <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  📋 {bookingNameNote}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -238,36 +386,85 @@ export default function GuestInfo() {
           </div>
 
           {accompanying.map((acc, idx) => (
-            <div key={idx} className="bg-[var(--bg-surface)] rounded-2xl shadow-sm border border-[var(--border-default)] p-5 relative overflow-hidden">
-              <button 
-                onClick={() => removeAccompanying(idx)}
-                className="absolute top-3 right-3 text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 p-3 rounded-full transition"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-              
-              <div className="pr-12 space-y-4">
+            <div key={idx} className="bg-[var(--bg-surface)] rounded-2xl shadow-sm border border-[var(--border-default)] overflow-hidden">
+              <div className="px-5 py-2.5 border-b border-[var(--border-default)] bg-[var(--bg-muted)] flex justify-between items-center">
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase">Guest {idx + 1}</span>
+                <div className="flex items-center gap-2">
+                  {acc.source === "ocr" && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase">
+                      <Camera className="w-3 h-3" /> OCR
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => triggerAccScan(idx)}
+                    disabled={accScanning != null}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-400 px-2 py-1 rounded-full hover:bg-brand-200 transition disabled:opacity-50"
+                  >
+                    {accScanning === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                    Scan
+                  </button>
+                  <button
+                    onClick={() => removeAccompanying(idx)}
+                    className="text-rose-500 hover:text-rose-600 p-1 rounded-full transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {accOcrWarnings.has(idx) && (
+                <div className="mx-5 mt-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg p-2.5 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    OCR ไม่ครบ กรุณาตรวจสอบ: {accOcrWarnings.get(idx)!.join(", ")}
+                  </p>
+                </div>
+              )}
+
+              <div className="p-5 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Name</label>
-                  <input 
+                  <input
                     value={acc.full_name}
                     onChange={(e) => updateAccompanying(idx, "full_name", e.target.value)}
                     className="w-full h-10 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-sm focus:ring-2 focus:ring-brand-500"
                     placeholder="Guest Name"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Passport No.</label>
-                  <input 
-                    value={acc.passport_no}
-                    onChange={(e) => updateAccompanying(idx, "passport_no", e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-sm focus:ring-2 focus:ring-brand-500"
-                    placeholder="Optional"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Passport No.</label>
+                    <input
+                      value={acc.passport_no || ""}
+                      onChange={(e) => updateAccompanying(idx, "passport_no", e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-sm focus:ring-2 focus:ring-brand-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Nationality</label>
+                    <input
+                      value={acc.nationality || ""}
+                      onChange={(e) => updateAccompanying(idx, "nationality", e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-sm focus:ring-2 focus:ring-brand-500 uppercase"
+                      placeholder="Ex: FRA"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           ))}
+
+          {/* Hidden file input for accompanying guest scans */}
+          <input
+            ref={accCameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleAccompanyingScan}
+          />
 
           {accompanying.length < 3 && (
             <button 

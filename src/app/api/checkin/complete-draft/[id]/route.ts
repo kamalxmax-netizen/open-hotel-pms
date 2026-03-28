@@ -80,8 +80,8 @@ export async function POST(
       throw new MobileCheckinError("Reservation not found.", 404, "RESERVATION_NOT_FOUND");
     }
 
-    if (String(reservation.status ?? "") !== "draft_checkin") {
-      throw new MobileCheckinError("Reservation is not in draft check-in state.", 409, "NOT_DRAFT_CHECKIN");
+    if (String(reservation.status ?? "") !== "active") {
+      throw new MobileCheckinError("Reservation is not eligible.", 409, "RESERVATION_STATUS_BLOCKED");
     }
     if (reservation.checked_in_at) {
       throw new MobileCheckinError("Reservation is already checked in.", 409, "ALREADY_CHECKED_IN");
@@ -122,7 +122,7 @@ export async function POST(
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         guest_name: effectiveName,
@@ -156,13 +156,14 @@ export async function POST(
       action: canComplete ? "checked_in" : "draft_checkin",
       businessDate,
       beforeJson: {
-        status: "draft_checkin",
+        status: "active",
         checked_in_at: null,
       },
       afterJson: {
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
+        is_draft: !canComplete,
         missing_fields: completeness.missing_fields,
       },
       note: canComplete
@@ -174,7 +175,7 @@ export async function POST(
       success: true,
       data: {
         reservation_id: reservationId,
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         is_draft: !canComplete,
         profile_complete: completeness.is_complete,
         missing_fields: completeness.missing_fields,

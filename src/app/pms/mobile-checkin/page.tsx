@@ -10,6 +10,7 @@ interface Room {
   room_number: string;
   guest_name: string;
   status: string;
+  has_passport_scan: boolean;
   profile_complete: boolean;
 }
 
@@ -49,8 +50,8 @@ export default function MobileCheckinLanding() {
     fetchDueIn();
   }, []);
 
-  const totalDueIn = data?.rooms.filter(r => r.status === "confirmed" || r.status === "draft_checkin").length || 0;
-  const draftRooms = data?.rooms.filter(r => r.status === "draft_checkin") || [];
+  const totalDueIn = data?.rooms.length || 0;
+  const draftRooms = data?.rooms.filter(r => r.has_passport_scan && !r.profile_complete) || [];
 
   return (
     <div className="flex flex-col min-h-screen">

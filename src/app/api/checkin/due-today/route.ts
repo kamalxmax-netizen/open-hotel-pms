@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       .from("reservations")
       .select("id, guest_name, source, checkin_date, checkout_date, total_price, status, guest_profile_id, checked_in_at")
       .eq("checkin_date", businessDate)
-      .in("status", ["active", "draft_checkin"])
+      .eq("status", "active")
       .is("checked_in_at", null)
       .order("id", { ascending: true });
 
@@ -155,60 +155,12 @@ export async function GET(request: NextRequest) {
         })
       );
 
-    const { data: draftRows, error: draftError } = await supabase
-      .from("reservations")
-      .select("id, guest_name, source, checkin_date, checkout_date, total_price, status")
-      .eq("status", "draft_checkin")
-      .is("checked_in_at", null)
-      .order("checkin_date", { ascending: false })
-      .order("updated_at", { ascending: false });
-
-    if (draftError) {
-      throw new MobileCheckinError(draftError.message, 500, "DRAFT_QUERY_FAILED");
-    }
-
-    const draftReservationIds = (draftRows ?? []).map((row: any) => String(row.id ?? "")).filter(Boolean);
-    const draftRoomByReservation = new Map<string, string | null>();
-    if (draftReservationIds.length > 0) {
-      const { data: draftNightRows, error: draftNightError } = await supabase
-        .from("reservation_nights")
-        .select("reservation_id, stay_date, rooms(room_number)")
-        .in("reservation_id", draftReservationIds)
-        .is("cancelled_at", null)
-        .order("stay_date", { ascending: true });
-
-      if (draftNightError) {
-        throw new MobileCheckinError(draftNightError.message, 500, "DRAFT_NIGHTS_QUERY_FAILED");
-      }
-
-      for (const row of draftNightRows ?? []) {
-        const reservationId = String((row as any).reservation_id ?? "");
-        if (!reservationId || draftRoomByReservation.has(reservationId)) continue;
-        const roomRef = Array.isArray((row as any).rooms) ? (row as any).rooms[0] : (row as any).rooms;
-        const roomNumber = roomRef?.room_number ? String(roomRef.room_number) : null;
-        draftRoomByReservation.set(reservationId, roomNumber);
-      }
-    }
-
-    const drafts_all = (draftRows ?? []).map((row: any) => ({
-      reservation_id: String(row.id),
-      room_number: draftRoomByReservation.get(String(row.id)) ?? null,
-      guest_name: String(row.guest_name ?? "").trim(),
-      source: String(row.source ?? "walkin"),
-      checkin_date: String(row.checkin_date ?? ""),
-      checkout_date: String(row.checkout_date ?? ""),
-      total_price: Number(row.total_price ?? 0),
-      status: "draft_checkin",
-      reservation_status: "draft_checkin",
-    }));
-
     return NextResponse.json({
       success: true,
       data: {
         business_date: businessDate,
         server_date: toBangkokDate(),
         rooms,
-        drafts_all,
       },
     });
   } catch (error) {
