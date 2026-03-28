@@ -223,7 +223,7 @@ export default function ConfirmStep() {
               <Loader2 className="w-6 h-6 animate-spin" />
             ) : (
               <>
-                <Check className="w-6 h-6" /> {isDraft ? "Save Draft" : "Confirm Check-in"}
+                <Check className="w-6 h-6" /> {isDraft ? "Save Draft" : "Save Guest Data"}
               </>
             )}
           </button>

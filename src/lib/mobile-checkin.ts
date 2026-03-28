@@ -643,7 +643,7 @@ export async function insertCheckinAudit(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   actorUserId: string;
   reservationId: string;
-  action: "draft_checkin" | "checked_in";
+  action: "draft_checkin" | "checked_in" | "mobile_data_saved";
   businessDate: string;
   beforeJson?: Record<string, unknown> | null;
   afterJson?: Record<string, unknown> | null;

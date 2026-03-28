@@ -11,7 +11,6 @@ import {
   requireMobileCheckinAuth,
   resolvePrimaryGuestProfile,
   syncAccompanyingGuests,
-  toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -159,9 +158,8 @@ export async function POST(request: NextRequest) {
       : false;
 
     const guestInfoInput = payload.guest_info as MobileGuestInfoInput;
-    const effectiveName = payload.force_draft || scanBelowThreshold
-      ? reservationGuestName || guestInfoInput.full_name || "Unknown Guest"
-      : guestInfoInput.full_name || reservationGuestName || "Unknown Guest";
+    // Always use OCR/form name — booking name goes to booking_name_note
+    const effectiveName = guestInfoInput.full_name || reservationGuestName || "Unknown Guest";
 
     const resolvedPrimary = await resolvePrimaryGuestProfile({
       supabase,
@@ -188,9 +186,8 @@ export async function POST(request: NextRequest) {
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
     const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
 
-    const checkinNow = new Date();
-    const checkedInAt = checkinNow.toISOString();
-    const checkinTime = toBangkokTimeHHmm(checkinNow);
+    // Mobile check-in only saves guest data — FO does actual C/I from desktop.
+    // No checked_in_at stamp here.
 
     const beforeJson = {
       status: reservationStatus,
@@ -198,13 +195,10 @@ export async function POST(request: NextRequest) {
       guest_profile_id: reservation.guest_profile_id ?? null,
     };
 
-    // Mobile check-in always stamps check-in timestamp at submit time.
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
         status: "active",
-        checked_in_at: checkedInAt,
-        checkin_time: checkinTime,
         guest_name: effectiveName,
         guest_profile_id: resolvedPrimary.guestProfileId,
       })
@@ -257,23 +251,19 @@ export async function POST(request: NextRequest) {
       supabase,
       actorUserId: auth.userId,
       reservationId: payload.reservation_id,
-      action: isDraft ? "draft_checkin" : "checked_in",
+      action: "mobile_data_saved",
       businessDate,
       beforeJson,
       afterJson: {
         status: "active",
-        checked_in_at: checkedInAt,
-        checkin_time: checkinTime,
+        checked_in_at: null,
         guest_profile_id: resolvedPrimary.guestProfileId,
         is_draft: isDraft,
-        forced_name: payload.force_draft || scanBelowThreshold,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
       },
       note: [
-        isDraft
-          ? "Mobile check-in saved as draft due to forced draft mode or low OCR name-match confidence."
-          : "Mobile check-in completed.",
+        "Mobile check-in data saved (FO must complete C/I from desktop).",
         payload.booking_name_note || "",
       ].filter(Boolean).join(" "),
     });

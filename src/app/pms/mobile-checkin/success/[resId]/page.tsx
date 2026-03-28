@@ -54,10 +54,13 @@ export default function SuccessStep() {
               <CheckCircle2 className="w-12 h-12" />
             </div>
             <h1 className="text-3xl font-black tracking-tight text-[var(--text-primary)] mb-2 uppercase">
-              Check-in Complete
+              Data Saved
             </h1>
-            <p className="text-[var(--text-secondary)] font-medium text-lg mb-8">
-              Room {result?.room_number ?? "Checked In"}
+            <p className="text-[var(--text-secondary)] font-medium text-lg mb-2">
+              Room {result?.room_number ?? "Updated"}
+            </p>
+            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-6">
+              FO ต้องกด Check-in จาก Desktop อีกครั้ง
             </p>
           </>
         )}
