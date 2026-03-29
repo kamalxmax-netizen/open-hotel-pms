@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PackageIcon, SettingsIcon, ListOrderedIcon, ShieldAlertIcon } from "lucide-react";
 import { useAdminRole } from "@/hooks/use-admin-role";
@@ -11,7 +11,7 @@ import { DisplayOrderTab } from "./DisplayOrderTab";
 
 type TabKey = "products" | "stock" | "display_order";
 
-export default function InventorySettingsPage() {
+function InventorySettingsPageInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { isAdmin, loading } = useAdminRole();
@@ -107,5 +107,13 @@ export default function InventorySettingsPage() {
                 {activeTab === "display_order" && <DisplayOrderTab />}
             </div>
         </div>
+    );
+}
+
+export default function InventorySettingsPage() {
+    return (
+        <Suspense fallback={<div className="p-6" />}>
+            <InventorySettingsPageInner />
+        </Suspense>
     );
 }
