@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAdminRole } from "@/hooks/use-admin-role";
 
 /* ── Helpers ── */
 
@@ -32,23 +33,29 @@ interface MainStockRow extends MainStock {
     unit?: string | null;
     is_low_stock?: boolean;
     show_on_inventory_dashboard?: boolean;
+    display_order?: number;
 }
 
 interface FloorStockRow extends FloorStock {
     unit?: string | null;
     category?: string | null;
+    display_order?: number;
 }
 
-function sortByProductNameZA<T extends { product_name?: string | null }>(rows: T[]): T[] {
-    return [...rows].sort((a, b) =>
-        (b.product_name ?? "").localeCompare(a.product_name ?? "", undefined, { sensitivity: "base" })
-    );
+function sortByDisplayOrder<T extends { product_name?: string | null; display_order?: number }>(rows: T[]): T[] {
+    return [...rows].sort((a, b) => {
+        const orderA = a.display_order ?? 9999;
+        const orderB = b.display_order ?? 9999;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.product_name ?? "").localeCompare(b.product_name ?? "", undefined, { sensitivity: "base" });
+    });
 }
 
 /* ── Component ── */
 
 export default function StockLevelsPage() {
     const { toast } = useToast();
+    const { isAdmin } = useAdminRole();
 
     const [activeTab, setActiveTab] = useState<StockTab>("main");
     const [mainStock, setMainStock] = useState<MainStockRow[]>([]);
@@ -96,7 +103,7 @@ export default function StockLevelsPage() {
                 const mainData = await readJsonSafe<{ stocks?: MainStockRow[] }>(mainRes);
                 if (mainRes.ok && mainData.success !== false) {
                     const mainRows = Array.isArray(mainData.stocks) ? mainData.stocks : [];
-                    setMainStock(sortByProductNameZA(mainRows));
+                    setMainStock(sortByDisplayOrder(mainRows));
                 } else {
                     mainErrorMessage = mainData.error || "Failed to load main stock";
                 }
@@ -113,7 +120,7 @@ export default function StockLevelsPage() {
                         const floorNumber = Number(key);
                         if (!Number.isInteger(floorNumber)) return;
                         const floorRows = Array.isArray(rows) ? rows : [];
-                        floorMap[floorNumber] = sortByProductNameZA(floorRows);
+                        floorMap[floorNumber] = sortByDisplayOrder(floorRows);
                     });
                     setFloorStocks(floorMap);
                 } else {
@@ -337,28 +344,30 @@ export default function StockLevelsPage() {
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Stock Levels</h1>
                     <div className="flex gap-2">
-                        {activeTab === "main" && (
-                            <>
-                                <Button variant="outline" size="sm" onClick={() => { setReceiveOpen(true); setReceiveProduct(mainStock[0]?.product_id ?? ""); }}>
-                                    <PlusIcon className="w-4 h-4 mr-1" />
-                                    Add Stock
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => { setTransferOpen(true); setTransferProduct(mainStock[0]?.product_id ?? ""); }}>
-                                    <TruckIcon className="w-4 h-4 mr-1" />
-                                    Transfer
-                                </Button>
-                            </>
+                        {activeTab === "main" && isAdmin && (
+                            <Button variant="outline" size="sm" onClick={() => { setReceiveOpen(true); setReceiveProduct(mainStock[0]?.product_id ?? ""); }}>
+                                <PlusIcon className="w-4 h-4 mr-1" />
+                                Add Stock
+                            </Button>
                         )}
-                        <Button variant="outline" size="sm" onClick={() => {
-                            setAdjustOpen(true);
-                            setAdjustLocation(activeTab === "main" ? "main" : (currentFloorNumber ?? 1));
-                            const items = activeTab === "main" ? mainStock : currentFloorItems;
-                            setAdjustProduct(items[0]?.product_id ?? "");
-                            setAdjustNewQuantity(items[0]?.quantity ?? 0);
-                        }}>
-                            <MinusIcon className="w-4 h-4 mr-1" />
-                            Adjust
-                        </Button>
+                        {activeTab === "main" && (
+                            <Button variant="outline" size="sm" onClick={() => { setTransferOpen(true); setTransferProduct(mainStock[0]?.product_id ?? ""); }}>
+                                <TruckIcon className="w-4 h-4 mr-1" />
+                                Transfer
+                            </Button>
+                        )}
+                        {isAdmin && (
+                            <Button variant="outline" size="sm" onClick={() => {
+                                setAdjustOpen(true);
+                                setAdjustLocation(activeTab === "main" ? "main" : (currentFloorNumber ?? 1));
+                                const items = activeTab === "main" ? mainStock : currentFloorItems;
+                                setAdjustProduct(items[0]?.product_id ?? "");
+                                setAdjustNewQuantity(items[0]?.quantity ?? 0);
+                            }}>
+                                <MinusIcon className="w-4 h-4 mr-1" />
+                                Adjust
+                            </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={fetchStock} disabled={isLoading}>
                             <RefreshCwIcon className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
                         </Button>
@@ -421,9 +430,11 @@ export default function StockLevelsPage() {
                                 <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Quantity</th>
                                 <th className="text-right text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Reorder At</th>
                                 <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">Status</th>
-                                <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">
-                                    Show on Dashboard
-                                </th>
+                                {isAdmin && (
+                                    <th className="text-center text-xs font-semibold text-[var(--text-secondary)] uppercase px-4 py-3">
+                                        Show on Dashboard
+                                    </th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border-subtle)] dark:divide-white/10">
@@ -453,30 +464,32 @@ export default function StockLevelsPage() {
                                                 {status.label}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <label className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                                                <input
-                                                    type="checkbox"
-                                                    className="h-4 w-4 rounded border-[var(--border-input)]"
-                                                    checked={Boolean(item.show_on_inventory_dashboard ?? true)}
-                                                    disabled={dashboardToggleProductId === item.product_id}
-                                                    onChange={(e) =>
-                                                        void handleDashboardToggle(
-                                                            item.product_id,
-                                                            e.target.checked,
-                                                            item.product_name ?? "Product"
-                                                        )
-                                                    }
-                                                />
-                                                {dashboardToggleProductId === item.product_id ? "Saving..." : ""}
-                                            </label>
-                                        </td>
+                                        {isAdmin && (
+                                            <td className="px-4 py-3 text-center">
+                                                <label className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4 rounded border-[var(--border-input)]"
+                                                        checked={Boolean(item.show_on_inventory_dashboard ?? true)}
+                                                        disabled={dashboardToggleProductId === item.product_id}
+                                                        onChange={(e) =>
+                                                            void handleDashboardToggle(
+                                                                item.product_id,
+                                                                e.target.checked,
+                                                                item.product_name ?? "Product"
+                                                            )
+                                                        }
+                                                    />
+                                                    {dashboardToggleProductId === item.product_id ? "Saving..." : ""}
+                                                </label>
+                                            </td>
+                                        )}
                                     </tr>
                                 );
                             })}
                             {mainStock.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-12 text-[var(--text-muted)]">
+                                    <td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-[var(--text-muted)]">
                                         <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                         <p className="text-sm">No stock data available</p>
                                     </td>

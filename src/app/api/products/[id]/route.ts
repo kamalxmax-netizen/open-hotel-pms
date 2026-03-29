@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -12,6 +13,7 @@ const productUpdateSchema = z
     fulfillment_mode: z.enum(["standard", "daily_prepare"]).optional(),
     unit: z.string().trim().min(1).max(30).optional(),
     sale_price: z.number().min(0).max(9999999).nullable().optional(),
+    display_order: z.coerce.number().int().min(0).optional(),
     is_active: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -38,6 +40,12 @@ export async function PUT(
     }
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+
     const payload = {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.sku !== undefined ? { sku: parsed.data.sku?.trim() || null } : {}),
@@ -45,6 +53,7 @@ export async function PUT(
       ...(parsed.data.fulfillment_mode !== undefined ? { fulfillment_mode: parsed.data.fulfillment_mode } : {}),
       ...(parsed.data.unit !== undefined ? { unit: parsed.data.unit } : {}),
       ...(parsed.data.sale_price !== undefined ? { sale_price: parsed.data.sale_price } : {}),
+      ...(parsed.data.display_order !== undefined ? { display_order: parsed.data.display_order } : {}),
       ...(parsed.data.is_active !== undefined ? { is_active: parsed.data.is_active } : {}),
     };
 
@@ -52,7 +61,7 @@ export async function PUT(
       .from("products")
       .update(payload)
       .eq("id", parsedId.data)
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
       .single();
 
     const { data, error } = result;
@@ -65,6 +74,16 @@ export async function PUT(
             success: false,
             error:
               "DB migration required: apply 20260302_phase10_fo_prepare_flow.sql before updating products.",
+          },
+          { status: 500 }
+        );
+      }
+      if (message.includes("display_order")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202603290002_inventory_display_order.sql before updating products.",
           },
           { status: 500 }
         );
@@ -88,12 +107,13 @@ export async function PUT(
   } catch (err) {
     console.error("products/:id PUT failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -103,11 +123,17 @@ export async function DELETE(
     }
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+
     const result = await supabase
       .from("products")
       .update({ is_active: false })
       .eq("id", parsedId.data)
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
       .single();
 
     const { data, error } = result;
@@ -120,6 +146,16 @@ export async function DELETE(
             success: false,
             error:
               "DB migration required: apply 20260302_phase10_fo_prepare_flow.sql before updating products.",
+          },
+          { status: 500 }
+        );
+      }
+      if (message.includes("display_order")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202603290002_inventory_display_order.sql before updating products.",
           },
           { status: 500 }
         );
@@ -137,6 +173,7 @@ export async function DELETE(
   } catch (err) {
     console.error("products/:id DELETE failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

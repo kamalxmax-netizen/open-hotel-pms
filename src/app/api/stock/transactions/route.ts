@@ -1,4 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { toBangkokDateString } from "@/lib/audit-utils";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -50,19 +52,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const {
-      date_from,
-      date_to,
-      product_id,
-      action,
-      floor_number,
-      reference_type,
-      q,
-      limit,
-      offset,
-    } = parsed.data;
+    let { date_from } = parsed.data;
+    const { date_to, product_id, action, floor_number, reference_type, q, limit, offset } = parsed.data;
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const role = await getUserRole(supabase, user.id);
+    const isAdmin = role === "admin" || role === "supervisor";
+
+    if (!isAdmin) {
+      const todayBangkok = new Date(`${toBangkokDateString()}T12:00:00+07:00`);
+      todayBangkok.setDate(todayBangkok.getDate() - 30);
+      const minDate = toBangkokDateString(todayBangkok);
+      if (!date_from || date_from < minDate) {
+        date_from = minDate;
+      }
+    }
 
     let query = supabase
       .from("stock_transactions_v2")
@@ -125,6 +133,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       transactions: rows,
+      is_admin: isAdmin,
+      max_lookback_days: isAdmin ? null : 30,
       pagination: {
         total: count ?? 0,
         limit,

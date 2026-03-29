@@ -1,5 +1,15 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { findExistingGuestProfileByDocument, normalizeGuestDocumentNumber } from "@/lib/guest-resolution";
+import {
+  canRoleUnmaskInCheckin,
+  insertDataUnmaskAuditLog,
+  isCheckinModeEnabled,
+  maskSensitiveFields,
+  resolveBusinessDate,
+  shouldMaskIdentityForRole,
+  validateGuestUnmaskAccess,
+} from "@/lib/data-masking";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,14 +43,54 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+    }
+    const role = await getUserRole(supabase, user.id);
     const profile = await findExistingGuestProfileByDocument(supabase, {
       idType,
       idNumber,
     });
 
+    if (!profile) {
+      return NextResponse.json({
+        success: true,
+        profile: null,
+      });
+    }
+
+    const checkinMode = isCheckinModeEnabled(request.nextUrl.searchParams.get("checkin_mode"));
+    const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
+    const shouldMask = shouldMaskIdentityForRole(role);
+    let canUnmask = !shouldMask;
+
+    if (shouldMask && canRoleUnmaskInCheckin(role) && checkinMode && reservationId) {
+      const businessDate = await resolveBusinessDate(supabase);
+      canUnmask = await validateGuestUnmaskAccess({
+        supabase,
+        reservationId,
+        guestProfileId: String((profile as any).id ?? ""),
+        businessDate,
+      });
+      if (canUnmask) {
+        try {
+          await insertDataUnmaskAuditLog({
+            supabase,
+            userId: user.id,
+            reservationId,
+            guestProfileId: String((profile as any).id ?? ""),
+            businessDate,
+          });
+        } catch {
+          // Best-effort audit only.
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      profile,
+      profile: canUnmask ? profile : maskSensitiveFields(profile as Record<string, unknown>),
     });
   } catch (err) {
     console.error("api/guests/by-id GET failed", err);

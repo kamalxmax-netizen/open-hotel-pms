@@ -54,7 +54,6 @@ const NAV_ITEMS = [
         section: "Inventory",
         items: [
             { href: "/pms/inventory", label: "Dashboard", icon: PackageIcon, exact: true },
-            { href: "/pms/inventory/products", label: "Products", icon: TagIcon },
             { href: "/pms/inventory/stock", label: "Stock Levels", icon: PackageIcon },
             { href: "/pms/inventory/fo-prepare", label: "FO Prepare", icon: ShoppingCartIcon },
             { href: "/pms/inventory/transactions", label: "Transactions", icon: ListIcon },
@@ -101,6 +100,8 @@ const NAV_ITEMS = [
             { href: "/pms/admin/corrections", label: "Admin Corrections", icon: WrenchIcon },
             { href: "/pms/audit/monthly", label: "Monthly Audit", icon: ListIcon },
             { href: "/pms/settings", label: "Settings", icon: SettingsIcon },
+            { href: "/pms/admin/settings", label: "System Settings", icon: SettingsIcon },
+            { href: "/pms/inventory/settings", label: "Inventory Settings", icon: PackageIcon },
             { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
             { href: "/pms/logbook", label: "Logbook", icon: ListIcon },
             { href: "/pms/setup/rooms", label: "Room Setup", icon: GridIcon },
@@ -162,10 +163,10 @@ export default function Sidebar() {
             {/* Logo */}
             <div className="sidebar-logo">
                 <span
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white font-bold text-sm"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white font-bold text-sm"
                     style={{ backgroundColor: "#1B4038" }}
                 >P</span>
-                <div>
+                <div className="sidebar-text">
                     <p className="text-sm font-bold leading-none" style={{ color: "var(--text-primary)" }}>OpenHotel</p>
                     <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Hotel PMS</p>
                 </div>
@@ -178,7 +179,7 @@ export default function Sidebar() {
                     if (visibleItems.length === 0) return null;
                     return (
                         <div key={group.section}>
-                            <p className="nav-section-label">{group.section}</p>
+                            <p className="nav-section-label sidebar-text">{group.section}</p>
                             {visibleItems.map((item) => (
                                 <Link
                                     key={item.href}
@@ -186,7 +187,7 @@ export default function Sidebar() {
                                     className={`nav-item ${activeHref === item.href ? "active" : ""}`}
                                 >
                                     <item.icon />
-                                    {item.label}
+                                    <span className="sidebar-text">{item.label}</span>
                                 </Link>
                             ))}
                         </div>
@@ -195,12 +196,12 @@ export default function Sidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="border-t p-3 space-y-1" style={{ borderColor: "var(--border-subtle)" }}>
-                <div className="flex items-center justify-between px-3">
-                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
+            <div className="border-t p-3 space-y-1" style={{ borderColor: "var(--border-subtle)", width: "var(--sidebar-expanded-w)" }}>
+                <div className="flex items-center justify-between px-3 h-8">
+                    <p className="text-[10px] sidebar-text" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
                     <button
                         onClick={() => setTheme(isDark ? "light" : "dark")}
-                        className="p-1 rounded-md transition-colors hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800"
+                        className="p-1 rounded-md transition-colors hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800 shrink-0"
                         style={{ color: "var(--text-muted)" }}
                         title={isDark ? "Light mode" : "Dark mode"}
                     >
@@ -212,7 +213,7 @@ export default function Sidebar() {
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                 >
                     <LogoutIcon />
-                    ออกจากระบบ
+                    <span className="sidebar-text">ออกจากระบบ</span>
                 </button>
             </div>
         </aside>

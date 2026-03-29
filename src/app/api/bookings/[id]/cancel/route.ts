@@ -577,6 +577,7 @@ export async function POST(
     }
   }
 
+  // Fire-and-forget: GAS sync runs in background, does not block response
   if (shouldAttemptGoogleSheetSync) {
     const groupedByRoom = mergeSheetSyncGroupsByRoom(
       preCancelSyncGroupsByReservationId,
@@ -584,20 +585,18 @@ export async function POST(
     );
 
     if (groupedByRoom.length > 0) {
-      try {
-        await Promise.allSettled(
-          groupedByRoom.map((group) =>
-            pushToGoogleSheet({
-              action: "clear",
-              room_number: group.room_number,
-              dates: group.dates,
-              api_key: syncApiKey,
-            })
-          )
-        );
-      } catch (error) {
+      Promise.allSettled(
+        groupedByRoom.map((group) =>
+          pushToGoogleSheet({
+            action: "clear",
+            room_number: group.room_number,
+            dates: group.dates,
+            api_key: syncApiKey,
+          })
+        )
+      ).catch((error) => {
         console.error("[GoogleSheetSync] cancel sync failed:", error);
-      }
+      });
     }
   }
 

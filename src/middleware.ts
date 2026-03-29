@@ -12,13 +12,13 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths without session check
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    // If already logged in and hitting /login → redirect to /pms
+    // If already logged in and hitting /login → redirect to Room Diary landing.
     if (AUTH_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
       const response = NextResponse.next();
       const supabase = createMiddlewareSupabaseClient(request, response);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        return NextResponse.redirect(new URL("/pms", request.url));
+        return NextResponse.redirect(new URL("/pms/board", request.url));
       }
     }
     return NextResponse.next();

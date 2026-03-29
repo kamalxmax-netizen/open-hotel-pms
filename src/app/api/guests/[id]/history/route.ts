@@ -463,9 +463,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       total_nights: totalNights,
       guest,
       summary: {
-        total_stays: completedPrimaryStays.length,
-        primary_stay_count: completedPrimaryStays.length,
+        total_stays: completedPrimaryStays.length + legacyStays.length,
+        primary_stay_count: completedPrimaryStays.length + legacyStays.length,
         accompanying_stay_count: completedAccompanyingStays.length,
+        legacy_stay_count: legacyStays.length,
+        legacy_night_count: legacyStays.reduce((sum, s) => sum + Math.max(0, Number(s.nights || 0)), 0),
         total_transfer_spend: totalTransferSpend,
         total_tips: totalTips,
       },

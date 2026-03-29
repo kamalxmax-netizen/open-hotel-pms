@@ -14,6 +14,7 @@ import {
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
+import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -282,6 +283,19 @@ export async function POST(request: NextRequest) {
         reservationId: payload.reservation_id,
         imagePath: scanImagePath,
       });
+    }
+
+    try {
+      await stampReservationPassportScanExpiry({
+        supabase,
+        reservationId: payload.reservation_id,
+      });
+    } catch (stampError) {
+      throw new MobileCheckinError(
+        stampError instanceof Error ? stampError.message : "Failed to stamp passport scan retention.",
+        500,
+        "PASSPORT_RETENTION_STAMP_FAILED"
+      );
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);

@@ -67,16 +67,20 @@ export default function GuestMigrationPage() {
         })
       });
       const data = await res.json();
-      
-      if (!res.ok || !data.success) {
+
+      if (!res.ok && !data.deleted) {
         throw new Error(data.error || "Failed to cleanup data");
       }
 
       const txt = Object.entries(data.deleted || {})
         .map(([k, v]) => `${k}: ${v}`)
-        .join(", ");
-      
-      setCleanResult(`${isDryRun ? "[DRY RUN] Would delete" : "Deleted"}:\n${txt || "Nothing to delete"}`);
+        .join("\n");
+
+      const errTxt = data.errors
+        ? "\n\n⚠️ Errors:\n" + Object.entries(data.errors).map(([k, v]) => `${k}: ${v}`).join("\n")
+        : "";
+
+      setCleanResult(`${isDryRun ? "[DRY RUN] Would delete" : "Deleted"}:\n${txt || "Nothing to delete"}${errTxt}`);
       if (!isDryRun) {
         setCleanConfirmText(""); // Reset after successful actual delete
       }

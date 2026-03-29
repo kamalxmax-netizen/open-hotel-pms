@@ -1,6 +1,22 @@
 import { listNights } from "@/lib/dates";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const GAS_WEB_APP_URL = process.env.GAS_SYNC_WEB_APP_URL;
+
+async function isGoogleSheetSyncEnabled(): Promise<boolean> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data } = await supabase
+      .from("hotel_settings")
+      .select("google_sheet_sync_enabled")
+      .eq("id", 1)
+      .maybeSingle();
+    if (data?.google_sheet_sync_enabled === false) return false;
+  } catch {
+    // If column doesn't exist or query fails, default to enabled
+  }
+  return true;
+}
 
 export type SheetSyncDateEntry = {
   date: string;
@@ -166,6 +182,7 @@ export async function loadReservationSheetSyncGroups(params: {
 
 export async function pushToGoogleSheet(payload: SheetSyncPayload): Promise<boolean> {
   if (!GAS_WEB_APP_URL) return false;
+  if (!(await isGoogleSheetSyncEnabled())) return false;
 
   try {
     const response = await fetch(GAS_WEB_APP_URL, {

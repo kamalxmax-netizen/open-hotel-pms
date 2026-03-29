@@ -9,6 +9,11 @@ function isDashboardVisibilityColumnMissing(error: { message?: string | null } |
   return message.includes("show_on_inventory_dashboard");
 }
 
+function isDisplayOrderColumnMissing(error: { message?: string | null } | null): boolean {
+  const message = String(error?.message ?? "").toLowerCase();
+  return message.includes("display_order");
+}
+
 function toBooleanLike(value: unknown, fallback = true): boolean {
   if (value === true || value === "true" || value === "t" || value === 1 || value === "1") return true;
   if (value === false || value === "false" || value === "f" || value === 0 || value === "0") return false;
@@ -74,9 +79,10 @@ export async function GET(request: NextRequest) {
         quantity,
         reorder_level,
         updated_at,
-        products!inner(id, name, sku, category, unit, sale_price, is_active, show_on_inventory_dashboard)
+        products!inner(id, name, sku, category, unit, sale_price, display_order, is_active, show_on_inventory_dashboard)
       `)
-      .order("name", { ascending: false, foreignTable: "products" })
+      .order("display_order", { ascending: true, foreignTable: "products" })
+      .order("name", { ascending: true, foreignTable: "products" })
       .order("updated_at", { ascending: false });
 
     if (!includeInactive) {
@@ -97,9 +103,10 @@ export async function GET(request: NextRequest) {
           quantity,
           reorder_level,
           updated_at,
-          products!inner(id, name, sku, category, unit, sale_price, is_active)
+          products!inner(id, name, sku, category, unit, sale_price, display_order, is_active)
         `)
-        .order("name", { ascending: false, foreignTable: "products" })
+        .order("display_order", { ascending: true, foreignTable: "products" })
+        .order("name", { ascending: true, foreignTable: "products" })
         .order("updated_at", { ascending: false });
       if (!includeInactive) {
         fallbackQuery = fallbackQuery.eq("products.is_active", true);
@@ -120,6 +127,16 @@ export async function GET(request: NextRequest) {
           { status: 500 }
         );
       }
+      if (isDisplayOrderColumnMissing(error)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202603290002_inventory_display_order.sql before using stock main API.",
+          },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
@@ -133,6 +150,7 @@ export async function GET(request: NextRequest) {
         category: product?.category ?? null,
         unit: product?.unit ?? null,
         sale_price: product?.sale_price ?? null,
+        display_order: Number(product?.display_order ?? 9999),
         quantity: Number(row.quantity ?? 0),
         reorder_level: Number(row.reorder_level ?? 0),
         updated_at: row.updated_at,

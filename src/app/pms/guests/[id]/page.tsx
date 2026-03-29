@@ -164,6 +164,7 @@ function EditGuestProfileModal({
   onChange,
   onClose,
   onSave,
+  isMasked,
 }: {
   form: EditForm;
   saving: boolean;
@@ -172,6 +173,7 @@ function EditGuestProfileModal({
   onChange: (patch: Partial<EditForm>) => void;
   onClose: () => void;
   onSave: () => void;
+  isMasked?: boolean;
 }) {
   const lastNameInvalid = showValidation && !form.last_name.trim();
   return (
@@ -263,15 +265,25 @@ function EditGuestProfileModal({
           </div>
           <div>
             <label className="form-label">ID Number</label>
-            <input className="form-input" value={form.id_number} onChange={(e) => onChange({ id_number: e.target.value })} />
+            <input
+              type="text"
+              className="form-input disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+              value={form.id_card_number || form.id_number}
+              disabled={isMasked}
+              placeholder={isMasked ? "ข้อมูลถูกซ่อน — Admin เท่านั้นที่แก้ไขได้" : ""}
+              onChange={(e) => onChange({ id_number: e.target.value, id_card_number: e.target.value })}
+            />
           </div>
           <div>
-            <label className="form-label">Thai ID</label>
-            <input className="form-input" value={form.id_card_number} onChange={(e) => onChange({ id_card_number: e.target.value })} />
-          </div>
-          <div>
-            <label className="form-label">Passport</label>
-            <input className="form-input" value={form.passport_no} onChange={(e) => onChange({ passport_no: e.target.value })} />
+            <label className="form-label">Passport No</label>
+            <input
+              type="text"
+              className="form-input disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+              value={form.passport_no}
+              disabled={isMasked}
+              placeholder={isMasked ? "ข้อมูลถูกซ่อน — Admin เท่านั้นที่แก้ไขได้" : ""}
+              onChange={(e) => onChange({ passport_no: e.target.value })}
+            />
           </div>
           <div>
             <label className="form-label">Profile Status</label>
@@ -625,31 +637,37 @@ export default function GuestProfileDetailPage() {
     setEditSaving(true);
     setEditError("");
     try {
+      const isMasked = (profile as any)._masked === true;
+      const updatePayload: any = {
+        first_name: editForm.first_name || null,
+        last_name: editForm.last_name.trim(),
+        phone: editForm.phone || null,
+        email: editForm.email || null,
+        whatsapp: editForm.whatsapp || null,
+        line_id: editForm.line_id || null,
+        gender: editForm.gender || null,
+        dob: editForm.dob || null,
+        nationality_code: editForm.nationality_code || null,
+        country: editForm.country || null,
+        province: editForm.province || null,
+        id_type: editForm.id_type || null,
+        vip_tier: editForm.vip_tier || null,
+        profile_status: editForm.profile_status,
+        preferences: editForm.preferences || null,
+        notes: editForm.notes || null,
+        blacklisted: editForm.blacklisted,
+      };
+
+      if (!isMasked) {
+        updatePayload.id_number = editForm.id_number || null;
+        updatePayload.id_card_number = editForm.id_card_number || null;
+        updatePayload.passport_no = editForm.passport_no || null;
+      }
+
       const response = await fetch(`/api/guests/${profileId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: editForm.first_name || null,
-          last_name: editForm.last_name.trim(),
-          phone: editForm.phone || null,
-          email: editForm.email || null,
-          whatsapp: editForm.whatsapp || null,
-          line_id: editForm.line_id || null,
-          gender: editForm.gender || null,
-          dob: editForm.dob || null,
-          nationality_code: editForm.nationality_code || null,
-          country: editForm.country || null,
-          province: editForm.province || null,
-          id_type: editForm.id_type || null,
-          id_number: editForm.id_number || null,
-          id_card_number: editForm.id_card_number || null,
-          passport_no: editForm.passport_no || null,
-          vip_tier: editForm.vip_tier || null,
-          profile_status: editForm.profile_status,
-          preferences: editForm.preferences || null,
-          notes: editForm.notes || null,
-          blacklisted: editForm.blacklisted,
-        }),
+        body: JSON.stringify(updatePayload),
       });
 
       const payload = await response.json();
@@ -730,7 +748,7 @@ export default function GuestProfileDetailPage() {
 
   const statusMeta = getProfileStatusMeta(profile.profile_status, profile.blacklisted);
   const vipMeta = getVipTierMeta(profile.vip_tier);
-  const mainNightCount = countStayNights(history.primary_stays ?? []);
+  const mainNightCount = countStayNights(history.primary_stays ?? []) + (history.summary?.legacy_night_count ?? 0);
   const accompanyingNightCount = countStayNights(history.accompanying_stays ?? []);
 
   return (
@@ -794,11 +812,21 @@ export default function GuestProfileDetailPage() {
             <div className="grid gap-4 text-lg text-[var(--text-table-cell)] md:grid-cols-3">
               <div>
                 <div>Gender: {valueOrDash(profile.gender)}</div>
-                <div>ID: {valueOrDash(profile.id_number || profile.id_card_number)}</div>
+                <div className="flex items-center gap-1">
+                  ID: {valueOrDash(profile.id_number || profile.id_card_number)}
+                  {(profile as any)._masked && (
+                    <span className="cursor-help text-[var(--text-muted)] hover:text-[var(--text-primary)]" title="ข้อมูลนี้เฉพาะ Admin เท่านั้น">🔒</span>
+                  )}
+                </div>
               </div>
               <div>
                 <div>DOB: {formatDate(profile.dob)}</div>
-                <div>Passport: {valueOrDash(profile.passport_no)}</div>
+                <div className="flex items-center gap-1">
+                  Passport: {valueOrDash(profile.passport_no)}
+                  {(profile as any)._masked && (
+                    <span className="cursor-help text-[var(--text-muted)] hover:text-[var(--text-primary)]" title="ข้อมูลนี้เฉพาะ Admin เท่านั้น">🔒</span>
+                  )}
+                </div>
               </div>
               <div>
                 <div>
@@ -975,6 +1003,7 @@ export default function GuestProfileDetailPage() {
           saving={editSaving}
           error={editError}
           showValidation={showEditValidation}
+          isMasked={(profile as any)?._masked === true}
           onChange={(patch) => setEditForm((current) => (current ? { ...current, ...patch } : current))}
           onClose={() => {
             if (editSaving) return;

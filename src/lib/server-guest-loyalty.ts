@@ -63,8 +63,8 @@ export async function fetchGuestLoyaltyByProfileId(
   const map = new Map<string, GuestLoyaltySnapshot>();
   if (profileIds.length === 0) return map;
 
-  // ── Run all 3 queries in parallel (they all only depend on profileIds) ──
-  const [profileResult, partyResult, primaryFallbackResult] = await Promise.all([
+  // ── Run all 4 queries in parallel (they all only depend on profileIds) ──
+  const [profileResult, partyResult, primaryFallbackResult, legacyResult] = await Promise.all([
     supabase
       .from("guest_profiles")
       .select("id, vip_tier")
@@ -89,6 +89,10 @@ export async function fetchGuestLoyaltyByProfileId(
       .select("id, guest_profile_id, checkin_date, checkout_date, status")
       .in("guest_profile_id", profileIds)
       .eq("status", "checked_out"),
+    supabase
+      .from("legacy_stays")
+      .select("id, guest_profile_id, date_in, date_out, nights")
+      .in("guest_profile_id", profileIds),
   ]);
 
   if (profileResult.error) {
@@ -173,6 +177,28 @@ export async function fetchGuestLoyaltyByProfileId(
     snapshot.main_stay_count += 1;
     snapshot.main_night_count += nights;
     map.set(profileId, snapshot);
+  }
+
+  // ── Add legacy stays (imported historical data) ──
+  if (!legacyResult.error) {
+    for (const row of (legacyResult.data ?? []) as Array<{
+      id: string;
+      guest_profile_id: string | null;
+      date_in?: string | null;
+      date_out?: string | null;
+      nights?: number | null;
+    }>) {
+      const profileId = row?.guest_profile_id ? String(row.guest_profile_id) : "";
+      if (!profileId) continue;
+
+      const snapshot = map.get(profileId) ?? normalizeGuestLoyaltySnapshot({ vip_tier: "regular" });
+      const nights = row.nights ?? diffStayNights(row.date_in, row.date_out);
+      snapshot.stay_count += 1;
+      snapshot.night_count += nights;
+      snapshot.main_stay_count += 1;
+      snapshot.main_night_count += nights;
+      map.set(profileId, snapshot);
+    }
   }
 
   return map;

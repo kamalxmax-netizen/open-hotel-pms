@@ -1,3 +1,5 @@
+import { toBangkokDateString } from "@/lib/audit-utils";
+import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -50,6 +52,25 @@ export async function PUT(
       .slice(0, 10);
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+
+    const reason = body.note?.trim() ?? "";
+    if (reason.length < 2) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            body.action === "receive"
+              ? "Reason/note is required for stock receive"
+              : "Reason/note is required for stock adjustment",
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: product, error: productError } = await supabase
       .from("products")
@@ -97,7 +118,7 @@ export async function PUT(
     }
 
     const txAction = body.action === "receive" ? "receive" : "adjust";
-    const txNote = body.note?.trim() || null;
+    const txNote = reason;
 
     const { error: txError } = await supabase.from("stock_transactions_v2").insert({
       transaction_date: thailandDate,
@@ -118,6 +139,27 @@ export async function PUT(
       return NextResponse.json({ success: false, error: txError.message }, { status: 500 });
     }
 
+    const { error: auditError } = await supabase.from("audit_logs").insert({
+      entity_type: "inventory",
+      entity_id: productId,
+      action: body.action === "receive" ? "stock_receive" : "stock_adjust",
+      actor_user_id: user.id,
+      before_json: {
+        product_id: productId,
+        quantity: beforeQty,
+      },
+      after_json: {
+        quantity: afterQty,
+        note: txNote,
+        action_detail: body.action,
+      },
+      business_date: toBangkokDateString(),
+      source: "manual",
+    });
+    if (auditError) {
+      return NextResponse.json({ success: false, error: auditError.message }, { status: 500 });
+    }
+
     return NextResponse.json({
       success: true,
       stock: updated,
@@ -129,6 +171,7 @@ export async function PUT(
   } catch (err) {
     console.error("stock/main/:productId PUT failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

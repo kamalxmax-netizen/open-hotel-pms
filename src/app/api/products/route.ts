@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -13,6 +14,7 @@ const productCreateSchema = z.object({
   fulfillment_mode: z.enum(["standard", "daily_prepare"]).default("standard"),
   unit: z.string().trim().min(1, "unit is required").max(30).default("pieces"),
   sale_price: z.number().min(0).max(9999999).nullable().optional(),
+  display_order: z.coerce.number().int().min(0).optional(),
   is_active: z.boolean().optional().default(true),
 });
 
@@ -46,7 +48,8 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("products")
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
+      .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (category) query = query.eq("category", category);
@@ -70,6 +73,16 @@ export async function GET(request: NextRequest) {
             success: false,
             error:
               "DB migration required: apply 20260302_phase10_fo_prepare_flow.sql before using products API.",
+          },
+          { status: 500 }
+        );
+      }
+      if (message.includes("display_order")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202603290002_inventory_display_order.sql before using products API.",
           },
           { status: 500 }
         );
@@ -109,6 +122,38 @@ export async function POST(request: NextRequest) {
 
     const body = parsed.data;
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+
+    let nextDisplayOrder = Number(body.display_order ?? 0);
+    if (body.display_order === undefined) {
+      const maxOrderResult = await supabase
+        .from("products")
+        .select("display_order")
+        .eq("is_active", true)
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (maxOrderResult.error) {
+        const message = String(maxOrderResult.error.message ?? "").toLowerCase();
+        if (message.includes("display_order")) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "DB migration required: apply 202603290002_inventory_display_order.sql before creating products.",
+            },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json({ success: false, error: maxOrderResult.error.message }, { status: 500 });
+      }
+      const currentMax = Number((maxOrderResult.data as any)?.display_order ?? 0);
+      nextDisplayOrder = currentMax > 0 ? currentMax + 1 : 1;
+    }
 
     const payload = {
       name: body.name,
@@ -117,13 +162,14 @@ export async function POST(request: NextRequest) {
       fulfillment_mode: body.fulfillment_mode ?? "standard",
       unit: body.unit,
       sale_price: body.sale_price ?? null,
+      display_order: nextDisplayOrder,
       is_active: body.is_active ?? true,
     };
 
     const result = await supabase
       .from("products")
       .insert(payload)
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
       .single();
 
     const { data, error } = result;
@@ -136,6 +182,16 @@ export async function POST(request: NextRequest) {
             success: false,
             error:
               "DB migration required: apply 20260302_phase10_fo_prepare_flow.sql before creating products.",
+          },
+          { status: 500 }
+        );
+      }
+      if (message.includes("display_order")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202603290002_inventory_display_order.sql before creating products.",
           },
           { status: 500 }
         );
@@ -198,6 +254,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("products POST failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

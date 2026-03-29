@@ -609,31 +609,32 @@ export async function POST(request: NextRequest) {
     console.error("booking create audit ensure failed", auditError);
   }
 
+  // Fire-and-forget: GAS sync runs in background, does not block response
   const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
   if (syncApiKey) {
     const reservationIdForSync = String((reservation as any)?.id ?? "");
     if (reservationIdForSync) {
-      try {
-        const grouped = await loadReservationSheetSyncGroups({
-          supabase: supabase as any,
-          reservationId: reservationIdForSync,
-          action: "upsert",
-          includeCancelledNights: false,
-        });
-
-        await Promise.allSettled(
-          grouped.map((group) =>
-            pushToGoogleSheet({
-              action: "upsert",
-              room_number: group.room_number,
-              dates: group.dates,
-              api_key: syncApiKey,
-            })
+      loadReservationSheetSyncGroups({
+        supabase: supabase as any,
+        reservationId: reservationIdForSync,
+        action: "upsert",
+        includeCancelledNights: false,
+      })
+        .then((grouped) =>
+          Promise.allSettled(
+            grouped.map((group) =>
+              pushToGoogleSheet({
+                action: "upsert",
+                room_number: group.room_number,
+                dates: group.dates,
+                api_key: syncApiKey,
+              })
+            )
           )
-        );
-      } catch (error) {
-        console.error("[GoogleSheetSync] booking create sync failed:", error);
-      }
+        )
+        .catch((error) => {
+          console.error("[GoogleSheetSync] booking create sync failed:", error);
+        });
     }
   }
 

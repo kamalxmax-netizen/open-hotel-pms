@@ -31,7 +31,11 @@ async function safeCount(supabase: any, task: DeleteTask): Promise<number> {
 
 async function safeDelete(supabase: any, task: DeleteTask): Promise<void> {
   let query = supabase.from(task.table).delete();
-  if (task.apply) query = task.apply(query);
+  if (task.apply) {
+    query = task.apply(query);
+  } else {
+    query = query.gte("id", "00000000-0000-0000-0000-000000000000");
+  }
   const { error } = await query;
   if (error) {
     if (isMissingRelationError(error)) return;
@@ -85,6 +89,11 @@ function buildDeleteTasks(): DeleteTask[] {
     { key: "reservation_alerts", table: "reservation_alerts" },
     { key: "reservation_traces", table: "reservation_traces" },
     { key: "pos_orders", table: "pos_orders" },
+    { key: "admin_corrections", table: "admin_corrections" },
+    { key: "transfers", table: "transfers" },
+    { key: "transfer_transactions", table: "transfer_transactions" },
+    { key: "commission_ledger", table: "commission_ledger" },
+    { key: "tip_ledger", table: "tip_ledger" },
     { key: "audit_logs", table: "audit_logs", apply: (query) => query.in("entity_type", AUDIT_ENTITY_TYPES) },
     { key: "reservations", table: "reservations" },
     { key: "booking_groups", table: "booking_groups" },
@@ -112,9 +121,15 @@ export async function POST(request: NextRequest) {
 
     const deleteTasks = buildDeleteTasks();
     const deleted: Record<string, number> = {};
+    const errors: Record<string, string> = {};
 
     for (const task of deleteTasks) {
-      deleted[task.key] = await safeCount(auth.supabase, task);
+      try {
+        deleted[task.key] = await safeCount(auth.supabase, task);
+      } catch (e) {
+        deleted[task.key] = -1;
+        errors[task.key] = e instanceof Error ? e.message : "count failed";
+      }
     }
 
     if (dryRun) {
@@ -122,30 +137,50 @@ export async function POST(request: NextRequest) {
         success: true,
         dry_run: true,
         deleted,
+        ...(Object.keys(errors).length > 0 ? { errors } : {}),
       });
     }
 
-    for (const task of deleteTasks) {
-      await safeDelete(auth.supabase, task);
-    }
+    // Delete in multiple passes to handle FK dependencies
+    const MAX_PASSES = 3;
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+      const tasksToRun = pass === 0
+        ? deleteTasks
+        : deleteTasks.filter((t) => t.key in errors);
 
-    // Storage cleanup for passport OCR images (full bucket traversal)
-    const storagePaths = await listAllPathsInBucket(auth.supabase, "passport-photos");
-    for (let i = 0; i < storagePaths.length; i += 100) {
-      const chunk = storagePaths.slice(i, i + 100);
-      const { error } = await auth.supabase.storage.from("passport-photos").remove(chunk);
-      if (error) {
-        throw new Error(`Storage cleanup failed: ${error.message}`);
+      if (pass > 0 && tasksToRun.length === 0) break;
+
+      for (const task of tasksToRun) {
+        try {
+          await safeDelete(auth.supabase, task);
+          delete errors[task.key]; // clear if succeeded on retry
+        } catch (e) {
+          errors[task.key] = e instanceof Error ? e.message : "delete failed";
+        }
       }
     }
 
+    // Storage cleanup for passport OCR images (full bucket traversal)
+    let storageCount = 0;
+    try {
+      const storagePaths = await listAllPathsInBucket(auth.supabase, "passport-photos");
+      for (let i = 0; i < storagePaths.length; i += 100) {
+        const chunk = storagePaths.slice(i, i + 100);
+        await auth.supabase.storage.from("passport-photos").remove(chunk);
+      }
+      storageCount = storagePaths.length;
+    } catch (e) {
+      errors["passport_photos_storage"] = e instanceof Error ? e.message : "storage cleanup failed";
+    }
+
     return NextResponse.json({
-      success: true,
+      success: Object.keys(errors).length === 0,
       dry_run: false,
       deleted: {
         ...deleted,
-        passport_photos_storage_files: storagePaths.length,
+        passport_photos_storage_files: storageCount,
       },
+      ...(Object.keys(errors).length > 0 ? { errors } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Cleanup failed.";

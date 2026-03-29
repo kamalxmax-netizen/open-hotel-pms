@@ -9,6 +9,7 @@ import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
 import { clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
@@ -517,6 +518,15 @@ export async function POST(
                 source: normalizeAuditSource("manual"),
             }))
         );
+
+        try {
+            await stampReservationPassportScanExpiry({
+                supabase,
+                reservationId,
+            });
+        } catch (stampError) {
+            console.error("passport retention stamp failed", stampError);
+        }
 
         try {
             await clearAssignedRoomLock({

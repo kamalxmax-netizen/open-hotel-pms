@@ -1,4 +1,15 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  canRoleUnmaskInCheckin,
+  containsMaskedPlaceholder,
+  insertDataUnmaskAuditLog,
+  isCheckinModeEnabled,
+  maskSensitiveFields,
+  resolveBusinessDate,
+  shouldMaskIdentityForRole,
+  validateGuestUnmaskAccess,
+} from "@/lib/data-masking";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -62,7 +73,7 @@ function normalizeLinkedReservation(raw: unknown): LinkedReservation | null {
   };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   noStore();
   try {
     const parsed = paramsSchema.safeParse(params);
@@ -71,7 +82,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }
 
     const supabase = createServerSupabaseClient();
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+    }
+
+    const role = await getUserRole(supabase, user.id);
     const id = parsed.data.id;
+    const checkinMode = isCheckinModeEnabled(request.nextUrl.searchParams.get("checkin_mode"));
+    const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
+    const businessDate = await resolveBusinessDate(supabase);
 
     const [profileRes, staysRes] = await Promise.all([
       supabase
@@ -97,9 +117,37 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ success: false, error: staysRes.error.message }, { status: 500 });
     }
 
+    const shouldMask = shouldMaskIdentityForRole(role);
+    let canUnmask = !shouldMask;
+    if (shouldMask && canRoleUnmaskInCheckin(role) && checkinMode && reservationId) {
+      canUnmask = await validateGuestUnmaskAccess({
+        supabase,
+        reservationId,
+        guestProfileId: id,
+        businessDate,
+      });
+      if (canUnmask) {
+        try {
+          await insertDataUnmaskAuditLog({
+            supabase,
+            userId: user.id,
+            reservationId,
+            guestProfileId: id,
+            businessDate,
+          });
+        } catch {
+          // Best-effort audit only; never block guest loading.
+        }
+      }
+    }
+
+    const profilePayload = canUnmask
+      ? profileRes.data
+      : maskSensitiveFields(profileRes.data as Record<string, unknown>);
+
     return NextResponse.json({
       success: true,
-      profile: profileRes.data,
+      profile: profilePayload,
       stays: staysRes.data ?? [],
     });
   } catch (err) {
@@ -129,6 +177,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     for (const [key, value] of Object.entries(parsedBody.data)) {
       if (value !== undefined) updates[key] = value;
     }
+    for (const key of ["passport_no", "id_card_number", "id_number"] as const) {
+      if (containsMaskedPlaceholder(updates[key])) {
+        delete updates[key];
+      }
+    }
 
     const explicitNationalityCode = parsedBody.data.nationality_code;
     const explicitCountry = parsedBody.data.country;
@@ -144,10 +197,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const supabase = createServerSupabaseClient();
+    const targetId = parsedParams.data.id;
+    if (Object.keys(updates).length === 0) {
+      const { data: current, error: currentError } = await supabase
+        .from("guest_profiles")
+        .select("*")
+        .eq("id", targetId)
+        .maybeSingle();
+      if (currentError) {
+        return NextResponse.json({ success: false, error: currentError.message }, { status: 500 });
+      }
+      if (!current) {
+        return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, profile: current });
+    }
+
     const { data, error } = await supabase
       .from("guest_profiles")
       .update(updates)
-      .eq("id", parsedParams.data.id)
+      .eq("id", targetId)
       .select("*")
       .maybeSingle();
 

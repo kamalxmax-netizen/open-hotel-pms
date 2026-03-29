@@ -52,7 +52,7 @@ const DIAMOND_PATTERN = `url("data:image/svg+xml,%3Csvg width='60' height='60' v
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/pms";
+  const next = searchParams.get("next") ?? "/pms/board";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,7 +73,8 @@ function LoginForm() {
         setError("Email หรือ Password ไม่ถูกต้อง");
         return;
       }
-      router.push(next.startsWith("/pms") || next === "/" ? next : "/pms");
+      const destination = next === "/pms" ? "/pms/board" : next;
+      router.push(destination.startsWith("/pms") || destination === "/" ? destination : "/pms/board");
       router.refresh();
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");

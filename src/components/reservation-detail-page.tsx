@@ -36,6 +36,10 @@ import LinkedStayPanel from "./linked-stay-panel";
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
 type ReservationRecordStatus = "active" | "cancelled" | "checked_out" | "no_show" | "";
 
+function shouldRequestIdentityUnmask(mode: BookingMode): boolean {
+    return mode === "checkin" || mode === "inhouse" || mode === "checkout";
+}
+
 function formatBangkokDateTimeLocal(input: Date | string): string {
     const date = input instanceof Date ? input : new Date(input);
     if (Number.isNaN(date.getTime())) return "";
@@ -824,6 +828,7 @@ export default function ReservationDetailPage({
     const [phone, setPhone] = useState("");
     const [identityText, setIdentityText] = useState("");
     const [guestProfileId, setGuestProfileId] = useState<string | null>(null);
+    const [isProfileMasked, setIsProfileMasked] = useState(false);
     const [profileGender, setProfileGender] = useState<"" | "M" | "F" | "Other">("");
     const [profileNationalityCode, setProfileNationalityCode] = useState("");
     const [profileCountry, setProfileCountry] = useState("");
@@ -1069,19 +1074,28 @@ export default function ReservationDetailPage({
         setProfileStayCount(Number(profile.stay_count || 0));
         setProfileLastStayDate(String(profile.last_stay_date || "").trim());
         setIdentityText(String(profile.id_number || profile.passport_no || profile.id_card_number || "").trim());
+        setIsProfileMasked(profile._masked === true);
     }, []);
 
     const fetchGuestProfileById = useCallback(async (profileId: string) => {
         if (!profileId) {
             throw new Error("Guest profile id is required.");
         }
-        const response = await fetch(`/api/guests/${profileId}`);
+        const query = new URLSearchParams();
+        if (shouldRequestIdentityUnmask(mode) && reservationId) {
+            query.set("checkin_mode", "true");
+            query.set("reservation_id", reservationId);
+        }
+        const url = query.size > 0
+            ? `/api/guests/${profileId}?${query.toString()}`
+            : `/api/guests/${profileId}`;
+        const response = await fetch(url);
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.success || !data?.profile) {
             throw new Error(data?.error || "Failed to load guest profile.");
         }
         return data.profile;
-    }, []);
+    }, [mode, reservationId]);
 
     const loadGuestProfileById = useCallback(async (profileId: string, options?: { overwriteGuest?: boolean }) => {
         if (!profileId) return;
@@ -1252,15 +1266,23 @@ export default function ReservationDetailPage({
     const findProfileByThaiId = useCallback(async (citizenId: string) => {
         const normalized = normalizeThaiCardCitizenId(citizenId);
         if (!normalized) return null;
+        const params = new URLSearchParams({
+            id_type: "thai_id",
+            id_number: normalized,
+        });
+        if (shouldRequestIdentityUnmask(mode) && reservationId) {
+            params.set("checkin_mode", "true");
+            params.set("reservation_id", reservationId);
+        }
         const response = await fetch(
-            `/api/guests/by-id?id_type=thai_id&id_number=${encodeURIComponent(normalized)}`
+            `/api/guests/by-id?${params.toString()}`
         );
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.success) {
             throw new Error(data?.error || "Failed to lookup profile by Thai ID.");
         }
         return data.profile ?? null;
-    }, []);
+    }, [mode, reservationId]);
 
     const buildIdentityScanNotices = useCallback((
         dobYmd: string,
@@ -1439,6 +1461,7 @@ export default function ReservationDetailPage({
                                 last_name: foundProfile.last_name,
                                 phone: foundProfile.phone
                             });
+                            setIsProfileMasked(foundProfile._masked === true);
                             forceDraftStatus = false;
                         }
                     } else {
@@ -1449,6 +1472,7 @@ export default function ReservationDetailPage({
                                 last_name: foundProfile.last_name,
                                 phone: foundProfile.phone
                             });
+                            setIsProfileMasked(foundProfile._masked === true);
                             forceDraftStatus = false;
                         } else {
                             forceDraftStatus = true;
@@ -1518,8 +1542,16 @@ export default function ReservationDetailPage({
     const findProfileByPassport = useCallback(async (passportNumber: string) => {
         const normalized = normalizePassportNumber(passportNumber);
         if (!normalized) return null;
+        const params = new URLSearchParams({
+            id_type: "passport",
+            id_number: normalized,
+        });
+        if (shouldRequestIdentityUnmask(mode) && reservationId) {
+            params.set("checkin_mode", "true");
+            params.set("reservation_id", reservationId);
+        }
         const response = await fetch(
-            `/api/guests/by-id?id_type=passport&id_number=${encodeURIComponent(normalized)}`
+            `/api/guests/by-id?${params.toString()}`
         );
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.success) {
@@ -1530,7 +1562,7 @@ export default function ReservationDetailPage({
             ...data.profile,
             match_score: 100
         };
-    }, []);
+    }, [mode, reservationId]);
 
     const handlePassportOcrConfirmed = useCallback(async (payload: PassportOcrImportPayload) => {
         setError("");
@@ -1556,6 +1588,7 @@ export default function ReservationDetailPage({
                             last_name: foundProfile.last_name,
                             phone: foundProfile.phone
                         });
+                        setIsProfileMasked(foundProfile._masked === true);
                     }
                 }
             } catch (lookupError) {
@@ -1804,7 +1837,9 @@ export default function ReservationDetailPage({
             return;
         }
         setFetching(true);
-        fetch(`/api/bookings/${reservationId}`)
+        let fetchUrl = `/api/bookings/${reservationId}`;
+        if (shouldRequestIdentityUnmask(mode)) fetchUrl += "?checkin_mode=true";
+        fetch(fetchUrl)
             .then(r => r.json())
             .then(d => {
                 if (d.success && d.reservation) {
@@ -1833,6 +1868,7 @@ export default function ReservationDetailPage({
                     setGuestName(res.guest_name || "");
                     setPhone(res.phone || "");
                     setGuestProfileId(res.guest_profile_id || null);
+                    setIsProfileMasked(res._masked === true || (res.guest_profile && res.guest_profile._masked === true));
                     if (!res.guest_profile_id) {
                         resetProfileDraft();
                     }
@@ -4339,7 +4375,12 @@ export default function ReservationDetailPage({
                                                         </select>
                                                     </div>
                                                     <div>
-                                                        <label className="form-label">ID Number</label>
+                                                        <label className="form-label flex items-center gap-1">
+                                                            ID Number
+                                                            {isProfileMasked && (
+                                                                <span className="cursor-help text-[var(--text-muted)] hover:text-[var(--text-primary)]" title="ข้อมูลนี้เฉพาะ Admin เท่านั้น">🔒</span>
+                                                            )}
+                                                        </label>
                                                         <input
                                                             type="text"
                                                             inputMode={profileIdType === "thai_id" ? "numeric" : undefined}
@@ -4351,8 +4392,8 @@ export default function ReservationDetailPage({
                                                                 setProfileIdNumber(normalized);
                                                                 setIdentityText(normalized);
                                                             }}
-                                                            disabled={isReadonly}
-                                                            placeholder={profileIdType === "thai_id" ? "Thai ID (13 digits)" : "ID / Passport Number"}
+                                                            disabled={isReadonly || isProfileMasked}
+                                                            placeholder={isProfileMasked ? "ข้อมูลถูกซ่อน — Admin เท่านั้นที่แก้ไขได้" : (profileIdType === "thai_id" ? "Thai ID (13 digits)" : "ID / Passport Number")}
                                                         />
                                                         {profileIdType === "thai_id" && (
                                                             <p className={`mt-1 text-[11px] ${/^\d{13}$/.test(profileIdNumber.trim()) ? "text-emerald-700" : "text-rose-600"}`}>

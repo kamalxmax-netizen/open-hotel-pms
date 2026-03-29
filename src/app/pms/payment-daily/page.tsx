@@ -117,6 +117,23 @@ function noteBadgeClass(note: string) {
         : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
 }
 
+function NoteCapsules({ notes }: { notes: string[] }) {
+    if (notes.length === 0) return <span className="text-[var(--text-muted)]">-</span>;
+    return (
+        <>
+            {notes.map((n, i) => (
+                <span
+                    key={i}
+                    title={n}
+                    className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 max-w-[180px] truncate ${noteBadgeClass(n)}`}
+                >
+                    {n}
+                </span>
+            ))}
+        </>
+    );
+}
+
 /* ─── Column border constants ──────────────────────── */
 // Group separator (between Cash/Transfer/Card groups)
 const B = "border-r border-[var(--border-default)]";
@@ -397,11 +414,7 @@ export default function PaymentDailyPage() {
                                                                 </td>
                                                                 <PaymentCells m={tr.methods} />
                                                                 <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
-                                                                    {tr.notes.map((n, i) => (
-                                                                        <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
-                                                                            {n}
-                                                                        </span>
-                                                                    ))}
+                                                                    <NoteCapsules notes={tr.notes} />
                                                                 </td>
                                                             </tr>
                                                         );
@@ -451,11 +464,7 @@ export default function PaymentDailyPage() {
                                                         </td>
                                                         <PaymentCells m={tr.methods} />
                                                         <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
-                                                            {tr.notes.map((n, i) => (
-                                                                <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
-                                                                    {n}
-                                                                </span>
-                                                            ))}
+                                                            <NoteCapsules notes={tr.notes} />
                                                         </td>
                                                     </tr>
                                                 );
@@ -485,11 +494,7 @@ export default function PaymentDailyPage() {
                                                         </td>
                                                         <PaymentCells m={tr.methods} />
                                                         <td className="px-3 py-2 text-xs text-[var(--text-secondary)] max-w-[200px]">
-                                                            {tr.notes.map((n, i) => (
-                                                                <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 mr-1 mb-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
-                                                                    {n}
-                                                                </span>
-                                                            ))}
+                                                            <NoteCapsules notes={tr.notes} />
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -592,11 +597,7 @@ export default function PaymentDailyPage() {
                                                 {adv.payment_status === "full" && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-1.5 py-0.5 rounded">เต็ม</span>}
                                                 {adv.notes.length > 0 && (
                                                     <div className="flex flex-wrap gap-1 mt-0.5 max-w-[170px]" title={adv.notes.join(" | ")}>
-                                                        {adv.notes.map((n, i) => (
-                                                            <span key={i} className={`inline-flex items-center rounded px-1.5 py-0.5 truncate max-w-full ${noteBadgeClass(n)}`}>
-                                                                {n}
-                                                            </span>
-                                                        ))}
+                                                        <NoteCapsules notes={adv.notes} />
                                                     </div>
                                                 )}
                                             </td>
@@ -708,7 +709,9 @@ export default function PaymentDailyPage() {
                                                     <td className="px-4 py-2.5 text-[var(--text-secondary)]">{row.room_number || "-"}</td>
                                                     <td className="px-4 py-2.5 text-[var(--text-secondary)] uppercase">{row.method}</td>
                                                     <td className="px-4 py-2.5 text-right font-medium text-[var(--text-table-cell)]">{fmtMoney(row.amount)}</td>
-                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">{row.note || "-"}</td>
+                                                    <td className="px-4 py-2.5 text-[var(--text-secondary)]">
+                                                        {row.note ? <NoteCapsules notes={[row.note]} /> : "-"}
+                                                    </td>
                                                 </tr>
                                             ))
                                         )}

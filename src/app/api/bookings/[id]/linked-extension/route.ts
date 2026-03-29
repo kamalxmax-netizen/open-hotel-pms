@@ -50,30 +50,31 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       },
     });
 
+    // Fire-and-forget: GAS sync runs in background, does not block response
     const syncApiKey = String(process.env.GOOGLE_SYNC_API_KEY ?? "").trim();
     if (syncApiKey && result?.reservation_id) {
       const reservationIdForSync = String(result.reservation_id);
-      try {
-        const grouped = await loadReservationSheetSyncGroups({
-          supabase: supabase as any,
-          reservationId: reservationIdForSync,
-          action: "upsert",
-          includeCancelledNights: false,
-        });
-
-        await Promise.allSettled(
-          grouped.map((group) =>
-            pushToGoogleSheet({
-              action: "upsert",
-              room_number: group.room_number,
-              dates: group.dates,
-              api_key: syncApiKey,
-            })
+      loadReservationSheetSyncGroups({
+        supabase: supabase as any,
+        reservationId: reservationIdForSync,
+        action: "upsert",
+        includeCancelledNights: false,
+      })
+        .then((grouped) =>
+          Promise.allSettled(
+            grouped.map((group) =>
+              pushToGoogleSheet({
+                action: "upsert",
+                room_number: group.room_number,
+                dates: group.dates,
+                api_key: syncApiKey,
+              })
+            )
           )
-        );
-      } catch (error) {
-        console.error("[GoogleSheetSync] linked extension create sync failed:", error);
-      }
+        )
+        .catch((error) => {
+          console.error("[GoogleSheetSync] linked extension create sync failed:", error);
+        });
     }
 
     return NextResponse.json(result);

@@ -416,6 +416,7 @@ export interface Product {
   fulfillment_mode: 'standard' | 'daily_prepare';
   unit: string;
   sale_price: number | null;
+  display_order: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -748,6 +749,8 @@ export interface GuestProfile {
   do_not_merge: boolean;
   stay_count: number;
   last_stay_date: string | null;
+  _masked?: boolean;
+  _masked_fields?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -784,6 +787,8 @@ export interface GuestHistorySummary {
   total_stays: number;
   primary_stay_count: number;
   accompanying_stay_count: number;
+  legacy_stay_count?: number;
+  legacy_night_count?: number;
   total_transfer_spend: number;
   total_tips: number;
 }

@@ -8,6 +8,28 @@ function isMissingColumnError(error: { message?: string } | null | undefined, co
     return pattern.test(message);
 }
 
+function normalizeRoomTypeText(value: unknown): string {
+    return String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ");
+}
+
+function shouldHideOperationalRoomType(row: { code?: unknown; name_en?: unknown }): boolean {
+    const haystack = `${normalizeRoomTypeText(row.code)} ${normalizeRoomTypeText(row.name_en)}`.trim();
+    if (!haystack) return false;
+
+    return (
+        haystack.includes("day use") ||
+        haystack.includes("dayuse") ||
+        haystack.includes("close room") ||
+        haystack.includes("closed room") ||
+        haystack.includes("plan move") ||
+        /^move$/.test(haystack)
+    );
+}
+
 export async function GET() {
     try {
         const supabase = createServerSupabaseClient();
@@ -25,8 +47,9 @@ export async function GET() {
         }
         if (roomTypeRes.error) throw roomTypeRes.error;
 
-        const roomTypes = (roomTypeRes.data ?? []).map((row: any) => ({
+        const allRoomTypes = (roomTypeRes.data ?? []).map((row: any) => ({
             id: row.id,
+            code: row.code ?? null,
             name_en: row.name_en ?? row.code ?? `Type ${row.id}`,
             sort_order: row.sort_order ?? 0,
         }));
@@ -59,6 +82,22 @@ export async function GET() {
 
         if (roomsRes.error) throw roomsRes.error;
         const rooms = (roomsRes.data ?? []).filter((room: any) => !isLegacyDayUseRoom(String(room?.room_number ?? "")));
+        const roomTypeIdsWithOvernightInventory = new Set(
+            rooms
+                .map((room: any) => String(room?.room_type_id ?? "").trim())
+                .filter((id) => id.length > 0)
+        );
+
+        // Keep only real overnight inventory room types for booking/check-in flows.
+        // This hides utility types such as Day Use / Close Room / Plan Move / Move.
+        const roomTypes = allRoomTypes
+            .filter((row) => roomTypeIdsWithOvernightInventory.has(String(row.id)))
+            .filter((row) => !shouldHideOperationalRoomType(row))
+            .map((row) => ({
+                id: row.id,
+                name_en: row.name_en,
+                sort_order: row.sort_order,
+            }));
 
         return NextResponse.json({
             success: true,

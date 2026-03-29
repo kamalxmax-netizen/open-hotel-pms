@@ -32,6 +32,7 @@ const ALL_PAGES = [
   { path: "/pms/admin/corrections", label: "Admin Corrections", section: "Admin" },
   { path: "/pms/audit/monthly", label: "Monthly Audit", section: "Admin" },
   { path: "/pms/admin/guest-migration", label: "Guest Migration", section: "Admin" },
+  { path: "/pms/inventory/settings", label: "Inventory Settings", section: "Admin" },
   { path: "/pms/settings", label: "Settings", section: "Admin" },
   { path: "/pms/team", label: "Team & Shifts", section: "Admin" },
   { path: "/pms/logbook", label: "Logbook", section: "Admin" },

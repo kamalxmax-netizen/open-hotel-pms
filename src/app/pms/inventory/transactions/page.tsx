@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAdminRole } from "@/hooks/use-admin-role";
 
 /* ── Helpers ── */
 
@@ -54,6 +55,13 @@ export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<StockTransaction[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const { isAdmin } = useAdminRole();
+
+    const thirtyDaysAgo = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString().slice(0, 10);
+    }, []);
 
     // Filters
     const [dateFrom, setDateFrom] = useState<string>(() => {
@@ -109,6 +117,12 @@ export default function TransactionsPage() {
 
     useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
+    useEffect(() => {
+        if (isAdmin === false && dateFrom < thirtyDaysAgo) {
+            setDateFrom(thirtyDaysAgo);
+        }
+    }, [isAdmin, dateFrom, thirtyDaysAgo]);
+
     // Reset page on filter change
     useEffect(() => { setPage(0); }, [dateFrom, dateTo, actionFilter, floorFilter]);
 
@@ -139,6 +153,13 @@ export default function TransactionsPage() {
                 </div>
             </div>
 
+            {isAdmin === false && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 dark:bg-sky-500/10 dark:border-sky-500/20 p-3 text-sm text-sky-800 dark:text-sky-400 mb-4">
+                    <p className="font-semibold">📋 View limited to last 30 days</p>
+                    <p className="text-xs mt-0.5">Contact admin for older transaction history.</p>
+                </div>
+            )}
+
             {/* Filters */}
             <div className="card p-4 mb-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -148,6 +169,7 @@ export default function TransactionsPage() {
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
+                            min={isAdmin ? undefined : thirtyDaysAgo}
                             className="mt-1"
                         />
                     </div>

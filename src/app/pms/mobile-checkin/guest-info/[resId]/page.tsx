@@ -154,6 +154,8 @@ export default function GuestInfo() {
         const qs = new URLSearchParams({
           id_type: "passport",
           id_number: passportNo,
+          checkin_mode: "true",
+          reservation_id: resId,
         });
         const res = await fetch(`/api/guests/by-id?${qs.toString()}`);
         const json = await res.json().catch(() => null);
@@ -180,7 +182,7 @@ export default function GuestInfo() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [mainGuest.passport_no]);
+  }, [mainGuest.passport_no, resId]);
 
   const useExistingProfile = () => {
     if (!profileCandidate?.id) return;
