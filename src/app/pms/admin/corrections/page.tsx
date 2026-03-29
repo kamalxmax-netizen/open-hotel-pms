@@ -303,7 +303,9 @@ export default function AdminCorrectionsPage() {
   const status = folio?.reservation.status || selectedRes?.status;
 
   const validPayments = folio?.ledger.filter(r => {
-    if (r.type !== "payment" && r.type !== "deposit") return false;
+    const txType = String(r.tx_type ?? "").toLowerCase();
+    if (!(txType === "payment" || txType === "deposit" || txType === "refund")) return false;
+    if (!["payment", "deposit", "extra_charge", "refund"].includes(r.type)) return false;
     if (r.is_void_reversal || r.void_of) return false;
     const occurredDateStr = new Date(r.occurred_at).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
@@ -484,7 +486,7 @@ export default function AdminCorrectionsPage() {
                         <option value="">-- Choose Payment --</option>
                         {validPayments.map(p => (
                           <option key={p.id} value={p.id}>
-                            {formatSimpleDate(p.occurred_at)} - {p.method?.toUpperCase()} ฿{formatMoney(p.amount)} {p.note ? `(${p.note})` : ""}
+                            [{p.type.toUpperCase()}/{String(p.tx_type ?? "-").toUpperCase()}] {formatSimpleDate(p.occurred_at)} - {p.method?.toUpperCase()} ฿{formatMoney(p.amount)} {p.note ? `(${p.note})` : ""}
                           </option>
                         ))}
                       </select>

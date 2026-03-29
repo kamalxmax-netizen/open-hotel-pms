@@ -5,7 +5,6 @@ import { isValidDateString, listNights } from "@/lib/dates";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import {
-  applyNightlyRatesToReservation,
   calculateAppliedRateNights,
   RatePlanPricingError
 } from "@/lib/rate-plan-pricing";
@@ -165,10 +164,15 @@ function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
 }
 
+function round2(value: number): number {
+  return Number(value.toFixed(2));
+}
+
 type ReservationNightSnapshot = {
   stay_date: string;
   room_id: string | null;
   room_type_id: number | null;
+  nightly_price: number;
 };
 
 const updateBookingSchema = z.object({
@@ -193,7 +197,8 @@ const updateBookingSchema = z.object({
   discount_reason: z.string().optional(),
   preferences: z.array(z.string()).optional(),
   rate_plan_id: z.string().uuid().optional().nullable(),
-  override_assigned_note: z.string().optional()
+  override_assigned_note: z.string().optional(),
+  price_change_choice: z.enum(["keep_existing", "apply_rate_grid"]).optional().nullable(),
 }).refine(data => data.room_id || data.room_type_id, {
   message: "Either room_id or room_type_id must be provided"
 });
@@ -478,6 +483,7 @@ export async function PUT(
   }
 
   const payload = parsed.data;
+  const responseWarnings: string[] = [];
   const hasSpecialsField = Object.prototype.hasOwnProperty.call(json ?? {}, "specials");
   const hasExpectedArrivalField = Object.prototype.hasOwnProperty.call(json ?? {}, "expected_arrival_time");
   const normalizedSpecials = hasSpecialsField
@@ -522,7 +528,7 @@ export async function PUT(
   const supabase = createServerSupabaseClient();
   const { data: currentReservation, error: currentReservationError } = await supabase
     .from("reservations")
-    .select("id, checkin_date, checkout_date, source, expected_arrival_time")
+    .select("id, checkin_date, checkout_date, source, expected_arrival_time, rate_plan_id, total_price")
     .eq("id", reservationId)
     .maybeSingle();
   if (currentReservationError) {
@@ -537,7 +543,7 @@ export async function PUT(
   const checkoutDateChanged = Boolean(previousCheckoutDate && previousCheckoutDate !== payload.checkout_date);
   const { data: currentNights, error: currentNightsError } = await supabase
     .from("reservation_nights")
-    .select("stay_date, room_id, room_type_id")
+    .select("stay_date, room_id, room_type_id, nightly_price")
     .eq("reservation_id", reservationId)
     .is("cancelled_at", null)
     .order("stay_date", { ascending: false });
@@ -548,6 +554,7 @@ export async function PUT(
     stay_date: String(row?.stay_date ?? ""),
     room_id: row?.room_id ? String(row.room_id) : null,
     room_type_id: row?.room_type_id != null ? Number(row.room_type_id) : null,
+    nightly_price: round2(Number(row?.nightly_price ?? 0)),
   })).filter((row) => row.stay_date);
   const incomingRoomId = payload.room_id ? String(payload.room_id) : null;
   const incomingRoomTypeId = normalizedRoomTypeId;
@@ -572,6 +579,22 @@ export async function PUT(
     });
   const shouldForceNightRebuild = payload.source === "ota";
   const skipNightRebuild = !shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment;
+  const previousNightlyByDate = new Map(
+    normalizedNightSnapshots.map((night) => [night.stay_date, night.nightly_price] as const)
+  );
+  const previousStayDateSet = new Set(Array.from(previousNightlyByDate.keys()));
+  const overlappingStayDates = nights.filter((stayDate) => previousStayDateSet.has(stayDate));
+  const addedStayDates = nights.filter((stayDate) => !previousStayDateSet.has(stayDate));
+  const previousPrimaryRoomTypeId =
+    normalizedNightSnapshots.find((night) => Number.isFinite(Number(night.room_type_id ?? 0)) && Number(night.room_type_id ?? 0) > 0)
+      ?.room_type_id ?? null;
+  const currentRatePlanId = currentReservation.rate_plan_id ? String(currentReservation.rate_plan_id) : null;
+  const nextRatePlanId = payload.rate_plan_id !== undefined ? (payload.rate_plan_id ? String(payload.rate_plan_id) : null) : currentRatePlanId;
+  const ratePlanChanged = currentRatePlanId !== nextRatePlanId;
+  const requestedPriceChoice =
+    payload.price_change_choice === "apply_rate_grid" || payload.price_change_choice === "keep_existing"
+      ? payload.price_change_choice
+      : null;
 
   let capacityRoomTypeId: number | null = null;
   try {
@@ -583,6 +606,19 @@ export async function PUT(
     );
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+  const roomTypeChangedForPricing =
+    previousPrimaryRoomTypeId !== null &&
+    capacityRoomTypeId !== null &&
+    Number(previousPrimaryRoomTypeId) !== Number(capacityRoomTypeId);
+  const preserveOverlappingRates =
+    payload.source !== "ota" &&
+    overlappingStayDates.length > 0 &&
+    !roomTypeChangedForPricing &&
+    !(ratePlanChanged && requestedPriceChoice === "apply_rate_grid");
+  const shouldWarnOtaRoomTypeChange = payload.source === "ota" && roomTypeChangedForPricing;
+  if (shouldWarnOtaRoomTypeChange) {
+    responseWarnings.push("OTA room type changed. Please re-check and confirm OTA nightly rates.");
   }
 
   if (!skipNightRebuild && capacityRoomTypeId !== null) {
@@ -668,7 +704,7 @@ export async function PUT(
     : null;
 
   let pricedNights: Awaited<ReturnType<typeof calculateAppliedRateNights>> | null = null;
-  if (payload.source !== "ota" && payload.rate_plan_id) {
+  if (payload.source !== "ota" && nextRatePlanId) {
     let pricingRoomTypeId: number | null = null;
     try {
       pricingRoomTypeId = await resolveRoomTypeIdForPricing(
@@ -693,7 +729,7 @@ export async function PUT(
 
       await assertRatePlanEligibleForGuest({
         supabase,
-        ratePlanId: payload.rate_plan_id,
+        ratePlanId: nextRatePlanId,
         guestProfileId: effectiveGuestProfileId,
         roomTypeId: pricingRoomTypeId,
         nights: nights.length,
@@ -706,7 +742,7 @@ export async function PUT(
         roomTypeId: pricingRoomTypeId,
         checkinDate: payload.checkin_date,
         checkoutDate: payload.checkout_date,
-        ratePlanId: payload.rate_plan_id
+        ratePlanId: nextRatePlanId
       });
     } catch (error) {
       if (error instanceof RatePlanPricingError) {
@@ -858,19 +894,178 @@ export async function PUT(
     }
   }
 
-  if (pricedNights) {
+  let finalReservationTotal = round2(Number(currentReservation.total_price ?? reservation?.total_price ?? 0));
+  const preservedNightDates: string[] = [];
+  const repricedNightDates: string[] = [];
+  if (payload.source !== "ota") {
     try {
-      await applyNightlyRatesToReservation({
-        supabase,
-        reservationId,
-        nights: pricedNights.nights,
-        totalApplied: pricedNights.totalApplied
-      });
+      if (preserveOverlappingRates && !skipNightRebuild) {
+        for (const stayDate of overlappingStayDates) {
+          const oldNightly = previousNightlyByDate.get(stayDate);
+          if (oldNightly === undefined) continue;
+          const { error: restoreNightError } = await supabase
+            .from("reservation_nights")
+            .update({ nightly_price: oldNightly })
+            .eq("reservation_id", reservationId)
+            .eq("stay_date", stayDate)
+            .is("cancelled_at", null);
+          if (restoreNightError) {
+            throw new RatePlanPricingError(restoreNightError.message, 500);
+          }
+          preservedNightDates.push(stayDate);
+        }
+      }
+
+      if (pricedNights) {
+        const appliedByDate = new Map(
+          pricedNights.nights.map((night) => [String(night.stay_date), round2(Number(night.applied_rate ?? 0))] as const)
+        );
+        const datesToApply = preserveOverlappingRates ? addedStayDates : nights;
+        for (const stayDate of datesToApply) {
+          const appliedRate = appliedByDate.get(stayDate);
+          if (appliedRate === undefined) continue;
+          const { error: applyNightError } = await supabase
+            .from("reservation_nights")
+            .update({ nightly_price: appliedRate })
+            .eq("reservation_id", reservationId)
+            .eq("stay_date", stayDate)
+            .is("cancelled_at", null);
+          if (applyNightError) {
+            throw new RatePlanPricingError(applyNightError.message, 500);
+          }
+          repricedNightDates.push(stayDate);
+        }
+      }
+
+      const shouldRecomputeTotal =
+        !skipNightRebuild ||
+        preservedNightDates.length > 0 ||
+        repricedNightDates.length > 0 ||
+        (ratePlanChanged && requestedPriceChoice === "apply_rate_grid");
+
+      if (shouldRecomputeTotal) {
+        const { data: activeNightsAfter, error: activeNightsAfterError } = await supabase
+          .from("reservation_nights")
+          .select("nightly_price")
+          .eq("reservation_id", reservationId)
+          .is("cancelled_at", null);
+        if (activeNightsAfterError) {
+          throw new RatePlanPricingError(activeNightsAfterError.message, 500);
+        }
+
+        finalReservationTotal = round2(
+          (activeNightsAfter ?? []).reduce((sum: number, row: any) => sum + Number(row?.nightly_price ?? 0), 0)
+        );
+        const { error: totalUpdateError } = await supabase
+          .from("reservations")
+          .update({ total_price: finalReservationTotal })
+          .eq("id", reservationId);
+        if (totalUpdateError) {
+          throw new RatePlanPricingError(totalUpdateError.message, 500);
+        }
+      }
     } catch (error) {
       if (error instanceof RatePlanPricingError) {
         return NextResponse.json({ error: error.message }, { status: error.status });
       }
       return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    }
+
+    if (reservation && typeof reservation === "object") {
+      reservation.total_price = finalReservationTotal;
+    }
+
+    const previousTotal = round2(Number(currentReservation.total_price ?? 0));
+    const hasDelta = Math.abs(finalReservationTotal - previousTotal) >= 0.01;
+    const shouldWritePriceTrace =
+      hasDelta ||
+      roomTypeChangedForPricing ||
+      ratePlanChanged ||
+      preservedNightDates.length > 0 ||
+      repricedNightDates.length > 0;
+
+    if (shouldWritePriceTrace) {
+      const businessDate = toLocalDate(new Date());
+      const nowIso = new Date().toISOString();
+      const traceTags = [
+        roomTypeChangedForPricing ? "room_type_changed" : null,
+        ratePlanChanged ? "rate_plan_changed" : null,
+        addedStayDates.length > 0 ? "extended" : null,
+        nights.length < previousStayDateSet.size ? "shortened" : null,
+      ].filter(Boolean);
+      const traceLine = [
+        `[PRICE TRACE ${businessDate}]`,
+        `policy=${preserveOverlappingRates ? "keep_existing_overlap" : "apply_rate_grid"}`,
+        `total=${previousTotal.toFixed(2)}→${finalReservationTotal.toFixed(2)}`,
+        preservedNightDates.length > 0 ? `kept=${preservedNightDates.length} night(s)` : null,
+        repricedNightDates.length > 0 ? `repriced=${repricedNightDates.length} night(s)` : null,
+        traceTags.length > 0 ? `tags=${traceTags.join(",")}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      try {
+        await appendReservationNoteLine(supabase as any, reservationId, traceLine);
+      } catch (traceNoteError) {
+        console.error("[booking-update-price-trace-note]", traceNoteError);
+      }
+
+      try {
+        await supabase.from("audit_logs").insert({
+          actor_user_id: null,
+          action: "reservation_price_reconciled",
+          entity_type: "reservation",
+          entity_id: reservationId,
+          before_json: {
+            total_price: previousTotal,
+            rate_plan_id: currentRatePlanId,
+            room_type_id: previousPrimaryRoomTypeId,
+          },
+          after_json: {
+            total_price: finalReservationTotal,
+            rate_plan_id: nextRatePlanId,
+            room_type_id: capacityRoomTypeId,
+            pricing_policy: preserveOverlappingRates ? "keep_existing_overlap" : "apply_rate_grid",
+            kept_nights: preservedNightDates,
+            repriced_nights: repricedNightDates,
+            tags: traceTags,
+          },
+          business_date: businessDate,
+          source: "manual",
+        });
+      } catch (traceAuditError) {
+        console.error("[booking-update-price-trace-audit]", traceAuditError);
+      }
+
+      try {
+        await supabase.from("folio_payments").insert({
+          reservation_id: reservationId,
+          tx_type: "payment",
+          method: null,
+          amount: 0,
+          note: traceLine,
+          revenue_category: "extra_charge",
+          is_record_only: true,
+          cashier_name: "FO",
+          paid_date: businessDate,
+          paid_at: nowIso,
+        });
+      } catch (traceFolioError) {
+        console.error("[booking-update-price-trace-folio]", traceFolioError);
+      }
+    }
+  }
+
+  if (shouldWarnOtaRoomTypeChange) {
+    const businessDate = toLocalDate(new Date());
+    try {
+      await appendReservationNoteLine(
+        supabase as any,
+        reservationId,
+        `[OTA RATE CHECK ${businessDate}] Room type changed. Re-check OTA nightly prices before final settlement.`
+      );
+    } catch (otaTraceError) {
+      console.error("[booking-update-ota-room-type-warning]", otaTraceError);
     }
   }
 
@@ -1027,7 +1222,8 @@ export async function PUT(
   return NextResponse.json(
     {
       success: true,
-      reservation
+      reservation,
+      warnings: responseWarnings,
     },
     { status: 200 }
   );

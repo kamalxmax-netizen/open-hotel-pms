@@ -890,6 +890,7 @@ export default function ReservationDetailPage({
 
     // Rate Plan
     const [ratePlanId, setRatePlanId] = useState("");
+    const [originalRatePlanId, setOriginalRatePlanId] = useState("");
     const [ratePlanEligibilityWarning, setRatePlanEligibilityWarning] = useState("");
 
     // Checkout Payment
@@ -1824,6 +1825,7 @@ export default function ReservationDetailPage({
             setAssignedRoomLockRoomNumber("");
             setAssignedRoomLockDraftReason("");
             setOriginalRoomTypeId("");
+            setOriginalRatePlanId("");
             setGuestProfileId(null);
             setIdentityText("");
             resetProfileDraft();
@@ -1927,6 +1929,7 @@ export default function ReservationDetailPage({
                     setDiscountValue(Number(res.discount_value ?? res.discount_percent ?? 0));
                     setDiscountReason(res.discount_reason || "");
                     setRatePlanId(res.rate_plan_id || "");
+                    setOriginalRatePlanId(res.rate_plan_id || "");
                     setRatePlanEligibilityWarning("");
 
                     // Checkout starts blank; FO must explicitly enter the collected amount.
@@ -3060,6 +3063,38 @@ export default function ReservationDetailPage({
                 }
             }
 
+            let priceChangeChoice: "keep_existing" | "apply_rate_grid" | undefined;
+            const isEditFlow = mode === "edit" || mode === "inhouse" || mode === "checkin";
+            const roomTypeChangedInForm =
+                Boolean(originalRoomTypeId) &&
+                Boolean(roomTypeId) &&
+                String(originalRoomTypeId) !== String(roomTypeId);
+            const ratePlanChangedInForm =
+                String(originalRatePlanId || "") !== String(ratePlanId || "");
+
+            if (reservationId && isEditFlow && source !== "ota") {
+                if (roomTypeChangedInForm) {
+                    window.alert(
+                        "Room type changed. The system will recalculate rates from the current Rate Grid for this room type."
+                    );
+                    priceChangeChoice = "apply_rate_grid";
+                } else if (ratePlanChangedInForm) {
+                    const applyRateGrid = window.confirm(
+                        [
+                            "Rate plan has changed.",
+                            "",
+                            "OK = Recalculate all current nights with latest Rate Grid/Rate Plan.",
+                            "Cancel = Keep existing booked prices for current nights (only newly added nights follow latest rate).",
+                        ].join("\n")
+                    );
+                    priceChangeChoice = applyRateGrid ? "apply_rate_grid" : "keep_existing";
+                }
+            }
+
+            if (reservationId && isEditFlow && source === "ota" && roomTypeChangedInForm) {
+                window.alert("OTA room type changed. Please manually re-check OTA nightly prices after saving.");
+            }
+
             if (dayUseAmountOnlyMode && reservationId) {
                 const parsedAmount = fromSatang(toSatang(paymentAmount));
                 if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
@@ -3159,6 +3194,8 @@ export default function ReservationDetailPage({
                 };
                 if (roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
+                else if (originalRatePlanId) payload.rate_plan_id = null;
+                if (priceChangeChoice) payload.price_change_choice = priceChangeChoice;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
@@ -3200,6 +3237,9 @@ export default function ReservationDetailPage({
                         setLoading(false);
                         return;
                     }
+                    if (Array.isArray(d?.warnings) && d.warnings.length > 0) {
+                        window.alert(d.warnings.join("\n"));
+                    }
                 }
                 onSuccess();
 
@@ -3223,6 +3263,8 @@ export default function ReservationDetailPage({
                 };
                 if (roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
+                else if (originalRatePlanId) payload.rate_plan_id = null;
+                if (priceChangeChoice) payload.price_change_choice = priceChangeChoice;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
@@ -3263,6 +3305,9 @@ export default function ReservationDetailPage({
                         setError(d.error || "Failed to update in-house details.");
                         setLoading(false);
                         return;
+                    }
+                    if (Array.isArray(d?.warnings) && d.warnings.length > 0) {
+                        window.alert(d.warnings.join("\n"));
                     }
                 }
                 if (pendingInhousePayments.length > 0) {
@@ -3330,6 +3375,8 @@ export default function ReservationDetailPage({
                 if (checkinTimeDraft) updatePayload.checkin_time = checkinTimeDraft;
                 if (chargeRoomTypeId) updatePayload.room_type_id = chargeRoomTypeId;
                 if (ratePlanId) updatePayload.rate_plan_id = ratePlanId;
+                else if (originalRatePlanId) updatePayload.rate_plan_id = null;
+                if (priceChangeChoice) updatePayload.price_change_choice = priceChangeChoice;
                 if (syncedGuestProfileId) updatePayload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) updatePayload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") updatePayload.ota_prices = nightlyRates.map(r => r.rate);
@@ -3344,6 +3391,9 @@ export default function ReservationDetailPage({
                     setError(updateData.error || "Failed to save check-in changes.");
                     setLoading(false);
                     return;
+                }
+                if (Array.isArray(updateData?.warnings) && updateData.warnings.length > 0) {
+                    window.alert(updateData.warnings.join("\n"));
                 }
 
                 if (activeIntent === "draft") {

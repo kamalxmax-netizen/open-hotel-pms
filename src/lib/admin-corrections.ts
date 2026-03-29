@@ -184,9 +184,11 @@ async function insertCorrectionLog(
     .select("id")
     .single();
 
-  if (error) {
-    console.error("[AdminCorrections] Failed to log correction:", error.message);
-    throw new AdminCorrectionError("Failed to record correction log.");
+  if (error || !data?.id) {
+    // Fail-open: financial correction must not be lost due audit table issue.
+    // Caller still writes audit_logs (fallback history source).
+    console.error("[AdminCorrections] Failed to log correction:", error?.message ?? "unknown error");
+    return `audit-fallback-${Date.now()}`;
   }
   return String(data.id);
 }
@@ -348,24 +350,15 @@ export async function postAdjustment(
 
   const today = bangkokToday();
 
-  // ── Adjustment direction logic ──────────────────────────────────
-  // Outstanding = (roomCharges + extraCharges) - allCredits
+  // ── Adjustment direction logic (locked policy) ──────────────────
+  // Keep revenue_category fixed to "extra_charge" for both directions.
   //
-  // "add_charge" (increase outstanding):
-  //   tx_type=payment, revenue_category=extra_charge, is_record_only=TRUE
-  //   → extraCharges ↑ (line 154-157 runs before isRecordOnly skip)
-  //   → allCredits unchanged (isRecordOnly skips line 161)
-  //   → outstanding increases ✓
-  //
-  // "reduce_charge" (decrease outstanding):
-  //   tx_type=payment, revenue_category=room_revenue, is_record_only=FALSE
-  //   → extraCharges unchanged (not "extra_charge" category)
-  //   → allCredits ↑ (counted as normal payment credit)
-  //   → outstanding decreases ✓
+  // add_charge    -> tx_type=payment (record-only) : outstanding increases
+  // reduce_charge -> tx_type=refund  (non-record)  : outstanding decreases
   const isAddCharge = params.direction === "add_charge";
-  const txType = "payment";
-  const revenueCategory = isAddCharge ? "extra_charge" : "room_revenue";
-  const isRecordOnly = isAddCharge; // prevents counting as credit for add_charge
+  const txType = isAddCharge ? "payment" : "refund";
+  const revenueCategory = "extra_charge";
+  const isRecordOnly = isAddCharge;
 
   // If correcting a specific payment, verify it exists
   let correctionRef: string | null = null;
@@ -919,7 +912,7 @@ export async function getCorrectionHistory(
 ): Promise<AdminCorrectionRecord[]> {
   const { data, error } = await supabase
     .from("admin_corrections")
-    .select("*, profiles:actor_user_id(full_name)")
+    .select("*")
     .eq("reservation_id", reservationId)
     .order("created_at", { ascending: false });
 
@@ -928,18 +921,99 @@ export async function getCorrectionHistory(
     throw new AdminCorrectionError("Failed to load correction history.");
   }
 
-  return ((data ?? []) as any[]).map((row) => ({
+  const rows = (data ?? []) as any[];
+  const actorIds = Array.from(
+    new Set(
+      rows
+        .map((row) => String(row.actor_user_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  let actorNameByUserId = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const { data: profileRows, error: profileError } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", actorIds);
+    if (!profileError) {
+      actorNameByUserId = new Map(
+        ((profileRows ?? []) as Array<{ user_id: string | null; full_name: string | null }>)
+          .map((profile) => [
+            String(profile.user_id ?? "").trim(),
+            String(profile.full_name ?? "").trim(),
+          ] as [string, string])
+          .filter(([userId, fullName]) => Boolean(userId) && Boolean(fullName))
+      );
+    }
+  }
+
+  const mappedRows = rows.map((row) => ({
     id: row.id,
     reservation_id: row.reservation_id,
     action: row.action,
     actor_user_id: row.actor_user_id,
-    actor_name: row.profiles?.full_name ?? "Unknown",
+    actor_name: actorNameByUserId.get(String(row.actor_user_id ?? "").trim()) ?? "Unknown",
     before_snapshot: row.before_snapshot ?? {},
     after_snapshot: row.after_snapshot ?? {},
     reason: row.reason,
     related_payment_ids: row.related_payment_ids ?? [],
     business_date: row.business_date,
     created_at: row.created_at,
+  }));
+
+  if (mappedRows.length > 0) {
+    return mappedRows;
+  }
+
+  // Fallback from audit trail for environments where admin_corrections rows
+  // are unavailable but audit_logs exists.
+  const { data: auditRows, error: auditError } = await supabase
+    .from("audit_logs")
+    .select("id, action, actor_user_id, before_json, after_json, note, business_date, created_at")
+    .eq("entity_type", "admin_correction")
+    .eq("entity_id", reservationId)
+    .order("created_at", { ascending: false });
+
+  if (auditError || !(auditRows ?? []).length) {
+    return [];
+  }
+
+  const fallbackActorIds = Array.from(
+    new Set(
+      (auditRows ?? [])
+        .map((row: any) => String(row?.actor_user_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+  let fallbackActorNameByUserId = new Map<string, string>();
+  if (fallbackActorIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", fallbackActorIds);
+    fallbackActorNameByUserId = new Map(
+      ((profileRows ?? []) as Array<{ user_id: string | null; full_name: string | null }>)
+        .map((profile) => [
+          String(profile.user_id ?? "").trim(),
+          String(profile.full_name ?? "").trim(),
+        ] as [string, string])
+        .filter(([userId, fullName]) => Boolean(userId) && Boolean(fullName))
+    );
+  }
+
+  return (auditRows ?? []).map((row: any) => ({
+    id: `audit-${String(row.id ?? "")}`,
+    reservation_id: reservationId,
+    action: String(row.action ?? "adjustment") as AdminCorrectionAction,
+    actor_user_id: String(row.actor_user_id ?? ""),
+    actor_name: fallbackActorNameByUserId.get(String(row.actor_user_id ?? "").trim()) ?? "Unknown",
+    before_snapshot: (row.before_json as Record<string, unknown> | null) ?? {},
+    after_snapshot: (row.after_json as Record<string, unknown> | null) ?? {},
+    reason: String(row.note ?? "Recovered from audit trail"),
+    related_payment_ids: [],
+    business_date: String(row.business_date ?? bangkokToday()),
+    created_at: String(row.created_at ?? nowISO()),
   }));
 }
 

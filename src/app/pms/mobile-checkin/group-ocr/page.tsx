@@ -52,7 +52,7 @@ export default function GroupSelectorPage() {
       <header className="px-6 py-4 border-b border-[var(--border-default)] bg-[var(--bg-surface)] sticky top-0 z-10 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => router.back()}
+            onClick={() => router.push("/pms/mobile-checkin")}
             className="p-3 -ml-3 rounded-full hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] transition"
           >
             <ArrowLeft className="w-6 h-6" />

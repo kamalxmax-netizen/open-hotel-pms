@@ -231,11 +231,11 @@ export async function POST(request: NextRequest) {
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
     const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const nowCheckinTime = toBangkokTimeHHmm(now);
     const existingCheckinTime = String((reservation as any)?.checkin_time ?? "").trim();
-    const draftCapturedCheckinTime = existingCheckinTime || toBangkokTimeHHmm(new Date());
-
-    // Mobile check-in only saves guest data — FO does actual C/I from desktop.
-    // No checked_in_at stamp here.
+    const capturedCheckinTime = existingCheckinTime || nowCheckinTime;
 
     const beforeJson = {
       status: reservationStatus,
@@ -244,14 +244,14 @@ export async function POST(request: NextRequest) {
     };
 
     const reservationUpdatePayload: Record<string, unknown> = {
-      status: "active",
+      status: isDraft ? "draft_checkin" : "active",
       guest_name: effectiveName,
       guest_profile_id: resolvedPrimary.guestProfileId,
       note: nextReservationNote,
+      checkin_time: capturedCheckinTime,
     };
-    if (isDraft) {
-      // Capture arrival/check-in attempt time for draft without marking as in-house.
-      reservationUpdatePayload.checkin_time = draftCapturedCheckinTime;
+    if (!isDraft) {
+      reservationUpdatePayload.checked_in_at = nowIso;
     }
 
     const { error: reservationUpdateError } = await supabase
@@ -319,20 +319,22 @@ export async function POST(request: NextRequest) {
       supabase,
       actorUserId: auth.userId,
       reservationId: payload.reservation_id,
-      action: "mobile_data_saved",
+      action: isDraft ? "draft_checkin" : "checked_in",
       businessDate,
       beforeJson,
       afterJson: {
-        status: "active",
-        checked_in_at: null,
+        status: isDraft ? "draft_checkin" : "active",
+        checked_in_at: isDraft ? null : nowIso,
         guest_profile_id: resolvedPrimary.guestProfileId,
         is_draft: isDraft,
-        checkin_time: isDraft ? draftCapturedCheckinTime : existingCheckinTime || null,
+        checkin_time: capturedCheckinTime,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
       },
       note: [
-        "Mobile check-in data saved (FO must complete C/I from desktop).",
+        isDraft
+          ? "Mobile check-in saved as draft (profile requires follow-up)."
+          : "Mobile check-in completed.",
         payload.booking_name_note || "",
       ].filter(Boolean).join(" "),
     });
@@ -341,10 +343,12 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         reservation_id: payload.reservation_id,
-        status: "active",
+        status: isDraft ? "draft_checkin" : "active",
         is_draft: isDraft,
         profile_complete: completeness.is_complete,
         missing_fields: completeness.missing_fields,
+        checked_in_at: isDraft ? null : nowIso,
+        checkin_time: capturedCheckinTime,
       },
     });
   } catch (error) {

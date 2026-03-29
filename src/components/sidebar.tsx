@@ -124,7 +124,7 @@ export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
-    const { setTheme, isDark } = useTheme();
+    const { theme, setTheme } = useTheme();
 
     useEffect(() => {
         const supabase = createBrowserSupabaseClient();
@@ -200,12 +200,16 @@ export default function Sidebar() {
                 <div className="flex items-center justify-between px-3 h-8">
                     <p className="text-[10px] sidebar-text" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
                     <button
-                        onClick={() => setTheme(isDark ? "light" : "dark")}
+                        onClick={() => {
+                            if (theme === "light") setTheme("dark");
+                            else if (theme === "dark") setTheme("high-contrast");
+                            else setTheme("light");
+                        }}
                         className="p-1 rounded-md transition-colors hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800 shrink-0"
                         style={{ color: "var(--text-muted)" }}
-                        title={isDark ? "Light mode" : "Dark mode"}
+                        title={`Current Theme: ${theme}`}
                     >
-                        {isDark ? <SunIcon /> : <MoonSmallIcon />}
+                        {theme === "light" ? <SunIcon /> : theme === "dark" ? <MoonSmallIcon /> : <ShieldIcon className="w-3.5 h-3.5" />}
                     </button>
                 </div>
                 <button
@@ -403,9 +407,9 @@ function MoonIcon() {
         </svg>
     );
 }
-function ShieldIcon() {
+function ShieldIcon({ className }: { className?: string }) {
     return (
-        <svg viewBox="0 0 20 20" fill="currentColor">
+        <svg viewBox="0 0 20 20" fill="currentColor" className={className || ""}>
             <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
         </svg>
     );

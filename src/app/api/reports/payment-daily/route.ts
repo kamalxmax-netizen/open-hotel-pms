@@ -49,6 +49,9 @@ type PaymentRow = {
   note: string | null;
   revenue_category: string | null;
   is_record_only?: boolean | null;
+  is_correction?: boolean | null;
+  is_void_reversal?: boolean | null;
+  void_of?: string | null;
 };
 
 type ReservationRow = {
@@ -211,6 +214,15 @@ function applyMethodMovement(methods: MethodsMap, method: MethodKey, txType: TxT
   else methods[method].payment += amount;
 }
 
+function applyCorrectionMovement(methods: MethodsMap, method: MethodKey, txType: TxType, amount: number): void {
+  if (txType === "deposit") {
+    methods[method].deposit += amount;
+    return;
+  }
+  const signed = txType === "refund" ? -amount : amount;
+  methods[method].payment += signed;
+}
+
 function buildPolicyFeeDedupKey(row: PaymentRow): string {
   const reservationId = String(row.reservation_id ?? "");
   const paidAt = String(row.paid_at ?? "");
@@ -218,6 +230,18 @@ function buildPolicyFeeDedupKey(row: PaymentRow): string {
   const amount = round2(Number(row.amount ?? 0)).toFixed(2);
   const note = String(row.note ?? "").trim().toLowerCase();
   return `${reservationId}|${paidAt}|${method}|${amount}|${note}`;
+}
+
+function buildVoidedPaymentIdSet(rows: PaymentRow[]): Set<string> {
+  const excluded = new Set<string>();
+  for (const row of rows) {
+    const reversalId = String(row.id ?? "").trim();
+    const originalId = String(row.void_of ?? "").trim();
+    if (!originalId) continue;
+    if (originalId) excluded.add(originalId);
+    if (reversalId) excluded.add(reversalId);
+  }
+  return excluded;
 }
 
 function methodsNet(methods: MethodsMap): number {
@@ -455,7 +479,7 @@ export async function GET(request: NextRequest) {
         .neq("reservations.status", "cancelled"),
       supabase
         .from("folio_payments")
-        .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only")
+        .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
         .eq("paid_date", businessDate)
         .order("paid_at", { ascending: true }),
       supabase
@@ -480,6 +504,7 @@ export async function GET(request: NextRequest) {
     }
     const folioPayments = (paymentsRes.data ?? []) as PaymentRow[];
     const paymentRowsForDay: PaymentRow[] = [...folioPayments];
+    const voidedPaymentIds = buildVoidedPaymentIdSet(paymentRowsForDay);
 
     const posDepositOrderIds = Array.from(
       new Set(
@@ -676,6 +701,9 @@ export async function GET(request: NextRequest) {
     }
 
     for (const payment of paymentRowsForDay) {
+      if (voidedPaymentIds.has(String(payment.id ?? "").trim())) {
+        continue;
+      }
       const reservationId = payment.reservation_id ? String(payment.reservation_id) : "";
       const rawMethod = normalizeMethod(payment.method);
       const rawTxType = normalizeTxType(payment.tx_type);
@@ -685,6 +713,7 @@ export async function GET(request: NextRequest) {
       const isPosDeposit = isPosDepositRecord(rawTxType, category, note);
       const isPosRemainder = rawTxType === "payment" && category === "pos_revenue" && note.toLowerCase().includes("pos remainder");
       const isRecordOnly = payment.is_record_only === true && !isPosDeposit && !isPosRemainder;
+      const isCorrection = payment.is_correction === true;
       // Locked policy: any "Paid by Deposit" settlement is treated as cash movement in Payment Daily.
       const method: MethodKey = isPosDeposit ? "cash" : rawMethod;
       const txType: TxType = isPosDeposit ? "payment" : rawTxType;
@@ -765,10 +794,17 @@ export async function GET(request: NextRequest) {
           notes: new Set<string>(),
         };
         if (!isRecordOnly) {
-          applyMethodMovement(current.methods, method, txType, amount);
+          if (isCorrection) {
+            applyCorrectionMovement(current.methods, method, txType, amount);
+          } else {
+            applyMethodMovement(current.methods, method, txType, amount);
+          }
           current.total_net = round2(current.total_net + (txType === "refund" ? -amount : amount));
         }
-        if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
+        if (normalizedNote) {
+          const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
+          current.notes.add(`${normalizedNote}${suffix}`);
+        }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) current.notes.add(linkedRemark);
         if (String(reservation.status ?? "").toLowerCase() === "cancelled") {
@@ -803,11 +839,18 @@ export async function GET(request: NextRequest) {
           notes: new Set<string>(),
         };
         if (!isRecordOnly) {
-          applyMethodMovement(current.methods, method, txType, amount);
+          if (isCorrection) {
+            applyCorrectionMovement(current.methods, method, txType, amount);
+          } else {
+            applyMethodMovement(current.methods, method, txType, amount);
+          }
           if (txType === "payment") current.total_net = round2(current.total_net + amount);
           else if (txType === "refund") current.total_net = round2(current.total_net - amount);
         }
-        if (normalizedNote) current.notes.add(isRecordOnly ? `${normalizedNote} (record-only)` : normalizedNote);
+        if (normalizedNote) {
+          const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
+          current.notes.add(`${normalizedNote}${suffix}`);
+        }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) current.notes.add(linkedRemark);
         if (String(reservation?.status ?? "").toLowerCase() === "cancelled") {

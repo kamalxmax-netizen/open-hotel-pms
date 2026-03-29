@@ -488,7 +488,7 @@ function RoomCard({
                 onFocus={openHoverPreview}
                 onBlur={closeHoverPreview}
                 className={`${cardSize} relative rounded-xl border ${cardPadding} flex flex-col
-          ${s.card} ${selected ? "ring-2 ring-brand-400" : ""} ${isGroupFocused ? "ring-2 ring-indigo-400 shadow-md" : ""}
+          ${s.card} status-${room.status} ${selected ? "ring-2 ring-brand-400" : ""} ${isGroupFocused ? "ring-2 ring-indigo-400 shadow-md" : ""}
           ${clickable ? "cursor-pointer" : "cursor-default"} text-left overflow-hidden transition-all z-10`}
                 style={shouldFade ? { filter: "saturate(30%)", opacity: 0.45 } : undefined}
             >

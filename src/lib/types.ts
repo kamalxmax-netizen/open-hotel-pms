@@ -46,6 +46,7 @@ export interface ReservationFolioLedgerRow {
   id: string;
   occurred_at: string;
   type: FolioLedgerRowType;
+  tx_type?: string | null;
   method: PaymentMethod | null;
   amount: number;
   revenue_category: string | null;

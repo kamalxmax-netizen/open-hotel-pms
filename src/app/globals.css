@@ -74,6 +74,73 @@ html.dark {
   --hk-stripe-paused: rgba(255, 255, 255, 0.15);
 }
 
+html.high-contrast {
+  color-scheme: light;
+
+  --bg-body: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #e2e8f0;
+  --bg-sidebar: #ffffff;
+  --bg-muted: #e2e8f0;
+  --border-default: #000000;
+  --border-input: #000000;
+  --border-subtle: #000000;
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-muted: #000000;
+  --text-table-cell: #000000;
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --modal-overlay-bg: rgba(0, 0, 0, 0.8);
+
+  --dayuse-text: #be123c;
+  --dayuse-text-secondary: #9f1239;
+  --dayuse-bg: #ffffff;
+  --dayuse-border: #000000;
+
+  --toggle-off: #000000;
+  /* ─── Timeline ─── */
+  --timeline-grid: #000000;
+  --timeline-gap-bg: #ffffff;
+  --timeline-gap-line: #000000;
+  /* ─── Housekeeping ─── */
+  --hk-stripe-in-progress: rgba(0, 0, 0, 0.2);
+  --hk-stripe-paused: rgba(0, 0, 0, 0.2);
+}
+
+/* ─── High Contrast Component Overrides ─── */
+/* Main Status Backgrounds (Room Diary Cards) */
+html.high-contrast .status-available { @apply !bg-emerald-300 !text-black !border-black; }
+html.high-contrast .status-reserved { @apply !bg-amber-300 !text-black !border-black; }
+html.high-contrast .status-dirty { @apply !bg-rose-300 !text-black !border-black; }
+html.high-contrast .status-cleaning { @apply !bg-sky-300 !text-black !border-black; }
+html.high-contrast .status-approved { @apply !bg-emerald-200 !text-black !border-black; }
+html.high-contrast .status-closed { @apply !bg-slate-300 !text-black !border-black; }
+html.high-contrast .status-ooo { @apply !bg-rose-400 !text-black !border-black !ring-0; }
+html.high-contrast .status-oos { @apply !bg-amber-400 !text-black !border-black !ring-0; }
+
+/* Status Chip Overrides (Pastel -> Sharp) */
+html.high-contrast .bg-emerald-100 { @apply !bg-emerald-400 !text-black !border-black !border; }
+html.high-contrast .bg-sky-100 { @apply !bg-sky-400 !text-black !border-black !border; }
+html.high-contrast .bg-amber-100 { @apply !bg-amber-400 !text-black !border-black !border; }
+html.high-contrast .bg-indigo-100 { @apply !bg-indigo-400 !text-black !border-black !border; }
+html.high-contrast .bg-rose-100 { @apply !bg-rose-400 !text-black !border-black !border; }
+
+/* General UI Sharpening */
+html.high-contrast .nav-item.active { @apply !bg-brand-100 !text-black !border-[1.5px] !border-black; }
+
+html.high-contrast .card, 
+html.high-contrast .modal-panel, 
+html.high-contrast .drawer-panel,
+html.high-contrast .room-card { @apply !border-[1.5px] !border-black shadow-none; }
+
+html.high-contrast .form-input:user-invalid, 
+html.high-contrast .form-input[aria-invalid="true"] {
+  @apply !bg-rose-100 !border-rose-900 !border-[1.5px] !text-black;
+}
+
+html.high-contrast .badge { @apply !bg-white !border-black !border-[1.5px] !text-black; }
+
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background-color: var(--bg-body);
