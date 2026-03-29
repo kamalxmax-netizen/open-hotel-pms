@@ -23,6 +23,17 @@ type ReservationSnapshot = {
   is_dayuse: boolean | null;
 };
 
+type LegacyStayRow = {
+  id: string;
+  date_in: string | null;
+  date_out: string | null;
+  nights: number | null;
+  room_number: string | null;
+  source_file: string | null;
+  notes: string | null;
+  created_at: string | null;
+};
+
 function fullNameFromProfile(profile: any) {
   const first = String(profile?.first_name ?? "").trim();
   const last = String(profile?.last_name ?? "").trim();
@@ -39,6 +50,14 @@ function sortByCheckinDesc<T extends { checkin_date: string | null; created_at?:
     const right = String(a.checkin_date ?? a.created_at ?? "");
     return left.localeCompare(right);
   });
+}
+
+function isMissingRelationError(error: unknown, relationName: string): boolean {
+  if (!error || typeof error !== "object") return false;
+  const anyError = error as { code?: string; message?: string };
+  if (anyError.code === "42P01") return true;
+  const message = String(anyError.message ?? "").toLowerCase();
+  return message.includes(relationName.toLowerCase()) && message.includes("does not exist");
 }
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
@@ -61,6 +80,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       { data: guest, error: guestError },
       { data: primaryReservations, error: primaryError },
       { data: accompanyingLinks, error: accompanyingError },
+      { data: legacyStaysData, error: legacyStaysError },
     ] = await Promise.all([
       supabase
         .from("guest_profiles")
@@ -82,6 +102,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         .eq("role", "accompanying")
         .in("reservations.status", ["checked_out", "cancelled"])
         .order("created_at", { ascending: false }),
+      supabase
+        .from("legacy_stays")
+        .select("id, date_in, date_out, nights, room_number, source_file, notes, created_at")
+        .eq("guest_profile_id", guestProfileId)
+        .order("date_in", { ascending: false }),
     ]);
 
     if (guestError) {
@@ -95,6 +120,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
     if (accompanyingError) {
       return NextResponse.json({ success: false, error: accompanyingError.message }, { status: 500 });
+    }
+    if (legacyStaysError && !isMissingRelationError(legacyStaysError, "legacy_stays")) {
+      return NextResponse.json({ success: false, error: legacyStaysError.message }, { status: 500 });
     }
 
     const reservationSnapshotMap = new Map<string, ReservationSnapshot>();
@@ -363,8 +391,76 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
     const totalTips = round2(Array.from(tipByReservation.values()).reduce((sum, value) => sum + value, 0));
 
+    const pmsStayMap = new Map<
+      string,
+      {
+        id: string;
+        source: "pms";
+        date_in: string;
+        date_out: string;
+        nights: number;
+        room_number: string | null;
+        status: string;
+        notes: string | null;
+        source_file: null;
+      }
+    >();
+
+    for (const row of [...primaryStays, ...accompanyingStays]) {
+      if (row.status !== "checked_out") continue;
+      if (!row.checkin_date || !row.checkout_date) continue;
+      if (pmsStayMap.has(row.reservation_id)) continue;
+
+      const nights =
+        typeof row.checkin_date === "string" && typeof row.checkout_date === "string"
+          ? Math.max(
+              1,
+              Math.round(
+                (new Date(`${row.checkout_date}T00:00:00Z`).getTime() -
+                  new Date(`${row.checkin_date}T00:00:00Z`).getTime()) /
+                  (24 * 60 * 60 * 1000)
+              )
+            )
+          : 1;
+
+      pmsStayMap.set(row.reservation_id, {
+        id: row.reservation_id,
+        source: "pms",
+        date_in: row.checkin_date,
+        date_out: row.checkout_date,
+        nights,
+        room_number: row.room_number ?? null,
+        status: "checked_out",
+        notes: null,
+        source_file: null,
+      });
+    }
+
+    const legacyStays = ((legacyStaysData ?? []) as LegacyStayRow[])
+      .filter((row) => !!row.date_in && !!row.date_out)
+      .map((row) => ({
+        id: String(row.id),
+        source: "legacy" as const,
+        date_in: String(row.date_in),
+        date_out: String(row.date_out),
+        nights: Number(row.nights ?? 1),
+        room_number: row.room_number ? String(row.room_number) : null,
+        status: undefined,
+        notes: row.notes ? String(row.notes) : null,
+        source_file: row.source_file ? String(row.source_file) : null,
+      }));
+
+    const stays = [...Array.from(pmsStayMap.values()), ...legacyStays].sort((a, b) =>
+      String(b.date_in).localeCompare(String(a.date_in))
+    );
+    const totalStays = stays.length;
+    const totalNights = stays.reduce((sum, row) => sum + Math.max(0, Number(row.nights || 0)), 0);
+
     return NextResponse.json({
       success: true,
+      stays,
+      total_stays: totalStays,
+      total_nights: totalNights,
       guest,
       summary: {
         total_stays: completedPrimaryStays.length,
@@ -384,6 +480,19 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       },
     } satisfies GuestHistoryResponse & {
       guest: typeof guest;
+      stays: Array<{
+        id: string;
+        source: "pms" | "legacy";
+        date_in: string;
+        date_out: string;
+        nights: number;
+        room_number: string | null;
+        status?: string;
+        notes?: string | null;
+        source_file?: string | null;
+      }>;
+      total_stays: number;
+      total_nights: number;
       timeline: [];
       unlinked: { transfer_transactions: []; tips: []; commissions: [] };
     });

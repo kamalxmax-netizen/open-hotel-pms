@@ -547,13 +547,47 @@ export default function GuestProfileDetailPage() {
     };
   }, [profileId, selectedStay]);
 
-  const combinedStays = useMemo(
-    () =>
-      history
-        ? sortStays([...(history.primary_stays ?? []), ...(history.accompanying_stays ?? [])])
-        : [],
-    [history]
-  );
+  const combinedStays = useMemo(() => {
+    if (!history) return [];
+    
+    const enrichedList: GuestHistoryStay[] = [];
+    const pmsMap = new Map<string, GuestHistoryStay>();
+    
+    for (const s of history.primary_stays ?? []) {
+      if (!pmsMap.has(s.reservation_id)) pmsMap.set(s.reservation_id, s);
+    }
+    for (const s of history.accompanying_stays ?? []) {
+      if (!pmsMap.has(s.reservation_id)) pmsMap.set(s.reservation_id, s);
+    }
+
+    const rawStays = (history as any).stays || [];
+    
+    for (const item of rawStays) {
+      if (item.source === "pms") {
+        const full = pmsMap.get(item.id);
+        if (full) enrichedList.push({ ...full, source: "pms" });
+      } else if (item.source === "legacy") {
+        enrichedList.push({
+          reservation_id: item.id,
+          booking_code: "LEGACY",
+          guest_name: null,
+          room_number: item.room_number,
+          status: "past",
+          checkin_date: item.date_in,
+          checkout_date: item.date_out,
+          checked_in_at: item.date_in,
+          checked_out_at: item.date_out,
+          source: "legacy",
+          created_at: null,
+          total_price: null,
+          role: "primary",
+          display_order: 1,
+        } as GuestHistoryStay);
+      }
+    }
+    
+    return sortStays(enrichedList);
+  }, [history]);
 
   const hasDateFilter = Boolean(stayDateFrom || stayDateTo);
 
@@ -865,37 +899,56 @@ export default function GuestProfileDetailPage() {
                 <th>Check-in</th>
                 <th>Check-out</th>
                 <th>Sts</th>
+                <th className="text-center">Src</th>
                 <th className="text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {displayedStays.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-sm text-[var(--text-secondary)]">
+                  <td colSpan={8} className="py-10 text-center text-sm text-[var(--text-secondary)]">
                     No stay history found{stayStatusFilter !== "all" || hasDateFilter ? " matching the current filters" : ""}.
                   </td>
                 </tr>
               ) : (
                 displayedStays.map((stay) => {
                   const roleMeta = getRoleMeta(stay.role);
+                  const isLegacy = stay.source === "legacy";
                   return (
                     <tr
-                      key={`${stay.reservation_id}-${stay.role}`}
-                      className="cursor-pointer transition hover:bg-[var(--bg-body)]"
-                      onClick={() => setSelectedStay(stay)}
+                      key={`${stay.reservation_id}-${stay.source || stay.role}`}
+                      className={`transition hover:bg-[var(--bg-body)] ${isLegacy ? '' : 'cursor-pointer'}`}
+                      onClick={() => {
+                        if (!isLegacy) setSelectedStay(stay);
+                      }}
                     >
-                      <td className="font-semibold text-[var(--text-primary)]">{valueOrDash(stay.booking_code)}</td>
+                      <td className="font-semibold text-[var(--text-primary)]">
+                        {isLegacy ? <span className="text-[var(--text-muted)] italic">Legacy Record</span> : valueOrDash(stay.booking_code)}
+                      </td>
                       <td>{valueOrDash(stay.room_number)}</td>
                       <td>
-                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${roleMeta.tone}`}>
-                          <span className={`h-2.5 w-2.5 rounded-full ${roleMeta.dot}`} />
-                          {roleMeta.label}
-                        </span>
+                        {isLegacy ? (
+                           <span className="text-[var(--text-muted)] italic text-xs">—</span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${roleMeta.tone}`}>
+                            <span className={`h-2.5 w-2.5 rounded-full ${roleMeta.dot}`} />
+                            {roleMeta.label}
+                          </span>
+                        )}
                       </td>
                       <td>{formatDateTime(stay.checked_in_at) === "—" ? formatDate(stay.checkin_date) : formatDateTime(stay.checked_in_at)}</td>
                       <td>{formatDateTime(stay.checked_out_at) === "—" ? formatDate(stay.checkout_date) : formatDateTime(stay.checked_out_at)}</td>
-                      <td>{valueOrDash(stay.status)}</td>
-                      <td className="text-right font-semibold text-[var(--text-primary)]">{fmtMoney(stay.total_price)}</td>
+                      <td>{isLegacy ? <span className="text-[var(--text-muted)]">—</span> : valueOrDash(stay.status)}</td>
+                      <td className="text-center">
+                        {isLegacy ? (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">Legacy</span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">PMS</span>
+                        )}
+                      </td>
+                      <td className="text-right font-semibold text-[var(--text-primary)]">
+                        {isLegacy ? <span className="text-[var(--text-muted)] font-normal">—</span> : fmtMoney(stay.total_price)}
+                      </td>
                     </tr>
                   );
                 })
