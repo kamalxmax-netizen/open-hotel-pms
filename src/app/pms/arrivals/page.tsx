@@ -11,6 +11,7 @@ import { formatShortGroupCode } from "@/lib/group-label";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { LinkedStay } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 
 type Arrival = {
     id: string;
@@ -392,8 +393,8 @@ export default function ArrivalsPage() {
                                             </span>
                                         </td>
                                         <td>
-                                            <div className="text-sm">{stayCheckin}</div>
-                                            <div className="text-xs text-[var(--text-muted)]">→ {stayCheckout} ({stayNights}N)</div>
+                                            <div className="text-sm">{formatDateDisplay(stayCheckin)}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">→ {formatDateDisplay(stayCheckout)} ({stayNights}N)</div>
                                             {a.linked_stay && (
                                                 <div className="mt-1" title="Linked stay / in-house move segment">
                                                     <LinkedStayBadge

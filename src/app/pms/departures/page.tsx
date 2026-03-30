@@ -13,6 +13,7 @@ import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { groupLinkedStays } from "@/lib/linked-stay-ui";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 
 type NightlyItem = { date: string; price: number };
 
@@ -317,7 +318,7 @@ export default function DeparturesPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <div className="text-sm">{displayCheckin} → {displayCheckout}</div>
+                                                <div className="text-sm">{formatDateDisplay(displayCheckin)} → {formatDateDisplay(displayCheckout)}</div>
                                                 <div className="text-xs text-[var(--text-muted)] mt-0.5">{displayNights} night{displayNights !== 1 ? "s" : ""}</div>
                                                 {merged.is_linked && (
                                                     <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />

@@ -15,6 +15,7 @@ import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { groupLinkedStays } from "@/lib/linked-stay-ui";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 
 type InHouseReservation = {
     id: string;
@@ -353,8 +354,8 @@ export default function InHousePage() {
                                             {r.phone && <div className="text-xs text-[var(--text-muted)]">{r.phone}</div>}
                                         </td>
                                         <td>
-                                            <div className="text-sm">{displayCheckin}</div>
-                                            <div className="text-xs text-[var(--text-muted)]">→ {displayCheckout}</div>
+                                            <div className="text-sm">{formatDateDisplay(displayCheckin)}</div>
+                                            <div className="text-xs text-[var(--text-muted)]">→ {formatDateDisplay(displayCheckout)}</div>
                                             {merged.is_linked && (
                                                 <LinkedStayBadge segments={merged.linked_segments} activeSegmentId={merged.linked_active_segment_id} />
                                             )}

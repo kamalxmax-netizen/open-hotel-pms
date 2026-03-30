@@ -1,5 +1,6 @@
-import React from "react";
+import React, { KeyboardEvent, useEffect, useState } from "react";
 import { addDays, compareDateStrings } from "@/lib/dates";
+import { formatDateDisplay } from "@/lib/date-display";
 
 interface NightCounterProps {
     checkinDate: string;
@@ -18,6 +19,57 @@ export default function NightCounter({
     disabled = false,
     lockCheckin = false,
 }: NightCounterProps) {
+    const [checkinInput, setCheckinInput] = useState(() => formatDateDisplay(checkinDate));
+    const [checkoutInput, setCheckoutInput] = useState(() => formatDateDisplay(checkoutDate));
+
+    useEffect(() => {
+        setCheckinInput(formatDateDisplay(checkinDate));
+    }, [checkinDate]);
+
+    useEffect(() => {
+        setCheckoutInput(formatDateDisplay(checkoutDate));
+    }, [checkoutDate]);
+
+    const parseDateInputToYmd = (value: string): string | null => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+
+        const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+        if (ymdMatch) {
+            const [, year, month, day] = ymdMatch;
+            const candidate = `${year}-${month}-${day}`;
+            const date = new Date(`${candidate}T12:00:00`);
+            if (Number.isNaN(date.getTime())) return null;
+            if (
+                date.getFullYear() !== Number(year) ||
+                date.getMonth() + 1 !== Number(month) ||
+                date.getDate() !== Number(day)
+            ) {
+                return null;
+            }
+            return candidate;
+        }
+
+        const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmyMatch) {
+            const [, dayRaw, monthRaw, year] = dmyMatch;
+            const day = dayRaw.padStart(2, "0");
+            const month = monthRaw.padStart(2, "0");
+            const candidate = `${year}-${month}-${day}`;
+            const date = new Date(`${candidate}T12:00:00`);
+            if (Number.isNaN(date.getTime())) return null;
+            if (
+                date.getFullYear() !== Number(year) ||
+                date.getMonth() + 1 !== Number(month) ||
+                date.getDate() !== Number(day)
+            ) {
+                return null;
+            }
+            return candidate;
+        }
+
+        return null;
+    };
 
     const handleCheckinChange = (newCheckin: string) => {
         if (!newCheckin) return;
@@ -60,6 +112,34 @@ export default function NightCounter({
         }
     };
 
+    const commitCheckinInput = () => {
+        const parsed = parseDateInputToYmd(checkinInput);
+        if (!parsed) {
+            setCheckinInput(formatDateDisplay(checkinDate));
+            return;
+        }
+        handleCheckinChange(parsed);
+    };
+
+    const commitCheckoutInput = () => {
+        const parsed = parseDateInputToYmd(checkoutInput);
+        if (!parsed) {
+            setCheckoutInput(formatDateDisplay(checkoutDate));
+            return;
+        }
+        handleCheckoutChange(parsed);
+    };
+
+    const handleDateKeyDown = (
+        event: KeyboardEvent<HTMLInputElement>,
+        commit: () => void
+    ) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+        }
+    };
+
     return (
         <div className="flex items-center gap-4 bg-[var(--bg-body)] p-3 rounded-xl border border-[var(--border-default)] shadow-sm w-full">
             {/* Check-in */}
@@ -68,13 +148,17 @@ export default function NightCounter({
                     Check-in
                 </label>
                 <input
-                    type="date"
+                    type="text"
                     required
                     disabled={disabled || lockCheckin}
                     readOnly={lockCheckin}
                     className={`form-input w-full text-sm font-semibold bg-[var(--bg-surface)] ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
-                    value={checkinDate}
-                    onChange={(e) => handleCheckinChange(e.target.value)}
+                    value={checkinInput}
+                    onChange={(e) => setCheckinInput(e.target.value)}
+                    onBlur={commitCheckinInput}
+                    onKeyDown={(e) => handleDateKeyDown(e, commitCheckinInput)}
+                    inputMode="numeric"
+                    placeholder="DD/MM/YYYY"
                 />
             </div>
 
@@ -112,13 +196,16 @@ export default function NightCounter({
                     Check-out
                 </label>
                 <input
-                    type="date"
+                    type="text"
                     required
                     disabled={disabled}
                     className="form-input w-full text-sm font-semibold bg-[var(--bg-surface)] cursor-pointer disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed"
-                    value={checkoutDate}
-                    onChange={(e) => handleCheckoutChange(e.target.value)}
-                    min={checkinDate ? addDays(checkinDate, 1) : undefined}
+                    value={checkoutInput}
+                    onChange={(e) => setCheckoutInput(e.target.value)}
+                    onBlur={commitCheckoutInput}
+                    onKeyDown={(e) => handleDateKeyDown(e, commitCheckoutInput)}
+                    inputMode="numeric"
+                    placeholder="DD/MM/YYYY"
                 />
             </div>
         </div>
