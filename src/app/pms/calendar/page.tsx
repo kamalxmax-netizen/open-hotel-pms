@@ -19,6 +19,7 @@ import type {
     CalendarData,
     CalendarPlannedMove as PlannedMove
 } from "@/lib/types";
+import { Settings as SettingsIcon } from "lucide-react";
 
 /* ─── Helpers ─────────────────────────────────── */
 function addDays(date: string, n: number): string {
@@ -167,11 +168,12 @@ function ReservationDetail({
                             </button>
                         )}
                         <button
-                            className="btn btn-secondary btn-sm"
+                            className="btn btn-secondary btn-sm flex items-center gap-1.5"
                             onClick={() => setShowOptions(true)}
                             title="Traces, Alerts, Guest Profile, Loan Items"
                         >
-                            ⋯ Options
+                            <SettingsIcon className="w-3.5 h-3.5" />
+                            Options
                         </button>
                         {canSwap && (
                             <button className="btn btn-secondary flex-1" onClick={onSwap}>

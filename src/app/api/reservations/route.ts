@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
         const supabase = createServerSupabaseClient();
         const sp = request.nextUrl.searchParams;
 
-        const q = sp.get("q")?.trim() ?? "";                    // guest name search
+        const q = sp.get("q")?.trim() ?? "";                    // guest / booking code / phone search
         const phone = sp.get("phone")?.trim() ?? "";            // phone search
         const status = sp.get("status") ?? "";                  // active|cancelled|checked_out|no_show|all
         const source = sp.get("source") ?? "";                  // walkin|ota|direct|agent
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
                 .order("checkin_date", { ascending: false })
                 .range(offset, offset + pageSize - 1);
 
-            if (q) query = query.or(`guest_name.ilike.%${q}%,booking_code.ilike.%${q}%`);
+            if (q) query = query.or(`guest_name.ilike.%${q}%,booking_code.ilike.%${q}%,phone.ilike.%${q}%`);
             if (phone) query = query.ilike("phone", `%${phone}%`);
             if (status && status !== "all") query = query.eq("status", status);
             if (source) query = query.eq("source", source);

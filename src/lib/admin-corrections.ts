@@ -98,6 +98,17 @@ export interface CorrectionResult {
   created_payment_ids?: string[];
 }
 
+export interface ReinstateAvailabilityResult {
+  can_reinstate: boolean;
+  room_assignment_mode: "pending" | "specific_room";
+  room_type_id: number | null;
+  room_type_name: string | null;
+  target_room_id: string | null;
+  target_room_number: string | null;
+  stay_dates: string[];
+  message: string;
+}
+
 export class AdminCorrectionError extends Error {
   status: number;
   constructor(message: string, status = 400) {
@@ -107,13 +118,13 @@ export class AdminCorrectionError extends Error {
   }
 }
 
-async function assertReinstateAvailability(
+async function getReinstateAvailability(
   supabase: SupabaseClient,
   params: {
     reservationId: string;
     targetRoomId?: string | null;
   }
-): Promise<void> {
+): Promise<ReinstateAvailabilityResult> {
   const { reservationId, targetRoomId = null } = params;
 
   const { data: nights, error: nightsError } = await supabase
@@ -143,6 +154,16 @@ async function assertReinstateAvailability(
   const roomTypeId = (nights ?? [])
     .map((row: any) => Number(row?.room_type_id ?? 0))
     .find((value: number) => Number.isFinite(value) && value > 0) ?? 0;
+  let roomTypeName: string | null = null;
+
+  if (roomTypeId > 0) {
+    const { data: roomTypeRow } = await supabase
+      .from("room_types")
+      .select("name_en")
+      .eq("id", roomTypeId)
+      .maybeSingle();
+    roomTypeName = roomTypeRow?.name_en ? String(roomTypeRow.name_en) : null;
+  }
 
   if (targetRoomId) {
     const firstStayDate = stayDates[0];
@@ -164,7 +185,25 @@ async function assertReinstateAvailability(
       }
       throw error;
     }
-    return;
+
+    const { data: roomRow } = await supabase
+      .from("rooms")
+      .select("room_number")
+      .eq("id", targetRoomId)
+      .maybeSingle();
+
+    return {
+      can_reinstate: true,
+      room_assignment_mode: "specific_room",
+      room_type_id: roomTypeId > 0 ? roomTypeId : null,
+      room_type_name: roomTypeName,
+      target_room_id: targetRoomId,
+      target_room_number: roomRow?.room_number ? String(roomRow.room_number) : null,
+      stay_dates: stayDates,
+      message: roomRow?.room_number
+        ? `Selected room ${String(roomRow.room_number)} is available for the full stay.`
+        : "Selected room is available for the full stay.",
+    };
   }
 
   if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) {
@@ -186,6 +225,40 @@ async function assertReinstateAvailability(
     }
     throw error;
   }
+
+  return {
+    can_reinstate: true,
+    room_assignment_mode: "pending",
+    room_type_id: roomTypeId,
+    room_type_name: roomTypeName,
+    target_room_id: null,
+    target_room_number: null,
+    stay_dates: stayDates,
+    message: roomTypeName
+      ? `Original room type ${roomTypeName} still has availability for the full stay.`
+      : "Original room type still has availability for the full stay.",
+  };
+}
+
+async function assertReinstateAvailability(
+  supabase: SupabaseClient,
+  params: {
+    reservationId: string;
+    targetRoomId?: string | null;
+  }
+): Promise<void> {
+  await getReinstateAvailability(supabase, params);
+}
+
+export async function previewReinstateAvailability(
+  supabase: SupabaseClient,
+  reservationId: string,
+  targetRoomId?: string | null
+): Promise<ReinstateAvailabilityResult> {
+  return getReinstateAvailability(supabase, {
+    reservationId,
+    targetRoomId: targetRoomId ?? null,
+  });
 }
 
 // ─── Business Day Check ────────────────────────────────────────

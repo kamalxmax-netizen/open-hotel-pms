@@ -31,6 +31,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         }
         let group: any = groupRow;
 
+        const { data: settingsRow, error: settingsError } = await supabase
+            .from("hotel_settings")
+            .select("business_date")
+            .eq("id", 1)
+            .maybeSingle();
+
+        if (settingsError) {
+            return NextResponse.json({ success: false, error: settingsError.message }, { status: 500 });
+        }
+        const businessDate = String(settingsRow?.business_date ?? "").trim();
+
         // 2. Fetch Reservations in this group
         const { data: rawReservations, error: resError } = await supabase
             .from("reservations")
@@ -154,7 +165,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
             };
         }) || [];
 
-        return NextResponse.json({ success: true, group, reservations });
+        return NextResponse.json({
+            success: true,
+            group: { ...group, business_date: businessDate || null },
+            reservations
+        });
     } catch (err: any) {
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }

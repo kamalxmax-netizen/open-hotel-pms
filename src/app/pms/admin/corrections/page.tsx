@@ -78,6 +78,17 @@ interface SearchResult {
   total_price: number;
 }
 
+interface ReinstatePreview {
+  can_reinstate: boolean;
+  room_assignment_mode: "pending" | "specific_room";
+  room_type_id: number | null;
+  room_type_name: string | null;
+  target_room_id: string | null;
+  target_room_number: string | null;
+  stay_dates: string[];
+  message: string;
+}
+
 type ActionType = "void_payment" | "adjustment" | "reinstate" | "reopen_folio" | "close_folio" | "transfer_payment" | null;
 
 function padZero(num: number) {
@@ -121,6 +132,9 @@ export default function AdminCorrectionsPage() {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferMethod, setTransferMethod] = useState("cash");
   const [reinstateRoomId, setReinstateRoomId] = useState("");
+  const [reinstatePreview, setReinstatePreview] = useState<ReinstatePreview | null>(null);
+  const [isLoadingReinstatePreview, setIsLoadingReinstatePreview] = useState(false);
+  const [reinstatePreviewError, setReinstatePreviewError] = useState("");
 
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -206,6 +220,8 @@ export default function AdminCorrectionsPage() {
     setTransferAmount("");
     setTransferMethod("cash");
     setReinstateRoomId("");
+    setReinstatePreview(null);
+    setReinstatePreviewError("");
     setActionError("");
     setActionSuccess("");
   };
@@ -214,6 +230,47 @@ export default function AdminCorrectionsPage() {
     setSelectedAction(action);
     clearForm();
   };
+
+  useEffect(() => {
+    if (selectedAction !== "reinstate" || !reservationId) {
+      setReinstatePreview(null);
+      setReinstatePreviewError("");
+      setIsLoadingReinstatePreview(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadPreview = async () => {
+      setIsLoadingReinstatePreview(true);
+      setReinstatePreviewError("");
+      try {
+        const params = new URLSearchParams({ reservation_id: reservationId });
+        if (reinstateRoomId) params.set("target_room_id", reinstateRoomId);
+
+        const res = await fetch(`/api/admin/corrections/reinstate/preview?${params.toString()}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.success) {
+          setReinstatePreview(data.preview ?? null);
+        } else {
+          setReinstatePreview(null);
+          setReinstatePreviewError(data.error || "Failed to check reinstatement availability.");
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setReinstatePreview(null);
+        setReinstatePreviewError(err?.message || "Failed to check reinstatement availability.");
+      } finally {
+        if (!cancelled) setIsLoadingReinstatePreview(false);
+      }
+    };
+
+    void loadPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAction, reservationId, reinstateRoomId]);
 
   const submitAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -617,6 +674,31 @@ export default function AdminCorrectionsPage() {
                     <div className="p-3 bg-[var(--bg-muted)] rounded-lg text-sm text-[var(--text-primary)] border border-[var(--border-subtle)]">
                       <span className="font-semibold text-emerald-600">Warning:</span> This will restore nights and void any cancellation settlement entries.
                     </div>
+                    {isLoadingReinstatePreview && (
+                      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+                        Checking room availability for reinstate...
+                      </div>
+                    )}
+                    {reinstatePreviewError && (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+                        {reinstatePreviewError}
+                      </div>
+                    )}
+                    {!reinstatePreviewError && reinstatePreview && (
+                      <div className={`rounded-lg border px-4 py-3 text-sm ${
+                        reinstatePreview.can_reinstate
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300"
+                      }`}>
+                        <div className="font-semibold">
+                          {reinstatePreview.can_reinstate ? "Availability Preview: OK" : "Availability Preview: Blocked"}
+                        </div>
+                        <div className="mt-1">{reinstatePreview.message}</div>
+                        <div className="mt-2 text-xs opacity-80">
+                          Stay dates: {reinstatePreview.stay_dates.join(", ")}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -657,7 +739,15 @@ export default function AdminCorrectionsPage() {
 
                 <div className="pt-2 flex justify-end gap-3">
                   <button type="button" className="btn btn-ghost" onClick={() => setSelectedAction(null)}>Cancel</button>
-                  <button type="submit" disabled={isSubmitting || !reason.trim()} className="btn btn-primary px-6">
+                  <button
+                    type="submit"
+                    disabled={
+                      isSubmitting ||
+                      !reason.trim() ||
+                      (selectedAction === "reinstate" && (isLoadingReinstatePreview || !!reinstatePreviewError))
+                    }
+                    className="btn btn-primary px-6"
+                  >
                     {isSubmitting ? "Executing..." : "Execute Correction"}
                   </button>
                 </div>

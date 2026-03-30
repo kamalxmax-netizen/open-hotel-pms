@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/Label";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
 export default function AdminSettingsPage() {
     const router = useRouter();
 
@@ -82,22 +81,8 @@ export default function AdminSettingsPage() {
                     if (rawSetting != null) {
                         setRetentionDays(String(rawSetting));
                     }
+                    setGasSyncEnabled(data?.settings?.google_sheet_sync_enabled !== false);
                 }
-            }
-
-            // Fetch GAS sync setting
-            try {
-                const supabase = createBrowserSupabaseClient();
-                const { data: gasData } = await supabase
-                    .from("hotel_settings")
-                    .select("google_sheet_sync_enabled")
-                    .eq("id", 1)
-                    .maybeSingle();
-                if (gasData?.google_sheet_sync_enabled === false) {
-                    setGasSyncEnabled(false);
-                }
-            } catch {
-                // default to enabled
             }
             
             if (logsRes.status === "fulfilled" && logsRes.value.ok) {
@@ -129,13 +114,16 @@ export default function AdminSettingsPage() {
         setError("");
         setSuccessMsg("");
         try {
-            const supabase = createBrowserSupabaseClient();
-            const { error: upsertError } = await supabase
-                .from("hotel_settings")
-                .update({ google_sheet_sync_enabled: newValue })
-                .eq("id", 1);
-            if (upsertError) throw new Error(upsertError.message);
-            setGasSyncEnabled(newValue);
+            const res = await fetch("/api/admin/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ google_sheet_sync_enabled: newValue })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to update Google Sheet Sync setting");
+            }
+            setGasSyncEnabled(data?.settings?.google_sheet_sync_enabled !== false);
             setSuccessMsg(`Google Sheet Sync ${newValue ? "enabled" : "disabled"}.`);
             setTimeout(() => setSuccessMsg(""), 3000);
         } catch (err) {

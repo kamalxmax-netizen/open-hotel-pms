@@ -10,7 +10,18 @@ import {
 export const dynamic = "force-dynamic";
 
 const updateSchema = z.object({
-  passport_photo_retention_days: z.number().int().min(7).max(90),
+  passport_photo_retention_days: z.number().int().min(7).max(90).optional(),
+  google_sheet_sync_enabled: z.boolean().optional(),
+}).refine(
+  (value) =>
+    value.passport_photo_retention_days !== undefined ||
+    value.google_sheet_sync_enabled !== undefined,
+  { message: "At least one setting must be provided." }
+);
+
+const partialUpdateSchema = z.object({
+  passport_photo_retention_days: z.number().int().min(7).max(90).optional(),
+  google_sheet_sync_enabled: z.boolean().optional(),
 });
 
 function isTruthy(value: string | null): boolean {
@@ -60,7 +71,7 @@ export async function GET(request: NextRequest) {
   const { data: settings, error: settingsError } = await supabase
     .from("hotel_settings")
     .select(
-      "passport_photo_retention_days, passport_cleanup_last_run_at, passport_cleanup_last_deleted_count, passport_cleanup_last_error"
+      "passport_photo_retention_days, google_sheet_sync_enabled, passport_cleanup_last_run_at, passport_cleanup_last_deleted_count, passport_cleanup_last_error"
     )
     .eq("id", 1)
     .maybeSingle();
@@ -105,6 +116,8 @@ export async function GET(request: NextRequest) {
     },
     settings: {
       passport_photo_retention_days: retentionDays,
+      google_sheet_sync_enabled:
+        (settings as any).google_sheet_sync_enabled !== false,
       ...cleanupMeta,
     },
   });
@@ -122,15 +135,28 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const nextDays = clampPassportRetentionDays(parsed.data.passport_photo_retention_days);
+  const nextDays =
+    parsed.data.passport_photo_retention_days != null
+      ? clampPassportRetentionDays(parsed.data.passport_photo_retention_days)
+      : null;
+  const nextGoogleSheetSyncEnabled =
+    parsed.data.google_sheet_sync_enabled != null
+      ? Boolean(parsed.data.google_sheet_sync_enabled)
+      : null;
+  const upsertPayload: Record<string, unknown> = {
+    id: 1,
+    updated_at: new Date().toISOString(),
+  };
+  if (nextDays != null) {
+    upsertPayload.passport_photo_retention_days = nextDays;
+  }
+  if (nextGoogleSheetSyncEnabled != null) {
+    upsertPayload.google_sheet_sync_enabled = nextGoogleSheetSyncEnabled;
+  }
   const { data, error } = await auth.supabase
     .from("hotel_settings")
-    .upsert({
-      id: 1,
-      passport_photo_retention_days: nextDays,
-      updated_at: new Date().toISOString(),
-    })
-    .select("passport_photo_retention_days")
+    .upsert(upsertPayload)
+    .select("passport_photo_retention_days, google_sheet_sync_enabled")
     .maybeSingle();
 
   if (error) {
@@ -141,12 +167,23 @@ export async function PUT(request: NextRequest) {
     success: true,
     settings: {
       passport_photo_retention_days: Number(
-        (data as any)?.passport_photo_retention_days ?? nextDays
+        (data as any)?.passport_photo_retention_days ??
+          nextDays ??
+          DEFAULT_PASSPORT_RETENTION_DAYS
       ),
+      google_sheet_sync_enabled:
+        (data as any)?.google_sheet_sync_enabled !== false &&
+        nextGoogleSheetSyncEnabled !== false,
     },
     setting: {
       key: "passport_photo_retention_days",
-      value: String(Number((data as any)?.passport_photo_retention_days ?? nextDays)),
+      value: String(
+        Number(
+          (data as any)?.passport_photo_retention_days ??
+            nextDays ??
+            DEFAULT_PASSPORT_RETENTION_DAYS
+        )
+      ),
     },
   });
 }
@@ -157,7 +194,7 @@ export async function POST(request: NextRequest) {
 
   const applyExisting = isTruthy(request.nextUrl.searchParams.get("apply_existing"));
   const body = await request.json().catch(() => ({}));
-  const parsed = updateSchema.partial().safeParse(body);
+  const parsed = partialUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { success: false, error: "Invalid payload.", details: parsed.error.flatten() },

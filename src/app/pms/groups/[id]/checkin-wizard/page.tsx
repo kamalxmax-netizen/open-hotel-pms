@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
+import { formatDateDisplay } from "@/lib/date-display";
 
 type PaymentMethod = "cash" | "transfer" | "credit_card";
 type DepositPolicy = "keep" | "set";
@@ -236,6 +237,16 @@ function scanSourceBadgeClass(source: ScanPoolSource): string {
   return "bg-[var(--bg-muted)] text-[var(--text-table-cell)]";
 }
 
+function formatWizardReason(reason: string, businessDate: string, checkinDate: string): string {
+  if (reason === "room_not_assigned") return "Assign room first";
+  if (reason === "hk_not_ready") return "Housekeeping not ready";
+  if (reason === "profile_incomplete") return "Guest profile incomplete";
+  if (reason === "not_due_in_today") {
+    return `Separate check-in on ${formatDateDisplay(checkinDate || businessDate)}`;
+  }
+  return reason;
+}
+
 export default function GroupCheckinWizardPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const groupId = params.id;
@@ -351,6 +362,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   }
 
   function buildReservationRows(data: any): WizardReservation[] {
+    const currentBusinessDate = String(data?.business_date ?? "");
     const selectedIds = new Set<string>(
       Array.isArray(data?.selection?.selected_reservation_ids)
         ? data.selection.selected_reservation_ids.map((value: unknown) => String(value))
@@ -358,7 +370,15 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     );
 
     return Array.isArray(data?.reservation_lines)
-      ? data.reservation_lines.map((line: any) => mapReservationLine(line, selectedIds))
+      ? data.reservation_lines.map((line: any) => {
+        const row = mapReservationLine(line, selectedIds);
+        const canRemainSelected =
+          !row.is_checked_in &&
+          row.has_assigned_room &&
+          row.status === "active" &&
+          (!currentBusinessDate || row.checkin_date === currentBusinessDate);
+        return canRemainSelected ? row : { ...row, selected: false };
+      })
       : [];
   }
 
@@ -433,6 +453,28 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
     return { ready, notReady, done };
   }, [selectedReservations, businessDate]);
+
+  const step1Eligibility = useMemo(() => {
+    return reservations.map((row) => {
+      const reasons: string[] = [];
+      if (row.is_checked_in) reasons.push("already_checked_in");
+      if (row.status !== "active") reasons.push("inactive");
+      if (!row.has_assigned_room) reasons.push("room_not_assigned");
+      if (businessDate && row.checkin_date && row.checkin_date !== businessDate) reasons.push("not_due_in_today");
+
+      return {
+        row,
+        reasons,
+        isDueToday: Boolean(businessDate && row.checkin_date === businessDate),
+        selectable: reasons.length === 0,
+      };
+    });
+  }, [businessDate, reservations]);
+
+  const eligibleStep1Rows = useMemo(
+    () => step1Eligibility.filter((item) => item.selectable),
+    [step1Eligibility]
+  );
 
   const selectedRemainingTotal = useMemo(
     () => selectedReservations.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0),
@@ -855,6 +897,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       prev.map((row) => {
         if (row.id !== id) return row;
         if (row.is_checked_in || !row.has_assigned_room || row.status !== "active") return row;
+        if (businessDate && row.checkin_date !== businessDate) return row;
         return { ...row, selected: !row.selected };
       })
     );
@@ -863,7 +906,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   function toggleAll(select: boolean) {
     setReservations((prev) =>
       prev.map((row) => {
-        const canSelect = !row.is_checked_in && row.has_assigned_room && row.status === "active";
+        const canSelect =
+          !row.is_checked_in &&
+          row.has_assigned_room &&
+          row.status === "active" &&
+          (!businessDate || row.checkin_date === businessDate);
         return canSelect ? { ...row, selected: select } : row;
       })
     );
@@ -1560,9 +1607,12 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                 <div>
                   <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 1 — Select Rooms</h2>
                   <p className="text-sm text-[var(--text-secondary)]">Choose rooms to include in this check-in run.</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    Linked reservations with a different due-in date stay linked, but must be checked in separately on their own due-in day.
+                  </p>
                 </div>
                 <div className="text-sm text-[var(--text-secondary)] font-semibold">
-                  {selectedReservations.length} selected / {reservations.filter((row) => !row.is_checked_in && row.has_assigned_room && row.status === "active").length} eligible
+                  {selectedReservations.length} selected / {eligibleStep1Rows.length} eligible
                 </div>
               </div>
 
@@ -1573,7 +1623,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                       <th className="p-3 w-10 text-left">
                         <input
                           type="checkbox"
-                          checked={selectedReservations.length > 0 && selectedReservations.length === reservations.filter((row) => !row.is_checked_in && row.has_assigned_room && row.status === "active").length}
+                          checked={selectedReservations.length > 0 && selectedReservations.length === eligibleStep1Rows.length}
                           onChange={(e) => toggleAll(e.target.checked)}
                         />
                       </th>
@@ -1585,13 +1635,23 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                     </tr>
                   </thead>
                   <tbody>
-                    {reservations.map((row) => {
-                      const disabled = row.is_checked_in || !row.has_assigned_room || row.status !== "active";
+                    {step1Eligibility.map(({ row, reasons, isDueToday, selectable }) => {
+                      const disabled = !selectable;
                       const hk = mapHkBadge(row.hk_status);
+                      const showDueDateWarning = reasons.includes("not_due_in_today");
+                      const rowWarning = showDueDateWarning
+                        ? `Separate check-in on ${formatDateDisplay(row.checkin_date)}`
+                        : null;
                       return (
                         <tr
                           key={row.id}
-                          className={`border-t border-[var(--border-subtle)] dark:border-[#1E2530] ${row.selected ? "bg-indigo-50/50 dark:bg-slate-700/40" : ""} ${disabled ? "opacity-60" : "hover:bg-[var(--bg-body)] dark:hover:bg-slate-800/30 transition-colors"}`}
+                          className={`border-t border-[var(--border-subtle)] dark:border-[#1E2530] ${
+                            showDueDateWarning
+                              ? "bg-rose-50/80 dark:bg-rose-900/10"
+                              : row.selected
+                                ? "bg-indigo-50/50 dark:bg-slate-700/40"
+                                : ""
+                          } ${disabled ? "opacity-80" : "hover:bg-[var(--bg-body)] dark:hover:bg-slate-800/30 transition-colors"}`}
                           onClick={() => {
                             if (!disabled) toggleSelection(row.id);
                           }}
@@ -1608,6 +1668,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                           <td className="p-3">
                             <div className="font-semibold text-[var(--text-primary)]">{row.room_number}</div>
                             <div className="text-xs text-[var(--text-secondary)]">{row.room_type}</div>
+                            {showDueDateWarning ? (
+                              <div className="mt-1 text-[11px] font-semibold text-rose-700">
+                                Due-in {formatDateDisplay(row.checkin_date)}
+                              </div>
+                            ) : null}
                           </td>
                           <td className="p-3 text-[var(--text-table-cell)]">{row.guest_name || "—"}</td>
                           <td className="p-3">
@@ -1619,6 +1684,18 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                             ) : (
                               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700">Incomplete</span>
                             )}
+                            {rowWarning ? (
+                              <div className="mt-2">
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-rose-100 text-rose-700">
+                                  {rowWarning}
+                                </span>
+                              </div>
+                            ) : null}
+                            {!rowWarning && !isDueToday && row.checkin_date ? (
+                              <div className="mt-2 text-xs text-[var(--text-secondary)]">
+                                Due-in {formatDateDisplay(row.checkin_date)}
+                              </div>
+                            ) : null}
                           </td>
                         </tr>
                       );

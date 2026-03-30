@@ -18,6 +18,20 @@ function buildDefaultSelection(lines: Array<any>, businessDate: string): string[
     .map((line) => String(line.reservation_id));
 }
 
+function getNextDueInDate(lines: Array<any>, businessDate: string): string | null {
+  const futureDates = lines
+    .filter((line) =>
+      !line.is_checked_in &&
+      String(line.status) === "active" &&
+      typeof line.checkin_date === "string" &&
+      line.checkin_date > businessDate
+    )
+    .map((line) => String(line.checkin_date))
+    .sort();
+
+  return futureDates[0] ?? null;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -41,6 +55,24 @@ export async function GET(
     }
 
     const reservationLines = await getGroupReservationLines(supabase, groupId, businessDate);
+    const hasDueInToday = reservationLines.some((line) =>
+      !line.is_checked_in &&
+      String(line.status) === "active" &&
+      String(line.checkin_date) === businessDate
+    );
+
+    if (!hasDueInToday) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Check-in Wizard is available only on the group's due-in date.",
+          business_date: businessDate,
+          next_due_in_date: getNextDueInDate(reservationLines, businessDate),
+        },
+        { status: 409 }
+      );
+    }
+
     const draft = await getWizardDraft(supabase, groupId, businessDate);
 
     const selectedReservationIds = Array.isArray((draft?.draft_json as any)?.step1?.selected_reservation_ids)

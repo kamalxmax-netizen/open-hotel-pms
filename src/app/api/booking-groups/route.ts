@@ -13,6 +13,8 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
         const q = searchParams.get("q");
+        const dateFrom = searchParams.get("date_from");
+        const dateTo = searchParams.get("date_to");
 
         let query = supabase
             .from("booking_groups")
@@ -37,7 +39,32 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, groups: [] });
         }
 
-        const groupIds = groupRows.map((g: any) => String(g.id));
+        let groupIds = groupRows.map((g: any) => String(g.id));
+
+        if (dateFrom && dateTo) {
+            const { data: datedReservations, error: datedReservationsError } = await supabase
+                .from("reservations")
+                .select("booking_group_id")
+                .in("booking_group_id", groupIds)
+                .lte("checkin_date", dateTo)
+                .gt("checkout_date", dateFrom);
+
+            if (datedReservationsError) {
+                return NextResponse.json({ success: false, error: datedReservationsError.message }, { status: 500 });
+            }
+
+            const datedGroupIdSet = new Set(
+                (datedReservations ?? [])
+                    .map((row: any) => String(row.booking_group_id ?? ""))
+                    .filter(Boolean)
+            );
+
+            groupIds = groupIds.filter((id) => datedGroupIdSet.has(id));
+            if (groupIds.length === 0) {
+                return NextResponse.json({ success: true, groups: [] });
+            }
+        }
+
         const { data: reservations, error: reservationError } = await supabase
             .from("reservations")
             .select(`
