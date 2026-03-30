@@ -57,3 +57,28 @@ export async function syncBookingGroupStatusById(
 
   return nextStatus;
 }
+
+export async function refreshBookingGroupTotalRooms(
+  supabase: any,
+  groupId: string | null | undefined
+): Promise<number | null> {
+  if (!groupId) return null;
+
+  const normalizedGroupId = String(groupId);
+  const { count, error: countError } = await supabase
+    .from("reservations")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_group_id", normalizedGroupId);
+
+  if (countError) return null;
+
+  const nextTotal = count ?? 0;
+  const { error: updateError } = await supabase
+    .from("booking_groups")
+    .update({ total_rooms: nextTotal, updated_at: new Date().toISOString() })
+    .eq("id", normalizedGroupId);
+
+  if (updateError) return null;
+
+  return nextTotal;
+}

@@ -610,7 +610,7 @@ export default function AdminCorrectionsPage() {
                       <select className="form-select w-full" value={reinstateRoomId} onChange={e => setReinstateRoomId(e.target.value)} disabled={isSubmitting}>
                         <option value="">-- Keep unassigned / Pending --</option>
                         {folio?.reservation.room_number ? (
-                          <option value="dummy_id">Room {folio.reservation.room_number} (Verify availability!)</option>
+                          <option value="">Room {folio.reservation.room_number} (keep current room reference)</option>
                         ) : null}
                       </select>
                     </div>

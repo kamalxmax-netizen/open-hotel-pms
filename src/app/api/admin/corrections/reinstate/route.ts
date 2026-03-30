@@ -11,7 +11,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  reservation_id: z.string().uuid(),
+  reservation_id: z.string().trim().min(1),
   target_room_id: z.string().uuid().nullable().optional(),
   reason: z.string().trim().min(1).max(500),
 });

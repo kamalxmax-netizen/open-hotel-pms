@@ -88,6 +88,8 @@ export default function GroupDetailPanel({
     const [optionsResId, setOptionsResId] = useState<string | null>(null);
     const [folioResId, setFolioResId] = useState<string | null>(null);
     const [showCreateRes, setShowCreateRes] = useState(false);
+    const [unlinkingReservationId, setUnlinkingReservationId] = useState<string | null>(null);
+    const [cancellingGroup, setCancellingGroup] = useState(false);
     const [massCheckinOpen, setMassCheckinOpen] = useState(false);
     const [massCheckinRows, setMassCheckinRows] = useState<MassCheckinRow[]>([]);
     const [massCheckinLoading, setMassCheckinLoading] = useState(false);
@@ -117,6 +119,8 @@ export default function GroupDetailPanel({
         (r.room_number === "Unassigned" || r.room_number === "—")
     ).length;
     const isGroupCompleted = String(group?.status ?? "").toLowerCase() === "completed";
+    const isGroupCancelled = String(group?.status ?? "").toLowerCase() === "cancelled";
+    const isGroupLocked = isGroupCompleted || isGroupCancelled;
 
     function openMassCheckin(focusReservationId?: string) {
         if (dueInTodayReservations.length === 0) {
@@ -381,6 +385,57 @@ export default function GroupDetailPanel({
         }
     };
 
+    const handleUnlinkReservation = async (reservationId: string, bookingCode: string) => {
+        if (!reservationId) return;
+        const confirmed = window.confirm(`Unlink booking ${bookingCode || reservationId} from this group?`);
+        if (!confirmed) return;
+
+        setUnlinkingReservationId(reservationId);
+        setError("");
+        try {
+            const res = await fetch(`/api/booking-groups/${group.id}/reservations/${reservationId}`, {
+                method: "DELETE",
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to unlink reservation from group.");
+            }
+
+            onRefresh();
+        } catch (err: any) {
+            setError(err?.message || "Failed to unlink reservation from group.");
+        } finally {
+            setUnlinkingReservationId(null);
+        }
+    };
+
+    const handleCancelGroup = async () => {
+        const confirmed = window.confirm(
+            `Cancel group ${group.group_code}? This will unlink all bookings from the group.`
+        );
+        if (!confirmed) return;
+
+        setCancellingGroup(true);
+        setError("");
+        try {
+            const res = await fetch(`/api/booking-groups/${group.id}`, {
+                method: "DELETE",
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to cancel group.");
+            }
+
+            onRefresh();
+        } catch (err: any) {
+            setError(err?.message || "Failed to cancel group.");
+        } finally {
+            setCancellingGroup(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm flex justify-end">
             <div className="w-[800px] h-full bg-[var(--bg-surface)] shadow-2xl flex flex-col animate-slide-in-right overflow-hidden border-l border-[var(--border-default)]">
@@ -413,11 +468,21 @@ export default function GroupDetailPanel({
                         <button
                             className="btn btn-secondary btn-sm disabled:opacity-60 disabled:cursor-not-allowed"
                             onClick={onEditGroup}
-                            disabled={isGroupCompleted}
-                            title={isGroupCompleted ? "Completed groups are locked." : "Edit group info"}
+                            disabled={isGroupLocked}
+                            title={isGroupLocked ? "Completed or cancelled groups are locked." : "Edit group info"}
                         >
                             Edit info
                         </button>
+                        {!isGroupCancelled && (
+                            <button
+                                className="btn btn-secondary btn-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                                onClick={handleCancelGroup}
+                                disabled={cancellingGroup}
+                                title="Cancel this group and unlink all linked bookings"
+                            >
+                                {cancellingGroup ? "Cancelling..." : "Cancel Group"}
+                            </button>
+                        )}
                         <button className="btn btn-ghost btn-sm text-[var(--text-muted)]" onClick={onClose}>✕</button>
                     </div>
                 </div>
@@ -441,14 +506,17 @@ export default function GroupDetailPanel({
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                         <Link
                             href={`/pms/groups/${group.id}/checkin-wizard`}
-                            className="bg-purple-600 hover:bg-purple-500 dark:bg-purple-600/30 dark:hover:bg-purple-600/40 text-white border border-purple-500 dark:border-purple-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-2"
+                            className={`text-white border px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-2 ${isGroupLocked
+                                ? "pointer-events-none bg-slate-500/40 border-slate-400/40 text-slate-200"
+                                : "bg-purple-600 hover:bg-purple-500 dark:bg-purple-600/30 dark:hover:bg-purple-600/40 border-purple-500 dark:border-purple-500/40"
+                                }`}
                         >
                             <span className="text-purple-200">✨</span> Check-in Wizard
                         </Link>
                         <button
                             className="bg-emerald-700 hover:bg-emerald-600 dark:bg-emerald-600/30 dark:hover:bg-emerald-600/40 disabled:bg-emerald-900/40 disabled:text-emerald-200 text-white border border-emerald-500 dark:border-emerald-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors"
                             onClick={() => openMassCheckin()}
-                            disabled={dueInTodayReservations.length === 0}
+                            disabled={dueInTodayReservations.length === 0 || isGroupLocked}
                             title={dueInTodayReservations.length > 0
                                 ? "Set deposit/payment policy and check-in all due-in reservations in one action"
                                 : "No due-in reservations ready for check-in"}
@@ -458,6 +526,7 @@ export default function GroupDetailPanel({
                         <button
                             className="bg-indigo-700 hover:bg-indigo-600 dark:bg-indigo-600/30 dark:hover:bg-indigo-600/40 text-white border border-indigo-500 dark:border-indigo-500/40 px-3 py-1.5 rounded-lg font-bold transition-colors"
                             onClick={() => setShowCreateRes(true)}
+                            disabled={isGroupLocked}
                         >
                             + Create New Reservation
                         </button>
@@ -487,6 +556,7 @@ export default function GroupDetailPanel({
                         <button
                             className="btn btn-secondary btn-sm"
                             onClick={() => {
+                                if (isGroupLocked) return;
                                 if (addingRes) {
                                     setAddingRes(false);
                                     setResCodeInput("");
@@ -500,6 +570,7 @@ export default function GroupDetailPanel({
                                 }
                                 setAddingRes(true);
                             }}
+                            disabled={isGroupLocked}
                         >
                             + Link Existing Booking
                         </button>
@@ -936,6 +1007,15 @@ export default function GroupDetailPanel({
                                                         >
                                                             Options
                                                         </button>
+                                                        {!isGroupCancelled && (
+                                                            <button
+                                                                className="text-xs text-rose-600 dark:text-rose-400 font-semibold hover:underline inline-flex items-center disabled:opacity-60"
+                                                                onClick={() => handleUnlinkReservation(String(r.id), String(r.booking_code || r.id))}
+                                                                disabled={unlinkingReservationId === String(r.id)}
+                                                            >
+                                                                {unlinkingReservationId === String(r.id) ? "Unlinking..." : "Unlink"}
+                                                            </button>
+                                                        )}
                                                         {canCheckin && (
                                                             <button
                                                                 className="btn btn-primary btn-sm"

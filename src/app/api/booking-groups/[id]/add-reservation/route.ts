@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
+import { refreshBookingGroupTotalRooms, syncBookingGroupStatusById } from "@/lib/booking-group-status";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
@@ -45,24 +45,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
         }
 
-        const refreshTotalRooms = async (groupId: string) => {
-            const { count, error: countError } = await supabase
-                .from("reservations")
-                .select("id", { count: "exact", head: true })
-                .eq("booking_group_id", groupId);
-
-            if (countError) return;
-
-            await supabase
-                .from("booking_groups")
-                .update({ total_rooms: count ?? 0 })
-                .eq("id", groupId);
-        };
-
         // 2. Re-sync total rooms for destination + source group (if moved)
-        await refreshTotalRooms(id);
+        await refreshBookingGroupTotalRooms(supabase, id);
         if (previousGroupId && previousGroupId !== id) {
-            await refreshTotalRooms(previousGroupId);
+            await refreshBookingGroupTotalRooms(supabase, previousGroupId);
         }
 
         try {

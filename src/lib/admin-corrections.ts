@@ -17,6 +17,8 @@ import type {
 } from "@/lib/types";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { fromSatang, toSatang } from "@/lib/money";
+import { assertRoomAvailableForDateRange, PlannedRoomMoveError } from "@/lib/planned-room-moves";
+import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 
 // ─── Helpers ───────────────────────────────────────────────────
 
@@ -102,6 +104,87 @@ export class AdminCorrectionError extends Error {
     super(message);
     this.name = "AdminCorrectionError";
     this.status = status;
+  }
+}
+
+async function assertReinstateAvailability(
+  supabase: SupabaseClient,
+  params: {
+    reservationId: string;
+    targetRoomId?: string | null;
+  }
+): Promise<void> {
+  const { reservationId, targetRoomId = null } = params;
+
+  const { data: nights, error: nightsError } = await supabase
+    .from("reservation_nights")
+    .select("stay_date, room_id, room_type_id")
+    .eq("reservation_id", reservationId)
+    .order("stay_date", { ascending: true });
+
+  if (nightsError) {
+    throw new AdminCorrectionError(
+      `Failed to validate room availability for reinstate: ${nightsError.message}`,
+      500
+    );
+  }
+
+  const stayDates = Array.from(
+    new Set(
+      (nights ?? [])
+        .map((row: any) => String(row?.stay_date ?? ""))
+        .filter(Boolean)
+    )
+  );
+  if (stayDates.length === 0) {
+    throw new AdminCorrectionError("Cannot reinstate: no stay nights found for this reservation.", 409);
+  }
+
+  const roomTypeId = (nights ?? [])
+    .map((row: any) => Number(row?.room_type_id ?? 0))
+    .find((value: number) => Number.isFinite(value) && value > 0) ?? 0;
+
+  if (targetRoomId) {
+    const firstStayDate = stayDates[0];
+    const lastStayDate = stayDates[stayDates.length - 1];
+    const checkoutDate = new Date(`${lastStayDate}T00:00:00Z`);
+    checkoutDate.setUTCDate(checkoutDate.getUTCDate() + 1);
+    const checkoutDateText = checkoutDate.toISOString().slice(0, 10);
+
+    try {
+      await assertRoomAvailableForDateRange(supabase as any, {
+        roomId: targetRoomId,
+        checkinDate: firstStayDate,
+        checkoutDate: checkoutDateText,
+        excludeReservationId: reservationId,
+      });
+    } catch (error) {
+      if (error instanceof PlannedRoomMoveError) {
+        throw new AdminCorrectionError(`Cannot reinstate: selected room is not available. ${error.message}`, 409);
+      }
+      throw error;
+    }
+    return;
+  }
+
+  if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) {
+    throw new AdminCorrectionError(
+      "Cannot reinstate: original room type could not be determined for availability check.",
+      409
+    );
+  }
+
+  try {
+    await assertRoomTypeCapacityForDateRange(supabase as any, {
+      roomTypeId,
+      nights: stayDates,
+      excludeReservationId: reservationId,
+    });
+  } catch (error) {
+    if (error instanceof PlannedRoomMoveError) {
+      throw new AdminCorrectionError(`Cannot reinstate: original room type is fully booked. ${error.message}`, 409);
+    }
+    throw error;
   }
 }
 
@@ -459,16 +542,38 @@ export async function reinstateReservation(
     throw new AdminCorrectionError("Reason is required.");
   }
 
-  // Load reservation
-  const { data: res, error: resError } = await supabase
+  const normalizedReservationRef = String(reservationId).trim();
+
+  // Be defensive here: admin UI should send UUID, but allow booking_code too
+  // so reinstatement still works even if the client passes the visible code.
+  let res: any = null;
+  let resError: any = null;
+
+  const byIdResult = await supabase
     .from("reservations")
-    .select("id, status, guest_name, booking_code, checkin_date, checkout_date, room_type_id")
-    .eq("id", reservationId)
-    .single();
+    .select("id, status, guest_name, booking_code, checkin_date, checkout_date")
+    .eq("id", normalizedReservationRef)
+    .maybeSingle();
+
+  res = byIdResult.data;
+  resError = byIdResult.error;
+
+  if (!res) {
+    const byCodeResult = await supabase
+      .from("reservations")
+      .select("id, status, guest_name, booking_code, checkin_date, checkout_date")
+      .eq("booking_code", normalizedReservationRef)
+      .maybeSingle();
+
+    res = byCodeResult.data;
+    resError = byCodeResult.error;
+  }
 
   if (resError || !res) {
     throw new AdminCorrectionError("Reservation not found.", 404);
   }
+
+  const resolvedReservationId = String(res.id);
 
   if (res.status !== "cancelled") {
     throw new AdminCorrectionError(
@@ -478,11 +583,16 @@ export async function reinstateReservation(
 
   const today = bangkokToday();
 
+  await assertReinstateAvailability(supabase, {
+    reservationId: resolvedReservationId,
+    targetRoomId: targetRoomId ?? null,
+  });
+
   // Restore reservation status
   const { error: updateError } = await supabase
     .from("reservations")
     .update({ status: "active" })
-    .eq("id", reservationId);
+    .eq("id", resolvedReservationId);
 
   if (updateError) {
     throw new AdminCorrectionError("Failed to update reservation status.");
@@ -492,7 +602,7 @@ export async function reinstateReservation(
   const { data: restoredNights, error: nightsError } = await supabase
     .from("reservation_nights")
     .update({ cancelled_at: null })
-    .eq("reservation_id", reservationId)
+    .eq("reservation_id", resolvedReservationId)
     .not("cancelled_at", "is", null)
     .select("id");
 
@@ -507,7 +617,7 @@ export async function reinstateReservation(
   const { data: cancelSettlements } = await supabase
     .from("folio_payments")
     .select("id, tx_type, amount, method, revenue_category, note, is_record_only")
-    .eq("reservation_id", reservationId)
+    .eq("reservation_id", resolvedReservationId)
     .or("note.ilike.%cancel%,note.ilike.%CANCEL%")
     .order("created_at", { ascending: false });
 
@@ -522,7 +632,7 @@ export async function reinstateReservation(
     const { data: rev } = await supabase
       .from("folio_payments")
       .insert({
-        reservation_id: reservationId,
+        reservation_id: resolvedReservationId,
         tx_type: reversalTxType,
         method: settlement.method,
         amount: settlement.amount,
@@ -542,17 +652,27 @@ export async function reinstateReservation(
     if (rev) voidedIds.push(rev.id);
   }
 
-  // If target room specified, reassign
-  if (targetRoomId) {
-    await supabase
-      .from("reservation_nights")
-      .update({ room_id: targetRoomId })
-      .eq("reservation_id", reservationId)
-      .is("cancelled_at", null);
+  // Restore room assignment state:
+  // - explicit target room => assign all restored nights there
+  // - no target room      => keep unassigned/pending as UI promises
+  const roomUpdatePayload = targetRoomId ? { room_id: targetRoomId } : { room_id: null };
+  const { error: roomUpdateError } = await supabase
+    .from("reservation_nights")
+    .update(roomUpdatePayload)
+    .eq("reservation_id", resolvedReservationId)
+    .is("cancelled_at", null);
+
+  if (roomUpdateError) {
+    throw new AdminCorrectionError(
+      targetRoomId
+        ? `Failed to assign reinstated room: ${roomUpdateError.message}`
+        : `Failed to clear room assignment on reinstated reservation: ${roomUpdateError.message}`,
+      500
+    );
   }
 
   const correctionId = await insertCorrectionLog(supabase, {
-    reservationId,
+    reservationId: resolvedReservationId,
     action: "reinstate",
     actorUserId,
     beforeSnapshot: {
@@ -574,7 +694,7 @@ export async function reinstateReservation(
   try {
     await supabase.from("audit_logs").insert({
       entity_type: "admin_correction",
-      entity_id: reservationId,
+      entity_id: resolvedReservationId,
       action: "reinstate",
       actor_user_id: actorUserId,
       after_json: {
@@ -593,7 +713,7 @@ export async function reinstateReservation(
     success: true,
     action: "reinstate",
     correction_id: correctionId,
-    message: `Reinstated ${res.guest_name ?? reservationId}. ${nightsRestored} nights restored, ${voidedIds.length} settlement entries voided.`,
+    message: `Reinstated ${res.guest_name ?? normalizedReservationRef}. ${nightsRestored} nights restored, ${voidedIds.length} settlement entries voided.`,
     created_payment_ids: voidedIds,
   };
 }

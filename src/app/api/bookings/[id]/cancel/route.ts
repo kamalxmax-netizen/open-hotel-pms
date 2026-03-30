@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { mapBookingErrorToStatus } from "@/lib/bookings";
-import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
+import { refreshBookingGroupTotalRooms, syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { assertBusinessDayOpen, normalizeOperatorPaymentMethod, resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import {
   loadReservationSheetSyncGroups,
@@ -568,8 +568,41 @@ export async function POST(
         .filter((id): id is string => Boolean(id))
     )
   );
+
+  let groupUnlinkedCount = 0;
+  if (cancelledReservationIds.length > 0) {
+    const { data: linkedRows, error: linkedRowsError } = await supabase
+      .from("reservations")
+      .select("id")
+      .in("id", cancelledReservationIds)
+      .not("booking_group_id", "is", null);
+
+    if (linkedRowsError) {
+      cancellationWarnings.push(
+        `Cancel succeeded, but failed to inspect booking-group links: ${linkedRowsError.message}`
+      );
+    } else {
+      const linkedIds = (linkedRows ?? []).map((row: any) => String(row.id ?? "")).filter(Boolean);
+      if (linkedIds.length > 0) {
+        const { error: unlinkGroupError } = await supabase
+          .from("reservations")
+          .update({ booking_group_id: null })
+          .in("id", linkedIds);
+
+        if (unlinkGroupError) {
+          cancellationWarnings.push(
+            `Cancel succeeded, but failed to unlink booking group: ${unlinkGroupError.message}`
+          );
+        } else {
+          groupUnlinkedCount = linkedIds.length;
+        }
+      }
+    }
+  }
+
   for (const groupId of bookingGroupIdsToSync) {
     try {
+      await refreshBookingGroupTotalRooms(supabase, String(groupId));
       await syncBookingGroupStatusById(supabase, String(groupId));
     } catch (syncError) {
       const warningMessage = `Group status sync after cancel failed (${groupId}): ${String((syncError as any)?.message ?? syncError)}`;
@@ -632,6 +665,7 @@ export async function POST(
         failed_count: linkedCancelFailed.length,
         failed: linkedCancelFailed,
       },
+      group_unlinked_count: groupUnlinkedCount,
       warnings: cancellationWarnings,
     },
     { status: 200 }

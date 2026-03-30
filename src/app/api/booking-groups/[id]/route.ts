@@ -216,3 +216,86 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
+
+export async function DELETE(
+    _request: Request,
+    context: { params: Promise<{ id: string }> }
+) {
+    try {
+        const supabase = createServerSupabaseClient();
+        const { id } = await context.params;
+
+        if (!id) {
+            return NextResponse.json({ success: false, error: "Missing group ID" }, { status: 400 });
+        }
+
+        const { data: group, error: groupError } = await supabase
+            .from("booking_groups")
+            .select("id, group_code, status")
+            .eq("id", id)
+            .maybeSingle();
+
+        if (groupError) {
+            return NextResponse.json({ success: false, error: groupError.message }, { status: 500 });
+        }
+        if (!group) {
+            return NextResponse.json({ success: false, error: "Group not found" }, { status: 404 });
+        }
+
+        if (String(group.status ?? "").toLowerCase() === "cancelled") {
+            return NextResponse.json({
+                success: true,
+                unchanged: true,
+                unlinked_count: 0,
+                group,
+            });
+        }
+
+        const { data: linkedReservations, error: linkedReservationsError } = await supabase
+            .from("reservations")
+            .select("id")
+            .eq("booking_group_id", id);
+
+        if (linkedReservationsError) {
+            return NextResponse.json({ success: false, error: linkedReservationsError.message }, { status: 500 });
+        }
+
+        const linkedReservationIds = (linkedReservations ?? [])
+            .map((row: any) => String(row.id ?? ""))
+            .filter(Boolean);
+
+        if (linkedReservationIds.length > 0) {
+            const { error: unlinkError } = await supabase
+                .from("reservations")
+                .update({ booking_group_id: null })
+                .in("id", linkedReservationIds);
+
+            if (unlinkError) {
+                return NextResponse.json({ success: false, error: unlinkError.message }, { status: 500 });
+            }
+        }
+
+        const { data: updatedGroup, error: updateError } = await supabase
+            .from("booking_groups")
+            .update({
+                status: "cancelled",
+                total_rooms: 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", id)
+            .select("*")
+            .single();
+
+        if (updateError) {
+            return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            group: updatedGroup,
+            unlinked_count: linkedReservationIds.length,
+        });
+    } catch (err: any) {
+        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    }
+}
