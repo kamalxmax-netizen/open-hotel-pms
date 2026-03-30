@@ -4,6 +4,7 @@ import {
     insertExtraFeePayment,
     normalizeOperatorPaymentMethod,
     normalizePaymentMethod,
+    resolveBusinessDate,
 } from "@/lib/folio-fees";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
@@ -319,7 +320,8 @@ export async function POST(
             }
         }
 
-        const localDate = toLocalDate(nowDate);
+        const calendarDate = toLocalDate(nowDate);
+        const businessDate = await resolveBusinessDate(supabase, calendarDate);
 
         // 1. Write folio_payment for checkout (skip if 0)
         if (paymentAmountSatang > 0) {
@@ -331,7 +333,7 @@ export async function POST(
                 note: paymentNote || null,
                 revenue_category: "room_revenue",
                 cashier_name: "FO",
-                paid_date: localDate,
+                paid_date: businessDate,
                 paid_at: now
             });
             if (checkoutPaymentError) {
@@ -347,7 +349,7 @@ export async function POST(
                 method: policyFee.method!,
                 note: policyFee.note || `Late checkout ${String(Math.floor(bangkokMinutes / 60)).padStart(2, "0")}:${String(bangkokMinutes % 60).padStart(2, "0")}`,
                 paidAt: now,
-                paidDate: localDate,
+                paidDate: businessDate,
             });
         }
 
@@ -363,7 +365,7 @@ export async function POST(
                 note: "Deposit refund on checkout",
                 revenue_category: "deposit",
                 cashier_name: "FO",
-                paid_date: localDate,
+                paid_date: businessDate,
                 paid_at: now
             });
             if (depositRefundError) {
@@ -400,9 +402,9 @@ export async function POST(
                 supabase,
                 reservationId,
                 fallbackPrimaryGuestProfileId: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
-                checkinDate: String(reservation.checkin_date ?? localDate),
-                checkoutDate: String(reservation.checkout_date ?? localDate),
-                stayDate: localDate,
+                checkinDate: String(reservation.checkin_date ?? businessDate),
+                checkoutDate: String(reservation.checkout_date ?? businessDate),
+                stayDate: businessDate,
             });
         } catch (counterError) {
             console.error("guest checkout counters update failed:", counterError);
@@ -429,7 +431,7 @@ export async function POST(
             await supabase.from("housekeeping_tasks").upsert(
                 {
                     room_id: night.room_id,
-                    stay_date: localDate,
+                    stay_date: businessDate,
                     task_seq: 1,
                     status: "dirty",
                     is_no_service: false,
@@ -454,7 +456,7 @@ export async function POST(
             const { error: dynamicCheckoutLabelError } = await supabase
                 .from("logbook_note_links")
                 .update({
-                    label: `Room ${checkedOutRoomNumber} ${formatShortDate(localDate)}`,
+                    label: `Room ${checkedOutRoomNumber} ${formatShortDate(businessDate)}`,
                 })
                 .eq("link_type", "room")
                 .eq("room_link_mode", "dynamic")
@@ -488,7 +490,7 @@ export async function POST(
                 guest_counter_update: checkoutCounterResult,
                 checked_out_at: now
             },
-            business_date: localDate,
+            business_date: businessDate,
             source: normalizeAuditSource("manual"),
         });
 

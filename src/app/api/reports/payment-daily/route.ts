@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -461,8 +462,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const businessDate = parsed.data.date ?? toBangkokDateString();
     const supabase = createServerSupabaseClient();
+    const businessDate =
+      parsed.data.date ??
+      (await resolveBusinessDate(supabase, toBangkokDateString()));
 
     const [roomsRes, occupancyRes, paymentsRes, posRes] = await Promise.all([
       supabase

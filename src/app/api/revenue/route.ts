@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
 
 function toLocalDate(d: Date) {
@@ -13,9 +14,10 @@ export async function GET(request: NextRequest) {
         const supabase = createServerSupabaseClient();
         const sp = request.nextUrl.searchParams;
 
-        const today = toLocalDate(new Date());
-        const startDate = sp.get("start") ?? today;
-        const endDate = sp.get("end") ?? today;
+        const fallbackDate = toLocalDate(new Date());
+        const businessDate = await resolveBusinessDate(supabase, fallbackDate);
+        const startDate = (sp.get("start") ?? "").trim() || businessDate;
+        const endDate = (sp.get("end") ?? "").trim() || businessDate;
 
         // ── 1. Total sellable rooms ─────────────────────────────
         const { count: totalRooms } = await supabase
@@ -123,6 +125,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
+            business_date: businessDate,
             start_date: startDate,
             end_date: endDate,
             day_count: dayCount,

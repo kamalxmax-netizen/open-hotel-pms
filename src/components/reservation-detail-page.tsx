@@ -3122,6 +3122,24 @@ export default function ReservationDetailPage({
             }
 
             if (mode === "create") {
+                if (source === "ota") {
+                    const hasInvalidOtaRates =
+                        nightlyRates.length === 0 ||
+                        nightlyRates.some((night) => !Number.isFinite(Number(night.rate)) || Number(night.rate) <= 0);
+                    if (hasInvalidOtaRates) {
+                        setError("Please fill OTA nightly prices before creating booking.");
+                        setLoading(false);
+                        return;
+                    }
+                    const confirmed = window.confirm(
+                        "OTA booking selected. Confirm OTA nightly prices are filled correctly before saving."
+                    );
+                    if (!confirmed) {
+                        setLoading(false);
+                        return;
+                    }
+                }
+
                 const payload: any = {
                     guest_name: guestName.trim(),
                     checkin_date: checkinDate,
@@ -3985,10 +4003,14 @@ export default function ReservationDetailPage({
                                                 value={source}
                                                 onChange={async (e) => {
                                                     const nextSource = e.target.value;
+                                                    const switchedToOta = source !== "ota" && nextSource === "ota";
                                                     setSource(nextSource);
 
                                                     if (nextSource === "ota") {
                                                         setRatePlanId("");
+                                                        if (mode === "create" && switchedToOta) {
+                                                            window.alert("OTA selected. Please fill OTA nightly prices before saving.");
+                                                        }
                                                     }
 
                                                     await refreshNightlyRates(checkinDate, checkoutDate, {

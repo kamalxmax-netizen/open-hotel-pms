@@ -73,6 +73,21 @@ function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
 }
 
+async function resolveBusinessDate(
+  supabase: SupabaseClientLike,
+  fallbackDate: string
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) return fallbackDate;
+  const value = String((data as any)?.business_date ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallbackDate;
+}
+
 function toLocalTime(d: Date, tz = "Asia/Bangkok"): string {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
@@ -371,7 +386,7 @@ export async function runGroupMassCheckin(params: {
     if (!roomIdByReservation.has(reservationId)) roomIdByReservation.set(reservationId, roomId);
   });
 
-  const today = params.todayOverride || toLocalDate(new Date());
+  const today = params.todayOverride || await resolveBusinessDate(supabase, toLocalDate(new Date()));
   const results: GroupMassCheckinResultRow[] = [];
 
   for (const item of items) {
@@ -412,15 +427,13 @@ export async function runGroupMassCheckin(params: {
     const checkedInDate = item.checkedInAtDate ?? new Date();
     const checkedInAtIso = checkedInDate.toISOString();
     const checkinTime = item.checkinTime || toLocalTime(checkedInDate);
-    const localDate = toLocalDate(checkedInDate);
-
-    const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, localDate, item.reservationId);
+    const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, today, item.reservationId);
     if (!roomVacant.ok) {
       results.push({ ...resultBase, ok: false, error: roomVacant.error, code: roomVacant.code });
       continue;
     }
 
-    const hkReady = await ensureHousekeepingReadyForCheckin(supabase, roomId, localDate);
+    const hkReady = await ensureHousekeepingReadyForCheckin(supabase, roomId, today);
     if (!hkReady.ok) {
       results.push({ ...resultBase, ok: false, error: hkReady.error, code: hkReady.code });
       continue;
@@ -459,7 +472,7 @@ export async function runGroupMassCheckin(params: {
         note: item.depositNote || "Deposit collected at group check-in",
         revenue_category: "deposit",
         cashier_name: "FO",
-        paid_date: localDate,
+        paid_date: today,
         paid_at: checkedInAtIso,
       });
     }
@@ -473,7 +486,7 @@ export async function runGroupMassCheckin(params: {
           note: payment.note || "Paid at group check-in",
           revenue_category: "room_revenue",
           cashier_name: "FO",
-          paid_date: localDate,
+          paid_date: today,
           paid_at: checkedInAtIso,
         });
       });
@@ -506,7 +519,7 @@ export async function runGroupMassCheckin(params: {
           deposit_policy: item.depositPolicy,
           deposit_amount: item.depositPolicy === "set" ? item.depositAmount : null,
         },
-        business_date: localDate,
+        business_date: today,
         source: normalizeAuditSource("manual"),
       });
 

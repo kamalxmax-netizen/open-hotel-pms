@@ -2,6 +2,7 @@ import {
     fetchExtraFeeTemplate,
     insertExtraFeePayment,
     normalizeOperatorPaymentMethod,
+    resolveBusinessDate,
 } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
@@ -337,7 +338,8 @@ export async function POST(
             return NextResponse.json({ error: "Reservation already checked in." }, { status: 409 });
         }
 
-        const localDate = toLocalDate(checkedInAtDate);
+        const calendarDate = toLocalDate(checkedInAtDate);
+        const businessDate = await resolveBusinessDate(supabase, calendarDate);
 
         // Get room for this reservation
         const { data: night } = await supabase
@@ -352,11 +354,11 @@ export async function POST(
 
         // Guard room occupancy + housekeeping readiness before check-in (before updating reservation)
         if (roomId) {
-            const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, localDate, reservationId);
+            const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, businessDate, reservationId);
             if (!roomVacant.ok) {
                 return NextResponse.json({ error: roomVacant.error, code: roomVacant.code }, { status: 409 });
             }
-            const hkReady = await ensureHousekeepingReadyForCheckin(supabase, roomId, localDate);
+            const hkReady = await ensureHousekeepingReadyForCheckin(supabase, roomId, businessDate);
             if (!hkReady.ok) {
                 return NextResponse.json({ error: hkReady.error }, { status: 409 });
             }
@@ -396,7 +398,7 @@ export async function POST(
                 note: payment.note || "Paid at check-in",
                 revenue_category: "room_revenue",
                 cashier_name: "FO",
-                paid_date: localDate,
+                paid_date: businessDate,
                 paid_at: paidAt
             }));
             const { error: paymentInsertError } = await supabase
@@ -419,7 +421,7 @@ export async function POST(
                 method: policyFee.method!,
                 note: policyFee.note || `Early check-in ${checkedInTime}`,
                 paidAt: checkedInAtIso,
-                paidDate: localDate,
+                paidDate: businessDate,
             });
         }
 
@@ -514,7 +516,7 @@ export async function POST(
         await supabase.from("audit_logs").insert(
             auditRows.map((row) => ({
                 ...row,
-                business_date: localDate,
+                business_date: businessDate,
                 source: normalizeAuditSource("manual"),
             }))
         );

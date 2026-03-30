@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { mapBookingErrorToStatus } from "@/lib/bookings";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
-import { assertBusinessDayOpen, normalizeOperatorPaymentMethod, toLocalDate } from "@/lib/folio-fees";
+import { assertBusinessDayOpen, normalizeOperatorPaymentMethod, resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import {
   loadReservationSheetSyncGroups,
   pushToGoogleSheet,
@@ -263,6 +263,7 @@ export async function POST(
 
   const nowIso = new Date().toISOString();
   const localDate = toLocalDate(new Date(nowIso));
+  const businessDate = await resolveBusinessDate(supabase, localDate);
   const rootReservationId = reservationRef.parent_reservation_id
     ? String(reservationRef.parent_reservation_id)
     : reservationId;
@@ -347,7 +348,7 @@ export async function POST(
       const dirtyRoomId = await resolveDirtyRoomIdForReservation({
         supabase,
         reservationId: target.id,
-        localDate,
+        localDate: businessDate,
       });
       dirtyRoomIdByReservationId.set(target.id, dirtyRoomId);
     })
@@ -356,7 +357,7 @@ export async function POST(
   const roomIdForDirtyAfterCancel = dirtyRoomIdByReservationId.get(reservationId) ?? null;
 
   try {
-    await assertBusinessDayOpen(supabase, localDate);
+    await assertBusinessDayOpen(supabase, businessDate);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Business day already closed." },
@@ -376,7 +377,7 @@ export async function POST(
       fee_template_code: "CANCEL_FEE",
       is_record_only: true,
       cashier_name: "FO",
-      paid_date: localDate,
+      paid_date: businessDate,
       paid_at: nowIso,
     });
   }
@@ -391,7 +392,7 @@ export async function POST(
       fee_template_code: "CANCEL_FEE",
       is_record_only: false,
       cashier_name: "FO",
-      paid_date: localDate,
+      paid_date: businessDate,
       paid_at: nowIso,
     });
   }
@@ -405,7 +406,7 @@ export async function POST(
       revenue_category: "room_revenue",
       is_record_only: false,
       cashier_name: "FO",
-      paid_date: localDate,
+      paid_date: businessDate,
       paid_at: nowIso,
     });
   }
@@ -537,7 +538,7 @@ export async function POST(
     try {
       await markRoomDirtyTask(supabase as any, {
         roomId: dirtyRoomId,
-        stayDate: localDate,
+        stayDate: businessDate,
         assignedMaidName: null,
         clearDailyPlanWhenUnassigned: true,
         logNote: "Marked dirty after cancellation (post check-in)",

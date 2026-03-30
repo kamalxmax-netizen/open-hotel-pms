@@ -2,7 +2,7 @@ import {
     assertBusinessDayOpen,
     computeFeeSummary,
     normalizePaymentMethod,
-    toLocalDate,
+    resolveBusinessDate,
 } from "@/lib/folio-fees";
 import {
     buildDepositSnapshotNote,
@@ -356,9 +356,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const localDate = toLocalDate(new Date());
+        const businessDate = await resolveBusinessDate(supabase);
         try {
-            await assertBusinessDayOpen(supabase, localDate);
+            await assertBusinessDayOpen(supabase, businessDate);
         } catch (guardError) {
             const message = guardError instanceof Error ? guardError.message : "Business day already closed.";
             return NextResponse.json({ error: message }, { status: 400 });
@@ -376,7 +376,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 note,
                 revenue_category: revenueCategory,
                 cashier_name: cashierName,
-                paid_date: localDate,
+                paid_date: businessDate,
                 paid_at: new Date().toISOString()
             });
 

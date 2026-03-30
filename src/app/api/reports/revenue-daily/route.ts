@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -116,8 +117,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const businessDate = parsed.data.date ?? toBangkokDateString();
     const supabase = createServerSupabaseClient();
+    const fallbackDate = toBangkokDateString();
+    const resolvedBusinessDate = await resolveBusinessDate(supabase, fallbackDate);
+    const businessDate = parsed.data.date ?? resolvedBusinessDate;
 
     const [roomsRes, nightsRes, posRes] = await Promise.all([
       supabase
@@ -256,4 +259,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -55,10 +56,11 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     const tz = (settings?.hotel_timezone as string) ?? "Asia/Bangkok";
-    const today = toLocalDate(new Date(), tz);
+    const fallbackDate = toLocalDate(new Date(), tz);
+    const businessDate = await resolveBusinessDate(supabase, fallbackDate);
 
-    const startDate = searchParams.get("start") ?? today;
-    const endDate = searchParams.get("end") ?? today;
+    const startDate = (searchParams.get("start") ?? "").trim() || businessDate;
+    const endDate = (searchParams.get("end") ?? "").trim() || businessDate;
 
     const { data: rows, error } = await supabase
       .from("folio_payments")
@@ -280,6 +282,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        business_date: businessDate,
         start_date: startDate,
         end_date: endDate,
         summary: {

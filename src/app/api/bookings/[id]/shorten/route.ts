@@ -3,7 +3,7 @@ import { fromSatang, toSatang } from "@/lib/money";
 import {
   assertBusinessDayOpen,
   normalizeOperatorPaymentMethod,
-  toLocalDate,
+  resolveBusinessDate,
 } from "@/lib/folio-fees";
 import {
   computePrepaidNetAmount,
@@ -147,9 +147,9 @@ export async function POST(
     }
 
     const nowIso = new Date().toISOString();
-    const localDate = toLocalDate(new Date(nowIso));
+    const businessDate = await resolveBusinessDate(supabase);
     try {
-      await assertBusinessDayOpen(supabase, localDate);
+      await assertBusinessDayOpen(supabase, businessDate);
     } catch (guardError) {
       return NextResponse.json(
         { error: guardError instanceof Error ? guardError.message : "Business day already closed." },
@@ -169,7 +169,7 @@ export async function POST(
         fee_template_code: "SHORTEN_FEE",
         is_record_only: true,
         cashier_name: "FO",
-        paid_date: localDate,
+        paid_date: businessDate,
         paid_at: nowIso,
       });
     }
@@ -184,7 +184,7 @@ export async function POST(
         fee_template_code: "SHORTEN_FEE",
         is_record_only: false,
         cashier_name: "FO",
-        paid_date: localDate,
+        paid_date: businessDate,
         paid_at: nowIso,
       });
     }
@@ -198,7 +198,7 @@ export async function POST(
         revenue_category: "room_revenue",
         is_record_only: false,
         cashier_name: "FO",
-        paid_date: localDate,
+        paid_date: businessDate,
         paid_at: nowIso,
       });
     }
@@ -253,4 +253,3 @@ export async function POST(
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
-

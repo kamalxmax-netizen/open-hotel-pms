@@ -18,6 +18,7 @@ type SourceRow = {
 };
 
 type RevenueData = {
+    business_date?: string;
     start_date: string;
     end_date: string;
     day_count: number;
@@ -157,9 +158,10 @@ const PRESETS = [
 ];
 
 export default function RevenuePage() {
-    const t = today();
-    const [startDate, setStartDate] = useState(t);
-    const [endDate, setEndDate] = useState(t);
+    const localToday = today();
+    const [businessDate, setBusinessDate] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
     const [data, setData] = useState<RevenueData | null>(null);
     const [transferRef, setTransferRef] = useState<TransferRefData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -170,15 +172,32 @@ export default function RevenuePage() {
     const load = useCallback(async () => {
         setLoading(true); setError("");
         try {
+            const query = new URLSearchParams();
+            if (startDate) query.set("start", startDate);
+            if (endDate) query.set("end", endDate);
+            const suffix = query.toString() ? `?${query.toString()}` : "";
+
             // Fetch hotel revenue (existing)
-            const res = await fetch(`/api/revenue?start=${startDate}&end=${endDate}`);
+            const res = await fetch(`/api/revenue${suffix}`);
             const d = await res.json();
-            if (d.success) setData(d);
-            else setError(d.error ?? "Failed to load data");
+            let effectiveStart = startDate;
+            let effectiveEnd = endDate;
+            if (d.success) {
+                setData(d);
+                const resolvedBusinessDate =
+                    (typeof d.business_date === "string" && d.business_date) ||
+                    (typeof d.end_date === "string" && d.end_date) ||
+                    localToday;
+                effectiveStart = startDate || d.start_date || resolvedBusinessDate;
+                effectiveEnd = endDate || d.end_date || resolvedBusinessDate;
+                setBusinessDate(resolvedBusinessDate);
+                if (!startDate) setStartDate(effectiveStart);
+                if (!endDate) setEndDate(effectiveEnd);
+            } else setError(d.error ?? "Failed to load data");
 
             // ★ Phase 11A: Fetch transfer revenue reference
             try {
-                const tRes = await fetch(`/api/accounting/transfer-report?date_from=${startDate}&date_to=${endDate}`);
+                const tRes = await fetch(`/api/accounting/transfer-report?date_from=${effectiveStart}&date_to=${effectiveEnd}`);
                 const tData = await tRes.json();
                 if (tData.success) setTransferRef(tData);
             } catch {
@@ -186,20 +205,22 @@ export default function RevenuePage() {
             }
         } catch { setError("Network error"); }
         finally { setLoading(false); }
-    }, [startDate, endDate]);
+    }, [endDate, localToday, startDate]);
 
     useEffect(() => { load(); }, [load]);
 
     function applyPreset(idx: number) {
         setPreset(idx);
         const p = PRESETS[idx];
-        const s = addDays(t, p.days);
+        const anchorDate = businessDate || localToday;
+        const s = addDays(anchorDate, p.days);
         setStartDate(s);
-        setEndDate(t);
-        if (p.days === -1) setEndDate(addDays(t, -1));
+        setEndDate(anchorDate);
+        if (p.days === -1) setEndDate(addDays(anchorDate, -1));
     }
 
     const kpi = data?.kpi;
+    const highlightDate = businessDate || localToday;
 
     /* Revenue % bar max = highest day revenue */
     const maxRev = Math.max(...(data?.by_day.map((d) => d.revenue) ?? [1]), 1);
@@ -339,7 +360,7 @@ export default function RevenuePage() {
                                                 const d = new Date(day.date + "T00:00:00");
                                                 const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
                                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                                                const isToday = day.date === t;
+                                                const isToday = day.date === highlightDate;
                                                 return (
                                                     <tr key={day.date} className={`border-b border-[var(--border-subtle)] ${isToday ? "bg-brand-50 dark:bg-brand-500/10" : isWeekend ? "bg-rose-50/40 dark:bg-rose-500/10" : ""}`}>
                                                         <td className="py-2 pr-3">
@@ -383,7 +404,7 @@ export default function RevenuePage() {
                                     const h = maxRev > 0 ? (day.revenue / maxRev) * 100 : 0;
                                     const d = new Date(day.date + "T00:00:00");
                                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                                    const isToday = day.date === t;
+                                    const isToday = day.date === highlightDate;
                                     return (
                                         <div key={day.date} className="flex flex-col items-center gap-1 flex-1 min-w-[28px] group" title={`${day.date}: ${fmtMoney(day.revenue)}`}>
                                             <div className="w-full flex items-end" style={{ height: 80 }}>

@@ -65,6 +65,21 @@ export function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
 }
 
+export async function resolveBusinessDate(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  fallbackDate = toLocalDate(new Date())
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) return fallbackDate;
+  const value = String((data as any)?.business_date ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallbackDate;
+}
+
 export async function assertBusinessDayOpen(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   targetDate: string

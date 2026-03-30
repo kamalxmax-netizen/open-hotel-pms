@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ReservationDetailPage from "@/components/reservation-detail-page";
 
 type MethodRow = {
@@ -45,6 +45,9 @@ type DepositMismatch = {
 
 type SummaryResponse = {
   success: boolean;
+  business_date?: string;
+  start_date?: string;
+  end_date?: string;
   error?: string;
   summary: {
     grand_total: number;
@@ -84,6 +87,9 @@ type DetailReservation = {
 
 type DetailResponse = {
   success: boolean;
+  business_date?: string;
+  start_date?: string;
+  end_date?: string;
   error?: string;
   reservations: DetailReservation[];
 };
@@ -149,9 +155,10 @@ const PRESETS = [
 ];
 
 export default function PaymentsPage() {
-  const today = useMemo(() => toDateInput(new Date()), []);
-  const [startDate, setStartDate] = useState<string>(today);
-  const [endDate, setEndDate] = useState<string>(today);
+  const localToday = toDateInput(new Date());
+  const [businessDate, setBusinessDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [presetIndex, setPresetIndex] = useState<number>(0);
   const [view, setView] = useState<ViewKey>("summary");
 
@@ -171,9 +178,15 @@ export default function PaymentsPage() {
       setLoading(true);
       setError("");
 
+      const query = new URLSearchParams();
+      if (startDate) query.set("start", startDate);
+      if (endDate) query.set("end", endDate);
+      const queryString = query.toString();
+      const suffix = queryString ? `?${queryString}` : "";
+
       const [summaryRes, detailRes] = await Promise.all([
-        fetch(`/api/payments/report?start=${startDate}&end=${endDate}`),
-        fetch(`/api/payments/detail?start=${startDate}&end=${endDate}`),
+        fetch(`/api/payments/report${suffix}`),
+        fetch(`/api/payments/detail${suffix}`),
       ]);
 
       const summaryJson = (await summaryRes.json()) as SummaryResponse;
@@ -188,12 +201,23 @@ export default function PaymentsPage() {
 
       setSummaryData(summaryJson);
       setDetailData(detailJson);
+      const resolvedBusinessDate =
+        (summaryJson.business_date && String(summaryJson.business_date)) ||
+        (detailJson.business_date && String(detailJson.business_date)) ||
+        localToday;
+      setBusinessDate(resolvedBusinessDate);
+      if (!startDate) {
+        setStartDate(summaryJson.start_date ?? detailJson.start_date ?? resolvedBusinessDate);
+      }
+      if (!endDate) {
+        setEndDate(summaryJson.end_date ?? detailJson.end_date ?? resolvedBusinessDate);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data.");
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [endDate, localToday, startDate]);
 
   useEffect(() => {
     load();
@@ -202,8 +226,9 @@ export default function PaymentsPage() {
   function applyPreset(index: number) {
     setPresetIndex(index);
     const preset = PRESETS[index];
-    const nextStart = addDays(today, preset.days);
-    const nextEnd = preset.days === -1 ? addDays(today, -1) : today;
+    const anchorDate = businessDate || localToday;
+    const nextStart = addDays(anchorDate, preset.days);
+    const nextEnd = preset.days === -1 ? addDays(anchorDate, -1) : anchorDate;
     setStartDate(nextStart);
     setEndDate(nextEnd);
   }

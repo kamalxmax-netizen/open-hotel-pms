@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -85,9 +86,10 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
-    const today = toBangkokDateString();
-    const startDate = parsed.data.start ?? today;
-    const endDate = parsed.data.end ?? today;
+    const fallbackDate = toBangkokDateString();
+    const businessDate = await resolveBusinessDate(supabase, fallbackDate);
+    const startDate = parsed.data.start ?? businessDate;
+    const endDate = parsed.data.end ?? businessDate;
 
     let query = supabase
       .from("folio_payments")
@@ -110,6 +112,7 @@ export async function GET(request: NextRequest) {
     if (paymentRows.length === 0) {
       return NextResponse.json({
         success: true,
+        business_date: businessDate,
         start_date: startDate,
         end_date: endDate,
         reservations: [],
@@ -243,6 +246,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      business_date: businessDate,
       start_date: startDate,
       end_date: endDate,
       reservations,

@@ -42,14 +42,6 @@ type RevenueDailyData = {
 };
 
 /* ─── Helpers ───────────────────────────────────────── */
-function toLocalDate(d: Date) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function today() { return toLocalDate(new Date()); }
 
 function fmt(n: number) {
     return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -86,7 +78,7 @@ function KpiTile({ label, value, sub }: { label: string; value: string; sub?: st
 
 /* ─── Page ──────────────────────────────────────────── */
 export default function RevenueDailyPage() {
-    const [date, setDate] = useState(today());
+    const [date, setDate] = useState("");
     const [data, setData] = useState<RevenueDailyData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -100,9 +92,15 @@ export default function RevenueDailyPage() {
         setLoading(true);
         setError("");
         try {
-            const res = await fetch(`/api/reports/revenue-daily?date=${date}`);
+            const query = date ? `?date=${encodeURIComponent(date)}` : "";
+            const res = await fetch(`/api/reports/revenue-daily${query}`);
             const d = await res.json();
-            if (d.success) setData(d);
+            if (d.success) {
+                setData(d);
+                if (!date && typeof d.business_date === "string" && d.business_date) {
+                    setDate(d.business_date);
+                }
+            }
             else setError(d.error ?? "Failed to load report");
         } catch {
             setError("Network error");
