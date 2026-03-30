@@ -29,6 +29,18 @@ interface MainStockRow extends MainStock {
     display_order?: number;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+    amenity: "Amenity",
+    pos: "POS",
+    both: "Both",
+};
+
+const CATEGORY_BADGE_CLASS: Record<string, string> = {
+    amenity: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+    pos: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+    both: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400",
+};
+
 function sortByDisplayOrder<T extends { product_name?: string | null; display_order?: number }>(rows: T[]): T[] {
     return [...rows].sort((a, b) => {
         const orderA = a.display_order ?? 9999;
@@ -269,8 +281,15 @@ export function StockManagementTab() {
                                             <p className="text-xs text-[var(--text-muted)]">{item.unit ?? ""}</p>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-slate-500/20 dark:text-slate-300">
-                                                {item.category ?? "—"}
+                                            <Badge
+                                                variant="secondary"
+                                                className={`text-[10px] ${
+                                                    CATEGORY_BADGE_CLASS[String(item.category ?? "").toLowerCase()] ??
+                                                    "bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300"
+                                                }`}
+                                            >
+                                                {CATEGORY_LABELS[String(item.category ?? "").toLowerCase()] ??
+                                                    (item.category || "—")}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right">

@@ -107,7 +107,23 @@ export async function validateGuestUnmaskAccess(params: {
 
   if (reservationError || !reservation) return false;
   if (String(reservation.status ?? "") !== "active") return false;
-  if (String(reservation.guest_profile_id ?? "") !== guestProfileId) return false;
+
+  const isPrimaryGuest = String(reservation.guest_profile_id ?? "") === guestProfileId;
+  let isLinkedAccompanyingGuest = false;
+
+  if (!isPrimaryGuest) {
+    const { data: linkedGuest, error: linkedGuestError } = await supabase
+      .from("reservation_guests")
+      .select("guest_profile_id")
+      .eq("reservation_id", reservationId)
+      .eq("guest_profile_id", guestProfileId)
+      .maybeSingle();
+
+    if (linkedGuestError) return false;
+    isLinkedAccompanyingGuest = Boolean(linkedGuest);
+  }
+
+  if (!isPrimaryGuest && !isLinkedAccompanyingGuest) return false;
 
   // In-house guests (already checked in, not yet checked out) can be unmasked.
   if (reservation.checked_in_at) return true;

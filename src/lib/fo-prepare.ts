@@ -75,6 +75,65 @@ function toRoomSortKey(roomNumber: string): string {
   return roomNumber ?? "";
 }
 
+function normalizeTemplateProductName(value: string | null | undefined): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function simplifyTemplateProductName(value: string | null | undefined): string {
+  return normalizeTemplateProductName(value)
+    .split(" ")
+    .filter((token) => token && !["for", "room", "rooms", "the", "daily"].includes(token))
+    .join(" ")
+    .trim();
+}
+
+function resolveTemplateProductId(
+  directProductId: string,
+  itemName: string,
+  productMap: Map<string, { name: string; unit: string }>,
+  productIdByName: Map<string, string>,
+  productIdBySimplifiedName: Map<string, string[]>
+): string {
+  if (directProductId && productMap.has(directProductId)) {
+    return directProductId;
+  }
+
+  const normalizedItemName = normalizeTemplateProductName(itemName);
+  if (!normalizedItemName) return "";
+
+  const exactId = productIdByName.get(normalizedItemName);
+  if (exactId && productMap.has(exactId)) return exactId;
+
+  const simplifiedItemName = simplifyTemplateProductName(itemName);
+  if (!simplifiedItemName) return "";
+
+  const simplifiedMatches = productIdBySimplifiedName.get(simplifiedItemName) ?? [];
+  if (simplifiedMatches.length === 1 && productMap.has(simplifiedMatches[0])) {
+    return simplifiedMatches[0];
+  }
+
+  const fuzzyMatches = Array.from(productMap.entries())
+    .filter(([, product]) => {
+      const simplifiedProductName = simplifyTemplateProductName(product.name);
+      return (
+        simplifiedProductName === simplifiedItemName ||
+        simplifiedProductName.includes(simplifiedItemName) ||
+        simplifiedItemName.includes(simplifiedProductName)
+      );
+    })
+    .map(([id]) => id);
+
+  if (fuzzyMatches.length === 1) {
+    return fuzzyMatches[0];
+  }
+
+  return "";
+}
+
 function parseDateOrNull(value: string | null | undefined): string | null {
   const v = (value ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
@@ -282,13 +341,26 @@ export async function buildFoPrepareSuggestions(
       unit: string;
     }
   >();
+  const productIdByName = new Map<string, string>();
+  const productIdBySimplifiedName = new Map<string, string[]>();
   for (const row of productRows ?? []) {
     const id = String((row as any).id ?? "");
     if (!id) continue;
+    const name = String((row as any).name ?? "");
     productMap.set(id, {
-      name: String((row as any).name ?? ""),
+      name,
       unit: String((row as any).unit ?? "pcs"),
     });
+    const normalizedName = normalizeTemplateProductName(name);
+    if (normalizedName) {
+      productIdByName.set(normalizedName, id);
+    }
+    const simplifiedName = simplifyTemplateProductName(name);
+    if (simplifiedName) {
+      const existing = productIdBySimplifiedName.get(simplifiedName) ?? [];
+      existing.push(id);
+      productIdBySimplifiedName.set(simplifiedName, existing);
+    }
   }
 
   if (productMap.size === 0 || roomTypeCodes.length === 0) {
@@ -297,10 +369,9 @@ export async function buildFoPrepareSuggestions(
 
   const { data: templateRows, error: templateError } = await supabase
     .from("checklist_templates")
-    .select("room_type_code, product_id, default_quantity, is_active")
+    .select("room_type_code, item_name, product_id, default_quantity, is_active")
     .eq("is_active", true)
     .in("room_type_code", roomTypeCodes)
-    .not("product_id", "is", null);
 
   if (templateError) {
     throw new Error(templateError.message);
@@ -309,7 +380,14 @@ export async function buildFoPrepareSuggestions(
   const templatesByRoomType = new Map<string, Array<{ product_id: string; quantity: number }>>();
   for (const row of templateRows ?? []) {
     const roomTypeCode = String((row as any).room_type_code ?? "");
-    const productId = String((row as any).product_id ?? "");
+    const directProductId = String((row as any).product_id ?? "");
+    const productId = resolveTemplateProductId(
+      directProductId,
+      String((row as any).item_name ?? ""),
+      productMap,
+      productIdByName,
+      productIdBySimplifiedName
+    );
     if (!roomTypeCode || !productId) continue;
     if (!productMap.has(productId)) continue;
     const qty = Math.max(Number((row as any).default_quantity ?? 0), 0);

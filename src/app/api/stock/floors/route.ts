@@ -81,10 +81,11 @@ export async function GET(request: NextRequest) {
         product_id,
         quantity,
         updated_at,
-        products!inner(id, name, sku, category, unit, is_active)
+        products!inner(id, name, sku, category, unit, is_active, display_order)
       `)
       .order("floor_number", { ascending: true })
-      .order("name", { ascending: false, foreignTable: "products" })
+      .order("display_order", { ascending: true, foreignTable: "products" })
+      .order("name", { ascending: true, foreignTable: "products" })
       .order("updated_at", { ascending: false });
 
     if (parsedFloorNumber != null) {
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest) {
         sku: row.products?.sku ?? null,
         category: row.products?.category ?? null,
         unit: row.products?.unit ?? null,
+        display_order: Number(row.products?.display_order ?? 9999),
         quantity: Number(row.quantity ?? 0),
         updated_at: row.updated_at,
         is_active: Boolean(row.products?.is_active),
