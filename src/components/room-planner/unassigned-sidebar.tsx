@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { CalendarReservation } from "@/lib/types";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 // Helper strictly for the UI presentation
 function getBadgeColor(source: string) {
@@ -128,7 +129,7 @@ export function UnassignedSidebar({ reservations, onDragStart, onDropToPool }: U
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="opacity-60">Dates:</span>
-                                    <span className="font-medium whitespace-nowrap">{res.checkin_date} &rarr; {res.checkout_date}</span>
+                                    <span className="font-medium whitespace-nowrap">{formatDateRangeDisplay(res.checkin_date, res.checkout_date, { separator: " → " })}</span>
                                 </div>
                             </div>
                         </div>

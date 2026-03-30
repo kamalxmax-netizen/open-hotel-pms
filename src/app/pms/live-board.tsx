@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getBoardLanes, type BoardLane, type BoardRoomItem, type BoardRoomStatus } from "@/lib/board-layout";
+import { formatDateDisplay } from "@/lib/date-display";
 
 const statusLegend: Array<{ label: string; status: BoardRoomStatus }> = [
   { label: "Available", status: "available" },
@@ -458,8 +459,8 @@ export default function LiveBoard({ refreshToken }: { refreshToken: number }) {
                 </div>
                 <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 text-sm text-[var(--text-table-cell)]">
                   <div><span className="font-semibold">Room:</span> {detail.room_number}</div>
-                  <div><span className="font-semibold">Check-in:</span> {detail.checkin_date}</div>
-                  <div><span className="font-semibold">Check-out:</span> {detail.checkout_date}</div>
+                  <div><span className="font-semibold">Check-in:</span> {formatDateDisplay(detail.checkin_date)}</div>
+                  <div><span className="font-semibold">Check-out:</span> {formatDateDisplay(detail.checkout_date)}</div>
                   <div><span className="font-semibold">Nights:</span> {detail.total_nights}</div>
                   <div><span className="font-semibold">Total Price:</span> {Number(detail.total_price).toLocaleString()}</div>
                   <div><span className="font-semibold">Note:</span> {detail.note || "-"}</div>

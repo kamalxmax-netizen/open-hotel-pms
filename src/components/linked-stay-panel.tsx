@@ -2,16 +2,14 @@
 
 import { useState } from "react";
 import type { LinkedStay } from "@/lib/types";
+import { formatDateShortDisplay } from "@/lib/date-display";
 
 function formatMoney(amount: number) {
   return amount.toLocaleString("th-TH");
 }
 
 function formatDateToShort(dateStr: string) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  return `${d.getDate()}/${d.getMonth() + 1}`;
+  return formatDateShortDisplay(dateStr);
 }
 
 interface LinkedStayPanelProps {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
+import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
 import ReservationOptionsPanel from "./reservation-options-panel";
 import ReservationDetailPage from "./reservation-detail-page";
 
@@ -631,7 +632,7 @@ export default function GroupDetailPanel({
                                                                 )}
                                                             </div>
                                                             <div className="text-[11px] text-[var(--text-muted)]">
-                                                                {item.checkin_date} → {item.checkout_date} · Room {item.room_number} · {String(item.source || "").toUpperCase()}
+                                                                {formatDateRangeDisplay(item.checkin_date, item.checkout_date)} · Room {item.room_number} · {String(item.source || "").toUpperCase()}
                                                             </div>
                                                         </button>
                                                     ))}
@@ -900,8 +901,8 @@ export default function GroupDetailPanel({
                                                     <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">{r.booking_code}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="text-sm font-medium text-[var(--text-secondary)]">{r.checkin_date}</div>
-                                                    <div className="text-xs text-[var(--text-muted)]">→ {r.checkout_date}</div>
+                                                    <div className="text-sm font-medium text-[var(--text-secondary)]">{formatDateDisplay(r.checkin_date)}</div>
+                                                    <div className="text-xs text-[var(--text-muted)]">→ {formatDateDisplay(r.checkout_date)}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <span className={`badge ${r.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" :

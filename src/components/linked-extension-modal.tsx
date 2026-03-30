@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import PmsModal from "./pms-modal";
 import NightCounter from "./night-counter";
 import { addDays } from "@/lib/dates";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type LinkedExtensionModalProps = {
   reservationId: string;
@@ -551,7 +552,7 @@ export default function LinkedExtensionModal({
               {(preview?.blocking_items ?? []).map((item) => (
                 <div key={item.reservation_id} className="rounded border border-amber-200 bg-white px-3 py-2 dark:bg-slate-900 dark:border-amber-500/30">
                   <div className="font-semibold">{item.booking_code} - {item.guest_name}</div>
-                  <div className="text-xs">Room {item.room_number ?? "?"} | {item.checkin_date} to {item.checkout_date}</div>
+                  <div className="text-xs">Room {item.room_number ?? "?"} | {formatDateRangeDisplay(item.checkin_date, item.checkout_date, { separator: " to " })}</div>
                   {item.checked_in && <div className="text-xs text-rose-700 dark:text-rose-400 mt-1">Checked-in advisory: please inform guest before moving.</div>}
                   {item.swap_diagnostic?.reason && <div className="text-xs mt-1">Swap diagnostic: {item.swap_diagnostic.reason}</div>}
                 </div>
@@ -584,7 +585,7 @@ export default function LinkedExtensionModal({
                   >
                     {activeBlockerCandidates.map((candidate) => (
                       <option key={`${candidate.blocker_reservation_id}:${candidate.candidate_room_id}`} value={candidate.candidate_room_id}>
-                        Room {candidate.candidate_room_number} ({candidate.move_start_date} to {candidate.move_checkout_date})
+                        Room {candidate.candidate_room_number} ({formatDateRangeDisplay(candidate.move_start_date, candidate.move_checkout_date, { separator: " to " })})
                       </option>
                     ))}
                   </select>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 interface LinkStayModalProps {
   /** The reservation we want to link FROM (will be the parent) */
@@ -116,6 +117,7 @@ export default function LinkStayModal({
   }
 
   const selectedResult = results.find((r) => r.id === selectedId);
+  const currentDateRange = formatDateRangeDisplay(checkinDate, checkoutDate);
 
   return (
     <>
@@ -136,7 +138,7 @@ export default function LinkStayModal({
                   Link to Another Booking
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {guestName} · {checkinDate} → {checkoutDate}
+                  {guestName} · {currentDateRange}
                 </p>
               </div>
               <button
@@ -243,7 +245,7 @@ export default function LinkStayModal({
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {r.checkin_date} → {r.checkout_date}
+                        {formatDateRangeDisplay(r.checkin_date, r.checkout_date)}
                       </span>
                       {isContiguous ? (
                         <span className="text-xs text-green-600 dark:text-green-400 font-medium">
@@ -272,7 +274,7 @@ export default function LinkStayModal({
             {selectedResult && (
               <div className="mb-3 p-2.5 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-lg border border-indigo-100 dark:border-indigo-500/20">
                 <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-                  Link: {guestName} ({checkinDate} → {checkoutDate}) + {selectedResult.guest_name} ({selectedResult.checkin_date} → {selectedResult.checkout_date})
+                  Link: {guestName} ({currentDateRange}) + {selectedResult.guest_name} ({formatDateRangeDisplay(selectedResult.checkin_date, selectedResult.checkout_date)})
                 </p>
                 <input
                   type="text"

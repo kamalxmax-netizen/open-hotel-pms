@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect } from "react";
 import { Search, AlertTriangle, RefreshCw, XCircle, ArrowRightLeft, FileWarning, Undo2, Ban, FolderOpen, FolderClosed, Banknote } from "lucide-react";
 import type { ReservationFolioResponse, ReservationFolioLedgerRow, AdminCorrectionRecord } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type ResStatus = "active" | "cancelled" | "checked_out" | "no_show";
 
@@ -602,7 +603,7 @@ export default function AdminCorrectionsPage() {
                   <div className="space-y-4">
                     <div className="bg-emerald-50 text-emerald-800 p-3 rounded-lg text-sm border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-300">
                       Restores a cancelled reservation to <b>Active</b> status. <br/>
-                      <span className="font-mono text-xs opacity-80 mt-1 block">Original Stay: {folio?.reservation.checkin_date} to {folio?.reservation.checkout_date}</span>
+                      <span className="font-mono text-xs opacity-80 mt-1 block">Original Stay: {formatDateRangeDisplay(folio?.reservation.checkin_date, folio?.reservation.checkout_date, { separator: " to " })}</span>
                     </div>
                     <div>
                       <label className="form-label">Room Allocation (Optional)</label>

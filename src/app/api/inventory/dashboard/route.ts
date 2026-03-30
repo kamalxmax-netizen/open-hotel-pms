@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from("stock_transactions_v2")
         .select(
-          "id, transaction_date, product_id, action, quantity_change, floor_number, room_number, note, products(name, category, unit)"
+          "id, transaction_date, product_id, action, quantity_change, floor_number, room_number, note, products(name, category, unit, is_active)"
         )
         .gte("transaction_date", dateFrom)
         .lte("transaction_date", dateTo)
@@ -191,6 +191,7 @@ export async function GET(request: NextRequest) {
       product_name: row.products?.name ?? null,
       product_category: row.products?.category ?? null,
       product_unit: row.products?.unit ?? null,
+      product_is_active: toBooleanLike(row.products?.is_active, true),
       action: row.action,
       quantity_change: Number(row.quantity_change ?? 0),
       floor_number: row.floor_number ?? null,
@@ -198,12 +199,18 @@ export async function GET(request: NextRequest) {
       note: row.note ?? null,
     }));
 
-    const byAction = txList.reduce<Record<string, number>>((acc, tx) => {
+    const visibleMainRows = mainRows.filter((row) => row.is_active);
+    const visibleFloorRows = floorRows.filter(
+      (row) => row.is_active && String(row.category ?? "").trim().toLowerCase() !== "pos"
+    );
+    const visibleTxList = txList.filter((row) => row.product_is_active);
+
+    const byAction = visibleTxList.reduce<Record<string, number>>((acc, tx) => {
       acc[tx.action] = (acc[tx.action] ?? 0) + 1;
       return acc;
     }, {});
 
-    const byFloor = floorRows.reduce<Record<string, { floor_number: number; distinct_products: number; total_units: number }>>(
+    const byFloor = visibleFloorRows.reduce<Record<string, { floor_number: number; distinct_products: number; total_units: number }>>(
       (acc, row) => {
         const key = String(row.floor_number);
         if (!acc[key]) {
@@ -216,7 +223,7 @@ export async function GET(request: NextRequest) {
       {}
     );
 
-    const usageByRoom = txList
+    const usageByRoom = visibleTxList
       .filter((row) => row.action === "use" && row.room_number)
       .reduce<Record<string, { room_number: string; usage_count: number; units_used: number }>>((acc, tx) => {
         const roomNumber = String(tx.room_number);
@@ -232,7 +239,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.units_used - a.units_used)
       .slice(0, 10);
 
-    const usageByProductAndRoom = txList
+    const usageByProductAndRoom = visibleTxList
       .filter((row) => row.action === "use" && row.room_number)
       .reduce<
         Record<
@@ -291,8 +298,8 @@ export async function GET(request: NextRequest) {
       return String(a.room_number).localeCompare(String(b.room_number), undefined, { numeric: true });
     });
 
-    const lowStockItems = mainRows.filter((row) => row.is_low_stock);
-    const floorStockDetails = floorRows
+    const lowStockItems = visibleMainRows.filter((row) => row.is_low_stock);
+    const floorStockDetails = visibleFloorRows
       .filter((row) => row.show_on_inventory_dashboard)
       .map((row) => ({
         floor_number: row.floor_number,
@@ -314,10 +321,10 @@ export async function GET(request: NextRequest) {
       success: true,
       range: { date_from: dateFrom, date_to: dateTo },
       summary: {
-        main_products: mainRows.length,
-        floor_stock_rows: floorRows.length,
+        main_products: visibleMainRows.length,
+        floor_stock_rows: visibleFloorRows.length,
         low_stock_count: lowStockItems.length,
-        transactions_count: txList.length,
+        transactions_count: visibleTxList.length,
       },
       low_stock_items: lowStockItems,
       floor_overview: Object.values(byFloor).sort((a, b) => a.floor_number - b.floor_number),

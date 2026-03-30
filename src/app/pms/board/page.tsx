@@ -9,6 +9,7 @@ import { DayUseCheckinSidebar } from "@/components/dayuse-checkin-sidebar";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import type { DayUseRoomStatus, DayUseSettings, DayUseTimerState } from "@/lib/types";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
+import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
 
 /* ─── Types ───────────────────────────────────── */
 type RoomStatus = "available" | "reserved" | "dirty" | "cleaning" | "approved" | "closed" | "ooo" | "oos";
@@ -553,14 +554,14 @@ function RoomCard({
                     {/* Detail mode: dates */}
                     {viewMode === "detail" && isReserved && linkedStayCheckin && (
                         <p className="text-[9px] text-[var(--text-muted)] leading-tight">
-                            {linkedStayCheckin?.slice(5)} → {linkedStayCheckout?.slice(5)}
+                            {formatDateRangeDisplay(linkedStayCheckin, linkedStayCheckout, { withYear: false })}
                         </p>
                     )}
 
                     {viewMode === "detail" && isReserved && hasMoveHistory && (
                         <p className="text-[9px] text-indigo-700 leading-tight mt-0.5 truncate">
                             ⇄ From {room.room_move_from}
-                            {room.room_move_date ? ` (${room.room_move_date.slice(5)})` : ""}
+                            {room.room_move_date ? ` (${formatDateDisplay(room.room_move_date, { withYear: false })})` : ""}
                         </p>
                     )}
 
@@ -663,7 +664,7 @@ function RoomCard({
                             {room.booking_code && <p className="text-[10px] text-[var(--text-secondary)] font-mono">{room.booking_code}</p>}
                             {linkedStayCheckin && linkedStayCheckout && (
                                 <p className="text-[10px] text-[var(--text-muted)]">
-                                    {linkedStayCheckin} → {linkedStayCheckout}
+                                    {formatDateRangeDisplay(linkedStayCheckin, linkedStayCheckout)}
                                     {linkedStayNights !== null && (
                                         <span className="ml-1">
                                             ({linkedStayNights} night{linkedStayNights !== 1 ? "s" : ""})
@@ -698,7 +699,7 @@ function RoomCard({
                                     </p>
                                     {(room.due_in_checkin_date || room.due_in_checkout_date) && (
                                         <p className="text-[10px] text-sky-600 dark:text-sky-300/80">
-                                            {room.due_in_checkin_date ?? "—"} → {room.due_in_checkout_date ?? "—"}
+                                            {formatDateRangeDisplay(room.due_in_checkin_date, room.due_in_checkout_date)}
                                         </p>
                                     )}
                                 </div>
@@ -1543,7 +1544,7 @@ export default function BoardPage() {
                                             {r.booking_code && <p className="text-xs font-mono text-[var(--text-secondary)]">{r.booking_code}</p>}
                                             {linkedStayCheckin && linkedStayCheckout && (
                                                 <p className="text-xs text-[var(--text-muted)]">
-                                                    {linkedStayCheckin} → {linkedStayCheckout}
+                                                    {formatDateRangeDisplay(linkedStayCheckin, linkedStayCheckout)}
                                                 </p>
                                             )}
                                             {r.source && <p className="text-xs text-[var(--text-secondary)]">{SOURCE_LABEL[r.source] ?? r.source}</p>}

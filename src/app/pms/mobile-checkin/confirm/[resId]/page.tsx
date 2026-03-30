@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, AlertTriangle, User, Bed, Wallet, MapPin, Loader2 } from "lucide-react";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 export default function ConfirmStep() {
   const params = useParams();
@@ -147,7 +148,7 @@ export default function ConfirmStep() {
                   Room {roomData?.room_number ?? "..."}
                 </p>
                 <p className="text-sm font-medium text-[var(--text-secondary)] mt-0.5">
-                  {loading ? "Loading..." : `${roomData?.checkin_date} ➔ ${roomData?.checkout_date} (${roomData?.nights ?? 0} nights)`}
+                  {loading ? "Loading..." : `${formatDateRangeDisplay(roomData?.checkin_date, roomData?.checkout_date, { separator: " ➔ " })} (${roomData?.nights ?? 0} nights)`}
                 </p>
               </div>
             </div>

@@ -100,7 +100,33 @@ export async function GET(request: NextRequest) {
         ? rows.filter((row: any) => row.fulfillment_mode === fulfillment_mode)
         : rows;
 
-    return NextResponse.json({ success: true, products: filteredRows });
+    const productIds = filteredRows
+      .map((row: any) => String(row.id ?? ""))
+      .filter(Boolean);
+
+    let stockMap = new Map<string, number>();
+    if (productIds.length > 0) {
+      const { data: stockRows, error: stockError } = await supabase
+        .from("main_stock")
+        .select("product_id, quantity")
+        .in("product_id", productIds);
+
+      if (stockError) {
+        return NextResponse.json({ success: false, error: stockError.message }, { status: 500 });
+      }
+
+      stockMap = new Map(
+        (stockRows ?? []).map((row: any) => [String(row.product_id), Number(row.quantity ?? 0)])
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      products: filteredRows.map((row: any) => ({
+        ...row,
+        main_stock_quantity: stockMap.get(String(row.id)) ?? 0,
+      })),
+    });
   } catch (err) {
     console.error("products GET failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";

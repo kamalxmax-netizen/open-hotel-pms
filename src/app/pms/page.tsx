@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import { DashboardKPI } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 
 // Keep PreviewItem and EodStatus locally for now since they are not in types.ts
 type PreviewItem = {
@@ -320,7 +321,7 @@ export default function DashboardPage() {
                        
                        {/* Label */}
                        <div className="mt-2 text-[10px] text-[var(--text-secondary)] font-medium rotate-[-45deg] origin-top-left translate-y-2 translate-x-3 w-12 whitespace-nowrap">
-                         {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                         {formatDateDisplay(day.date, { withYear: false })}
                        </div>
                      </div>
                    )

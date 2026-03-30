@@ -419,6 +419,7 @@ export interface Product {
   sale_price: number | null;
   display_order: number;
   is_active: boolean;
+  main_stock_quantity?: number;
   created_at: string;
   updated_at: string;
 }

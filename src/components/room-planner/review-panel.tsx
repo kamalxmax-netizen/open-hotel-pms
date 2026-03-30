@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import type { DraftAction } from "@/lib/types";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 interface PricingPreviewNight {
     stay_date: string;
@@ -223,7 +224,7 @@ export function ReviewPanel({ actions, onClose, onSuccess }: ReviewPanelProps) {
                                                             <span className="font-bold text-sm text-[var(--text-primary)]">
                                                                 {action.type === 'MOVE_NIGHTS' ? 'PER-NIGHT MOVE' : action.type}
                                                                 {preview.to_room_number ? ` → Room ${preview.to_room_number}` : ''}
-                                                                {(action.new_checkin_date || action.new_checkout_date) && ` (${action.new_checkin_date || '?'} → ${action.new_checkout_date || '?'})`}
+                                                                {(action.new_checkin_date || action.new_checkout_date) && ` (${formatDateRangeDisplay(action.new_checkin_date || '?', action.new_checkout_date || '?')})`}
                                                             </span>
                                                             <div className="text-xs text-[var(--text-secondary)]">{preview.guest_name || `Booking ${(preview.booking_code || preview.reservation_id).slice(0, 8)}`}{preview.from_room_number ? ` (from ${preview.from_room_number})` : ''}</div>
                                                         </div>

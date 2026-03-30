@@ -10,6 +10,7 @@ import AssignRoomModal from "@/components/assign-room-modal";
 import CancelFeeModal, { type CancelFeePayload } from "@/components/cancel-fee-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import { formatShortGroupCode } from "@/lib/group-label";
+import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
 import { RoomGrid, SOURCE_COLOR, SOURCE_LABEL, DEFAULT_COLOR } from "@/components/room-grid";
 import type { 
     CalendarReservation as Reservation,
@@ -218,11 +219,11 @@ function ReservationDetail({
                     <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-in</p>
-                            <p className="font-bold text-[var(--text-primary)]">{res.checkin_date}</p>
+                            <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkin_date)}</p>
                         </div>
                         <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-out</p>
-                            <p className="font-bold text-[var(--text-primary)]">{res.checkout_date}</p>
+                            <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkout_date)}</p>
                         </div>
                     </div>
 
@@ -607,7 +608,7 @@ function CalendarPageInner() {
                                 <span className="text-[var(--text-muted)]">·</span>
                                 <span className="text-brand-600 font-semibold">{res.room_type}</span>
                                 <span className="text-[var(--text-muted)]">·</span>
-                                <span className="text-[var(--text-secondary)]">{res.checkin_date} </span>
+                                <span className="text-[var(--text-secondary)]">{formatDateRangeDisplay(res.checkin_date, res.checkout_date, { withYear: false })}</span>
                                 <button className="btn btn-primary btn-sm ml-auto" onClick={() => setAssignModal(res)}>
                                     Assign Room →
                                 </button>

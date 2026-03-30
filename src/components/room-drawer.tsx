@@ -11,6 +11,7 @@ import CancelFeeModal, { CancelFeePayload } from "./cancel-fee-modal";
 import LateCheckoutFeeModal, { PolicyFeePayload } from "./late-checkout-fee-modal";
 import { DayUseTimer } from "./dayuse-timer";
 import type { LinkedStay } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 import { LinkedStayBadge } from "./linked-stay-badge";
 import { Link as LinkIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -998,11 +999,11 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     <div className="grid grid-cols-2 gap-2 text-sm">
                                         <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
                                             <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-in</p>
-                                            <p className="font-semibold text-[var(--text-primary)]">{displayCheckinDate}</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{formatDateDisplay(displayCheckinDate)}</p>
                                         </div>
                                         <div className="rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] px-3 py-2">
                                             <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase">Check-out</p>
-                                            <p className="font-semibold text-[var(--text-primary)]">{displayCheckoutDate}</p>
+                                            <p className="font-semibold text-[var(--text-primary)]">{formatDateDisplay(displayCheckoutDate)}</p>
                                         </div>
                                     </div>
 
@@ -1647,7 +1648,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                     {res.guest_name} — Room {room.room_number}
                                 </div>
                                 <div>
-                                    Original departure: <span className="font-semibold">{res.checkout_date}</span>
+                                    Original departure: <span className="font-semibold">{formatDateDisplay(res.checkout_date)}</span>
                                 </div>
                                 <div className="text-amber-600">
                                     Guest is checking out early (before departure date). Unused nights will be removed.

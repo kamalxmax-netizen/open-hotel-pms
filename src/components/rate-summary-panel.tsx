@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
+import { formatDateDisplay } from "@/lib/date-display";
 
 export interface NightlyRate {
     date: string;
@@ -64,10 +65,7 @@ export default function RateSummaryPanel({
             const dayIndex = d.getDay();
             const isWeekend = dayIndex === 5 || dayIndex === 6; // Friday = 5, Saturday = 6
             const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-            const dateFormatted = d.toLocaleDateString("en-US", {
-                month: "2-digit",
-                day: "2-digit",
-            });
+            const dateFormatted = formatDateDisplay(dateString, { withYear: false });
             return { isWeekend, dayName, dateFormatted };
         } catch {
             return { isWeekend: false, dayName: "", dateFormatted: dateString };

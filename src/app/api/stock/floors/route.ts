@@ -20,13 +20,18 @@ async function ensureFloorStockCoverage(
 
   const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("id")
+    .select("id, category")
     .eq("is_active", true);
 
   if (productsError) return productsError.message;
 
   const productIds = Array.from(
-    new Set((products ?? []).map((row: any) => String(row.id ?? "")).filter(Boolean))
+    new Set(
+      (products ?? [])
+        .filter((row: any) => String(row.category ?? "").trim().toLowerCase() !== "pos")
+        .map((row: any) => String(row.id ?? ""))
+        .filter(Boolean)
+    )
   );
 
   if (productIds.length === 0) return null;
@@ -91,18 +96,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const rows = (data ?? []).map((row: any) => ({
-      id: row.id,
-      floor_number: Number(row.floor_number ?? 0),
-      product_id: row.product_id,
-      product_name: row.products?.name ?? null,
-      sku: row.products?.sku ?? null,
-      category: row.products?.category ?? null,
-      unit: row.products?.unit ?? null,
-      quantity: Number(row.quantity ?? 0),
-      updated_at: row.updated_at,
-      is_active: Boolean(row.products?.is_active),
-    }));
+    const rows = (data ?? [])
+      .map((row: any) => ({
+        id: row.id,
+        floor_number: Number(row.floor_number ?? 0),
+        product_id: row.product_id,
+        product_name: row.products?.name ?? null,
+        sku: row.products?.sku ?? null,
+        category: row.products?.category ?? null,
+        unit: row.products?.unit ?? null,
+        quantity: Number(row.quantity ?? 0),
+        updated_at: row.updated_at,
+        is_active: Boolean(row.products?.is_active),
+      }))
+      .filter((row) => row.is_active && String(row.category ?? "").trim().toLowerCase() !== "pos");
 
     const floors: Record<string, typeof rows> = {};
     for (const row of rows) {

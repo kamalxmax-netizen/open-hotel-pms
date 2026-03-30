@@ -8,6 +8,7 @@ import { useDraftEngine } from "@/components/room-planner/use-draft-engine";
 import { ReviewPanel } from "@/components/room-planner/review-panel";
 import type { CalendarData, CalendarReservation, CalendarRoom } from "@/lib/types";
 import { Undo2, X } from "lucide-react";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 /* ─── Room filter helpers (same as Calendar) ─── */
 function normalizeRoomTypeToken(value: string): string {
@@ -849,7 +850,7 @@ export default function RoomPlannerPage() {
                                 for (const stayingRes of otherInSource) {
                                     const hasConflict = !(movingRes.checkout_date <= stayingRes.checkin_date || movingRes.checkin_date >= stayingRes.checkout_date);
                                     if (hasConflict) {
-                                        alert(`Cannot swap: ${movingRes.guest_name || movingRes.booking_code || 'target booking'} would conflict with ${stayingRes.guest_name || stayingRes.booking_code || 'existing booking'} in Room ${sourceRoom!.room_number} (${stayingRes.checkin_date} - ${stayingRes.checkout_date})`);
+                                        alert(`Cannot swap: ${movingRes.guest_name || movingRes.booking_code || 'target booking'} would conflict with ${stayingRes.guest_name || stayingRes.booking_code || 'existing booking'} in Room ${sourceRoom!.room_number} (${formatDateRangeDisplay(stayingRes.checkin_date, stayingRes.checkout_date, { separator: " - " })})`);
                                         return;
                                     }
                                 }
@@ -866,7 +867,7 @@ export default function RoomPlannerPage() {
                             for (const stayingRes of otherInTarget) {
                                 const hasConflict = !(sourceRes.checkout_date <= stayingRes.checkin_date || sourceRes.checkin_date >= stayingRes.checkout_date);
                                 if (hasConflict) {
-                                    alert(`Cannot swap: ${sourceRes.guest_name || sourceRes.booking_code || 'source booking'} would conflict with ${stayingRes.guest_name || stayingRes.booking_code || 'existing booking'} in Room ${targetRoom.room_number} (${stayingRes.checkin_date} - ${stayingRes.checkout_date})`);
+                                    alert(`Cannot swap: ${sourceRes.guest_name || sourceRes.booking_code || 'source booking'} would conflict with ${stayingRes.guest_name || stayingRes.booking_code || 'existing booking'} in Room ${targetRoom.room_number} (${formatDateRangeDisplay(stayingRes.checkin_date, stayingRes.checkout_date, { separator: " - " })})`);
                                     return;
                                 }
                             }
@@ -1362,7 +1363,7 @@ export default function RoomPlannerPage() {
                             <div className="mb-2">
                                 <div className="font-semibold text-sm text-[var(--text-primary)]">{res.guest_name}</div>
                                 <div className="text-xs text-[var(--text-secondary)]">
-                                    Room {barPopover.roomNumber} · {res.booking_code} · {res.checkin_date} → {res.checkout_date}
+                                    Room {barPopover.roomNumber} · {res.booking_code} · {formatDateRangeDisplay(res.checkin_date, res.checkout_date)}
                                 </div>
                                 {hasPlans && (
                                     <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
@@ -1586,7 +1587,7 @@ function PerNightReviewPanel({
                             <div key={resId} className="space-y-3">
                                 <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-2">
                                     <span className="font-bold text-sm text-brand-600">{res.guest_name || res.booking_code}</span>
-                                    <span className="text-xs text-[var(--text-muted)]">({res.checkin_date} - {res.checkout_date})</span>
+                                    <span className="text-xs text-[var(--text-muted)]">({formatDateRangeDisplay(res.checkin_date, res.checkout_date, { separator: " - " })})</span>
                                 </div>
                                 <div className="space-y-2">
                                     {intents.length === 0 ? (

@@ -58,12 +58,20 @@ export async function PUT(
 
     const { data: product, error: productError } = await supabase
       .from("products")
-      .select("id, name")
+      .select("id, name, category, is_active")
       .eq("id", body.product_id)
       .single();
 
     if (productError || !product) {
       return NextResponse.json({ success: false, error: "Product not found." }, { status: 404 });
+    }
+
+    if (!product.is_active) {
+      return NextResponse.json({ success: false, error: "Inactive product cannot be stocked on floors." }, { status: 400 });
+    }
+
+    if (String(product.category ?? "").trim().toLowerCase() === "pos") {
+      return NextResponse.json({ success: false, error: "POS products are main-stock only and cannot be stocked on floors." }, { status: 400 });
     }
 
     const { error: ensureError } = await supabase

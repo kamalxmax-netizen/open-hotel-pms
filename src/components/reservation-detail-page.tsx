@@ -3904,7 +3904,7 @@ export default function ReservationDetailPage({
                                     />
 
                                     {/* Room / Channel Row */}
-                                    <div className={`grid ${source === "ota" ? "grid-cols-[2.35fr_1.75fr_1fr_1fr]" : "grid-cols-[2.35fr_1.75fr_1fr]"} gap-3`}>
+                                    <div className={`grid ${source === "ota" ? "grid-cols-[2.1fr_2.0fr_1fr_1fr]" : "grid-cols-[2.1fr_2.0fr_1fr]"} gap-3`}>
                                         <div>
                                             <label className="form-label">Room Type *</label>
                                             <select

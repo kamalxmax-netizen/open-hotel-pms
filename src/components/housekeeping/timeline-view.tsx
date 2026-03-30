@@ -302,26 +302,26 @@ function buildActualBlocksFromLogs(
   if (blocks.length > 0) {
     blocks.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
 
-    // If the task was finished directly from paused (no resume), the last
-    // interval would otherwise remain yellow/paused even when room is done.
-    // Promote the terminal visual state to match room status.
+    // When task is already terminal, do not keep paused-colored historical
+    // slices in the lane. Promote paused slices to the terminal status so FO
+    // does not see stale yellow bars after clean/approved.
     const finalRoomStatus = room.is_no_service ? "no_service" : room.hk_status;
     const terminalRoomStatus =
       finalRoomStatus === "cleaned" || finalRoomStatus === "approved" || finalRoomStatus === "no_service";
-    const lastIdx = blocks.length - 1;
-    if (terminalRoomStatus && lastIdx >= 0 && blocks[lastIdx].status === "paused") {
+    if (terminalRoomStatus) {
       const terminalLog = [...logs].reverse().find((log) => {
-        if (finalRoomStatus === "no_service") {
-          return log.status === "approved" || log.status === "cleaned";
-        }
+        if (finalRoomStatus === "no_service") return log.status === "approved" || log.status === "cleaned";
         return log.status === finalRoomStatus;
       });
 
-      blocks[lastIdx] = {
-        ...blocks[lastIdx],
-        status: finalRoomStatus,
-        note: terminalLog?.note ?? blocks[lastIdx].note ?? null,
-      };
+      for (let idx = 0; idx < blocks.length; idx += 1) {
+        if (blocks[idx].status !== "paused") continue;
+        blocks[idx] = {
+          ...blocks[idx],
+          status: finalRoomStatus,
+          note: terminalLog?.note ?? blocks[idx].note ?? null,
+        };
+      }
     }
     return blocks;
   }

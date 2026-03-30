@@ -29,6 +29,27 @@ export async function POST(request: NextRequest) {
     const body = parsed.data;
     const supabase = createServerSupabaseClient();
 
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("id, name, category, is_active")
+      .eq("id", body.product_id)
+      .single();
+
+    if (productError || !product) {
+      return NextResponse.json({ success: false, error: "Product not found." }, { status: 404 });
+    }
+
+    if (!product.is_active) {
+      return NextResponse.json({ success: false, error: "Inactive product cannot be transferred." }, { status: 400 });
+    }
+
+    if (String(product.category ?? "").trim().toLowerCase() === "pos") {
+      return NextResponse.json(
+        { success: false, error: "POS products stay in Main Stock only and cannot be transferred to floors." },
+        { status: 400 }
+      );
+    }
+
     const { data: rpcData, error: rpcError } = await supabase.rpc("stock_transfer", {
       p_product_id: body.product_id,
       p_floor_number: body.floor_number,

@@ -8,6 +8,7 @@ import { formatShortGroupCode } from "@/lib/group-label";
 import CancelFeeModal, { type CancelFeePayload } from "@/components/cancel-fee-modal";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { LinkedStaySegment } from "@/lib/types";
+import { formatDateDisplay } from "@/lib/date-display";
 
 /* ─── Types ───────────────────────────────────── */
 type ResStatus = "active" | "cancelled" | "checked_out" | "no_show";
@@ -410,7 +411,7 @@ export default function ReservationsPage() {
                                         </span>
                                     </td>
                                     <td>
-                                        <div className="text-sm font-medium">{r.checkin_date}</div>
+                                        <div className="text-sm font-medium">{formatDateDisplay(r.checkin_date)}</div>
                                         {toBangkokTime(r.checked_in_at) ? (
                                             <div className="text-xs text-emerald-600">C/I {toBangkokTime(r.checked_in_at)}</div>
                                         ) : (
@@ -418,7 +419,7 @@ export default function ReservationsPage() {
                                         )}
                                     </td>
                                     <td>
-                                        <div className="text-sm font-medium">{r.checkout_date}</div>
+                                        <div className="text-sm font-medium">{formatDateDisplay(r.checkout_date)}</div>
                                         {toBangkokTime(r.checked_out_at) && (
                                             <div className="text-xs text-rose-600">{toBangkokTime(r.checked_out_at)}</div>
                                         )}

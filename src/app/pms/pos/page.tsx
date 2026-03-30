@@ -229,6 +229,13 @@ export default function PosTerminalPage() {
         );
     }, [products, productSearch]);
 
+    const getStockTone = (qty: number | null | undefined) => {
+        const value = Number(qty ?? 0);
+        if (value < 5) return "text-red-500";
+        if (value < 10) return "text-amber-500";
+        return "text-[var(--text-muted)]";
+    };
+
     const canSubmit = cart.length > 0 && !isSubmitting;
 
     const roomDepositHint = orderType !== "guest_charge"
@@ -337,6 +344,21 @@ export default function PosTerminalPage() {
                 ...item,
                 line_total: item.unit_price * item.quantity,
             }));
+
+            // Reflect main-stock deduction on the POS cards immediately after a successful sale.
+            setProducts((prev) =>
+                prev.map((product) => {
+                    const sold = submittedCart.find((item) => item.product_id === product.id);
+                    if (!sold) return product;
+                    return {
+                        ...product,
+                        main_stock_quantity: Math.max(
+                            0,
+                            Number(product.main_stock_quantity ?? 0) - sold.quantity
+                        ),
+                    };
+                })
+            );
 
             resetForNextSale(false);
             const paymentSummary = submittedOrderType === "walkin"
@@ -542,7 +564,12 @@ export default function PosTerminalPage() {
                                                 {(product.sale_price ?? 0).toLocaleString("th-TH")}
                                                 <span className="text-xs font-normal text-[var(--text-muted)] ml-0.5">THB</span>
                                             </p>
-                                            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">per {product.unit}</p>
+                                            <div className="mt-1 flex items-end justify-between gap-2">
+                                                <p className="text-[10px] text-[var(--text-muted)]">per {product.unit}</p>
+                                                <p className={`text-[11px] font-bold ${getStockTone(product.main_stock_quantity)}`}>
+                                                    Stock {Number(product.main_stock_quantity ?? 0)}
+                                                </p>
+                                            </div>
                                         </button>
                                     );
                                 })}

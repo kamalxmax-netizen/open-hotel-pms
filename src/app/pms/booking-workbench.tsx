@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type BookingSource = "walkin" | "ota" | "direct" | "agent";
 
@@ -247,7 +248,7 @@ export default function BookingWorkbench({
       setEditForm(toFormState(reservation));
       setCancelReason("");
       setCreateMessage(
-        `Created ${reservation.booking_code} for room ${reservation.room_number} (${reservation.checkin_date} → ${reservation.checkout_date}).`
+        `Created ${reservation.booking_code} for room ${reservation.room_number} (${formatDateRangeDisplay(reservation.checkin_date, reservation.checkout_date)}).`
       );
       setCreateForm(makeDefaultBookingForm());
       setShowCreateValidation(false);
@@ -537,7 +538,7 @@ export default function BookingWorkbench({
                       <span className="text-xs text-[var(--text-muted)]">{item.booking_code}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                      Room {item.room_number || "-"} | {item.checkin_date} → {item.checkout_date}
+                      Room {item.room_number || "-"} | {formatDateRangeDisplay(item.checkin_date, item.checkout_date)}
                     </div>
                   </button>
                 ))}

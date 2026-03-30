@@ -324,6 +324,9 @@ export default function StockLevelsPage() {
     // ── Get current floor data ──
     const currentFloorNumber = activeTab === "main" ? null : parseInt(activeTab.split("_")[1]);
     const currentFloorItems = currentFloorNumber ? (floorStocks[currentFloorNumber] ?? []) : [];
+    const transferableMainStock = mainStock.filter(
+        (item) => String(item.category ?? "").trim().toLowerCase() !== "pos"
+    );
 
     // ── Summary ──
     const lowCount = mainStock.filter(i => i.is_low_stock || i.quantity <= i.reorder_level).length;
@@ -351,7 +354,7 @@ export default function StockLevelsPage() {
                             </Button>
                         )}
                         {activeTab === "main" && (
-                            <Button variant="outline" size="sm" onClick={() => { setTransferOpen(true); setTransferProduct(mainStock[0]?.product_id ?? ""); }}>
+                            <Button variant="outline" size="sm" onClick={() => { setTransferOpen(true); setTransferProduct(transferableMainStock[0]?.product_id ?? ""); }}>
                                 <TruckIcon className="w-4 h-4 mr-1" />
                                 Transfer
                             </Button>
@@ -558,7 +561,7 @@ export default function StockLevelsPage() {
                                 onChange={(e) => setTransferProduct(e.target.value)}
                                 className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
-                                {mainStock.filter(i => i.quantity > 0).map(item => (
+                                {transferableMainStock.filter(i => i.quantity > 0).map(item => (
                                     <option key={item.product_id} value={item.product_id}>
                                         {item.product_name} (Available: {item.quantity})
                                     </option>

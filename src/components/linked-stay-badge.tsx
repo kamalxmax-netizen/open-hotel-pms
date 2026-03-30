@@ -1,4 +1,5 @@
 import type { LinkedStaySegment } from "@/lib/types";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 function statusScore(status: string | null | undefined): number {
   const normalized = String(status ?? "").toLowerCase();
@@ -38,11 +39,10 @@ export function LinkedStayBadge({ segments, activeSegmentId }: { segments: Linke
     <div className="flex flex-wrap gap-1 mt-1">
       {normalizedSegments.map((seg) => {
         const isActive = seg.reservation_id === activeSegmentId;
-        
-        // formats date like 7-10/3
-        const ci = new Date(seg.checkin_date);
-        const co = new Date(seg.checkout_date);
-        const dateRangeStr = `${ci.getDate()}-${co.getDate()}/${ci.getMonth() + 1}`;
+        const dateRangeStr = formatDateRangeDisplay(seg.checkin_date, seg.checkout_date, {
+          withYear: false,
+          separator: "-",
+        });
         
         const sourceCode = String(seg.source ?? "").toLowerCase();
         const sourceLabel = sourceCode === "walkin" ? "WI" : sourceCode ? sourceCode.toUpperCase() : "UNK";
@@ -60,7 +60,7 @@ export function LinkedStayBadge({ segments, activeSegmentId }: { segments: Linke
           <span 
             key={seg.reservation_id} 
             className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${badgeClasses}`}
-            title={`${sourceLabel} Booking: ${seg.checkin_date} to ${seg.checkout_date}`}
+            title={`${sourceLabel} Booking: ${formatDateRangeDisplay(seg.checkin_date, seg.checkout_date)}`}
           >
             <span>{sourceLabel}</span>
             <span>{dateRangeStr}</span>

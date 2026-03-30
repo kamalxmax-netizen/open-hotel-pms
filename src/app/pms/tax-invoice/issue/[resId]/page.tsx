@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import TaxInvoiceForm from "../../tax-invoice-form";
 import { BuildLineItemsResult } from "@/lib/tax-invoice/types";
+import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type DocType = "invoice" | "receipt";
 
@@ -142,7 +143,7 @@ export default function TaxInvoiceIssuePage() {
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Stay Period</p>
-                <p className="text-[var(--text-secondary)]">{data.booking_snapshot.checkin_date} → {data.booking_snapshot.checkout_date}</p>
+                <p className="text-[var(--text-secondary)]">{formatDateRangeDisplay(data.booking_snapshot.checkin_date, data.booking_snapshot.checkout_date)}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Grand Total</p>
