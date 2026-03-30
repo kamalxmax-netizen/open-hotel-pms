@@ -1,4 +1,4 @@
-import { getNightAuditSettings, toBangkokWindow } from "@/lib/night-audit";
+import { getNightAuditPaymentTotals, getNightAuditSettings, toBangkokWindow } from "@/lib/night-audit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NightAuditSnapshot } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -87,24 +87,8 @@ export async function GET() {
       };
     });
 
-    const paymentsRes = await supabase
-      .from("folio_payments")
-      .select("method, amount")
-      .eq("paid_date", businessDate)
-      .eq("tx_type", "payment");
-    if (paymentsRes.error) return NextResponse.json({ success: false, error: paymentsRes.error.message }, { status: 500 });
-
-    const paymentTotals = { cash: 0, transfer: 0, credit_card: 0, other: 0 };
-    (paymentsRes.data ?? []).forEach((p) => {
-      const method = String(p.method ?? "");
-      const amount = Number(p.amount) || 0;
-      if (method in paymentTotals) {
-        paymentTotals[method as keyof typeof paymentTotals] += amount;
-      } else {
-        paymentTotals.other += amount;
-      }
-    });
-    const paymentTotal = Object.values(paymentTotals).reduce((a, b) => a + b, 0);
+    const paymentTotals = await getNightAuditPaymentTotals(supabase, businessDate);
+    const paymentTotal = paymentTotals.total;
 
     const transferRes = await supabase
       .from("transfer_transactions")

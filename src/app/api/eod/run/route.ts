@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { listPendingNoShows, normalizePendingGroupCheckinWizardDrafts } from "@/lib/night-audit";
+import { getNightAuditPaymentTotals, listPendingNoShows, normalizePendingGroupCheckinWizardDrafts } from "@/lib/night-audit";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -215,18 +215,8 @@ export async function POST(request: NextRequest) {
         });
 
         /* ── 2. Payment totals (cash basis — paid_date = businessDate) ── */
-        const { data: payments } = await supabase
-            .from("folio_payments")
-            .select("method, tx_type, amount")
-            .eq("paid_date", businessDate)
-            .eq("tx_type", "payment"); // only inflows for daily summary
-
-        const payTotals = { cash: 0, transfer: 0, credit_card: 0, other: 0 };
-        (payments ?? []).forEach((p) => {
-            const amt = Number(p.amount) || 0;
-            if (p.method in payTotals) payTotals[p.method as keyof typeof payTotals] += amt;
-        });
-        const paymentTotal = Object.values(payTotals).reduce((a, b) => a + b, 0);
+        const payTotals = await getNightAuditPaymentTotals(supabase, businessDate);
+        const paymentTotal = payTotals.total;
 
         /* ── 2b. Transfer revenue (separate from hotel — Phase 11A) ── */
         const { data: transferTxs } = await supabase

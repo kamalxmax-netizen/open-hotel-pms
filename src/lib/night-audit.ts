@@ -11,6 +11,14 @@ export type NightAuditSettings = {
   sellableRooms: number;
 };
 
+export type NightAuditPaymentTotals = {
+  cash: number;
+  transfer: number;
+  credit_card: number;
+  other: number;
+  total: number;
+};
+
 export type PendingWizardDraftSummary = {
   pendingCount: number;
   healedCount: number;
@@ -54,6 +62,77 @@ export async function getNightAuditSettings(supabase: SupabaseLike): Promise<Nig
     businessDate: String(data.business_date),
     hotelTimezone: String(data.hotel_timezone ?? "Asia/Bangkok"),
     sellableRooms: Number(data.sellable_rooms ?? 1) || 1,
+  };
+}
+
+function normalizePaymentMethod(raw: unknown): keyof Omit<NightAuditPaymentTotals, "total"> {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (value === "cash" || value === "transfer" || value === "credit_card" || value === "other") {
+    return value;
+  }
+  return "other";
+}
+
+/**
+ * Payment totals used by Night Audit cards/snapshot.
+ * Aligns with Payment Daily by excluding void pairs (original + reversal)
+ * and record-only rows from cash received totals.
+ */
+export async function getNightAuditPaymentTotals(
+  supabase: SupabaseLike,
+  businessDate: string
+): Promise<NightAuditPaymentTotals> {
+  const { data, error } = await supabase
+    .from("folio_payments")
+    .select("id, tx_type, method, amount, void_of, is_void_reversal, is_record_only")
+    .eq("paid_date", businessDate)
+    .in("tx_type", ["payment", "refund", "deposit"]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as Array<{
+    id?: string | null;
+    tx_type?: string | null;
+    method?: string | null;
+    amount?: number | null;
+    void_of?: string | null;
+    is_void_reversal?: boolean | null;
+    is_record_only?: boolean | null;
+  }>;
+
+  const voidedPaymentIds = new Set<string>();
+  for (const row of rows) {
+    const reversalId = String(row.id ?? "").trim();
+    const originalId = String(row.void_of ?? "").trim();
+    if (!originalId) continue;
+    voidedPaymentIds.add(originalId);
+    if (reversalId) voidedPaymentIds.add(reversalId);
+  }
+
+  const totals: Omit<NightAuditPaymentTotals, "total"> = {
+    cash: 0,
+    transfer: 0,
+    credit_card: 0,
+    other: 0,
+  };
+
+  for (const row of rows) {
+    const rowId = String(row.id ?? "").trim();
+    if (voidedPaymentIds.has(rowId)) continue;
+    if (String(row.tx_type ?? "").trim().toLowerCase() !== "payment") continue;
+    if (row.is_void_reversal === true) continue;
+    if (row.is_record_only === true) continue;
+
+    const method = normalizePaymentMethod(row.method);
+    const amount = Number(row.amount ?? 0) || 0;
+    totals[method] += amount;
+  }
+
+  return {
+    ...totals,
+    total: totals.cash + totals.transfer + totals.credit_card + totals.other,
   };
 }
 
