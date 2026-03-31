@@ -1,5 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getNightAuditPaymentTotals, listPendingNoShows, normalizePendingGroupCheckinWizardDrafts } from "@/lib/night-audit";
+import {
+    getNightAuditSpilloverScope,
+    listPendingNoShows,
+    normalizePendingGroupCheckinWizardDrafts,
+} from "@/lib/night-audit";
+import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
         const tz = (settings.hotel_timezone as string) ?? "Asia/Bangkok";
         const sellableRooms = (settings.sellable_rooms as number) ?? 1;
         const calendarDate = toLocalDate(new Date(), tz);
+        const spillover = await getNightAuditSpilloverScope(supabase, businessDate, tz);
 
         const { count: dayuseSellableCount, error: dayuseSellableError } = await supabase
             .from("rooms")
@@ -214,9 +220,28 @@ export async function POST(request: NextRequest) {
             };
         });
 
-        /* ── 2. Payment totals (cash basis — paid_date = businessDate) ── */
-        const payTotals = await getNightAuditPaymentTotals(supabase, businessDate);
-        const paymentTotal = payTotals.total;
+        /* ── 2. Payment totals / deposits / POS (mirror Payment Daily) ── */
+        const paymentDailyRequest = new NextRequest(
+            new URL(`http://night-audit.local/api/reports/payment-daily?date=${businessDate}`)
+        );
+        const paymentDailyResponse = await getPaymentDailyReport(paymentDailyRequest);
+        const paymentDailyData = await paymentDailyResponse.json();
+        if (!paymentDailyData?.success) {
+            return NextResponse.json(
+                { error: paymentDailyData?.error || "Failed to load payment daily summary." },
+                { status: paymentDailyResponse.status || 500 }
+            );
+        }
+
+        const payTotals = {
+            cash: Math.round(Number(paymentDailyData?.grand_total?.cash?.payment ?? 0) * 100) / 100,
+            transfer: Math.round(Number(paymentDailyData?.grand_total?.transfer?.payment ?? 0) * 100) / 100,
+            credit_card: Math.round(Number(paymentDailyData?.grand_total?.credit_card?.payment ?? 0) * 100) / 100,
+            other: Math.round(Number(paymentDailyData?.grand_total?.other?.payment ?? 0) * 100) / 100,
+        };
+        const paymentTotal = Math.round(
+            (payTotals.cash + payTotals.transfer + payTotals.credit_card + payTotals.other) * 100
+        ) / 100;
 
         /* ── 2b. Transfer revenue (separate from hotel — Phase 11A) ── */
         const { data: transferTxs } = await supabase
@@ -258,40 +283,32 @@ export async function POST(request: NextRequest) {
 
         const commissionLiability = (commissions ?? []).reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
 
-        /* ── 2e. Deposit received vs refunded ── */
-        const { data: deposits } = await supabase
-            .from("folio_payments")
-            .select("tx_type, amount, revenue_category, note")
-            .eq("paid_date", businessDate)
-            .in("tx_type", ["deposit", "refund"]);
+        /* ── 2e. Deposit received vs refunded + POS revenue (mirror Payment Daily) ── */
+        const depositReceived = Math.round(
+            (
+                Number(paymentDailyData?.grand_total?.cash?.deposit ?? 0)
+                + Number(paymentDailyData?.grand_total?.transfer?.deposit ?? 0)
+                + Number(paymentDailyData?.grand_total?.credit_card?.deposit ?? 0)
+                + Number(paymentDailyData?.grand_total?.other?.deposit ?? 0)
+            ) * 100
+        ) / 100;
+        const depositRefunded = Math.round(
+            ((paymentDailyData?.deposit_refunds ?? []) as Array<{ amount?: number | null }>)
+                .reduce((sum, row) => sum + (Number(row.amount ?? 0) || 0), 0) * 100
+        ) / 100;
 
-        let depositReceived = 0;
-        let depositRefunded = 0;
-        (deposits ?? []).forEach((d) => {
-            const amt = Number(d.amount) || 0;
-            if (d.tx_type === "deposit") depositReceived += amt;
-            else if (
-                d.tx_type === "refund" &&
-                (d.revenue_category === "deposit" ||
-                    String(d.note ?? "").toLowerCase().includes("deposit refund"))
-            ) {
-                depositRefunded += amt;
-            }
-        });
-
-        /* ── 2f. POS revenue for businessDate ── */
-        const { data: posOrders, error: posOrdersErr } = await supabase
-            .from("pos_orders")
-            .select("total")
-            .eq("order_date", businessDate)
-            .eq("status", "completed");
-
-        if (posOrdersErr && !isMissingRelationError(posOrdersErr)) {
-            return NextResponse.json({ error: posOrdersErr.message }, { status: 500 });
-        }
-
-        const posRevenue = ((posOrdersErr && isMissingRelationError(posOrdersErr)) ? [] : (posOrders ?? []))
-            .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+        const posRevenue = Math.round(
+            (
+                Number(paymentDailyData?.pos?.cash?.payment ?? 0)
+                + Number(paymentDailyData?.pos?.transfer?.payment ?? 0)
+                + Number(paymentDailyData?.pos?.credit_card?.payment ?? 0)
+                + Number(paymentDailyData?.pos?.other?.payment ?? 0)
+                - Number(paymentDailyData?.pos?.cash?.refund ?? 0)
+                - Number(paymentDailyData?.pos?.transfer?.refund ?? 0)
+                - Number(paymentDailyData?.pos?.credit_card?.refund ?? 0)
+                - Number(paymentDailyData?.pos?.other?.refund ?? 0)
+            ) * 100
+        ) / 100;
 
         /* ── 2g. No-show stats for businessDate ── */
         const { data: noShowLogs, error: noShowLogsErr } = await supabase

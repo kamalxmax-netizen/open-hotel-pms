@@ -626,15 +626,42 @@ export async function applyCheckinFinancials(params: {
 
   if (Number.isFinite(deposit) && deposit > 0) {
     const lines = [{ method: safeDepositMethod, amount: deposit, note: "Mobile check-in deposit" }];
-    const { error: depositError } = await supabase.rpc("apply_deposit_snapshot_lines", {
+    let depositError: { message?: string | null; code?: string | null } | null = null;
+
+    const nextSignature = await supabase.rpc("apply_deposit_snapshot_lines", {
       p_reservation_id: reservationId,
       p_lines: lines,
       p_general_note: null,
       p_cashier_name: safeCashier,
+      p_paid_date: businessDate,
     });
 
+    if (nextSignature.error) {
+      const message = String(nextSignature.error.message ?? "").toLowerCase();
+      const canRetryLegacy =
+        nextSignature.error.code === "42883" ||
+        message.includes("could not find the function") ||
+        message.includes("function public.apply_deposit_snapshot_lines(");
+
+      if (canRetryLegacy) {
+        const legacySignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+          p_reservation_id: reservationId,
+          p_lines: lines,
+          p_general_note: null,
+          p_cashier_name: safeCashier,
+        });
+        depositError = legacySignature.error;
+      } else {
+        depositError = nextSignature.error;
+      }
+    }
+
     if (depositError) {
-      throw new MobileCheckinError(depositError.message, 500, "DEPOSIT_APPLY_FAILED");
+      throw new MobileCheckinError(
+        String(depositError.message ?? "Failed to apply deposit"),
+        500,
+        "DEPOSIT_APPLY_FAILED"
+      );
     }
   }
 }

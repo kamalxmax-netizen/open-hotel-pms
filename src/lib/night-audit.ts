@@ -19,9 +19,25 @@ export type NightAuditPaymentTotals = {
   total: number;
 };
 
+type NightAuditMethodKey = keyof Omit<NightAuditPaymentTotals, "total">;
+type NightAuditTxType = "payment" | "deposit" | "refund";
+
+type NightAuditMethodBreakdown = {
+  payment: number;
+  deposit: number;
+  refund: number;
+};
+
+type NightAuditMethodsMap = Record<NightAuditMethodKey, NightAuditMethodBreakdown>;
+
 export type PendingWizardDraftSummary = {
   pendingCount: number;
   healedCount: number;
+};
+
+export type NightAuditSpilloverScope = {
+  includeOpenBusinessSpillover: boolean;
+  calendarDate: string;
 };
 
 function isMissingRelationError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -38,6 +54,10 @@ export function shiftDate(dateString: string, days: number): string {
   }
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+export function toLocalDate(date: Date, tz = "Asia/Bangkok"): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(date);
 }
 
 export function toBangkokWindow(dateString: string): { from: string; to: string } {
@@ -65,12 +85,164 @@ export async function getNightAuditSettings(supabase: SupabaseLike): Promise<Nig
   };
 }
 
-function normalizePaymentMethod(raw: unknown): keyof Omit<NightAuditPaymentTotals, "total"> {
+export async function getNightAuditSpilloverScope(
+  supabase: SupabaseLike,
+  businessDate: string,
+  fallbackTimezone = "Asia/Bangkok"
+): Promise<NightAuditSpilloverScope> {
+  const { data } = await supabase
+    .from("hotel_settings")
+    .select("business_date, hotel_timezone")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const currentBusinessDate = String(data?.business_date ?? businessDate).trim() || businessDate;
+  const timezone = String(data?.hotel_timezone ?? fallbackTimezone).trim() || fallbackTimezone;
+  const calendarDate = toLocalDate(new Date(), timezone);
+
+  return {
+    includeOpenBusinessSpillover:
+      businessDate === currentBusinessDate && calendarDate > currentBusinessDate,
+    calendarDate,
+  };
+}
+
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizePaymentMethod(raw: unknown): NightAuditMethodKey {
   const value = String(raw ?? "").trim().toLowerCase();
-  if (value === "cash" || value === "transfer" || value === "credit_card" || value === "other") {
-    return value;
-  }
+  if (!value) return "other";
+  if (value === "cash") return "cash";
+  if (value === "transfer") return "transfer";
+  if (value === "credit_card") return "credit_card";
+  if (value === "other") return "other";
+  if (value.includes("promptpay")) return "transfer";
+  if (value.includes("bank transfer")) return "transfer";
+  if (value.includes("transfer")) return "transfer";
+  if (value.includes("credit")) return "credit_card";
+  if (value.includes("card")) return "credit_card";
+  if (value.includes("cash")) return "cash";
   return "other";
+}
+
+function normalizePaymentTxType(raw: unknown): NightAuditTxType {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (value === "deposit") return "deposit";
+  if (value === "refund") return "refund";
+  return "payment";
+}
+
+function isPosDepositRecord(txType: NightAuditTxType, category: string, note: string): boolean {
+  if (txType !== "payment") return false;
+  if (category !== "pos_revenue") return false;
+  return note.toLowerCase().includes("paid by deposit");
+}
+
+function isDepositRefundEntry(txType: NightAuditTxType, category: string, note: string): boolean {
+  if (txType !== "refund") return false;
+  const lowered = note.toLowerCase();
+  if (lowered.includes("paid by deposit")) return false;
+  if (lowered.includes("void return to deposit")) return false;
+  if (category === "deposit") return true;
+  return lowered.includes("deposit") && lowered.includes("refund");
+}
+
+function createMethodsMap(): NightAuditMethodsMap {
+  return {
+    cash: { payment: 0, deposit: 0, refund: 0 },
+    transfer: { payment: 0, deposit: 0, refund: 0 },
+    credit_card: { payment: 0, deposit: 0, refund: 0 },
+    other: { payment: 0, deposit: 0, refund: 0 },
+  };
+}
+
+function applyMethodMovement(
+  methods: NightAuditMethodsMap,
+  method: NightAuditMethodKey,
+  txType: NightAuditTxType,
+  amount: number
+): void {
+  if (txType === "deposit") methods[method].deposit += amount;
+  else if (txType === "refund") methods[method].refund += amount;
+  else methods[method].payment += amount;
+}
+
+function applyCorrectionMovement(
+  methods: NightAuditMethodsMap,
+  method: NightAuditMethodKey,
+  txType: NightAuditTxType,
+  amount: number
+): void {
+  if (txType === "deposit") {
+    methods[method].deposit += amount;
+    return;
+  }
+  const signed = txType === "refund" ? -amount : amount;
+  methods[method].payment += signed;
+}
+
+function buildVoidedPaymentIdSet(
+  rows: Array<{ id?: string | null; void_of?: string | null }>
+): Set<string> {
+  const excluded = new Set<string>();
+  for (const row of rows) {
+    const reversalId = String(row.id ?? "").trim();
+    const originalId = String(row.void_of ?? "").trim();
+    if (!originalId) continue;
+    if (originalId) excluded.add(originalId);
+    if (reversalId) excluded.add(reversalId);
+  }
+  return excluded;
+}
+
+export function sumNightAuditPaymentTotals(
+  ...totalsList: NightAuditPaymentTotals[]
+): NightAuditPaymentTotals {
+  const merged = totalsList.reduce(
+    (acc, item) => {
+      acc.cash += Number(item.cash ?? 0) || 0;
+      acc.transfer += Number(item.transfer ?? 0) || 0;
+      acc.credit_card += Number(item.credit_card ?? 0) || 0;
+      acc.other += Number(item.other ?? 0) || 0;
+      return acc;
+    },
+    { cash: 0, transfer: 0, credit_card: 0, other: 0 }
+  );
+
+  return {
+    cash: round2(merged.cash),
+    transfer: round2(merged.transfer),
+    credit_card: round2(merged.credit_card),
+    other: round2(merged.other),
+    total: round2(merged.cash + merged.transfer + merged.credit_card + merged.other),
+  };
+}
+
+export function buildNightAuditPosPaymentTotals(
+  rows: Array<{ total?: number | null; payment_method?: string | null }>
+): NightAuditPaymentTotals {
+  const methods = createMethodsMap();
+  for (const row of rows) {
+    const method = normalizePaymentMethod(row.payment_method);
+    const amount = Number(row.total ?? 0) || 0;
+    if (amount <= 0) continue;
+    applyMethodMovement(methods, method, "payment", amount);
+  }
+
+  return {
+    cash: round2(methods.cash.payment),
+    transfer: round2(methods.transfer.payment),
+    credit_card: round2(methods.credit_card.payment),
+    other: round2(methods.other.payment),
+    total: round2(
+      methods.cash.payment
+      + methods.transfer.payment
+      + methods.credit_card.payment
+      + methods.other.payment
+    ),
+  };
 }
 
 /**
@@ -80,13 +252,17 @@ function normalizePaymentMethod(raw: unknown): keyof Omit<NightAuditPaymentTotal
  */
 export async function getNightAuditPaymentTotals(
   supabase: SupabaseLike,
-  businessDate: string
+  businessDate: string,
+  spillover?: NightAuditSpilloverScope
 ): Promise<NightAuditPaymentTotals> {
-  const { data, error } = await supabase
+  const paymentsQuery = supabase
     .from("folio_payments")
-    .select("id, tx_type, method, amount, void_of, is_void_reversal, is_record_only")
-    .eq("paid_date", businessDate)
+    .select("id, tx_type, method, amount, revenue_category, note, void_of, is_void_reversal, is_record_only, is_correction, pos_order_id")
     .in("tx_type", ["payment", "refund", "deposit"]);
+
+  const { data, error } = spillover?.includeOpenBusinessSpillover
+    ? await paymentsQuery.in("paid_date", [businessDate, spillover.calendarDate])
+    : await paymentsQuery.eq("paid_date", businessDate);
 
   if (error) {
     throw new Error(error.message);
@@ -97,42 +273,60 @@ export async function getNightAuditPaymentTotals(
     tx_type?: string | null;
     method?: string | null;
     amount?: number | null;
+    revenue_category?: string | null;
+    note?: string | null;
     void_of?: string | null;
     is_void_reversal?: boolean | null;
     is_record_only?: boolean | null;
+    is_correction?: boolean | null;
+    pos_order_id?: string | null;
   }>;
 
-  const voidedPaymentIds = new Set<string>();
-  for (const row of rows) {
-    const reversalId = String(row.id ?? "").trim();
-    const originalId = String(row.void_of ?? "").trim();
-    if (!originalId) continue;
-    voidedPaymentIds.add(originalId);
-    if (reversalId) voidedPaymentIds.add(reversalId);
-  }
-
-  const totals: Omit<NightAuditPaymentTotals, "total"> = {
-    cash: 0,
-    transfer: 0,
-    credit_card: 0,
-    other: 0,
-  };
+  const voidedPaymentIds = buildVoidedPaymentIdSet(rows);
+  const methods = createMethodsMap();
 
   for (const row of rows) {
     const rowId = String(row.id ?? "").trim();
     if (voidedPaymentIds.has(rowId)) continue;
-    if (String(row.tx_type ?? "").trim().toLowerCase() !== "payment") continue;
     if (row.is_void_reversal === true) continue;
-    if (row.is_record_only === true) continue;
-
-    const method = normalizePaymentMethod(row.method);
+    const rawMethod = normalizePaymentMethod(row.method);
+    const rawTxType = normalizePaymentTxType(row.tx_type);
     const amount = Number(row.amount ?? 0) || 0;
-    totals[method] += amount;
+    const note = String(row.note ?? "").trim();
+    const category = String(row.revenue_category ?? "").trim().toLowerCase();
+    const isPosDeposit = isPosDepositRecord(rawTxType, category, note);
+    const isPosRemainder =
+      rawTxType === "payment" && category === "pos_revenue" && note.toLowerCase().includes("pos remainder");
+    const isRecordOnly = row.is_record_only === true && !isPosDeposit && !isPosRemainder;
+    const isCorrection = row.is_correction === true;
+    const method: NightAuditMethodKey = isPosDeposit ? "cash" : rawMethod;
+    const txType: NightAuditTxType = isPosDeposit ? "payment" : rawTxType;
+
+    if (
+      category === "deposit"
+      && (note.toLowerCase().includes("paid by deposit") || note.toLowerCase().includes("void return to deposit"))
+    ) {
+      continue;
+    }
+
+    if (isDepositRefundEntry(txType, category, note)) continue;
+    if (isRecordOnly) continue;
+
+    if (isCorrection) applyCorrectionMovement(methods, method, txType, amount);
+    else applyMethodMovement(methods, method, txType, amount);
   }
 
   return {
-    ...totals,
-    total: totals.cash + totals.transfer + totals.credit_card + totals.other,
+    cash: round2(methods.cash.payment),
+    transfer: round2(methods.transfer.payment),
+    credit_card: round2(methods.credit_card.payment),
+    other: round2(methods.other.payment),
+    total: round2(
+      methods.cash.payment
+      + methods.transfer.payment
+      + methods.credit_card.payment
+      + methods.other.payment
+    ),
   };
 }
 

@@ -1,3 +1,4 @@
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -48,25 +49,11 @@ function isRpcMissing(error: { code?: string | null; message?: string | null } |
   return error?.code === "42883" || message.includes("could not find the function") || message.includes("schema cache");
 }
 
-function thailandDateString(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value;
-  const m = parts.find((p) => p.type === "month")?.value;
-  const d = parts.find((p) => p.type === "day")?.value;
-  return `${y}-${m}-${d}`;
-}
-
 async function createOrderFallback(
   supabase: ReturnType<typeof createServerSupabaseClient>,
-  input: CreateOrderInput
+  input: CreateOrderInput,
+  businessDate: string
 ) {
-  const today = thailandDateString();
-
   if (input.order_type === "walkin" && !input.payment_method) {
     throw new Error("payment_method is required for walkin order");
   }
@@ -134,7 +121,7 @@ async function createOrderFallback(
       payment_method: input.payment_method ?? null,
       note: input.note?.trim() || null,
       created_by: input.created_by?.trim() || null,
-      order_date: today,
+      order_date: businessDate,
       created_at: nowIso,
       updated_at: nowIso,
     })
@@ -183,7 +170,7 @@ async function createOrderFallback(
     if (updateMainError) throw new Error(updateMainError.message);
 
     const { error: txError } = await supabase.from("stock_transactions_v2").insert({
-      transaction_date: today,
+      transaction_date: businessDate,
       product_id: line.product_id,
       action: "sale",
       quantity_change: -deductQty,
@@ -228,8 +215,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { date_from, date_to, status, order_type, reservation_id, q, limit, offset } = parsed.data;
     const supabase = createServerSupabaseClient();
+    const businessDate = await resolveBusinessDate(supabase, toLocalDate(new Date()));
+    const { date_from, date_to, status, order_type, reservation_id, q, limit, offset } = parsed.data;
+    const effectiveDateFrom = date_from ?? businessDate;
+    const effectiveDateTo = date_to ?? businessDate;
 
     let query = supabase
       .from("pos_orders")
@@ -240,8 +230,8 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (date_from) query = query.gte("order_date", date_from);
-    if (date_to) query = query.lte("order_date", date_to);
+    if (effectiveDateFrom) query = query.gte("order_date", effectiveDateFrom);
+    if (effectiveDateTo) query = query.lte("order_date", effectiveDateTo);
     if (status) query = query.eq("status", status);
     if (order_type) query = query.eq("order_type", order_type);
     if (reservation_id) query = query.eq("reservation_id", reservation_id);
@@ -262,6 +252,11 @@ export async function GET(request: NextRequest) {
         limit,
         offset,
         has_more: (count ?? 0) > offset + (data?.length ?? 0),
+      },
+      range: {
+        date_from: effectiveDateFrom,
+        date_to: effectiveDateTo,
+        business_date: businessDate,
       },
     });
   } catch (err) {
@@ -303,6 +298,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
+    const businessDate = await resolveBusinessDate(supabase, toLocalDate(new Date()));
 
     const { data: rpcData, error: rpcError } = await supabase.rpc("pos_create_order_v2", {
       p_order_type: input.order_type,
@@ -325,7 +321,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fallbackResult = await createOrderFallback(supabase, input);
+    const fallbackResult = await createOrderFallback(supabase, input, businessDate);
     return NextResponse.json({ success: true, mode: "legacy_fallback", result: fallbackResult }, { status: 201 });
   } catch (err) {
     console.error("pos/orders POST failed", err);

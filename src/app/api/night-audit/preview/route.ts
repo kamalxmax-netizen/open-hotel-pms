@@ -1,7 +1,11 @@
-import { getNightAuditPaymentTotals, getNightAuditSettings, toBangkokWindow } from "@/lib/night-audit";
+import {
+  getNightAuditSettings,
+  toBangkokWindow,
+} from "@/lib/night-audit";
+import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NightAuditSnapshot } from "@/lib/types";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -87,8 +91,47 @@ export async function GET() {
       };
     });
 
-    const paymentTotals = await getNightAuditPaymentTotals(supabase, businessDate);
-    const paymentTotal = paymentTotals.total;
+    const paymentDailyRequest = new NextRequest(
+      new URL(`http://night-audit.local/api/reports/payment-daily?date=${businessDate}`)
+    );
+    const paymentDailyResponse = await getPaymentDailyReport(paymentDailyRequest);
+    const paymentDailyData = await paymentDailyResponse.json();
+    if (!paymentDailyData?.success) {
+      return NextResponse.json(
+        { success: false, error: paymentDailyData?.error || "Failed to load payment daily summary." },
+        { status: paymentDailyResponse.status || 500 }
+      );
+    }
+
+    const paymentCash = Math.round(Number(paymentDailyData?.grand_total?.cash?.payment ?? 0) * 100) / 100;
+    const paymentTransfer = Math.round(Number(paymentDailyData?.grand_total?.transfer?.payment ?? 0) * 100) / 100;
+    const paymentCard = Math.round(Number(paymentDailyData?.grand_total?.credit_card?.payment ?? 0) * 100) / 100;
+    const paymentOther = Math.round(Number(paymentDailyData?.grand_total?.other?.payment ?? 0) * 100) / 100;
+    const paymentTotal = Math.round((paymentCash + paymentTransfer + paymentCard + paymentOther) * 100) / 100;
+    const depositReceived = Math.round(
+      (
+        Number(paymentDailyData?.grand_total?.cash?.deposit ?? 0)
+        + Number(paymentDailyData?.grand_total?.transfer?.deposit ?? 0)
+        + Number(paymentDailyData?.grand_total?.credit_card?.deposit ?? 0)
+        + Number(paymentDailyData?.grand_total?.other?.deposit ?? 0)
+      ) * 100
+    ) / 100;
+    const depositRefunded = Math.round(
+      ((paymentDailyData?.deposit_refunds ?? []) as Array<{ amount?: number | null }>)
+        .reduce((sum, row) => sum + (Number(row.amount ?? 0) || 0), 0) * 100
+    ) / 100;
+    const posRevenue = Math.round(
+      (
+        Number(paymentDailyData?.pos?.cash?.payment ?? 0)
+        + Number(paymentDailyData?.pos?.transfer?.payment ?? 0)
+        + Number(paymentDailyData?.pos?.credit_card?.payment ?? 0)
+        + Number(paymentDailyData?.pos?.other?.payment ?? 0)
+        - Number(paymentDailyData?.pos?.cash?.refund ?? 0)
+        - Number(paymentDailyData?.pos?.transfer?.refund ?? 0)
+        - Number(paymentDailyData?.pos?.credit_card?.refund ?? 0)
+        - Number(paymentDailyData?.pos?.other?.refund ?? 0)
+      ) * 100
+    ) / 100;
 
     const transferRes = await supabase
       .from("transfer_transactions")
@@ -131,38 +174,6 @@ export async function GET() {
       0
     );
 
-    const depositsRes = await supabase
-      .from("folio_payments")
-      .select("tx_type, amount, revenue_category, note")
-      .eq("paid_date", businessDate)
-      .in("tx_type", ["deposit", "refund"]);
-    if (depositsRes.error) return NextResponse.json({ success: false, error: depositsRes.error.message }, { status: 500 });
-
-    let depositReceived = 0;
-    let depositRefunded = 0;
-    (depositsRes.data ?? []).forEach((d) => {
-      const amount = Number(d.amount) || 0;
-      if (d.tx_type === "deposit") {
-        depositReceived += amount;
-      } else if (
-        d.tx_type === "refund" &&
-        (d.revenue_category === "deposit" || String(d.note ?? "").toLowerCase().includes("deposit refund"))
-      ) {
-        depositRefunded += amount;
-      }
-    });
-
-    const posRes = await supabase
-      .from("pos_orders")
-      .select("total")
-      .eq("order_date", businessDate)
-      .eq("status", "completed");
-    if (posRes.error && !isMissingRelationError(posRes.error)) {
-      return NextResponse.json({ success: false, error: posRes.error.message }, { status: 500 });
-    }
-    const posRevenue = ((posRes.error && isMissingRelationError(posRes.error)) ? [] : (posRes.data ?? []))
-      .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-
     const noShowLogsRes = await supabase
       .from("audit_logs")
       .select("id, after_json")
@@ -186,10 +197,10 @@ export async function GET() {
       revpar,
       by_source: bySource,
       payment_total: Math.round(paymentTotal * 100) / 100,
-      payment_cash: Math.round(paymentTotals.cash * 100) / 100,
-      payment_transfer: Math.round(paymentTotals.transfer * 100) / 100,
-      payment_card: Math.round(paymentTotals.credit_card * 100) / 100,
-      payment_other: Math.round(paymentTotals.other * 100) / 100,
+      payment_cash: Math.round(paymentCash * 100) / 100,
+      payment_transfer: Math.round(paymentTransfer * 100) / 100,
+      payment_card: Math.round(paymentCard * 100) / 100,
+      payment_other: Math.round(paymentOther * 100) / 100,
       transfer_revenue: Math.round(transferRevenue * 100) / 100,
       transfer_cost: Math.round(transferCost * 100) / 100,
       transfer_margin: Math.round(transferMargin * 100) / 100,

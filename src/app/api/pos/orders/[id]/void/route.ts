@@ -1,3 +1,4 @@
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -16,24 +17,12 @@ function isRpcMissing(error: { code?: string | null; message?: string | null } |
   return error?.code === "42883" || message.includes("could not find the function") || message.includes("schema cache");
 }
 
-function thailandDateString(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value;
-  const m = parts.find((p) => p.type === "month")?.value;
-  const d = parts.find((p) => p.type === "day")?.value;
-  return `${y}-${m}-${d}`;
-}
-
 async function fallbackVoidOrder(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   orderId: string,
   note: string | null,
-  voidedBy: string | null
+  voidedBy: string | null,
+  businessDate: string
 ) {
   const { data: order, error: orderError } = await supabase
     .from("pos_orders")
@@ -54,8 +43,6 @@ async function fallbackVoidOrder(
   }
 
   const nowIso = new Date().toISOString();
-  const today = thailandDateString();
-
   const mergedNote = note ? `${order.note ?? ""}${order.note ? "\n" : ""}VOID: ${note}` : order.note;
   const { error: updateError } = await supabase
     .from("pos_orders")
@@ -97,7 +84,7 @@ async function fallbackVoidOrder(
     if (qtyError) throw new Error(qtyError.message);
 
     const { error: txError } = await supabase.from("stock_transactions_v2").insert({
-      transaction_date: today,
+      transaction_date: businessDate,
       product_id: item.product_id,
       action: "return",
       quantity_change: qty,
@@ -122,7 +109,7 @@ async function fallbackVoidOrder(
         amount: order.total,
         note: note ?? `POS void refund ${order.order_number}`,
         paid_at: nowIso,
-        paid_date: today,
+        paid_date: businessDate,
         pos_order_id: order.id,
       })
       .select("id")
@@ -162,6 +149,7 @@ export async function POST(
     const note = parsedBody.data.note?.trim() || null;
     const voidedBy = parsedBody.data.voided_by?.trim() || null;
     const supabase = createServerSupabaseClient();
+    const businessDate = await resolveBusinessDate(supabase, toLocalDate(new Date()));
 
     const { data: rpcData, error: rpcError } = await supabase.rpc("pos_void_order_v2", {
       p_order_id: orderId,
@@ -198,7 +186,7 @@ export async function POST(
       );
     }
 
-    const result = await fallbackVoidOrder(supabase, orderId, note, voidedBy);
+    const result = await fallbackVoidOrder(supabase, orderId, note, voidedBy, businessDate);
     return NextResponse.json({ success: true, mode: "legacy_fallback", result });
   } catch (err: any) {
     console.error("pos/orders/:id/void POST failed", err);

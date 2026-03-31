@@ -463,9 +463,30 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
-    const businessDate =
-      parsed.data.date ??
-      (await resolveBusinessDate(supabase, toBangkokDateString()));
+    const calendarDate = toBangkokDateString();
+    const currentBusinessDate = await resolveBusinessDate(supabase, calendarDate);
+    const businessDate = parsed.data.date ?? currentBusinessDate;
+    const includeOpenBusinessSpillover =
+      businessDate === currentBusinessDate && calendarDate > currentBusinessDate;
+
+    const paymentsQuery = supabase
+      .from("folio_payments")
+      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+      .order("paid_at", { ascending: true });
+
+    const posOrdersQuery = supabase
+      .from("pos_orders")
+      .select("total, payment_method")
+      .eq("status", "completed")
+      .eq("order_type", "walkin");
+
+    const scopedPaymentsQuery = includeOpenBusinessSpillover
+      ? paymentsQuery.in("paid_date", [businessDate, calendarDate])
+      : paymentsQuery.eq("paid_date", businessDate);
+
+    const scopedPosOrdersQuery = includeOpenBusinessSpillover
+      ? posOrdersQuery.in("order_date", [businessDate, calendarDate])
+      : posOrdersQuery.eq("order_date", businessDate);
 
     const [roomsRes, occupancyRes, paymentsRes, posRes] = await Promise.all([
       supabase
@@ -480,17 +501,8 @@ export async function GET(request: NextRequest) {
         .eq("stay_date", businessDate)
         .is("cancelled_at", null)
         .neq("reservations.status", "cancelled"),
-      supabase
-        .from("folio_payments")
-        .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
-        .eq("paid_date", businessDate)
-        .order("paid_at", { ascending: true }),
-      supabase
-        .from("pos_orders")
-        .select("total, payment_method")
-        .eq("order_date", businessDate)
-        .eq("status", "completed")
-        .eq("order_type", "walkin"),
+      scopedPaymentsQuery,
+      scopedPosOrdersQuery,
     ]);
 
     if (roomsRes.error) {
@@ -944,6 +956,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       business_date: businessDate,
+      spillover_included: includeOpenBusinessSpillover,
       all_rooms: allRooms,
       today_rooms: todayRooms,
       advance_payments: advancePayments,

@@ -1,3 +1,4 @@
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -9,19 +10,6 @@ const querySchema = z.object({
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
-
-function thailandDateString(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value;
-  const m = parts.find((p) => p.type === "month")?.value;
-  const d = parts.find((p) => p.type === "day")?.value;
-  return `${y}-${m}-${d}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,11 +25,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const today = thailandDateString();
-    const dateFrom = parsed.data.date_from ?? today;
-    const dateTo = parsed.data.date_to ?? today;
-
     const supabase = createServerSupabaseClient();
+    const businessDate = await resolveBusinessDate(supabase, toLocalDate(new Date()));
+    const dateFrom = parsed.data.date_from ?? businessDate;
+    const dateTo = parsed.data.date_to ?? businessDate;
 
     const { data: orders, error: ordersError } = await supabase
       .from("pos_orders")
@@ -126,7 +113,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      range: { date_from: dateFrom, date_to: dateTo },
+      range: { date_from: dateFrom, date_to: dateTo, business_date: businessDate },
       summary: {
         completed_orders: completedOrders.length,
         voided_orders: voidedOrders.length,

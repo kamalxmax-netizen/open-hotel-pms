@@ -69,9 +69,10 @@ export default function PosOrderHistoryPage() {
     const { toast } = useToast();
 
     // Filters
-    const [dateFilter, setDateFilter] = useState(toLocalDate(new Date()));
+    const [dateFilter, setDateFilter] = useState("");
     const [orderTypeFilter, setOrderTypeFilter] = useState<"" | "walkin" | "guest_charge">("");
     const [statusFilter, setStatusFilter] = useState<"" | "completed" | "voided">("");
+    const [isBusinessDateReady, setIsBusinessDateReady] = useState(false);
 
     // Data
     const [orders, setOrders] = useState<PosOrder[]>([]);
@@ -90,8 +91,28 @@ export default function PosOrderHistoryPage() {
     const [voidingOrder, setVoidingOrder] = useState<PosOrder | null>(null);
     const [isVoiding, setIsVoiding] = useState(false);
 
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await fetch("/api/eod/status");
+                const data = await readJsonSafe<{ business_date?: string }>(res);
+                const businessDate = String(data.business_date ?? "").trim();
+                if (alive) {
+                    setDateFilter(/^\d{4}-\d{2}-\d{2}$/.test(businessDate) ? businessDate : toLocalDate(new Date()));
+                }
+            } finally {
+                if (alive) setIsBusinessDateReady(true);
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+    }, []);
+
     // ── Fetch orders ──
     const fetchOrders = useCallback(async () => {
+        if (!isBusinessDateReady || !dateFilter) return;
         try {
             setIsLoading(true);
             const params = new URLSearchParams();
@@ -124,7 +145,7 @@ export default function PosOrderHistoryPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [dateFilter, orderTypeFilter, statusFilter, page, toast]);
+    }, [dateFilter, isBusinessDateReady, orderTypeFilter, statusFilter, page, toast]);
 
     useEffect(() => {
         fetchOrders();

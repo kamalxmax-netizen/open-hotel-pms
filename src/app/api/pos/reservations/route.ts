@@ -1,3 +1,4 @@
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -14,19 +15,6 @@ const querySchema = z.object({
     .transform((v) => (v ? Number(v) : 50))
     .refine((v) => Number.isInteger(v) && v > 0 && v <= 200, "limit must be 1-200"),
 });
-
-function thailandDateString(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value;
-  const m = parts.find((p) => p.type === "month")?.value;
-  const d = parts.find((p) => p.type === "day")?.value;
-  return `${y}-${m}-${d}`;
-}
 
 function normalizeForSearch(value: unknown): string {
   return String(value ?? "")
@@ -51,11 +39,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const targetDate = parsed.data.date ?? thailandDateString();
     const query = parsed.data.q?.trim() ?? "";
     const limit = parsed.data.limit;
 
     const supabase = createServerSupabaseClient();
+    const businessDate = await resolveBusinessDate(supabase, toLocalDate(new Date()));
+    const targetDate = parsed.data.date ?? businessDate;
 
     const fetchLimit = query.length > 0
       ? Math.min(Math.max(limit * 8, 120), 500)
