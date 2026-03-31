@@ -194,6 +194,7 @@ export async function GET(
                     room_number: swapSource.current_room_number,
                     do_not_move_assigned_room: swapSource.do_not_move_assigned_room,
                     do_not_move_reason: swapSource.do_not_move_reason,
+                    member_count: swapSource.member_count,
                 }
                 : null,
             swap_candidates: swapCandidates,

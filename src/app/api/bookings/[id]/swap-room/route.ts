@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { executeWholeStayRoomSwap, RoomSwapError } from "@/lib/room-swap";
+import { executeWholeStayRoomSwap, loadReservationSwapContext, RoomSwapError } from "@/lib/room-swap";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
 
 export async function POST(
@@ -22,34 +22,30 @@ export async function POST(
     }
 
     const supabase = createServerSupabaseClient();
-    const sourceLockContext = await assertAssignedRoomUnlockedOrOverride({
-      supabase: supabase as any,
-      reservationId: sourceReservationId,
-      action: "swap_room",
-      overrideNote: overrideAssignedNote,
-    });
-    const targetLockContext = await assertAssignedRoomUnlockedOrOverride({
-      supabase: supabase as any,
-      reservationId: targetReservationId,
-      action: "swap_room",
-      overrideNote: overrideAssignedNote,
-    });
+    const sourceSwapContext = await loadReservationSwapContext(supabase as any, sourceReservationId);
+    const targetSwapContext = await loadReservationSwapContext(supabase as any, targetReservationId);
+    const sourceMemberIds = sourceSwapContext?.member_reservation_ids ?? [sourceReservationId];
+    const targetMemberIds = targetSwapContext?.member_reservation_ids ?? [targetReservationId];
+    const reservationIdsToCheck = Array.from(new Set([...sourceMemberIds, ...targetMemberIds]));
+
+    const lockContexts = [];
+    for (const reservationId of reservationIdsToCheck) {
+      const lockContext = await assertAssignedRoomUnlockedOrOverride({
+        supabase: supabase as any,
+        reservationId,
+        action: "swap_room",
+        overrideNote: overrideAssignedNote,
+      });
+      lockContexts.push({ reservationId, lockContext });
+    }
+
     const result = await executeWholeStayRoomSwap(supabase as any, sourceReservationId, targetReservationId);
 
-    if (sourceLockContext?.isLocked) {
+    for (const { reservationId, lockContext } of lockContexts) {
+      if (!lockContext?.isLocked) continue;
       await clearAssignedRoomLock({
         supabase: supabase as any,
-        reservationId: sourceReservationId,
-        actor: "FO",
-        reason: overrideAssignedNote,
-        clearReason: "override_swap",
-        appendNote: true,
-      });
-    }
-    if (targetLockContext?.isLocked) {
-      await clearAssignedRoomLock({
-        supabase: supabase as any,
-        reservationId: targetReservationId,
+        reservationId,
         actor: "FO",
         reason: overrideAssignedNote,
         clearReason: "override_swap",

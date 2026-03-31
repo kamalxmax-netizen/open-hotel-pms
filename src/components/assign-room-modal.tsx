@@ -39,6 +39,7 @@ type SwapCandidate = {
     reason: string | null;
     do_not_move_assigned_room?: boolean;
     do_not_move_reason?: string | null;
+    member_count?: number;
 };
 
 type SwapSource = {
@@ -47,6 +48,7 @@ type SwapSource = {
     room_number: string | null;
     do_not_move_assigned_room?: boolean;
     do_not_move_reason?: string | null;
+    member_count?: number;
 };
 
 function formatStayLine(checkinDate: string, checkoutDate: string, nights: number) {
@@ -128,6 +130,7 @@ export default function AssignRoomModal({
     const hasEligibleSwapLock = Boolean(
         swapSource?.do_not_move_assigned_room || eligibleSwapCandidates.some((candidate) => candidate.do_not_move_assigned_room)
     );
+    const sourceSwapRoomLabel = formatSwapRoomLabel(swapSource?.room_number ?? currentRoomNumber ?? currentRoomId ?? "?");
 
     async function handleAssign(roomId: string, roomNumber: string) {
         if (!confirm(`Assign Room ${roomNumber} to ${guestName}?`)) return;
@@ -165,9 +168,12 @@ export default function AssignRoomModal({
         }
 
         const confirmed = confirm(
-            `Swap ${formatSwapRoomLabel(currentRoomNumber ?? currentRoomId ?? "?")} ↔ ${formatSwapRoomLabel(candidate.room_number ?? "?")}?\n\n` +
+            `Swap ${sourceSwapRoomLabel} ↔ ${formatSwapRoomLabel(candidate.room_number ?? "?")}?\n\n` +
             `Source: ${guestName}\n` +
-            `Target: ${candidate.guest_name} (${candidate.booking_code})`
+            `Target: ${candidate.guest_name} (${candidate.booking_code})` +
+            ((swapSource?.member_count ?? 1) > 1 || (candidate.member_count ?? 1) > 1
+                ? `\n\nThis swap will move the full linked path${(swapSource?.member_count ?? 1) > 1 ? ` on source (${swapSource?.member_count} segments)` : ""}${(candidate.member_count ?? 1) > 1 ? `${(swapSource?.member_count ?? 1) > 1 ? " and " : " " }target (${candidate.member_count} segments)` : ""}.`
+                : "")
         );
         if (!confirmed) return;
 
@@ -208,9 +214,14 @@ export default function AssignRoomModal({
                         <div>
                             <h3 className="font-bold text-[var(--text-primary)] text-lg">{guestName}</h3>
                             <p className="text-sm text-brand-600 font-semibold">{roomTypeName}</p>
-                            {isSwapMode && currentRoomNumber && (
+                            {isSwapMode && (swapSource?.room_number || currentRoomNumber) && (
                                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                    Current assignment: <span className="font-semibold text-[var(--text-table-cell)]">{formatSwapRoomLabel(currentRoomNumber)}</span>
+                                    Current assignment: <span className="font-semibold text-[var(--text-table-cell)]">{sourceSwapRoomLabel}</span>
+                                    {(swapSource?.member_count ?? 1) > 1 && (
+                                        <span className="ml-2 inline-flex rounded-full border border-indigo-200 bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30">
+                                            {swapSource?.member_count} linked segments
+                                        </span>
+                                    )}
                                 </p>
                             )}
                         </div>
@@ -380,6 +391,11 @@ export default function AssignRoomModal({
                                                     <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
                                                         ✓ Can Swap
                                                     </span>
+                                                    {(candidate.member_count ?? 1) > 1 && (
+                                                        <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30">
+                                                            {(candidate.member_count ?? 1)} linked segments
+                                                        </span>
+                                                    )}
                                                     {candidate.do_not_move_assigned_room && (
                                                         <span className="inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
                                                             🔒 Do Not Move
