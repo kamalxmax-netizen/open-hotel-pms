@@ -261,7 +261,7 @@ export async function loadReservationSwapContext(
   const memberContextsRaw = await Promise.all(linkedIds.map((id) => loadSingleReservationSwapContext(supabase, id)));
   const movableMembers = memberContextsRaw
     .filter((context): context is SingleReservationSwapContext => Boolean(context))
-    .filter((context) => context.status === "active" && !context.checked_in_at);
+    .filter((context) => context.status === "active");
 
   const memberContexts = movableMembers.length > 0 ? movableMembers : [anchor];
   if (memberContexts.length === 1) {
