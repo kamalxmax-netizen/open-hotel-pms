@@ -62,7 +62,10 @@ const SOURCE_COLOR: Record<string, string> = {
 };
 
 function fmt(n: number) {
-    return n.toLocaleString("th-TH");
+    return Number(n ?? 0).toLocaleString("th-TH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
 }
 
 function formatB(val: number | undefined | null) {

@@ -20,6 +20,7 @@ export type LinkedStay = {
   segments: LinkedStaySegment[];
   full_checkin: string;
   full_checkout: string;
+  full_checked_in_at: string | null;
   full_nights: number;
   combined_total: number;
   active_segment_id: string;
@@ -32,6 +33,7 @@ type ReservationRecord = {
   source: string | null;
   checkin_date: string | null;
   checkout_date: string | null;
+  checked_in_at: string | null;
   status: string | null;
   total_price: number | string | null;
 };
@@ -182,6 +184,7 @@ export async function resolveLinkedStay(
       source,
       checkin_date,
       checkout_date,
+      checked_in_at,
       status,
       total_price
     `)
@@ -205,6 +208,7 @@ export async function resolveLinkedStay(
         source,
         checkin_date,
         checkout_date,
+        checked_in_at,
         status,
         total_price
       `)
@@ -219,6 +223,7 @@ export async function resolveLinkedStay(
         source,
         checkin_date,
         checkout_date,
+        checked_in_at,
         status,
         total_price
       `)
@@ -267,6 +272,10 @@ export async function resolveLinkedStay(
 
   const fullCheckin = segments[0]?.checkin_date ?? "";
   const fullCheckout = segments[segments.length - 1]?.checkout_date ?? "";
+  const fullCheckedInAt = linkedRecords
+    .map((row) => (row.checked_in_at ? String(row.checked_in_at) : ""))
+    .filter(Boolean)
+    .sort()[0] || null;
   const fullNights = fullCheckin && fullCheckout ? listNights(fullCheckin, fullCheckout).length : 0;
   const combinedTotal = segments.reduce((sum, segment) => sum + segment.total_price, 0);
   const { today, timeHHmm } = getBangkokNowParts();
@@ -276,6 +285,7 @@ export async function resolveLinkedStay(
     segments,
     full_checkin: fullCheckin,
     full_checkout: fullCheckout,
+    full_checked_in_at: fullCheckedInAt,
     full_nights: fullNights,
     combined_total: combinedTotal,
     active_segment_id: activeSegmentId,
@@ -345,6 +355,10 @@ function buildLinkedStayFromRecords(
 
   const fullCheckin = segments[0]?.checkin_date ?? "";
   const fullCheckout = segments[segments.length - 1]?.checkout_date ?? "";
+  const fullCheckedInAt = linkedRecords
+    .map((row) => (row.checked_in_at ? String(row.checked_in_at) : ""))
+    .filter(Boolean)
+    .sort()[0] || null;
   const fullNights = fullCheckin && fullCheckout ? listNights(fullCheckin, fullCheckout).length : 0;
   const combinedTotal = segments.reduce((sum, segment) => sum + segment.total_price, 0);
   const { today, timeHHmm } = getBangkokNowParts();
@@ -354,6 +368,7 @@ function buildLinkedStayFromRecords(
     segments,
     full_checkin: fullCheckin,
     full_checkout: fullCheckout,
+    full_checked_in_at: fullCheckedInAt,
     full_nights: fullNights,
     combined_total: combinedTotal,
     active_segment_id: activeSegmentId,
@@ -367,6 +382,7 @@ const LINKED_STAY_SELECT = `
   source,
   checkin_date,
   checkout_date,
+  checked_in_at,
   status,
   total_price
 `;
@@ -387,6 +403,7 @@ export async function resolveLinkedStayBatch(
     source?: string | null;
     checkin_date?: string | null;
     checkout_date?: string | null;
+    checked_in_at?: string | null;
     status?: string | null;
     total_price?: number | string | null;
   }>,
@@ -407,6 +424,7 @@ export async function resolveLinkedStayBatch(
       source: r.source ?? null,
       checkin_date: r.checkin_date ?? null,
       checkout_date: r.checkout_date ?? null,
+      checked_in_at: r.checked_in_at ?? null,
       status: r.status ?? null,
       total_price: r.total_price ?? null,
     });

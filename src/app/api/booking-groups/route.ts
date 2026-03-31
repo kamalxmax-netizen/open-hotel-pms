@@ -39,7 +39,8 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, groups: [] });
         }
 
-        let groupIds = groupRows.map((g: any) => String(g.id));
+        let filteredGroupRows = [...groupRows];
+        let groupIds = filteredGroupRows.map((g: any) => String(g.id));
 
         if (dateFrom && dateTo) {
             const { data: datedReservations, error: datedReservationsError } = await supabase
@@ -59,7 +60,8 @@ export async function GET(request: Request) {
                     .filter(Boolean)
             );
 
-            groupIds = groupIds.filter((id) => datedGroupIdSet.has(id));
+            filteredGroupRows = filteredGroupRows.filter((group: any) => datedGroupIdSet.has(String(group.id)));
+            groupIds = filteredGroupRows.map((g: any) => String(g.id));
             if (groupIds.length === 0) {
                 return NextResponse.json({ success: true, groups: [] });
             }
@@ -71,6 +73,7 @@ export async function GET(request: Request) {
                 id,
                 booking_group_id,
                 status,
+                checkin_date,
                 total_price,
                 reservation_nights (
                     nightly_price,
@@ -83,8 +86,8 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
         }
 
-        const summaryByGroup = new Map<string, { count: number; total: number; statuses: string[] }>();
-        for (const id of groupIds) summaryByGroup.set(id, { count: 0, total: 0, statuses: [] });
+        const summaryByGroup = new Map<string, { count: number; total: number; statuses: string[]; dueInDate: string | null }>();
+        for (const id of groupIds) summaryByGroup.set(id, { count: 0, total: 0, statuses: [], dueInDate: null });
 
         (reservations ?? []).forEach((reservation: any) => {
             const groupId = String(reservation.booking_group_id || "");
@@ -93,6 +96,14 @@ export async function GET(request: Request) {
             const summary = summaryByGroup.get(groupId)!;
             summary.count += 1;
             summary.statuses.push(String(reservation.status ?? ""));
+            const checkinDate = typeof reservation.checkin_date === "string" ? reservation.checkin_date : null;
+            if (
+                checkinDate &&
+                String(reservation.status ?? "").toLowerCase() !== "cancelled" &&
+                (!summary.dueInDate || checkinDate < summary.dueInDate)
+            ) {
+                summary.dueInDate = checkinDate;
+            }
 
             const persistedTotal = toNumber(reservation.total_price);
             let effectiveTotal = persistedTotal;
@@ -113,8 +124,8 @@ export async function GET(request: Request) {
 
         const nowIso = new Date().toISOString();
         const statusSyncJobs: Array<{ id: string; status: string }> = [];
-        const formattedGroups = groupRows.map((g: any) => {
-            const summary = summaryByGroup.get(String(g.id)) ?? { count: 0, total: 0, statuses: [] };
+        const formattedGroups = filteredGroupRows.map((g: any) => {
+            const summary = summaryByGroup.get(String(g.id)) ?? { count: 0, total: 0, statuses: [], dueInDate: null };
             const derivedStatus = deriveBookingGroupStatus(g.status, summary.statuses);
             if (String(g.status ?? "").toLowerCase() !== derivedStatus) {
                 statusSyncJobs.push({ id: String(g.id), status: derivedStatus });
@@ -123,7 +134,8 @@ export async function GET(request: Request) {
                 ...g,
                 status: derivedStatus,
                 reservations_count: summary.count,
-                total_price: Number(summary.total.toFixed(2))
+                total_price: Number(summary.total.toFixed(2)),
+                due_in_date: summary.dueInDate ?? null,
             };
         });
 

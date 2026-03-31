@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import GroupBookingModal from "@/components/group-booking-modal";
 import GroupDetailPanel from "@/components/group-detail-panel";
+import { formatDateDisplay } from "@/lib/date-display";
 
 type BookingGroup = {
     id: string;
@@ -19,6 +20,7 @@ type BookingGroup = {
     created_at: string;
     reservations_count: number;
     total_price: number;
+    due_in_date?: string | null;
 };
 
 export default function GroupsPage() {
@@ -168,7 +170,7 @@ export default function GroupsPage() {
     });
 
     return (
-        <div className="space-y-6 max-w-6xl">
+        <div className="space-y-6 w-full max-w-[90rem]">
             {/* Header Area */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -282,6 +284,7 @@ export default function GroupsPage() {
                             <tr>
                                 <th>Code</th>
                                 <th>Group Name</th>
+                                <th>Due In</th>
                                 <th>Contact</th>
                                 <th>Source</th>
                                 <th>Linked Rooms</th>
@@ -307,6 +310,9 @@ export default function GroupsPage() {
                                     </td>
                                     <td className="py-3 px-4">
                                         <div className="font-bold text-[var(--text-primary)]">{g.group_name}</div>
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-[var(--text-table-cell)]">
+                                        {g.due_in_date ? formatDateDisplay(g.due_in_date) : "—"}
                                     </td>
                                     <td className="py-3 px-4">
                                         <div className="text-sm font-medium text-[var(--text-table-cell)]">{g.contact_name || "—"}</div>

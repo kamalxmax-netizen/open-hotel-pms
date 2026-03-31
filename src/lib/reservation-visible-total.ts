@@ -151,8 +151,7 @@ export function computeReservationDiscountAmount(input: {
   if (percent <= 0) return 0;
   if (percent >= 100) return totalPrice;
 
-  const grossPrice = totalPrice / (1 - percent / 100);
-  return Math.min(totalPrice, fromSatang(toSatang(grossPrice - totalPrice)));
+  return Math.min(totalPrice, fromSatang(Math.trunc(toSatang(totalPrice) * (percent / 100))));
 }
 
 export function applyVisibleTotal(

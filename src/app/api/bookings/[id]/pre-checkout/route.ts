@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
+import { computeReservationDiscountAmount } from "@/lib/reservation-visible-total";
 import { mapEffectiveReservationAlert } from "@/lib/reservation-alerts";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -41,7 +42,7 @@ export async function GET(
         // 1. Reservation basics
         const { data: reservation, error: resError } = await supabase
             .from("reservations")
-            .select("id, status, guest_name, total_price, deposit_amount, checkin_date, checkout_date, source")
+            .select("id, status, guest_name, total_price, deposit_amount, checkin_date, checkout_date, source, discount_type, discount_value, discount_percent")
             .eq("id", reservationId)
             .maybeSingle();
 
@@ -50,6 +51,17 @@ export async function GET(
         }
 
         const totalPriceSatang = toSatang(reservation.total_price);
+        const discountSatang = toSatang(
+            computeReservationDiscountAmount({
+                totalPrice: reservation.total_price,
+                discountType: reservation.discount_type,
+                discountValue: reservation.discount_value,
+                discountPercent: reservation.discount_percent,
+                checkinDate: reservation.checkin_date,
+                checkoutDate: reservation.checkout_date,
+            })
+        );
+        const discountedRoomTotalSatang = Math.max(0, totalPriceSatang - discountSatang);
         const bangkokHour = getBangkokHour();
         const isAfterHardLimit = bangkokHour > 16;
 
@@ -74,7 +86,7 @@ export async function GET(
             if (String(row?.tx_type ?? "") === "refund") return sum - amountSatang;
             return sum + amountSatang;
         }, 0);
-        const balanceDueSatang = totalPriceSatang + extraChargeNetSatang - netPaidSatang;
+        const balanceDueSatang = discountedRoomTotalSatang + extraChargeNetSatang - netPaidSatang;
 
         // 3. Open loan items (traces with loan_item_code that are still open)
         const { data: openLoanTraces } = await supabase
@@ -170,7 +182,8 @@ export async function GET(
         return NextResponse.json({
             success: true,
             reservation_id: reservationId,
-            total_price: fromSatang(totalPriceSatang),
+            total_price: fromSatang(discountedRoomTotalSatang),
+            discount_total: fromSatang(discountSatang),
             deposit_amount: fromSatang(depositAmountSatang),
             total_paid: fromSatang(totalPaidSatang),
             total_refunded: fromSatang(totalRefundedSatang),

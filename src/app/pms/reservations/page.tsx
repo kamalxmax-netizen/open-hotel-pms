@@ -38,6 +38,7 @@ type Reservation = {
     linked_segments?: LinkedStaySegment[] | null;
     linked_full_checkin?: string | null;
     linked_full_checkout?: string | null;
+    linked_checked_in_at?: string | null;
     linked_active_segment_id?: string | null;
 };
 
@@ -86,6 +87,19 @@ function toBangkokTime(value?: string | null): string | null {
         minute: "2-digit",
         hour12: false
     }).format(date);
+}
+
+function getLinkedContinuationSegment(reservation: Reservation): LinkedStaySegment | null {
+    const segments = reservation.linked_segments ?? [];
+    if (segments.length <= 1) return null;
+    const currentIndex = segments.findIndex((segment) => segment.reservation_id === reservation.id);
+    if (currentIndex < 0 || currentIndex >= segments.length - 1) return null;
+    return segments[currentIndex + 1] ?? null;
+}
+
+function getSourceLabel(source?: string | null): string {
+    const key = String(source ?? "").toLowerCase();
+    return SOURCE_LABEL[key] ?? (key ? key.toUpperCase() : "Next Booking");
 }
 
 /* ─── Main Page ───────────────────────────────── */
@@ -414,7 +428,23 @@ export default function ReservationsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {reservations.map((r) => (
+                            {reservations.map((r) => {
+                                const isActiveLinkedStay = Boolean(
+                                    r.status === "active" &&
+                                    r.linked_segments &&
+                                    r.linked_segments.length > 1 &&
+                                    (r.linked_active_segment_id ?? r.id) === r.id
+                                );
+                                const continuationSegment =
+                                    r.status === "checked_out" ? getLinkedContinuationSegment(r) : null;
+                                const displayCheckinDate = isActiveLinkedStay ? (r.linked_full_checkin ?? r.checkin_date) : r.checkin_date;
+                                const displayCheckoutDate = isActiveLinkedStay ? (r.linked_full_checkout ?? r.checkout_date) : r.checkout_date;
+                                const displayCheckinTime =
+                                    toBangkokTime(isActiveLinkedStay ? (r.linked_checked_in_at ?? r.checked_in_at) : r.checked_in_at) ??
+                                    r.checkin_time ??
+                                    null;
+
+                                return (
                                 <tr key={r.id}>
                                     <td>
                                         <div className="font-bold text-[var(--text-primary)]">Room {r.room_number}</div>
@@ -447,16 +477,25 @@ export default function ReservationsPage() {
                                         </span>
                                     </td>
                                     <td>
-                                        <div className="text-sm font-medium">{formatDateDisplay(r.checkin_date)}</div>
-                                        {toBangkokTime(r.checked_in_at) ? (
-                                            <div className="text-xs text-emerald-600">C/I {toBangkokTime(r.checked_in_at)}</div>
-                                        ) : (
-                                            r.checkin_time && <div className="text-xs text-emerald-600">{r.checkin_time}</div>
+                                        <div className="text-sm font-medium">{formatDateDisplay(displayCheckinDate)}</div>
+                                        {displayCheckinTime && (
+                                            <div className="text-xs text-emerald-600">C/I {displayCheckinTime}</div>
                                         )}
                                     </td>
                                     <td>
-                                        <div className="text-sm font-medium">{formatDateDisplay(r.checkout_date)}</div>
-                                        {toBangkokTime(r.checked_out_at) && (
+                                        <div className="text-sm font-medium">{formatDateDisplay(displayCheckoutDate)}</div>
+                                        {continuationSegment ? (
+                                            <button
+                                                type="button"
+                                                className="text-xs font-semibold text-sky-600 hover:underline"
+                                                onClick={() => {
+                                                    setDetailMode("edit");
+                                                    setDetailResId(continuationSegment.reservation_id);
+                                                }}
+                                            >
+                                                Extend to {getSourceLabel(continuationSegment.source)} &gt;
+                                            </button>
+                                        ) : toBangkokTime(r.checked_out_at) && (
                                             <div className="text-xs text-rose-600">{toBangkokTime(r.checked_out_at)}</div>
                                         )}
                                     </td>
@@ -502,7 +541,8 @@ export default function ReservationsPage() {
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}

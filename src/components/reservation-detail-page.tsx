@@ -30,6 +30,7 @@ import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalit
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
 import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import LinkedStayPanel from "./linked-stay-panel";
 
@@ -461,6 +462,17 @@ type IdentityAlertSettings = {
     identity_alert_birthday_enabled: boolean;
 };
 
+type CheckinAssignedRoomStatus = {
+    room_id: string;
+    room_number: string;
+    hk_status: string | null;
+    due_out: boolean;
+    back_to_back: boolean;
+    in_house: boolean;
+    guest_name?: string | null;
+    due_out_guest_name?: string | null;
+};
+
 const DEFAULT_IDENTITY_ALERT_SETTINGS: IdentityAlertSettings = {
     identity_alert_under18_thai_id_enabled: true,
     identity_alert_under18_passport_enabled: true,
@@ -493,6 +505,46 @@ function mergeIdentityAlertSettings(raw: unknown): IdentityAlertSettings {
                 ? DEFAULT_IDENTITY_ALERT_SETTINGS.identity_alert_birthday_enabled
                 : Boolean(source.identity_alert_birthday_enabled),
     };
+}
+
+function resolveCheckinAssignedRoomCapsule(status: CheckinAssignedRoomStatus | null): {
+    label: string;
+    className: string;
+    title?: string;
+} | null {
+    if (!status) return null;
+
+    const occupiedGuestName = status.due_out_guest_name || status.guest_name || null;
+    if (status.due_out || status.back_to_back) {
+        return {
+            label: "Due Out",
+            className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300",
+            title: occupiedGuestName ? `Guest still in room: ${occupiedGuestName}` : "Room still has a due-out guest."
+        };
+    }
+
+    if (status.hk_status === "dirty") {
+        return {
+            label: "Dirty",
+            className: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-300"
+        };
+    }
+
+    if (status.hk_status === "in_progress" || status.hk_status === "paused") {
+        return {
+            label: "In Progress",
+            className: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300"
+        };
+    }
+
+    if (status.hk_status === "approved" || status.hk_status === "cleaned" || status.hk_status === "available") {
+        return {
+            label: "Ready",
+            className: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
+        };
+    }
+
+    return null;
 }
 
 type PartyDraft = {
@@ -767,11 +819,44 @@ export default function ReservationDetailPage({
 }: ReservationDetailPageProps) {
 
     const router = useRouter();
+    const [isCheckedOutEditAdmin, setIsCheckedOutEditAdmin] = useState(false);
     const [reservationId, setReservationId] = useState(propReservationId);
     
     useEffect(() => {
         setReservationId(propReservationId);
     }, [propReservationId]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadCheckedOutEditRole = async () => {
+            try {
+                const supabase = createBrowserSupabaseClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    if (mounted) setIsCheckedOutEditAdmin(false);
+                    return;
+                }
+
+                const { data } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("user_id", user.id)
+                    .single();
+
+                const role = String(data?.role ?? "").trim().toLowerCase();
+                if (mounted) setIsCheckedOutEditAdmin(role === "admin");
+            } catch {
+                if (mounted) setIsCheckedOutEditAdmin(false);
+            }
+        };
+
+        void loadCheckedOutEditRole();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const handleSwitchLinkedTab = (newId: string) => {
         setReservationId(newId);
@@ -928,6 +1013,8 @@ export default function ReservationDetailPage({
     const [reloadToken, setReloadToken] = useState(0);
     const [successMessage, setSuccessMessage] = useState("");
     const [identityAlertSettings, setIdentityAlertSettings] = useState<IdentityAlertSettings>(DEFAULT_IDENTITY_ALERT_SETTINGS);
+    const [businessDate, setBusinessDate] = useState(today);
+    const [checkinAssignedRoomStatus, setCheckinAssignedRoomStatus] = useState<CheckinAssignedRoomStatus | null>(null);
 
     // Print dialogs
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -1758,6 +1845,9 @@ export default function ReservationDetailPage({
                 if (cancelled) return;
                 if (data?.success) {
                     setIdentityAlertSettings(mergeIdentityAlertSettings(data.settings));
+                    if (typeof data.settings?.business_date === "string" && data.settings.business_date) {
+                        setBusinessDate(data.settings.business_date);
+                    }
                 }
             })
             .catch(() => {
@@ -1770,6 +1860,48 @@ export default function ReservationDetailPage({
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (mode !== "checkin" || !roomId || !businessDate) {
+            setCheckinAssignedRoomStatus(null);
+            return;
+        }
+
+        let cancelled = false;
+        fetch(`/api/housekeeping/status?date=${businessDate}`, { cache: "no-store" })
+            .then((response) => response.json().catch(() => null))
+            .then((data) => {
+                if (cancelled) return;
+                if (!data?.success || !Array.isArray(data.rooms)) {
+                    setCheckinAssignedRoomStatus(null);
+                    return;
+                }
+
+                const matched = data.rooms.find((room: any) => String(room?.room_id ?? "") === roomId);
+                if (!matched) {
+                    setCheckinAssignedRoomStatus(null);
+                    return;
+                }
+
+                setCheckinAssignedRoomStatus({
+                    room_id: String(matched.room_id),
+                    room_number: String(matched.room_number ?? ""),
+                    hk_status: matched.hk_status ? String(matched.hk_status) : null,
+                    due_out: Boolean(matched.due_out),
+                    back_to_back: Boolean(matched.back_to_back),
+                    in_house: Boolean(matched.in_house),
+                    guest_name: matched.guest_name ? String(matched.guest_name) : null,
+                    due_out_guest_name: matched.due_out_guest_name ? String(matched.due_out_guest_name) : null,
+                });
+            })
+            .catch(() => {
+                if (!cancelled) setCheckinAssignedRoomStatus(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [mode, roomId, businessDate]);
 
     // Load Metadata
     useEffect(() => {
@@ -2592,9 +2724,15 @@ export default function ReservationDetailPage({
     const checkoutPaymentInsufficient = checkoutRequiresPayment && checkoutPaymentSatang < checkoutBalanceSatang;
     const blockingOpenLoans = openLoans.filter((loan: any) => !loan?.requires_hk_collection);
     const hkCollectOpenLoans = openLoans.filter((loan: any) => Boolean(loan?.requires_hk_collection));
-    const isClosedReservation = reservationStatus === "checked_out" || reservationStatus === "cancelled";
-    const isReadonly = mode === "checkout" || isClosedReservation || dayUseAmountOnlyMode;
-    const readonlyClosedReservation = isClosedReservation && mode !== "checkout";
+    const isCheckedOutReservation = reservationStatus === "checked_out";
+    const isCancelledReservation = reservationStatus === "cancelled";
+    const isClosedReservation = isCheckedOutReservation || isCancelledReservation;
+    const canEditCheckedOutReservation = mode === "edit" && isCheckedOutReservation && isCheckedOutEditAdmin;
+    const readonlyCheckedOutReservation = isCheckedOutReservation && mode !== "checkout" && !canEditCheckedOutReservation;
+    const readonlyClosedReservation = (isCancelledReservation || readonlyCheckedOutReservation) && mode !== "checkout";
+    const isReadonly = mode === "checkout" || readonlyClosedReservation || dayUseAmountOnlyMode;
+    const lockStayFields = isReadonly || canEditCheckedOutReservation;
+    const lockPricingFields = isReadonly || canEditCheckedOutReservation;
     const interactionLocked = loading || rateRefreshing;
     const checkoutSubmitDisabled =
         interactionLocked ||
@@ -2602,9 +2740,10 @@ export default function ReservationDetailPage({
         (dayUseAmountOnlyMode && dayUseExtendSettingsLoading) ||
         (mode === "checkout" && !preCheckoutLoaded);
     const lockCheckinDate =
-        reservationStatus === "active" &&
-        mode !== "checkin" &&
-        Boolean(checkedInAt);
+        (reservationStatus === "active" &&
+            mode !== "checkin" &&
+            Boolean(checkedInAt)) ||
+        canEditCheckedOutReservation;
     const lockMessage = loading ? "Saving changes..." : rateRefreshing ? "Updating rates..." : "";
     const bangkokTodayYmd = dateToYmd(getBangkokTodayDate());
     const canEditDeposit =
@@ -3649,6 +3788,9 @@ export default function ReservationDetailPage({
                                     : "Save";
     const roomChannelLocked = mode === "inhouse" || mode === "checkout";
     const showReassignButton = mode === "checkin" && Boolean(reservationId) && Boolean(roomTypeId);
+    const checkinAssignedRoomCapsule = mode === "checkin"
+        ? resolveCheckinAssignedRoomCapsule(checkinAssignedRoomStatus)
+        : null;
 
     const closeCreatedSummary = () => {
         setCreatedSummary(null);
@@ -3797,6 +3939,11 @@ export default function ReservationDetailPage({
                         This reservation is {reservationStatus === "cancelled" ? "cancelled" : "checked out"}. Details are available in read-only mode.
                     </div>
                 )}
+                {canEditCheckedOutReservation && (
+                    <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+                        Checked-out reservation: guest/profile metadata can still be edited here. Stay dates and pricing remain locked. Use Audit Correction for those changes.
+                    </div>
+                )}
                 {dayUseAmountOnlyMode && (
                     <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                         Day Use edit is locked to view-only. Only extension amount is editable in this screen.
@@ -3880,16 +4027,26 @@ export default function ReservationDetailPage({
 
                                     {/* Header Badge */}
                                     {reservationId && (
-                                        <div className="bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg px-3 py-2 flex justify-between items-center text-sm">
+                                    <div className="bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg px-3 py-2 flex justify-between items-center text-sm">
                                             <div className="flex items-stretch gap-2">
                                                 <span className="font-bold text-[var(--text-primary)]">{guestName || "—"}</span>
                                                 <span className="text-[var(--text-muted)] font-mono text-xs">#{reservationId.slice(0, 8).toUpperCase()}</span>
                                             </div>
-                                            {rooms.find(r => r.id === roomId) && (
-                                                <span className="font-bold text-indigo-700 dark:text-indigo-400 text-xs bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
-                                                    Room {rooms.find(r => r.id === roomId)?.room_number}
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {rooms.find(r => r.id === roomId) && (
+                                                    <span className="font-bold text-indigo-700 dark:text-indigo-400 text-xs bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
+                                                        Room {rooms.find(r => r.id === roomId)?.room_number}
+                                                    </span>
+                                                )}
+                                                {checkinAssignedRoomCapsule && (
+                                                    <span
+                                                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${checkinAssignedRoomCapsule.className}`}
+                                                        title={checkinAssignedRoomCapsule.title}
+                                                    >
+                                                        {checkinAssignedRoomCapsule.label}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 
@@ -3899,7 +4056,7 @@ export default function ReservationDetailPage({
                                         checkoutDate={checkoutDate}
                                         nights={nights}
                                         onChange={handleDatesChange}
-                                        disabled={isReadonly}
+                                        disabled={lockStayFields}
                                         lockCheckin={lockCheckinDate}
                                     />
 
@@ -3927,7 +4084,7 @@ export default function ReservationDetailPage({
                                                         chargeRoomTypeIdOverride: nextChargeRoomTypeId
                                                     });
                                                 }}
-                                                disabled={isReadonly || roomChannelLocked}
+                                                disabled={lockPricingFields || roomChannelLocked}
                                                 required
                                             >
                                                 <option value="">Select</option>
@@ -3945,6 +4102,7 @@ export default function ReservationDetailPage({
                                                             className="mt-0.5"
                                                             checked={useSelectedRoomTypeForCharge}
                                                             onChange={() => void handleChargeModeChange(true)}
+                                                            disabled={lockPricingFields}
                                                         />
                                                         <span>
                                                             Update charge to selected room type ({selectedRoomTypeName})
@@ -3957,6 +4115,7 @@ export default function ReservationDetailPage({
                                                             className="mt-0.5"
                                                             checked={!useSelectedRoomTypeForCharge}
                                                             onChange={() => void handleChargeModeChange(false)}
+                                                            disabled={lockPricingFields}
                                                         />
                                                         <span>
                                                             Keep original charge type ({originalRoomTypeName}) - complimentary upgrade
@@ -4018,7 +4177,7 @@ export default function ReservationDetailPage({
                                                         ratePlanIdOverride: nextSource === "ota" ? "" : ratePlanId
                                                     });
                                                 }}
-                                                disabled={isReadonly || roomChannelLocked}
+                                                disabled={lockPricingFields || roomChannelLocked}
                                             >
                                                 <option value="walkin">Walk-in</option>
                                                 <option value="direct">Direct</option>
@@ -4034,7 +4193,7 @@ export default function ReservationDetailPage({
                                                     className="form-input text-sm"
                                                     value={otaRef}
                                                     onChange={(e) => setOtaRef(e.target.value)}
-                                                    disabled={isReadonly || roomChannelLocked}
+                                                    disabled={lockPricingFields || roomChannelLocked}
                                                     placeholder="Booking ref #"
                                                 />
                                             </div>
@@ -4799,7 +4958,7 @@ export default function ReservationDetailPage({
                                                 guestProfileId={guestProfileId || undefined}
                                                 checkinDate={checkinDate}
                                                 checkoutDate={checkoutDate}
-                                                disabled={isReadonly}
+                                                disabled={lockPricingFields}
                                             />
                                             {ratePlanEligibilityWarning && (
                                                 <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
@@ -4870,8 +5029,8 @@ export default function ReservationDetailPage({
                                             setDiscountValue(value);
                                             setDiscountReason(reason);
                                         }}
-                                        onNightlyRateChange={source === "ota" && !isReadonly ? handleOtaNightlyRateChange : undefined}
-                                        editable={!isReadonly}
+                                        onNightlyRateChange={source === "ota" && !lockPricingFields ? handleOtaNightlyRateChange : undefined}
+                                        editable={!lockPricingFields}
                                         source={source}
                                     />
 
@@ -5534,7 +5693,7 @@ export default function ReservationDetailPage({
                     onClose={() => setShowFolioModal(false)}
                     reservationId={reservationId}
                     mode={mode}
-                    isReadonly={isReadonly}
+                    isReadonly={lockPricingFields}
                     totalPrice={totalPrice || 0}
                     depositAmount={depositAmount || 0}
                     policyFeePayload={policyFeePayload}

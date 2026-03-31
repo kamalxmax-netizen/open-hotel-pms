@@ -479,7 +479,7 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const reservationId = params.id;
@@ -541,9 +541,20 @@ export async function PUT(
   }
 
   const supabase = createServerSupabaseClient();
+  const user = await getAuthenticatedUser(supabase as any, request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  let userRole: string | null = null;
+  try {
+    userRole = await getUserRole(supabase as any, user.id);
+  } catch (roleError) {
+    console.error("Failed to resolve role for booking update:", roleError);
+  }
+
   const { data: currentReservation, error: currentReservationError } = await supabase
     .from("reservations")
-    .select("id, checkin_date, checkout_date, source, expected_arrival_time, rate_plan_id, total_price")
+    .select("id, status, checkin_date, checkout_date, source, expected_arrival_time, rate_plan_id, total_price, discount_type, discount_value, discount_percent")
     .eq("id", reservationId)
     .maybeSingle();
   if (currentReservationError) {
@@ -551,6 +562,41 @@ export async function PUT(
   }
   if (!currentReservation) {
     return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
+  }
+  const isCheckedOutReservation = String(currentReservation.status ?? "").trim().toLowerCase() === "checked_out";
+  const isAdmin = String(userRole ?? "").trim().toLowerCase() === "admin";
+  if (isCheckedOutReservation && !isAdmin) {
+    return NextResponse.json(
+      { error: "Only admin can edit reservation details after checkout." },
+      { status: 403 }
+    );
+  }
+  if (isCheckedOutReservation) {
+    const currentRatePlanId = currentReservation.rate_plan_id ? String(currentReservation.rate_plan_id) : null;
+    const nextRatePlanId = payload.rate_plan_id !== undefined ? (payload.rate_plan_id ? String(payload.rate_plan_id) : null) : currentRatePlanId;
+    const currentDiscountType =
+      currentReservation.discount_type === "fixed_total" || currentReservation.discount_type === "fixed_per_night" || currentReservation.discount_type === "percent"
+        ? currentReservation.discount_type
+        : "percent";
+    const currentDiscountValue = Number(currentReservation.discount_value ?? currentReservation.discount_percent ?? 0);
+    const nextDiscountType = payload.discount_type ?? currentDiscountType;
+    const nextDiscountValue = Number(payload.discount_value ?? payload.discount_percent ?? currentDiscountValue);
+    const stayDatesChanged =
+      String(currentReservation.checkin_date ?? "") !== payload.checkin_date ||
+      String(currentReservation.checkout_date ?? "") !== payload.checkout_date;
+    const pricingChanged =
+      String(currentReservation.source ?? "") !== payload.source ||
+      currentRatePlanId !== nextRatePlanId ||
+      currentDiscountType !== nextDiscountType ||
+      currentDiscountValue !== nextDiscountValue ||
+      payload.ota_prices !== undefined ||
+      (payload.price_change_choice === "apply_rate_grid" || payload.price_change_choice === "keep_existing");
+    if (stayDatesChanged || pricingChanged) {
+      return NextResponse.json(
+        { error: "Checked-out reservations lock stay dates and pricing. Use Audit Correction for those changes." },
+        { status: 403 }
+      );
+    }
   }
   const previousCheckoutDate = currentReservation.checkout_date
     ? String(currentReservation.checkout_date)

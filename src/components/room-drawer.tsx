@@ -40,6 +40,9 @@ export type RoomDrawerRoom = {
         expected_arrival_time?: string | null;
         checked_in_at?: string | null;
         total_price: number;
+        discount_type?: "percent" | "fixed_total" | "fixed_per_night" | null;
+        discount_value?: number | null;
+        discount_percent?: number | null;
         note?: string | null;
         deposit_amount?: number | null;
         deposit_note?: string | null;
@@ -211,6 +214,33 @@ function getThailandDateString(date = new Date()) {
     const day = parts.find((part) => part.type === "day")?.value;
     if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
     return `${year}-${month}-${day}`;
+}
+
+function getReservationNightCount(checkinDate?: string | null, checkoutDate?: string | null): number {
+    if (!checkinDate || !checkoutDate) return 0;
+    const checkin = new Date(`${checkinDate}T00:00:00`);
+    const checkout = new Date(`${checkoutDate}T00:00:00`);
+    if (Number.isNaN(checkin.getTime()) || Number.isNaN(checkout.getTime())) return 0;
+    return Math.max(0, Math.round((checkout.getTime() - checkin.getTime()) / 86400000));
+}
+
+function computeDrawerDiscountAmount(reservation?: RoomDrawerRoom["reservation"] | null): number {
+    if (!reservation) return 0;
+    const totalPrice = Number(reservation.total_price ?? 0);
+    const rawValue = Number(reservation.discount_value ?? reservation.discount_percent ?? 0);
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0 || !Number.isFinite(rawValue) || rawValue <= 0) return 0;
+
+    if (reservation.discount_type === "fixed_total") {
+        return Math.min(totalPrice, rawValue);
+    }
+
+    if (reservation.discount_type === "fixed_per_night") {
+        const nights = getReservationNightCount(reservation.checkin_date, reservation.checkout_date);
+        return Math.min(totalPrice, rawValue * nights);
+    }
+
+    const percent = Math.max(0, Math.min(100, rawValue));
+    return Math.min(totalPrice, totalPrice * (percent / 100));
 }
 
 interface RoomDrawerProps {
@@ -604,7 +634,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     );
     const stayTotalPrice = linkedStay?.combined_total ?? res?.total_price ?? 0;
     const depositHeld = Number(folioSummary?.deposit_amount ?? res?.deposit_amount ?? 0);
-    const balanceDue = Number(folioSummary?.balance_due ?? res?.total_price ?? 0);
+    const fallbackBalanceDue = Math.max(0, Number(res?.total_price ?? 0) - computeDrawerDiscountAmount(res));
+    const balanceDue = Number(folioSummary?.balance_due ?? fallbackBalanceDue);
 
     useEffect(() => {
         setHkView(buildDrawerHousekeepingState(room));

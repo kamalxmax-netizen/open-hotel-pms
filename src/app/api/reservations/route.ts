@@ -182,6 +182,7 @@ export async function GET(request: NextRequest) {
                 source: r.source ?? null,
                 checkin_date: r.checkin_date ?? null,
                 checkout_date: r.checkout_date ?? null,
+                checked_in_at: r.checked_in_at ?? null,
                 status: r.status ?? null,
                 total_price: r.total_price ?? null,
             })),
@@ -242,6 +243,7 @@ export async function GET(request: NextRequest) {
                 linked_segments: linkedStay?.segments ?? null,
                 linked_full_checkin: linkedStay?.full_checkin ?? null,
                 linked_full_checkout: linkedStay?.full_checkout ?? null,
+                linked_checked_in_at: linkedStay?.full_checked_in_at ?? null,
                 linked_active_segment_id: linkedStay?.active_segment_id ?? null,
                 nights: Math.round(
                     (new Date(r.checkout_date).getTime() - new Date(r.checkin_date).getTime()) / 86400000
