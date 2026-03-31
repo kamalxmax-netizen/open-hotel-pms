@@ -1016,6 +1016,7 @@ export default function BoardPage() {
                     deposit_amount: 0,
                     deposit_note: null,
                     deposit_paid_at: null,
+                    deposit_paid_date: null,
                     checked_in_at: dayUseRoom.current_reservation.checked_in_at,
                     dayuse_expires_at: dayUseRoom.current_reservation.dayuse_expires_at,
                 }
@@ -1097,6 +1098,7 @@ export default function BoardPage() {
                         deposit_amount: Number(reservation.deposit_amount ?? 0),
                         deposit_note: reservation.deposit_note ?? null,
                         deposit_paid_at: reservation.deposit_paid_at ?? null,
+                        deposit_paid_date: reservation.deposit_paid_date ?? null,
                         do_not_move_assigned_room: Boolean(reservation.do_not_move_assigned_room),
                         do_not_move_reason: reservation.do_not_move_reason ?? null,
                         do_not_move_room_id_snapshot: reservation.do_not_move_room_id_snapshot ?? null,

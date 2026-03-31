@@ -40,7 +40,7 @@ export default function AvailableRoomSelect({
 
         const timeoutId = setTimeout(async () => {
             try {
-                let url = `/api/available-rooms?room_type_id=${roomTypeId}&checkin=${checkinDate}&checkout=${checkoutDate}`;
+                let url = `/api/available-rooms?room_type_id=${roomTypeId}&checkin=${checkinDate}&checkout=${checkoutDate}&allow_dirty=1`;
                 if (excludeReservationId) {
                     url += `&exclude_reservation_id=${excludeReservationId}`;
                 }

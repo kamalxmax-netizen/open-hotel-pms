@@ -359,6 +359,20 @@ export async function GET(
     return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
   }
 
+  const { data: latestDepositRow, error: latestDepositError } = await supabase
+    .from("folio_payments")
+    .select("paid_date, paid_at")
+    .eq("reservation_id", reservationId)
+    .eq("revenue_category", "deposit")
+    .eq("tx_type", "deposit")
+    .order("paid_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestDepositError) {
+    return NextResponse.json({ error: latestDepositError.message }, { status: 500 });
+  }
+
   const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
   const linkedStay = await resolveLinkedStay(supabase, reservationId, checkOutTimeHHmm);
 
@@ -431,6 +445,7 @@ export async function GET(
       deposit_amount: Number(row.deposit_amount ?? 0),
       deposit_note: row.deposit_note ?? null,
       deposit_paid_at: row.deposit_paid_at ?? null,
+      deposit_paid_date: latestDepositRow?.paid_date ?? null,
       discount_type:
         row.discount_type === "fixed_total" || row.discount_type === "fixed_per_night" || row.discount_type === "percent"
           ? row.discount_type

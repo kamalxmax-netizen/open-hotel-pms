@@ -44,6 +44,7 @@ export type RoomDrawerRoom = {
         deposit_amount?: number | null;
         deposit_note?: string | null;
         deposit_paid_at?: string | null;
+        deposit_paid_date?: string | null;
         dayuse_expires_at?: string | null;
         do_not_move_assigned_room?: boolean;
         do_not_move_reason?: string | null;
@@ -1729,6 +1730,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                     existingDeposit={res.deposit_amount}
                     existingDepositNote={res.deposit_note}
                     existingDepositPaidAt={res.deposit_paid_at}
+                    existingDepositPaidDate={res.deposit_paid_date}
                     onClose={() => setShowDepositModal(false)}
                     onSuccess={() => {
                         setShowDepositModal(false);

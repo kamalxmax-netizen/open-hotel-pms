@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         const checkout = sp.get("checkout") || sp.get("checkout_date");
         const excludeReservationId = sp.get("exclude_reservation_id") || sp.get("reservation_id");
         const excludePlanId = sp.get("exclude_plan_id");
+        const allowDirty = sp.get("allow_dirty") === "1";
 
         if (!roomTypeId || !checkin || !checkout) {
             return NextResponse.json(
@@ -168,7 +169,7 @@ export async function GET(request: NextRequest) {
         }
 
         const hkBlockedRoomIds = new Set<string>();
-        if (includesBusinessDate && overnightRoomIds.length > 0) {
+        if (!allowDirty && includesBusinessDate && overnightRoomIds.length > 0) {
             const { data: hkRows, error: hkError } = await supabase
                 .from("housekeeping_tasks")
                 .select("room_id, status, task_seq")

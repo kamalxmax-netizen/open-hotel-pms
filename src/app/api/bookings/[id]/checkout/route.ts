@@ -379,6 +379,11 @@ export async function POST(
             updated_at: now,
             checked_out_at: now,
         };
+        if (depositAction === "refund" && depositRefundedSatang > 0) {
+            updatePayload.deposit_amount = 0;
+            updatePayload.deposit_paid_at = null;
+            updatePayload.deposit_note = null;
+        }
         const { error: updateError } = await supabase
             .from("reservations")
             .update(updatePayload)

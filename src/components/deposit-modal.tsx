@@ -7,6 +7,7 @@ import {
     parseDepositSnapshotNote,
 } from "@/lib/deposit-ledger";
 import { fromSatang, toSatang } from "@/lib/money";
+import { formatDateDisplay } from "@/lib/date-display";
 import PmsModal from "./pms-modal";
 
 interface DepositModalProps {
@@ -17,6 +18,7 @@ interface DepositModalProps {
     existingDeposit?: number | null;
     existingDepositNote?: string | null;
     existingDepositPaidAt?: string | null;
+    existingDepositPaidDate?: string | null;
     onClose: () => void;
     onSuccess: () => void;
 }
@@ -31,6 +33,7 @@ export default function DepositModal({
     existingDeposit,
     existingDepositNote,
     existingDepositPaidAt,
+    existingDepositPaidDate,
     onClose,
     onSuccess
 }: DepositModalProps) {
@@ -223,7 +226,11 @@ export default function DepositModal({
                             <div className="text-xs text-amber-600">
                                 {existingMethodLabel}
                                 {existingGeneralNote ? ` · ${existingGeneralNote}` : ""}
-                                {existingDepositPaidAt ? ` · ${new Date(existingDepositPaidAt).toLocaleDateString("en-GB")}` : ""}
+                                {existingDepositPaidDate
+                                    ? ` · ${formatDateDisplay(existingDepositPaidDate)}`
+                                    : existingDepositPaidAt
+                                        ? ` · ${formatDateDisplay(existingDepositPaidAt)}`
+                                        : ""}
                             </div>
                         </div>
                     </div>
