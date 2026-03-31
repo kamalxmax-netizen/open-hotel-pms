@@ -1,5 +1,5 @@
 import { addDays, compareDateStrings, isValidDateString } from "@/lib/dates";
-import { toBangkokDateString, normalizeAuditSource } from "@/lib/audit-utils";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import {
   appendReservationNoteLine,
   assertRoomAvailableForDateRange,
@@ -8,10 +8,15 @@ import {
 import { executeRoomMove } from "@/lib/room-move";
 import { calculateAppliedRateNights } from "@/lib/rate-plan-pricing";
 import { markRoomDirtyTask } from "@/lib/hk-dirty";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 type SupabaseLike = {
   from: (table: string) => any;
 };
+
+async function resolvePlannerBusinessDate(supabase: SupabaseLike): Promise<string> {
+  return resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
+}
 
 export type RoomPlannerActionType =
   | "MOVE_WHOLE"
@@ -2985,7 +2990,7 @@ export async function previewRoomPlannerActions(params: {
     .map((context) => context.rate_plan_id)
     .filter((id): id is string => Boolean(id));
   const ratePlanNamesById = await loadRatePlanNames(supabase, ratePlanIds);
-  const businessDate = toBangkokDateString();
+  const businessDate = await resolvePlannerBusinessDate(supabase);
   const hkCache = new Map<string, string | null>();
   const { childrenByParent, linkedMembersByRoot } = await hydrateLinkedContextMaps({
     supabase,
@@ -3157,7 +3162,7 @@ export async function commitRoomPlannerActions(params: {
     throw new RoomPlannerEngineError("actor_user_id is required.", 400);
   }
 
-  const businessDate = toBangkokDateString();
+  const businessDate = await resolvePlannerBusinessDate(supabase);
   const linkedExpanded = await expandLinkedMoveActionsForCommit({
     supabase,
     actions,

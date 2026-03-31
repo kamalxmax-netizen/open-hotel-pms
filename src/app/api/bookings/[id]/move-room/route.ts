@@ -2,11 +2,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { findPlannedMoveEffectiveOnDate, listReservationPlannedMoves, normalizeDiscountType, normalizePricingPolicy, clampDiscountValue } from "@/lib/planned-room-moves";
 import { executeRoomMove, RoomMoveError } from "@/lib/room-move";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { NextRequest, NextResponse } from "next/server";
-
-function toBangkokDate(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
-}
 
 /**
  * POST /api/bookings/[id]/move-room
@@ -39,7 +36,7 @@ export async function POST(
     const overridePlannedNote = String(body.override_planned_note ?? "").trim();
     const overrideAssignedNote = String(body.override_assigned_note ?? "").trim();
 
-    const today = toBangkokDate();
+    const today = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
     const effectiveTodayPlan = await findPlannedMoveEffectiveOnDate(supabase as any, reservationId, today);
     if (effectiveTodayPlan) {

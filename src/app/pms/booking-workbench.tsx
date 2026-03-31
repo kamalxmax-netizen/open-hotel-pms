@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type BookingSource = "walkin" | "ota" | "direct" | "agent";
@@ -57,8 +57,8 @@ function plusDays(dateString: string, days: number): string {
   return ymd(date);
 }
 
-function makeDefaultBookingForm(): BookingFormState {
-  const checkinDate = ymd(new Date());
+function makeDefaultBookingForm(anchorDate?: string): BookingFormState {
+  const checkinDate = anchorDate ?? ymd(new Date());
   return {
     guest_name: "",
     room_number: "202",
@@ -72,10 +72,10 @@ function makeDefaultBookingForm(): BookingFormState {
   };
 }
 
-function makeDefaultLookupForm(): LookupFormState {
+function makeDefaultLookupForm(anchorDate?: string): LookupFormState {
   return {
     room_number: "202",
-    date: ymd(new Date())
+    date: anchorDate ?? ymd(new Date())
   };
 }
 
@@ -145,6 +145,7 @@ export default function BookingWorkbench({
 }: {
   onReservationChanged?: () => void;
 }) {
+  const [businessDate, setBusinessDate] = useState<string>(() => ymd(new Date()));
   const [createForm, setCreateForm] = useState<BookingFormState>(() => makeDefaultBookingForm());
   const [editForm, setEditForm] = useState<BookingFormState>(() => makeDefaultBookingForm());
   const [lookupForm, setLookupForm] = useState<LookupFormState>(() => makeDefaultLookupForm());
@@ -170,6 +171,33 @@ export default function BookingWorkbench({
   const [showLookupValidation, setShowLookupValidation] = useState<boolean>(false);
   const [showNameLookupValidation, setShowNameLookupValidation] = useState<boolean>(false);
   const [showEditValidation, setShowEditValidation] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        const response = await fetch("/api/settings", { cache: "no-store" });
+        const payload = await response.json().catch(() => null);
+        const nextBusinessDate =
+          payload?.success && typeof payload?.settings?.business_date === "string" && payload.settings.business_date
+            ? payload.settings.business_date
+            : ymd(new Date());
+
+        if (!active) return;
+        setBusinessDate(nextBusinessDate);
+        setCreateForm(makeDefaultBookingForm(nextBusinessDate));
+        setEditForm(makeDefaultBookingForm(nextBusinessDate));
+        setLookupForm(makeDefaultLookupForm(nextBusinessDate));
+      } catch {
+        if (!active) return;
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const canEdit = useMemo(() => selectedReservation !== null, [selectedReservation]);
   const lookupRoomInvalid = showLookupValidation && !lookupForm.room_number.trim();
@@ -250,7 +278,7 @@ export default function BookingWorkbench({
       setCreateMessage(
         `Created ${reservation.booking_code} for room ${reservation.room_number} (${formatDateRangeDisplay(reservation.checkin_date, reservation.checkout_date)}).`
       );
-      setCreateForm(makeDefaultBookingForm());
+      setCreateForm(makeDefaultBookingForm(businessDate));
       setShowCreateValidation(false);
       onReservationChanged?.();
     } catch (error) {
@@ -437,7 +465,7 @@ export default function BookingWorkbench({
 
       setEditMessage(`Cancelled ${bookingCode}. Nights released: ${cancelledNights}.`);
       setSelectedReservation(null);
-      setEditForm(makeDefaultBookingForm());
+      setEditForm(makeDefaultBookingForm(businessDate));
       setNameResults((current) => current.filter((item) => item.id !== selectedReservation.id));
       setCancelReason("");
       onReservationChanged?.();

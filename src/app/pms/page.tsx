@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import { DashboardKPI } from "@/lib/types";
@@ -89,6 +89,12 @@ export default function DashboardPage() {
   const today = new Date().toLocaleDateString("th-TH", {
     weekday: "long", year: "numeric", month: "long", day: "numeric"
   });
+  const businessDateLabel = useMemo(() => (
+    data?.business_date ? formatDateDisplay(data.business_date) : null
+  ), [data?.business_date]);
+  const calendarDateLabel = useMemo(() => (
+    data?.calendar_date ? formatDateDisplay(data.calendar_date) : today
+  ), [data?.calendar_date, today]);
 
   // Helper for Occupancy Color
   const getOccColor = (pct: number) => {
@@ -129,7 +135,11 @@ export default function DashboardPage() {
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
         <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Dashboard</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">{today}</p>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">
+          {businessDateLabel
+            ? `Business Date: ${businessDateLabel} · Calendar: ${calendarDateLabel}`
+            : today}
+        </p>
       </div>
 
       {/* Row 1: EOD Alert */}
@@ -187,7 +197,7 @@ export default function DashboardPage() {
               sub="Revenue per Available Rm"
             />
             <StatTile
-              label="Revenue Today"
+              label="Revenue (Business Date)"
               value={formatB(data.revenue.total)}
               color="border-emerald-400"
               sub="Total Accrual Revenue"
@@ -226,7 +236,7 @@ export default function DashboardPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Cash Received By Method */}
             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Cash Received Today</h2>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Cash Received (Business Date)</h2>
               <div className="space-y-4">
                  {[
                    { label: 'Bank Transfer', val: data.payments.transfer || 0, key: 'transfer' },
@@ -374,13 +384,13 @@ export default function DashboardPage() {
             {/* Arrivals preview */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Arriving Today</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Arriving (Business Date)</h2>
                 <Link href="/pms/arrivals" className="text-xs text-brand-600 hover:underline">
                   View all →
                 </Link>
               </div>
               {!data.arrivals_preview || data.arrivals_preview.length === 0 ? (
-                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No arrivals today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No arrivals in this business date</p>
               ) : (
                 <div className="space-y-2 bg-[var(--bg-surface)]">
                   {data.arrivals_preview.map((item) => (
@@ -404,13 +414,13 @@ export default function DashboardPage() {
             {/* Departures preview */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Departing Today</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-table-cell)]">Departing (Business Date)</h2>
                 <Link href="/pms/departures" className="text-xs text-brand-600 hover:underline">
                   View all →
                 </Link>
               </div>
               {!data.departures_preview || data.departures_preview.length === 0 ? (
-                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No departures today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)] italic">No departures in this business date</p>
               ) : (
                 <div className="space-y-2 bg-[var(--bg-surface)]">
                   {data.departures_preview.map((item) => (
@@ -425,11 +435,11 @@ export default function DashboardPage() {
               )}
             </div>
             
-            {/* Open Traces Today */}
+            {/* Open Traces on Business Date */}
             <div className="card p-4 border-amber-200 bg-amber-50/20 dark:border-amber-500/20 dark:bg-amber-500/5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold flex items-center gap-1.5 text-amber-900 dark:text-amber-400">
-                  <span className="text-lg">📋</span> Open Traces Today
+                  <span className="text-lg">📋</span> Open Traces (Business Date)
                   {tracesData?.total > 0 && (
                     <span className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1">
                       {tracesData.total}
@@ -440,7 +450,7 @@ export default function DashboardPage() {
               {!tracesData ? (
                 <div className="animate-pulse h-20 bg-[var(--bg-surface)]/50 rounded-lg"></div>
               ) : tracesData.total === 0 ? (
-                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-amber-200 rounded-lg bg-amber-50/50 italic">No open traces today</p>
+                <p className="text-sm text-[var(--text-muted)] py-4 text-center border border-dashed border-amber-200 rounded-lg bg-amber-50/50 italic">No open traces in this business date</p>
               ) : (
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {tracesData.traces.map((t: any) => (

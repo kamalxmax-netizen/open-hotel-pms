@@ -47,6 +47,15 @@ function matchesFilters(
   return false;
 }
 
+function normalizeStatus(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function isSuppressedLinkedStatus(value: unknown): boolean {
+  const status = normalizeStatus(value);
+  return status === "cancelled" || status === "no_show";
+}
+
 /**
  * Query checked-out guests for รร.3 monthly report.
  */
@@ -56,10 +65,10 @@ export async function queryRR3Guests(
 ): Promise<RR3QueryResult> {
   const { from: dateFrom, to: dateTo } = monthDateRange(filters.year, filters.month);
 
-  // 1. Load checked-out reservations in target month
+  // 1. Load checked-out reservations in target month (seed rows for linked chains)
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
-    .select("id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id")
+    .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
     .eq("status", "checked_out")
     .gte("checkout_date", dateFrom)
     .lte("checkout_date", dateTo)
@@ -70,22 +79,94 @@ export async function queryRR3Guests(
   }
 
   const reservationRows = (reservations ?? []) as any[];
-
-  // 2. Apply source + tax invoice filters (OR logic)
-  const filteredReservations = reservationRows.filter((r) =>
-    matchesFilters(
-      { source: String(r.source ?? ""), tax_invoice_requested: Boolean(r.tax_invoice_requested) },
-      filters
-    )
-  );
-
-  if (filteredReservations.length === 0) {
+  if (reservationRows.length === 0) {
     return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
   }
 
-  const reservationIds = filteredReservations.map((r) => String(r.id));
+  const rootIds = Array.from(
+    new Set(
+      reservationRows.map((row) => String(row.parent_reservation_id ?? row.id ?? "")).filter(Boolean)
+    )
+  );
 
-  // 3. Load folio_payments to compute full folio price per reservation
+  const [rootsResult, childrenResult] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
+      .in("id", rootIds),
+    supabase
+      .from("reservations")
+      .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
+      .in("parent_reservation_id", rootIds),
+  ]);
+
+  if (rootsResult.error) {
+    throw new Error(`Failed to load linked reservation roots: ${rootsResult.error.message}`);
+  }
+  if (childrenResult.error) {
+    throw new Error(`Failed to load linked reservation children: ${childrenResult.error.message}`);
+  }
+  const chainRows = [
+    ...(rootsResult.data ?? []),
+    ...(childrenResult.data ?? []),
+  ] as any[];
+
+  const reservationChains = new Map<string, any[]>();
+  for (const row of chainRows) {
+    const rootId = String(row.parent_reservation_id ?? row.id ?? "").trim();
+    if (!rootId) continue;
+    const bucket = reservationChains.get(rootId) ?? [];
+    bucket.push(row);
+    reservationChains.set(rootId, bucket);
+  }
+
+  const includedChains = new Map<string, { rows: any[]; finalRow: any }>();
+  for (const [rootId, rows] of reservationChains.entries()) {
+    const activeRows = rows
+      .filter((row) => !isSuppressedLinkedStatus(row.status) && row.checkin_date && row.checkout_date)
+      .sort((left, right) => {
+        const checkoutCompare = String(left.checkout_date ?? "").localeCompare(String(right.checkout_date ?? ""));
+        if (checkoutCompare !== 0) return checkoutCompare;
+        return String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? ""));
+      });
+    if (activeRows.length === 0) continue;
+
+    const finalRow = activeRows[activeRows.length - 1];
+    const finalCheckout = String(finalRow.checkout_date ?? "");
+    if (!finalCheckout || finalCheckout < dateFrom || finalCheckout > dateTo) continue;
+    if (normalizeStatus(finalRow.status) !== "checked_out") continue;
+
+    const chainMatches = activeRows.some((row) =>
+      matchesFilters(
+        {
+          source: String(row.source ?? ""),
+          tax_invoice_requested: Boolean(row.tax_invoice_requested),
+        },
+        filters
+      )
+    );
+    if (!chainMatches) continue;
+
+    includedChains.set(rootId, { rows: activeRows, finalRow });
+  }
+
+  if (includedChains.size === 0) {
+    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
+  }
+
+  const reservationIds = Array.from(
+    new Set(
+      Array.from(includedChains.values()).flatMap((chain) => chain.rows.map((row) => String(row.id)))
+    )
+  );
+  const rootIdByReservationId = new Map<string, string>();
+  for (const [rootId, chain] of includedChains.entries()) {
+    for (const row of chain.rows) {
+      rootIdByReservationId.set(String(row.id), rootId);
+    }
+  }
+
+  // 3. Load folio_payments to compute full folio price per linked stay
   //    Revenue = SUM(payment rows) excluding deposit/commission/tip/transportation
   const { data: folioRows } = await supabase
     .from("folio_payments")
@@ -95,16 +176,18 @@ export async function queryRR3Guests(
   const folioPriceMap = new Map<string, number>();
   for (const row of (folioRows ?? []) as any[]) {
     const resId = String(row.reservation_id);
+    const rootId = rootIdByReservationId.get(resId);
+    if (!rootId) continue;
     const txType = String(row.tx_type ?? "").toLowerCase();
     const category = String(row.revenue_category ?? "").toLowerCase();
     if (txType !== "payment") continue;
     // Exclude non-revenue categories
     if (["deposit", "commission", "tip", "transportation"].includes(category)) continue;
     const amount = Number(row.amount ?? 0);
-    folioPriceMap.set(resId, (folioPriceMap.get(resId) ?? 0) + amount);
+    folioPriceMap.set(rootId, (folioPriceMap.get(rootId) ?? 0) + amount);
   }
 
-  // 4. Load all guests for these reservations (was step 3)
+  // 4. Load all guests for these linked reservations
   const { data: guestRows, error: guestError } = await supabase
     .from("reservation_guests")
     .select("reservation_id, guest_profile_id, role, guest_profiles(id, first_name, last_name, gender, nationality_code, country, province, id_type, id_number, passport_no)")
@@ -114,7 +197,7 @@ export async function queryRR3Guests(
     throw new Error(`Failed to load reservation guests: ${guestError.message}`);
   }
 
-  // 4. Load room numbers (latest night per reservation)
+  // 5. Load room numbers (latest night per final reservation)
   const { data: nightRows } = await supabase
     .from("reservation_nights")
     .select("reservation_id, rooms(room_number)")
@@ -132,53 +215,91 @@ export async function queryRR3Guests(
     }
   }
 
-  // 5. Build reservation lookup
-  const resMap = new Map<string, any>();
-  for (const r of filteredReservations) {
-    resMap.set(String(r.id), r);
-  }
-
-  // 6. Build guest records
-  const entries: RR3GuestRecord[] = [];
-
+  const guestAggregateByRootAndProfile = new Map<string, any>();
   for (const row of (guestRows ?? []) as any[]) {
     const resId = String(row.reservation_id);
-    const res = resMap.get(resId);
-    if (!res) continue;
-
-    const role = String(row.role) as "primary" | "accompanying";
-
-    // Apply accompanying filter
-    if (!filters.include_accompanying && role === "accompanying") continue;
+    const rootId = rootIdByReservationId.get(resId);
+    if (!rootId) continue;
+    const chain = includedChains.get(rootId);
+    if (!chain) continue;
 
     const gp = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
-    if (!gp) continue;
+    if (!gp?.id) continue;
+    const role = String(row.role) as "primary" | "accompanying";
+    const key = `${rootId}:${String(gp.id)}`;
+    const existing = guestAggregateByRootAndProfile.get(key);
+    if (!existing) {
+      guestAggregateByRootAndProfile.set(key, {
+        rootId,
+        guest_profile_id: String(gp.id),
+        role,
+        first_name: gp.first_name ?? null,
+        last_name: gp.last_name ?? null,
+        nationality_code: gp.nationality_code ?? null,
+        country: gp.country ?? null,
+        province: gp.province ?? null,
+        id_type: gp.id_type ?? null,
+        id_number: gp.id_number ?? null,
+        passport_no: gp.passport_no ?? null,
+      });
+      continue;
+    }
+
+    if (existing.role !== "primary" && role === "primary") {
+      existing.role = "primary";
+    }
+    if (!existing.first_name && gp.first_name) existing.first_name = gp.first_name;
+    if (!existing.last_name && gp.last_name) existing.last_name = gp.last_name;
+    if (!existing.nationality_code && gp.nationality_code) existing.nationality_code = gp.nationality_code;
+    if (!existing.country && gp.country) existing.country = gp.country;
+    if (!existing.province && gp.province) existing.province = gp.province;
+    if (!existing.id_type && gp.id_type) existing.id_type = gp.id_type;
+    if (!existing.id_number && gp.id_number) existing.id_number = gp.id_number;
+    if (!existing.passport_no && gp.passport_no) existing.passport_no = gp.passport_no;
+  }
+
+  // 6. Build guest records (one row per linked chain guest)
+  const entries: RR3GuestRecord[] = [];
+
+  for (const aggregate of guestAggregateByRootAndProfile.values()) {
+    const chain = includedChains.get(String(aggregate.rootId));
+    if (!chain) continue;
+
+    const role = aggregate.role as "primary" | "accompanying";
+    if (!filters.include_accompanying && role === "accompanying") continue;
+
+    const fullCheckin = String(chain.rows[0]?.checkin_date ?? "");
+    const finalRow = chain.finalRow;
+    const finalReservationId = String(finalRow?.id ?? "");
+    const fullCheckout = String(finalRow?.checkout_date ?? "");
+    const finalSource = String(finalRow?.source ?? chain.rows[0]?.source ?? "");
+    const anyTaxInvoiceRequested = chain.rows.some((row) => Boolean(row.tax_invoice_requested));
 
     entries.push({
-      reservation_id: resId,
-      guest_profile_id: String(gp.id),
+      reservation_id: finalReservationId,
+      guest_profile_id: String(aggregate.guest_profile_id),
       role,
-      first_name: gp.first_name ?? null,
-      last_name: gp.last_name ?? null,
-      nationality_code: gp.nationality_code ?? null,
-      country: gp.country ?? null,
-      province: gp.province ?? null,
-      id_type: gp.id_type ?? null,
-      id_number: gp.id_number ?? null,
-      passport_no: gp.passport_no ?? null,
-      checkin_date: String(res.checkin_date ?? ""),
-      checkout_date: String(res.checkout_date ?? ""),
-      checked_in_at: res.checked_in_at ?? null,
-      checked_out_at: null, // Not stored separately; use checkout_date
-      room_number: roomMap.get(resId) ?? null,
-      source: String(res.source ?? ""),
-      tax_invoice_requested: Boolean(res.tax_invoice_requested),
-      total_price: role === "primary" ? (folioPriceMap.get(resId) ?? 0) : 0,
-      booking_code: res.booking_code ?? null,
+      first_name: aggregate.first_name ?? null,
+      last_name: aggregate.last_name ?? null,
+      nationality_code: aggregate.nationality_code ?? null,
+      country: aggregate.country ?? null,
+      province: aggregate.province ?? null,
+      id_type: aggregate.id_type ?? null,
+      id_number: aggregate.id_number ?? null,
+      passport_no: aggregate.passport_no ?? null,
+      checkin_date: fullCheckin,
+      checkout_date: fullCheckout,
+      checked_in_at: chain.rows[0]?.checked_in_at ?? null,
+      checked_out_at: null,
+      room_number: roomMap.get(finalReservationId) ?? null,
+      source: finalSource,
+      tax_invoice_requested: anyTaxInvoiceRequested,
+      total_price: role === "primary" ? (folioPriceMap.get(String(aggregate.rootId)) ?? 0) : 0,
+      booking_code: finalRow?.booking_code ?? chain.rows[0]?.booking_code ?? null,
     });
   }
 
-  // Sort: by checkout_date, then reservation_id, then role (primary first)
+  // Sort: by full checkout_date, then reservation_id, then role (primary first)
   entries.sort((a, b) => {
     const dateCompare = a.checkout_date.localeCompare(b.checkout_date);
     if (dateCompare !== 0) return dateCompare;

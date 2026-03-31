@@ -150,7 +150,7 @@ function BulkUpdateModal({
             const d = await res.json();
             if (res.ok) {
                 setMsg(`✓ Updated ${d.total_rows} items (${d.updated_rooms} rooms × ${d.updated_dates} days)`);
-                setTimeout(() => { onSuccess(); onClose(); }, 1200);
+                onSuccess();
             } else {
                 setError(d.error ?? "An error occurred");
             }

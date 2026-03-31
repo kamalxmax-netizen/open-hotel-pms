@@ -1,18 +1,20 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/folio-fees";
 import { NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
 /* ─── GET /api/traces/today ──────────────────────────────────
-   All open traces due today (from_date <= today <= to_date)
+   All open traces due on business date (from_date <= business_date <= to_date)
    Used by the Dashboard widget
 ─────────────────────────────────────────────────────────── */
 export async function GET() {
     noStore();
     try {
         const supabase = createServerSupabaseClient();
-        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+        const calendarDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+        const businessDate = await resolveBusinessDate(supabase, calendarDate);
 
         const { data, error } = await supabase
             .from("reservation_traces")
@@ -39,8 +41,8 @@ export async function GET() {
                 )
             `)
             .eq("status", "open")
-            .lte("from_date", today)
-            .gte("to_date", today);
+            .lte("from_date", businessDate)
+            .gte("to_date", businessDate);
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -81,7 +83,9 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            date: today,
+            date: businessDate,
+            business_date: businessDate,
+            calendar_date: calendarDate,
             total: traces.length,
             by_dept: byDept,
             traces

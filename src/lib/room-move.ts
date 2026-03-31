@@ -1,5 +1,6 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import {
   appendReservationNoteLine,
   assertRoomAvailableForDateRange,
@@ -25,6 +26,10 @@ export class RoomMoveError extends Error {
 
 function toBangkokDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+}
+
+async function resolveRoomMoveBusinessDate(supabase: SupabaseLike): Promise<string> {
+  return resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 }
 
 function toNumber(value: unknown): number {
@@ -374,7 +379,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
     }
   }
 
-  const today = toBangkokDate();
+  const today = await resolveRoomMoveBusinessDate(supabase);
 
   const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
@@ -638,7 +643,7 @@ export async function executeRoomMove(params: ExecuteRoomMoveParams): Promise<Ex
       discount_value: pricingPolicy === "reprice_grid_discount" ? discountValue : null,
       discount_reason: pricingPolicy === "reprice_grid_discount" ? String(discountReason ?? "").trim() || null : null,
     },
-    business_date: toBangkokDateString(),
+    business_date: today,
     source: normalizeAuditSource(auditSource),
   });
 

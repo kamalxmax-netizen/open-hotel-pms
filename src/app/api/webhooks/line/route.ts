@@ -70,14 +70,26 @@ function bangkokToday(): string {
   return bkk.toISOString().slice(0, 10);
 }
 
-async function handleCheckoutQuery(replyToken: string) {
+async function resolveLineBusinessDate() {
   const supabase = createServerSupabaseClient();
-  const today = bangkokToday();
+  const calendarDate = bangkokToday();
+  const { data } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const businessDate = String(data?.business_date ?? "").trim() || calendarDate;
+  return { supabase, businessDate, calendarDate };
+}
+
+async function handleCheckoutQuery(replyToken: string) {
+  const { supabase, businessDate, calendarDate } = await resolveLineBusinessDate();
 
   const { data, error } = await supabase
     .from("reservations")
     .select("id, booking_code, status, checkout_date, guest_name")
-    .eq("checkout_date", today)
+    .eq("checkout_date", businessDate)
     .in("status", ["active", "checked_out"])
     .order("status", { ascending: true });
 
@@ -100,16 +112,20 @@ async function handleCheckoutQuery(replyToken: string) {
   const total = rows.length;
 
   if (total === 0) {
-    await replyLineText(replyToken, `📋 ยอด Check-Out วันนี้ (${today})\n\nไม่มีการ Check-out กำหนดวันนี้`);
+    await replyLineText(
+      replyToken,
+      `📋 ยอด Check-Out (Business Date ${businessDate})\nCalendar: ${calendarDate}\n\nไม่มีการ Check-out กำหนดใน business date นี้`
+    );
     return;
   }
 
   const lines = [
-    `📋 ยอด Check-Out วันนี้ (${today})`,
+    `📋 ยอด Check-Out (Business Date ${businessDate})`,
+    `Calendar: ${calendarDate}`,
     ``,
     `✅ Check-out แล้ว: ${checkedOut.length} ห้อง`,
     `⏳ ยังไม่ Check-out: ${remaining.length} ห้อง`,
-    `📊 รวม Due Out วันนี้: ${total} ห้อง`,
+    `📊 รวม Due Out ใน business date นี้: ${total} ห้อง`,
   ];
 
   if (remaining.length > 0 && remaining.length <= 10) {
@@ -124,15 +140,14 @@ async function handleCheckoutQuery(replyToken: string) {
 }
 
 async function handleInHouseQuery(replyToken: string) {
-  const supabase = createServerSupabaseClient();
-  const today = bangkokToday();
+  const { supabase, businessDate, calendarDate } = await resolveLineBusinessDate();
 
   // Room assignment lives on reservation_nights, not reservations directly.
   // Query today's occupied nights → join rooms for room_number → join reservations to filter status=active.
   const { data, error } = await supabase
     .from("reservation_nights")
     .select("room_id, rooms(room_number), reservations!inner(status)")
-    .eq("stay_date", today)
+    .eq("stay_date", businessDate)
     .is("cancelled_at", null)
     .not("room_id", "is", null)
     .eq("reservations.status", "active");
@@ -151,7 +166,10 @@ async function handleInHouseQuery(replyToken: string) {
   const rows = (data ?? []) as unknown as InHouseRow[];
 
   if (rows.length === 0) {
-    await replyLineText(replyToken, `🏨 In House วันนี้ (${today})\n\nไม่มีแขกพักอยู่ในโรงแรมขณะนี้`);
+    await replyLineText(
+      replyToken,
+      `🏨 In House (Business Date ${businessDate})\nCalendar: ${calendarDate}\n\nไม่มีแขกพักอยู่ในโรงแรมขณะนี้`
+    );
     return;
   }
 
@@ -167,7 +185,8 @@ async function handleInHouseQuery(replyToken: string) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const lines = [
-    `🏨 In House (${today})`,
+    `🏨 In House (Business Date ${businessDate})`,
+    `Calendar: ${calendarDate}`,
     ``,
     `จำนวน ${roomNumbers.length} ห้อง`,
     ``,

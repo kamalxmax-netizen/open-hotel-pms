@@ -17,17 +17,18 @@ import type {
 } from "@/lib/types";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { fromSatang, toSatang } from "@/lib/money";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { assertRoomAvailableForDateRange, PlannedRoomMoveError } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 
 // ─── Helpers ───────────────────────────────────────────────────
 
-function bangkokToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
-}
-
 function nowISO(): string {
   return new Date().toISOString();
+}
+
+async function resolveCorrectionBusinessDate(supabase: SupabaseClient): Promise<string> {
+  return resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 }
 
 /**
@@ -364,12 +365,12 @@ export async function voidPayment(
   }
 
   const payment = await loadPayment(supabase, paymentId);
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
 
   // Guard: same business day only
   if (String(payment.paid_date) !== today) {
     throw new AdminCorrectionError(
-      `Cannot void: payment was posted on ${payment.paid_date}, today is ${today}. Use Adjustment instead.`
+      `Cannot void: payment was posted on ${payment.paid_date}, business date is ${today}. Use Adjustment instead.`
     );
   }
 
@@ -504,7 +505,7 @@ export async function postAdjustment(
     );
   }
 
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
 
   // ── Adjustment direction logic (locked policy) ──────────────────
   // Keep revenue_category fixed to "extra_charge" for both directions.
@@ -654,7 +655,7 @@ export async function reinstateReservation(
     );
   }
 
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
 
   await assertReinstateAvailability(supabase, {
     reservationId: resolvedReservationId,
@@ -826,7 +827,7 @@ export async function reopenFolio(
     throw new AdminCorrectionError("Failed to reopen folio.");
   }
 
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
   const correctionId = await insertCorrectionLog(supabase, {
     reservationId,
     action: "reopen_folio",
@@ -901,7 +902,7 @@ export async function closeFolio(
     throw new AdminCorrectionError("Failed to close folio.");
   }
 
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
   const correctionId = await insertCorrectionLog(supabase, {
     reservationId,
     action: "close_folio",
@@ -977,7 +978,7 @@ export async function transferPayment(
     );
   }
 
-  const today = bangkokToday();
+  const today = await resolveCorrectionBusinessDate(supabase);
 
   // 1. Insert refund on source (remove credit)
   const { data: srcRefund, error: srcError } = await supabase
@@ -1195,6 +1196,8 @@ export async function getCorrectionHistory(
     );
   }
 
+  const fallbackBusinessDate = await resolveCorrectionBusinessDate(supabase);
+
   return (auditRows ?? []).map((row: any) => ({
     id: `audit-${String(row.id ?? "")}`,
     reservation_id: reservationId,
@@ -1205,7 +1208,7 @@ export async function getCorrectionHistory(
     after_snapshot: (row.after_json as Record<string, unknown> | null) ?? {},
     reason: String(row.note ?? "Recovered from audit trail"),
     related_payment_ids: [],
-    business_date: String(row.business_date ?? bangkokToday()),
+    business_date: String(row.business_date ?? fallbackBusinessDate),
     created_at: String(row.created_at ?? nowISO()),
   }));
 }

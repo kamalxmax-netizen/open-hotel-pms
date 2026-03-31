@@ -4,6 +4,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isValidDateString, listNights } from "@/lib/dates";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +43,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Invalid room_type_id" }, { status: 400 });
         }
 
-        const nights = listNights(checkin, checkout);
-        const todayBangkok = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
-        const includesToday = checkin <= todayBangkok && checkout > todayBangkok;
-
         const supabase = createServerSupabaseClient();
+        const nights = listNights(checkin, checkout);
+        const businessDate = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
+        const includesBusinessDate = checkin <= businessDate && checkout > businessDate;
 
         // 1. Get all sellable rooms of this type
         const { data: allRoomsRaw, error: roomsError } = await supabase
@@ -168,11 +168,11 @@ export async function GET(request: NextRequest) {
         }
 
         const hkBlockedRoomIds = new Set<string>();
-        if (includesToday && overnightRoomIds.length > 0) {
+        if (includesBusinessDate && overnightRoomIds.length > 0) {
             const { data: hkRows, error: hkError } = await supabase
                 .from("housekeeping_tasks")
                 .select("room_id, status, task_seq")
-                .eq("stay_date", todayBangkok)
+                .eq("stay_date", businessDate)
                 .in("room_id", overnightRoomIds)
                 .order("task_seq", { ascending: false });
 

@@ -6,6 +6,7 @@ import { isValidDateString } from "@/lib/dates";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { applyVisibleTotal, fetchReservationOutstandingBalances, fetchReservationVisibleTotals } from "@/lib/reservation-visible-total";
 import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
+import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest) {
         }
         const businessDate = await getBusinessDate(supabase, requestedDate);
 
-        const { data, error } = await supabase
+        const [departuresResult, occupiedTodayResult] = await Promise.all([
+            supabase
             .from("reservations")
             .select(`
                 id,
@@ -50,15 +52,54 @@ export async function GET(request: NextRequest) {
             .eq("checkout_date", businessDate)
             .eq("is_dayuse", false)
             .in("status", ["active", "checked_out"])   // show both pending + already checked out (Opera style)
-            .order("guest_name", { ascending: true });
+            .order("guest_name", { ascending: true }),
+            supabase
+                .from("reservation_nights")
+                .select(`
+                    room_id,
+                    reservations!reservation_nights_reservation_id_fkey(
+                        id,
+                        parent_reservation_id,
+                        checkin_date,
+                        status
+                    )
+                `)
+                .eq("stay_date", businessDate)
+                .is("cancelled_at", null),
+        ]);
 
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+        if (departuresResult.error) {
+            return NextResponse.json({ error: departuresResult.error.message }, { status: 500 });
         }
+        if (occupiedTodayResult.error) {
+            return NextResponse.json({ error: occupiedTodayResult.error.message }, { status: 500 });
+        }
+        const data = departuresResult.data ?? [];
+
+        const sameRoomContinuationIds = collectSameRoomLinkedContinuationReservationIds({
+            departures: data as any[],
+            occupiedStays: (occupiedTodayResult.data ?? [])
+                .map((night: any) => {
+                    const reservationRef = Array.isArray(night?.reservations)
+                        ? night.reservations[0]
+                        : night?.reservations;
+                    if (!reservationRef || String(reservationRef.status ?? "") !== "active") return null;
+                    return {
+                        reservation_id: reservationRef?.id ? String(reservationRef.id) : null,
+                        parent_reservation_id: reservationRef?.parent_reservation_id
+                            ? String(reservationRef.parent_reservation_id)
+                            : null,
+                        room_id: night?.room_id ? String(night.room_id) : null,
+                        checkin_date: reservationRef?.checkin_date ? String(reservationRef.checkin_date) : null,
+                    };
+                })
+                .filter(Boolean) as any[],
+        });
+        const filteredRows = data.filter((row: any) => !sameRoomContinuationIds.has(String(row?.id ?? "")));
 
         const groupIds = Array.from(
             new Set(
-                (data ?? [])
+                filteredRows
                     .map((r: any) => (r.booking_group_id ? String(r.booking_group_id) : ""))
                     .filter(Boolean)
             )
@@ -80,9 +121,9 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const reservationIds = (data ?? []).map((row: any) => String(row.id));
+        const reservationIds = filteredRows.map((row: any) => String(row.id));
         const profileSeed = new Map<string, string | null>();
-        for (const row of data ?? []) {
+        for (const row of filteredRows) {
             const reservationId = row?.id ? String(row.id) : "";
             if (!reservationId) continue;
             profileSeed.set(
@@ -98,7 +139,7 @@ export async function GET(request: NextRequest) {
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
         const outstandingByReservationId = await fetchReservationOutstandingBalances(
             supabase,
-            (data ?? []).map((r: any) => ({
+            filteredRows.map((r: any) => ({
                 id: String(r.id),
                 total_price: r.total_price,
                 deposit_amount: r.deposit_amount,
@@ -114,7 +155,7 @@ export async function GET(request: NextRequest) {
         // Batch resolve linked stays (2 queries instead of 3 per row)
         const linkedStayMap = await resolveLinkedStayBatch(
             supabase,
-            (data ?? []).map((r: any) => ({
+            filteredRows.map((r: any) => ({
                 id: String(r.id),
                 parent_reservation_id: r.parent_reservation_id ?? null,
                 booking_code: r.booking_code ?? null,
@@ -127,7 +168,7 @@ export async function GET(request: NextRequest) {
             checkOutTimeHHmm
         );
 
-        const departures = (data ?? []).map((r) => {
+        const departures = filteredRows.map((r) => {
                 const groupId = r.booking_group_id ? String(r.booking_group_id) : null;
                 const groupMeta = groupId ? groupMetaById.get(groupId) : null;
                 // For departures, always show the room of the final active stay night.

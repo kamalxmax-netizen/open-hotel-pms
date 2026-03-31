@@ -83,7 +83,7 @@ export default function SelectRoom() {
 
       <div className="px-6 py-3 bg-[var(--bg-muted)] border-b border-[var(--border-default)]">
         <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-          DUE-IN TODAY ({sortedRooms.length})
+          DUE-IN ON BUSINESS DATE ({sortedRooms.length})
         </p>
       </div>
 
@@ -99,7 +99,7 @@ export default function SelectRoom() {
           </div>
         ) : sortedRooms.length === 0 ? (
           <div className="p-8 text-center text-[var(--text-muted)] font-medium">
-            No rooms arriving today.
+            No rooms arriving on this business date.
           </div>
         ) : (
           <div className="divide-y divide-[var(--border-default)]">

@@ -93,7 +93,7 @@ export default function FillOcrRoomSelect() {
           <div className="py-16 text-center text-[var(--text-muted)]">
             <Upload className="w-12 h-12 mx-auto opacity-30 mb-4" />
             <p className="font-bold">No rooms available</p>
-            <p className="text-sm mt-1">No due-in or in-house rooms for today.</p>
+            <p className="text-sm mt-1">No due-in or in-house rooms for this business date.</p>
           </div>
         ) : (
           <>

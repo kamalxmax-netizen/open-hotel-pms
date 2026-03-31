@@ -177,6 +177,21 @@ export async function GET(request: NextRequest) {
             reservationIds,
             profileSeed
         );
+        const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
+        const linkedStayMap = await resolveLinkedStayBatch(
+            supabase,
+            reservationData.map((r: any) => ({
+                id: String(r.id),
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                booking_code: r.booking_code ?? null,
+                source: r.source ?? null,
+                checkin_date: r.checkin_date ?? null,
+                checkout_date: r.checkout_date ?? null,
+                status: r.status ?? null,
+                total_price: r.total_price ?? null,
+            })),
+            checkOutTimeHHmm
+        );
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
         const outstandingByReservationId = await fetchReservationOutstandingBalances(
             supabase,
@@ -191,29 +206,18 @@ export async function GET(request: NextRequest) {
                 checkout_date: r.checkout_date,
             }))
         );
-        const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
 
-        // Filter to checked-in reservations first
+        // Filter to the active in-house segment only.
         const checkedInRows = reservationData.filter((r) => {
+            const reservationId = String(r.id);
             const checkedInAt = includesCheckedInAt ? (r.checked_in_at as string | null | undefined) : null;
-            return Boolean(checkedInAt) || checkedInLogByReservation.has(String(r.id));
+            const hasCheckedInEvidence = Boolean(checkedInAt) || checkedInLogByReservation.has(reservationId);
+            const linkedStay = linkedStayMap.get(reservationId) ?? null;
+            if (linkedStay && linkedStay.segments.length > 1) {
+                return linkedStay.active_segment_id === reservationId;
+            }
+            return hasCheckedInEvidence;
         });
-
-        // Batch resolve linked stays (2 queries instead of 3 per row)
-        const linkedStayMap = await resolveLinkedStayBatch(
-            supabase,
-            checkedInRows.map((r: any) => ({
-                id: String(r.id),
-                parent_reservation_id: r.parent_reservation_id ?? null,
-                booking_code: r.booking_code ?? null,
-                source: r.source ?? null,
-                checkin_date: r.checkin_date ?? null,
-                checkout_date: r.checkout_date ?? null,
-                status: r.status ?? null,
-                total_price: r.total_price ?? null,
-            })),
-            checkOutTimeHHmm
-        );
 
         const rows = checkedInRows
             .map((r) => {

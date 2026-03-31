@@ -278,6 +278,86 @@ function appendGeneralNote(current: string | null, extra: string): string {
   return `${normalizedCurrent} | ${extra}`;
 }
 
+async function resolveCurrentBusinessDate(supabase: SupabaseLike): Promise<string> {
+  const { data, error } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) return toBangkokDate();
+  return asString(data?.business_date) || toBangkokDate();
+}
+
+async function applyDepositSnapshotLinesWithFallback(params: {
+  supabase: SupabaseLike;
+  reservationId: string;
+  lines: Array<{ method: string; amount: number; note?: string | null }>;
+  generalNote: string | null;
+  cashierName: string;
+  paidDate: string;
+}) {
+  const { supabase, reservationId, lines, generalNote, cashierName, paidDate } = params;
+  const wrappedSignature = await supabase.rpc("apply_deposit_snapshot_lines_v2", {
+    p_reservation_id: reservationId,
+    p_lines: lines,
+    p_general_note: generalNote,
+    p_cashier_name: cashierName,
+    p_paid_date: paidDate,
+  });
+
+  if (!wrappedSignature.error) return;
+
+  const wrapperMessage = String(wrappedSignature.error.message ?? "").toLowerCase();
+  const canRetryDirect =
+    wrappedSignature.error.code === "42883" ||
+    wrapperMessage.includes("could not find the function") ||
+    wrapperMessage.includes("function public.apply_deposit_snapshot_lines_v2(");
+
+  if (!canRetryDirect) {
+    throw new OtaExtendOrchestratorError(
+      wrappedSignature.error.message ?? "Failed to update deposit snapshot.",
+      500
+    );
+  }
+
+  const nextSignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+    p_reservation_id: reservationId,
+    p_lines: lines,
+    p_general_note: generalNote,
+    p_cashier_name: cashierName,
+    p_paid_date: paidDate,
+  });
+
+  if (!nextSignature.error) return;
+
+  const message = String(nextSignature.error.message ?? "").toLowerCase();
+  const canRetryLegacy =
+    nextSignature.error.code === "42883" ||
+    message.includes("could not find the function") ||
+    message.includes("function public.apply_deposit_snapshot_lines(") ||
+    message.includes("could not choose the best candidate function between");
+
+  if (!canRetryLegacy) {
+    throw new OtaExtendOrchestratorError(
+      nextSignature.error.message ?? "Failed to update deposit snapshot.",
+      500
+    );
+  }
+
+  const legacySignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+    p_reservation_id: reservationId,
+    p_lines: lines,
+    p_general_note: generalNote,
+    p_cashier_name: cashierName,
+  });
+  if (legacySignature.error) {
+    throw new OtaExtendOrchestratorError(
+      legacySignature.error.message ?? "Failed to update legacy deposit snapshot.",
+      500
+    );
+  }
+}
+
 async function transferLinkedDepositFromOtaToExtension(params: {
   supabase: SupabaseLike;
   otaReservationId: string;
@@ -333,26 +413,25 @@ async function transferLinkedDepositFromOtaToExtension(params: {
     extractDepositGeneralNote(ota.deposit_note),
     transferFromOtaNote
   );
+  const businessDate = await resolveCurrentBusinessDate(supabase);
 
-  const { error: extensionDepositError } = await supabase.rpc("apply_deposit_snapshot_lines", {
-    p_reservation_id: extensionReservationId,
-    p_lines: mergedLines,
-    p_general_note: extensionGeneralNote,
-    p_cashier_name: "SYSTEM",
+  await applyDepositSnapshotLinesWithFallback({
+    supabase,
+    reservationId: extensionReservationId,
+    lines: mergedLines,
+    generalNote: extensionGeneralNote,
+    cashierName: "SYSTEM",
+    paidDate: businessDate,
   });
-  if (extensionDepositError) {
-    throw new OtaExtendOrchestratorError(extensionDepositError.message ?? "Failed to top-up extension deposit.", 500);
-  }
 
-  const { error: otaDepositError } = await supabase.rpc("apply_deposit_snapshot_lines", {
-    p_reservation_id: otaReservationId,
-    p_lines: [],
-    p_general_note: otaGeneralNote,
-    p_cashier_name: "SYSTEM",
+  await applyDepositSnapshotLinesWithFallback({
+    supabase,
+    reservationId: otaReservationId,
+    lines: [],
+    generalNote: otaGeneralNote,
+    cashierName: "SYSTEM",
+    paidDate: businessDate,
   });
-  if (otaDepositError) {
-    throw new OtaExtendOrchestratorError(otaDepositError.message ?? "Failed to refund OTA deposit.", 500);
-  }
 
   return {
     transferred: true,

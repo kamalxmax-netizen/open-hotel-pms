@@ -1,4 +1,5 @@
 import { getUserRole } from "@/lib/server-auth";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { syncStaffFromProfiles } from "@/lib/staff-sync";
 
@@ -209,6 +210,10 @@ export type LogbookLinkInput = {
   label?: string | null;
 };
 
+async function resolveLogbookBusinessDate(supabase: SupabaseServerClient): Promise<string> {
+  return resolveBusinessDate(supabase, toLocalDate(new Date(), "Asia/Bangkok"));
+}
+
 export async function resolveRoomLinkMode(
   supabase: SupabaseServerClient,
   roomCodeRaw: string
@@ -218,7 +223,7 @@ export async function resolveRoomLinkMode(
     throw new HttpError(400, "room link requires ref_code (room number).");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = await resolveLogbookBusinessDate(supabase);
 
   const { data: roomRow, error: roomError } = await supabase
     .from("rooms")
@@ -279,7 +284,7 @@ export async function resolveDynamicRoomReservationId(
     throw new HttpError(400, "room link requires ref_code (room number).");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = await resolveLogbookBusinessDate(supabase);
 
   const { data: roomRow, error: roomError } = await supabase
     .from("rooms")

@@ -290,7 +290,7 @@ export default function ArrivalsPage() {
             {!loading && arrivals.length === 0 && !error && (
                 <div className="card p-12 text-center">
                     <p className="text-3xl mb-3">🎉</p>
-                    <p className="text-[var(--text-secondary)] font-medium">No arrivals today</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No arrivals on this business date</p>
                     <p className="text-[var(--text-muted)] text-sm mt-1">All caught up!</p>
                 </div>
             )}

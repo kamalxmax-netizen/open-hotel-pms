@@ -1,40 +1,42 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { NextResponse } from "next/server";
 
 export async function GET() {
     try {
         const supabase = createServerSupabaseClient();
-        const today = new Date().toISOString().slice(0, 10);
+        const calendarDate = toLocalDate(new Date(), "Asia/Bangkok");
+        const businessDate = await resolveBusinessDate(supabase, calendarDate);
 
         // Run all counts in parallel
         const [arrivalsRes, departuresRes, inHouseRes, dirtyRes, sellableRes] = await Promise.all([
-            // Arrivals today (checkin_date = today, status = active)
+            // Arrivals on business date (checkin_date = businessDate, status = active)
             supabase
                 .from("reservations")
                 .select("id, guest_name, source, checkin_time, total_price", { count: "exact" })
-                .eq("checkin_date", today)
+                .eq("checkin_date", businessDate)
                 .eq("status", "active"),
 
-            // Departures today (checkout_date = today, status = active)
+            // Departures on business date (checkout_date = businessDate, status = active)
             supabase
                 .from("reservations")
                 .select("id, guest_name, total_price", { count: "exact" })
-                .eq("checkout_date", today)
+                .eq("checkout_date", businessDate)
                 .eq("status", "active"),
 
-            // In-house tonight (checkin_date <= today < checkout_date, status = active)
+            // In-house for business date (checkin_date <= businessDate < checkout_date, status = active)
             supabase
                 .from("reservations")
                 .select("id", { count: "exact" })
-                .lte("checkin_date", today)
-                .gt("checkout_date", today)
+                .lte("checkin_date", businessDate)
+                .gt("checkout_date", businessDate)
                 .eq("status", "active"),
 
-            // Dirty rooms (housekeeping_tasks today with status = dirty or in_progress)
+            // Dirty rooms on business date with status = dirty or in_progress
             supabase
                 .from("housekeeping_tasks")
                 .select("id, status", { count: "exact" })
-                .eq("stay_date", today)
+                .eq("stay_date", businessDate)
                 .in("status", ["dirty", "in_progress", "paused"]),
 
             // Total sellable rooms (for occupancy %)
@@ -61,7 +63,9 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            date: today,
+            date: businessDate,
+            business_date: businessDate,
+            calendar_date: calendarDate,
             tiles: {
                 arrivals: arrivalsTotal,
                 departures: departuresTotal,

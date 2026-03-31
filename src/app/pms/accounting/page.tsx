@@ -125,6 +125,7 @@ export default function AccountingPage() {
   const [tab, setTab] = useState<TabKey>("transfer");
   const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(today);
+  const [dateReady, setDateReady] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
@@ -147,6 +148,33 @@ export default function AccountingPage() {
   const [tipCandidateStatus, setTipCandidateStatus] = useState<"all" | TipEligibleStatus>("all");
   const [tipCandidateSearch, setTipCandidateSearch] = useState<string>("");
   const [showTipValidation, setShowTipValidation] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        const response = await fetch("/api/settings", { cache: "no-store" });
+        const payload = await response.json().catch(() => null);
+        const businessDate =
+          payload?.success && typeof payload?.settings?.business_date === "string" && payload.settings.business_date
+            ? payload.settings.business_date
+            : today;
+
+        if (!active) return;
+        setStartDate(businessDate);
+        setEndDate(businessDate);
+      } catch {
+        if (!active) return;
+      } finally {
+        if (active) setDateReady(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [today]);
 
   const loadTransferReport = useCallback(async () => {
     const params = new URLSearchParams({
@@ -293,8 +321,9 @@ export default function AccountingPage() {
   }, [tab, loadTransferReport, loadTransferTransactions, loadCommissions, loadTips]);
 
   useEffect(() => {
+    if (!dateReady) return;
     loadData();
-  }, [loadData]);
+  }, [dateReady, loadData]);
 
   useEffect(() => {
     if (tab !== "tip") return;
@@ -746,10 +775,10 @@ export default function AccountingPage() {
                   onChange={(e) => setTipCandidateStatus(e.target.value as "all" | TipEligibleStatus)}
                   disabled={tipCandidateLoading}
                 >
-                  <option value="all">Today: All (Due In / Due Out / In House)</option>
-                  <option value="due_in">Today: Due In</option>
-                  <option value="due_out">Today: Due Out</option>
-                  <option value="in_house">Today: In House</option>
+                  <option value="all">Business Date: All (Due In / Due Out / In House)</option>
+                  <option value="due_in">Business Date: Due In</option>
+                  <option value="due_out">Business Date: Due Out</option>
+                  <option value="in_house">Business Date: In House</option>
                 </select>
                 <input
                   className="form-input"
@@ -776,7 +805,7 @@ export default function AccountingPage() {
                   <p className="mt-1 text-xs text-rose-600 md:col-span-3">Please select reservation for Manual Staff tip.</p>
                 )}
                 <p className="text-xs text-[var(--text-secondary)] md:col-span-3">
-                  Eligible guests are limited to today&apos;s Due In, Due Out, and In House. If guest is not found, use
+                  Eligible guests are limited to the current business date&apos;s Due In, Due Out, and In House. If guest is not found, use
                   Unassigned and add note.
                 </p>
               </div>

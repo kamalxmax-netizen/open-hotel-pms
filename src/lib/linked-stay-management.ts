@@ -11,7 +11,8 @@
  *   child must exist and be linked to the specified parent.
  */
 
-import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { normalizeAuditSource } from "@/lib/audit-utils";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -64,6 +65,7 @@ export async function linkStay(params: {
   const { supabase, parentReservationId } = params;
   const { child_reservation_id, note } = params.payload;
   const auditSource = normalizeAuditSource(params.auditSource ?? "manual");
+  const businessDate = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
   if (parentReservationId === child_reservation_id) {
     throw new LinkedStayManagementError("Cannot link a reservation to itself.");
@@ -183,7 +185,7 @@ export async function linkStay(params: {
       linked_count: linkedCount,
       note: note || null,
     },
-    business_date: toBangkokDateString(),
+    business_date: businessDate,
     source: auditSource,
   });
 
@@ -219,6 +221,7 @@ export async function unlinkStay(params: {
   const { supabase, reservationId } = params;
   const { note } = params.payload;
   const auditSource = normalizeAuditSource(params.auditSource ?? "manual");
+  const businessDate = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
   const warnings: string[] = [];
 
   // Load child reservation (the one being unlinked)
@@ -344,7 +347,7 @@ export async function unlinkStay(params: {
       remaining_linked_count: remainingCount,
       note: note || null,
     },
-    business_date: toBangkokDateString(),
+    business_date: businessDate,
     source: auditSource,
   });
 

@@ -628,7 +628,7 @@ export async function applyCheckinFinancials(params: {
     const lines = [{ method: safeDepositMethod, amount: deposit, note: "Mobile check-in deposit" }];
     let depositError: { message?: string | null; code?: string | null } | null = null;
 
-    const nextSignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+    const wrappedSignature = await supabase.rpc("apply_deposit_snapshot_lines_v2", {
       p_reservation_id: reservationId,
       p_lines: lines,
       p_general_note: null,
@@ -636,23 +636,48 @@ export async function applyCheckinFinancials(params: {
       p_paid_date: businessDate,
     });
 
-    if (nextSignature.error) {
-      const message = String(nextSignature.error.message ?? "").toLowerCase();
-      const canRetryLegacy =
-        nextSignature.error.code === "42883" ||
-        message.includes("could not find the function") ||
-        message.includes("function public.apply_deposit_snapshot_lines(");
+    if (wrappedSignature.error) {
+      const wrapperMessage = String(wrappedSignature.error.message ?? "").toLowerCase();
+      const canRetryDirect =
+        wrappedSignature.error.code === "42883" ||
+        wrapperMessage.includes("could not find the function") ||
+        wrapperMessage.includes("function public.apply_deposit_snapshot_lines_v2(");
 
-      if (canRetryLegacy) {
-        const legacySignature = await supabase.rpc("apply_deposit_snapshot_lines", {
-          p_reservation_id: reservationId,
-          p_lines: lines,
-          p_general_note: null,
-          p_cashier_name: safeCashier,
-        });
-        depositError = legacySignature.error;
-      } else {
-        depositError = nextSignature.error;
+      if (!canRetryDirect) {
+        depositError = wrappedSignature.error;
+      }
+    }
+
+    if (!depositError && !wrappedSignature.error) {
+      depositError = null;
+    } else if (!depositError) {
+      const nextSignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+      p_reservation_id: reservationId,
+      p_lines: lines,
+      p_general_note: null,
+      p_cashier_name: safeCashier,
+      p_paid_date: businessDate,
+    });
+
+      if (nextSignature.error) {
+        const message = String(nextSignature.error.message ?? "").toLowerCase();
+        const canRetryLegacy =
+          nextSignature.error.code === "42883" ||
+          message.includes("could not find the function") ||
+          message.includes("function public.apply_deposit_snapshot_lines(") ||
+          message.includes("could not choose the best candidate function between");
+
+        if (canRetryLegacy) {
+          const legacySignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+            p_reservation_id: reservationId,
+            p_lines: lines,
+            p_general_note: null,
+            p_cashier_name: safeCashier,
+          });
+          depositError = legacySignature.error;
+        } else {
+          depositError = nextSignature.error;
+        }
       }
     }
 

@@ -27,11 +27,12 @@ export async function GET(request: NextRequest) {
 
         const sellableRooms = totalRooms ?? 0;
 
-        // ── 2. Reservation nights in date range ─────────────────
+        // ── 2. Reservation nights + POS in date range ───────────
         // Join reservation_nights → reservations to get source & status
-        const { data: nights, error: nightsErr } = await supabase
-            .from("reservation_nights")
-            .select(`
+        const [{ data: nights, error: nightsErr }, { data: posOrders, error: posErr }] = await Promise.all([
+            supabase
+                .from("reservation_nights")
+                .select(`
         stay_date,
         nightly_price,
         cancelled_at,
@@ -40,11 +41,19 @@ export async function GET(request: NextRequest) {
           status
         )
       `)
-            .gte("stay_date", startDate)
-            .lte("stay_date", endDate)
-            .is("cancelled_at", null);
+                .gte("stay_date", startDate)
+                .lte("stay_date", endDate)
+                .is("cancelled_at", null),
+            supabase
+                .from("pos_orders")
+                .select("total, order_date")
+                .gte("order_date", startDate)
+                .lte("order_date", endDate)
+                .eq("status", "completed")
+        ]);
 
         if (nightsErr) return NextResponse.json({ error: nightsErr.message }, { status: 500 });
+        if (posErr) return NextResponse.json({ error: posErr.message }, { status: 500 });
 
         // ── 3. Number of distinct days in range ─────────────────
         const msPerDay = 86400000;
@@ -64,7 +73,7 @@ export async function GET(request: NextRequest) {
             agent: { nights: 0, revenue: 0 }
         };
 
-        let totalRevenue = 0;
+        let roomRevenue = 0;
         let occupiedNights = 0;
 
         for (const night of nights ?? []) {
@@ -77,9 +86,12 @@ export async function GET(request: NextRequest) {
                 agg[src].revenue += price;
             }
 
-            totalRevenue += price;
+            roomRevenue += price;
             occupiedNights += 1;
         }
+
+        const posRevenue = (posOrders ?? []).reduce((sum, row) => sum + Number(row.total ?? 0), 0);
+        const totalRevenue = roomRevenue + posRevenue;
 
         // ── 5. KPI calculations ─────────────────────────────────
         const occupancyPct = roomNights > 0
@@ -87,11 +99,11 @@ export async function GET(request: NextRequest) {
             : 0;
 
         const adr = occupiedNights > 0
-            ? Math.round(totalRevenue / occupiedNights)
+            ? Math.round(roomRevenue / occupiedNights)
             : 0;
 
         const revpar = roomNights > 0
-            ? Math.round((totalRevenue / roomNights) * 100) / 100
+            ? Math.round((roomRevenue / roomNights) * 100) / 100
             : 0;
 
         // ── 6. Per-day breakdown (for chart) ────────────────────
@@ -132,6 +144,8 @@ export async function GET(request: NextRequest) {
             sellable_rooms: sellableRooms,
             kpi: {
                 total_revenue: totalRevenue,
+                room_revenue: roomRevenue,
+                pos_revenue: posRevenue,
                 occupied_nights: occupiedNights,
                 room_nights: roomNights,
                 occupancy_pct: occupancyPct,
@@ -142,8 +156,8 @@ export async function GET(request: NextRequest) {
                 source: src,
                 nights: agg[src].nights,
                 revenue: agg[src].revenue,
-                share_pct: totalRevenue > 0
-                    ? Math.round((agg[src].revenue / totalRevenue) * 1000) / 10
+                share_pct: roomRevenue > 0
+                    ? Math.round((agg[src].revenue / roomRevenue) * 1000) / 10
                     : 0
             })),
             by_day: allDays

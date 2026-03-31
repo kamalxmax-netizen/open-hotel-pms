@@ -8,6 +8,88 @@ import { NextRequest, NextResponse } from "next/server";
 
 type Params = { params: { id: string } };
 
+async function resolveBusinessDate(
+    supabase: ReturnType<typeof createServerSupabaseClient>
+): Promise<string> {
+    const { data, error } = await supabase
+        .from("hotel_settings")
+        .select("business_date")
+        .eq("id", 1)
+        .maybeSingle();
+    if (error) {
+        return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    }
+    return String(data?.business_date ?? "") || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+}
+
+async function applyDepositSnapshotLines(params: {
+    supabase: ReturnType<typeof createServerSupabaseClient>;
+    reservationId: string;
+    lines: Array<{ method: string; amount: number; note?: string | null }>;
+    generalNote: string | null;
+    cashierName: string;
+}) {
+    const { supabase, reservationId, lines, generalNote, cashierName } = params;
+    const businessDate = await resolveBusinessDate(supabase);
+    const wrappedSignature = await supabase.rpc("apply_deposit_snapshot_lines_v2", {
+        p_reservation_id: reservationId,
+        p_lines: lines,
+        p_general_note: generalNote,
+        p_cashier_name: cashierName,
+        p_paid_date: businessDate,
+    });
+
+    if (!wrappedSignature.error) {
+        return wrappedSignature.data;
+    }
+
+    const wrapperMessage = String(wrappedSignature.error.message ?? "").toLowerCase();
+    const canRetryDirect =
+        wrappedSignature.error.code === "42883" ||
+        wrapperMessage.includes("could not find the function") ||
+        wrapperMessage.includes("function public.apply_deposit_snapshot_lines_v2(");
+
+    if (!canRetryDirect) {
+        throw wrappedSignature.error;
+    }
+
+    const nextSignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+        p_reservation_id: reservationId,
+        p_lines: lines,
+        p_general_note: generalNote,
+        p_cashier_name: cashierName,
+        p_paid_date: businessDate,
+    });
+
+    if (!nextSignature.error) {
+        return nextSignature.data;
+    }
+
+    const message = String(nextSignature.error.message ?? "").toLowerCase();
+    const canRetryLegacy =
+        nextSignature.error.code === "42883" ||
+        message.includes("could not find the function") ||
+        message.includes("function public.apply_deposit_snapshot_lines(") ||
+        message.includes("could not choose the best candidate function between");
+
+    if (!canRetryLegacy) {
+        throw nextSignature.error;
+    }
+
+    const legacySignature = await supabase.rpc("apply_deposit_snapshot_lines", {
+        p_reservation_id: reservationId,
+        p_lines: lines,
+        p_general_note: generalNote,
+        p_cashier_name: cashierName,
+    });
+
+    if (legacySignature.error) {
+        throw legacySignature.error;
+    }
+
+    return legacySignature.data;
+}
+
 async function assertDepositEditable(
     supabase: ReturnType<typeof createServerSupabaseClient>,
     reservationId: string,
@@ -115,21 +197,21 @@ export async function POST(req: NextRequest, { params }: Params) {
         const depositLines = parseDepositPayloadLines(deposit_note, normalizedDepositAmount);
         const generalNote = extractDepositGeneralNote(deposit_note);
         const effectiveGeneralNote = normalizedDepositAmount > 0 ? null : generalNote;
-        const { data, error } = await supabase.rpc("apply_deposit_snapshot_lines", {
-            p_reservation_id: params.id,
-            p_lines: depositLines,
-            p_general_note: effectiveGeneralNote,
-            p_cashier_name: typeof cashier_name === "string" && cashier_name.trim() ? cashier_name.trim() : "FO",
-        });
-
-        if (error) {
-            if (String(error.message).includes("Reservation not found")) {
+        try {
+            const data = await applyDepositSnapshotLines({
+                supabase,
+                reservationId: params.id,
+                lines: depositLines,
+                generalNote: effectiveGeneralNote,
+                cashierName: typeof cashier_name === "string" && cashier_name.trim() ? cashier_name.trim() : "FO",
+            });
+            return NextResponse.json({ success: true, deposit: data });
+        } catch (error) {
+            if (String((error as any)?.message ?? "").includes("Reservation not found")) {
                 return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
             }
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({ error: String((error as any)?.message ?? error) }, { status: 500 });
         }
-
-        return NextResponse.json({ success: true, deposit: data });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }
@@ -142,18 +224,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         const allowDuringCheckin = req.nextUrl.searchParams.get("allow_during_checkin") === "1";
         const editable = await assertDepositEditable(supabase, params.id, allowDuringCheckin);
         if (!editable.ok) return editable.response;
-        const { error } = await supabase.rpc("apply_deposit_snapshot_lines", {
-            p_reservation_id: params.id,
-            p_lines: [],
-            p_general_note: null,
-            p_cashier_name: "FO",
-        });
-
-        if (error) {
-            if (String(error.message).includes("Reservation not found")) {
+        try {
+            await applyDepositSnapshotLines({
+                supabase,
+                reservationId: params.id,
+                lines: [],
+                generalNote: null,
+                cashierName: "FO",
+            });
+        } catch (error) {
+            if (String((error as any)?.message ?? "").includes("Reservation not found")) {
                 return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
             }
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({ error: String((error as any)?.message ?? error) }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, message: "Deposit cleared." });

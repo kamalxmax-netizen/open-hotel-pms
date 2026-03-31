@@ -25,6 +25,8 @@ type RevenueData = {
     sellable_rooms: number;
     kpi: {
         total_revenue: number;
+        room_revenue: number;
+        pos_revenue: number;
         occupied_nights: number;
         room_nights: number;
         occupancy_pct: number;
@@ -273,14 +275,15 @@ export default function RevenuePage() {
             {view === "summary" && (
                 <>
                     {/* KPI Tiles */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {loading ? Array.from({ length: 6 }).map((_, i) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                        {loading ? Array.from({ length: 7 }).map((_, i) => (
                             <div key={i} className="card p-4 animate-pulse">
                                 <div className="h-2 w-16 rounded bg-[var(--bg-muted)] mb-3" />
                                 <div className="h-6 w-20 rounded bg-[var(--bg-muted)]" />
                             </div>
                         )) : <>
                             <KpiTile label="Hotel Revenue" value={kpi ? fmtMoney(kpi.total_revenue) : "—"} sub={`${data?.day_count}d · Room + POS`} />
+                            <KpiTile label="POS Revenue" value={kpi ? fmtMoney(kpi.pos_revenue) : "—"} sub="Included in Hotel Revenue" />
                             <KpiTile label="Rooms Sold" value={kpi ? fmt(kpi.occupied_nights) : "—"} sub={`of ${kpi?.room_nights ?? "—"} avail.`} />
                             <KpiTile label="Occupancy" value={kpi ? `${kpi.occupancy_pct.toFixed(1)}%` : "—"}
                                 sub={kpi && (kpi.occupancy_pct >= 80 ? "🟢 High" : kpi.occupancy_pct >= 50 ? "🟡 Medium" : "🔴 Low")} />

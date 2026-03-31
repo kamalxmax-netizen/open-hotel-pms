@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { BoardRoomStatus } from "@/lib/board-layout";
 import { getBusinessDate } from "@/lib/fo-prepare";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
 
@@ -419,6 +420,31 @@ export async function GET(request: NextRequest) {
       group_name: groupMeta?.group_name ?? null,
     });
   });
+
+  const sameRoomContinuationIds = collectSameRoomLinkedContinuationReservationIds({
+    departures: (departuresToday ?? []) as any[],
+    occupiedStays: (reservationNights ?? [])
+      .map((night: any) => {
+        const reservationRef = Array.isArray(night?.reservations)
+          ? night.reservations[0]
+          : night?.reservations;
+        if (!reservationRef || reservationRef.status !== "active") return null;
+        return {
+          reservation_id: reservationRef?.id ? String(reservationRef.id) : null,
+          parent_reservation_id: reservationRef?.parent_reservation_id
+            ? String(reservationRef.parent_reservation_id)
+            : null,
+          room_id: night?.room_id ? String(night.room_id) : null,
+          checkin_date: reservationRef?.checkin_date ? String(reservationRef.checkin_date) : null,
+        };
+      })
+      .filter(Boolean) as any[],
+  });
+  for (const [roomId, guest] of departureGuestByRoomId.entries()) {
+    if (guest?.reservation_id && sameRoomContinuationIds.has(String(guest.reservation_id))) {
+      departureGuestByRoomId.delete(roomId);
+    }
+  }
 
   const reservationIdSet = new Set<string>();
   const reservationProfileSeed = new Map<string, string | null>();

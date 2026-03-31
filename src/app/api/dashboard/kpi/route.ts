@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DashboardKPI } from "@/lib/types";
 import { getNightAuditSettings } from "@/lib/night-audit";
+import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export async function GET() {
     const [
       arrivalsRes,
       departuresRes,
+      occupiedTodayRes,
       inHouseRes,
       noShowPendingRes,
       dirtyRes,
@@ -75,11 +77,36 @@ export async function GET() {
         .order("checkin_time", { ascending: true, nullsFirst: false }),
       supabase
         .from("reservations")
-        .select("id, guest_name, total_price, status", { count: "exact" })
+        .select(`
+          id,
+          parent_reservation_id,
+          guest_name,
+          total_price,
+          status,
+          checkout_date,
+          reservation_nights(
+            stay_date,
+            room_id,
+            cancelled_at
+          )
+        `, { count: "exact" })
         .eq("checkout_date", businessDate)
         .eq("is_dayuse", false)
         .in("status", ["active", "checked_out"])
         .order("guest_name", { ascending: true }),
+      supabase
+        .from("reservation_nights")
+        .select(`
+          room_id,
+          reservations!reservation_nights_reservation_id_fkey(
+            id,
+            parent_reservation_id,
+            checkin_date,
+            status
+          )
+        `)
+        .eq("stay_date", businessDate)
+        .is("cancelled_at", null),
       supabase
         .from("reservations")
         .select("id", { count: "exact", head: true })
@@ -159,6 +186,7 @@ export async function GET() {
 
     if (arrivalsRes.error) return NextResponse.json({ success: false, error: arrivalsRes.error.message }, { status: 500 });
     if (departuresRes.error) return NextResponse.json({ success: false, error: departuresRes.error.message }, { status: 500 });
+    if (occupiedTodayRes.error) return NextResponse.json({ success: false, error: occupiedTodayRes.error.message }, { status: 500 });
     if (inHouseRes.error) return NextResponse.json({ success: false, error: inHouseRes.error.message }, { status: 500 });
     if (noShowPendingRes.error) return NextResponse.json({ success: false, error: noShowPendingRes.error.message }, { status: 500 });
     if (dirtyRes.error) return NextResponse.json({ success: false, error: dirtyRes.error.message }, { status: 500 });
@@ -175,10 +203,33 @@ export async function GET() {
     if (dayuseRoomsRes.error) return NextResponse.json({ success: false, error: dayuseRoomsRes.error.message }, { status: 500 });
     if (snapshotsRes.error) return NextResponse.json({ success: false, error: snapshotsRes.error.message }, { status: 500 });
 
+    const sameRoomContinuationIds = collectSameRoomLinkedContinuationReservationIds({
+      departures: (departuresRes.data ?? []) as any[],
+      occupiedStays: (occupiedTodayRes.data ?? [])
+        .map((night: any) => {
+          const reservationRef = Array.isArray(night?.reservations)
+            ? night.reservations[0]
+            : night?.reservations;
+          if (!reservationRef || String(reservationRef.status ?? "") !== "active") return null;
+          return {
+            reservation_id: reservationRef?.id ? String(reservationRef.id) : null,
+            parent_reservation_id: reservationRef?.parent_reservation_id
+              ? String(reservationRef.parent_reservation_id)
+              : null,
+            room_id: night?.room_id ? String(night.room_id) : null,
+            checkin_date: reservationRef?.checkin_date ? String(reservationRef.checkin_date) : null,
+          };
+        })
+        .filter(Boolean) as any[],
+    });
+    const filteredDepartures = (departuresRes.data ?? []).filter(
+      (row: any) => !sameRoomContinuationIds.has(String(row?.id ?? ""))
+    );
+
     const arrivals = arrivalsRes.count ?? 0;
     const arrivalsCheckedIn = (arrivalsRes.data ?? []).filter((row) => row.checked_in_at).length;
-    const departures = departuresRes.count ?? 0;
-    const departuresCheckedOut = (departuresRes.data ?? []).filter((row) => row.status === "checked_out").length;
+    const departures = filteredDepartures.length;
+    const departuresCheckedOut = filteredDepartures.filter((row: any) => row.status === "checked_out").length;
     const inHouse = inHouseRes.count ?? 0;
     const dirtyRooms = dirtyRes.count ?? 0;
 
@@ -329,7 +380,7 @@ export async function GET() {
         checkin_time: row.checkin_time ? String(row.checkin_time) : null,
         total_price: Number(row.total_price ?? 0),
       })),
-      departures_preview: (departuresRes.data ?? []).slice(0, 10).map((row) => ({
+      departures_preview: filteredDepartures.slice(0, 10).map((row: any) => ({
         id: String(row.id),
         guest_name: String(row.guest_name ?? ""),
         total_price: Number(row.total_price ?? 0),

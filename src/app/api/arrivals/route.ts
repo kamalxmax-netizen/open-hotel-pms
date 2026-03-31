@@ -148,6 +148,21 @@ export async function GET(request: NextRequest) {
             (logs ?? []).forEach((log: any) => checkedInSet.add(String(log.entity_id)));
         }
 
+        const hotelCheckOutTime = await resolveHotelCheckOutTime(supabase);
+        const linkedStayMap = await resolveLinkedStayBatch(
+            supabase,
+            rows.map((r: any) => ({
+                id: String(r.id),
+                parent_reservation_id: r.parent_reservation_id ?? null,
+                booking_code: r.booking_code ?? null,
+                source: r.source ?? null,
+                checkin_date: r.checkin_date ?? null,
+                checkout_date: r.checkout_date ?? null,
+                status: r.status ?? null,
+                total_price: r.total_price ?? null,
+            })),
+            hotelCheckOutTime
+        );
         const profileSeed = new Map<string, string | null>();
         for (const row of rows) {
             const reservationId = row?.id ? String(row.id) : "";
@@ -163,22 +178,15 @@ export async function GET(request: NextRequest) {
             profileSeed
         );
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
-        const pendingRows = rows.filter((r: any) => !r.checked_in_at && !checkedInSet.has(String(r.id)));
-        const hotelCheckOutTime = await resolveHotelCheckOutTime(supabase);
-        const linkedStayMap = await resolveLinkedStayBatch(
-            supabase,
-            pendingRows.map((r: any) => ({
-                id: String(r.id),
-                parent_reservation_id: r.parent_reservation_id ?? null,
-                booking_code: r.booking_code ?? null,
-                source: r.source ?? null,
-                checkin_date: r.checkin_date ?? null,
-                checkout_date: r.checkout_date ?? null,
-                status: r.status ?? null,
-                total_price: r.total_price ?? null,
-            })),
-            hotelCheckOutTime
-        );
+        const pendingRows = rows.filter((r: any) => {
+            const reservationId = String(r.id);
+            if (r.checked_in_at || checkedInSet.has(reservationId)) return false;
+            const linkedStay = linkedStayMap.get(reservationId) ?? null;
+            if (linkedStay && linkedStay.segments.length > 1 && linkedStay.active_segment_id === reservationId) {
+                return false;
+            }
+            return true;
+        });
 
         const arrivals = pendingRows
             .map((r: any) => {

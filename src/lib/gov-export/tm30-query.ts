@@ -45,7 +45,7 @@ export async function queryTM30Guests(
 
   const { data: checkinReservations, error: checkinError } = await supabase
     .from("reservations")
-    .select("id, checkin_date, checkout_date, checked_in_at")
+    .select("id, parent_reservation_id, checkin_date, checkout_date, checked_in_at")
     .not("checked_in_at", "is", null)
     .gte("checked_in_at", utcRangeStart)
     .lte("checked_in_at", utcRangeEnd)
@@ -59,6 +59,7 @@ export async function queryTM30Guests(
   const matchingReservationIds = (checkinReservations ?? [])
     .filter((r: any) => {
       if (!r.checked_in_at) return false;
+      if (r.parent_reservation_id) return false;
       return isoToBangkokDate(String(r.checked_in_at)) === targetDate;
     })
     .map((r: any) => String(r.id));
@@ -147,10 +148,11 @@ export async function queryTM30Guests(
       // Load it
       const { data: resRow } = await supabase
         .from("reservations")
-        .select("id, checkin_date, checkout_date, checked_in_at, status")
+        .select("id, parent_reservation_id, checkin_date, checkout_date, checked_in_at, status")
         .eq("id", resId)
         .maybeSingle();
       if (!resRow?.checked_in_at) continue;
+      if (resRow.parent_reservation_id) continue;
       if (!["active", "checked_out"].includes(String(resRow.status))) continue;
       const checkinBkkDate = isoToBangkokDate(String(resRow.checked_in_at));
       if (checkinBkkDate >= targetDate) continue; // same day = already handled in Case 1
@@ -159,6 +161,7 @@ export async function queryTM30Guests(
         checkout_date: String(resRow.checkout_date ?? ""),
       });
     } else {
+      if (reservation.parent_reservation_id) continue;
       const checkinBkkDate = isoToBangkokDate(String(reservation.checked_in_at));
       if (checkinBkkDate >= targetDate) continue;
     }

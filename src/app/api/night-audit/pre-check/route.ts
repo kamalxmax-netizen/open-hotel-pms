@@ -3,6 +3,7 @@ import {
   normalizePendingGroupCheckinWizardDrafts,
   toBangkokWindow,
 } from "@/lib/night-audit";
+import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { PreCheckItem, PreCheckResult } from "@/lib/types";
 import { NextResponse } from "next/server";
@@ -24,6 +25,7 @@ export async function GET() {
       arrivalsRes,
       checkedInRes,
       departuresRes,
+      occupiedTodayRes,
       checkedOutRes,
       hkRoomsRes,
       hkTasksRes,
@@ -48,9 +50,32 @@ export async function GET() {
         .not("checked_in_at", "is", null),
       supabase
         .from("reservations")
-        .select("id", { count: "exact", head: true })
+        .select(`
+          id,
+          parent_reservation_id,
+          checkout_date,
+          status,
+          reservation_nights(
+            stay_date,
+            room_id,
+            cancelled_at
+          )
+        `)
         .eq("checkout_date", businessDate)
         .in("status", ["active", "checked_out"]),
+      supabase
+        .from("reservation_nights")
+        .select(`
+          room_id,
+          reservations!reservation_nights_reservation_id_fkey(
+            id,
+            parent_reservation_id,
+            checkin_date,
+            status
+          )
+        `)
+        .eq("stay_date", businessDate)
+        .is("cancelled_at", null),
       supabase
         .from("reservations")
         .select("id", { count: "exact", head: true })
@@ -78,16 +103,40 @@ export async function GET() {
     if (arrivalsRes.error) return NextResponse.json({ success: false, error: arrivalsRes.error.message }, { status: 500 });
     if (checkedInRes.error) return NextResponse.json({ success: false, error: checkedInRes.error.message }, { status: 500 });
     if (departuresRes.error) return NextResponse.json({ success: false, error: departuresRes.error.message }, { status: 500 });
+    if (occupiedTodayRes.error) return NextResponse.json({ success: false, error: occupiedTodayRes.error.message }, { status: 500 });
     if (checkedOutRes.error) return NextResponse.json({ success: false, error: checkedOutRes.error.message }, { status: 500 });
     if (hkRoomsRes.error) return NextResponse.json({ success: false, error: hkRoomsRes.error.message }, { status: 500 });
     if (hkTasksRes.error) return NextResponse.json({ success: false, error: hkTasksRes.error.message }, { status: 500 });
     if (noShowResolvedRes.error) return NextResponse.json({ success: false, error: noShowResolvedRes.error.message }, { status: 500 });
 
+    const sameRoomContinuationIds = collectSameRoomLinkedContinuationReservationIds({
+      departures: (departuresRes.data ?? []) as any[],
+      occupiedStays: (occupiedTodayRes.data ?? [])
+        .map((night: any) => {
+          const reservationRef = Array.isArray(night?.reservations)
+            ? night.reservations[0]
+            : night?.reservations;
+          if (!reservationRef || String(reservationRef.status ?? "") !== "active") return null;
+          return {
+            reservation_id: reservationRef?.id ? String(reservationRef.id) : null,
+            parent_reservation_id: reservationRef?.parent_reservation_id
+              ? String(reservationRef.parent_reservation_id)
+              : null,
+            room_id: night?.room_id ? String(night.room_id) : null,
+            checkin_date: reservationRef?.checkin_date ? String(reservationRef.checkin_date) : null,
+          };
+        })
+        .filter(Boolean) as any[],
+    });
+    const filteredDepartures = (departuresRes.data ?? []).filter(
+      (row: any) => !sameRoomContinuationIds.has(String(row?.id ?? ""))
+    );
+
     const noShowPending = noShowPendingRes.count ?? 0;
     const totalArrivals = arrivalsRes.count ?? 0;
     const checkedIn = checkedInRes.count ?? 0;
-    const totalDepartures = departuresRes.count ?? 0;
-    const checkedOut = checkedOutRes.count ?? 0;
+    const totalDepartures = filteredDepartures.length;
+    const checkedOut = filteredDepartures.filter((row: any) => row.status === "checked_out").length;
     const noShowsResolved = noShowResolvedRes.count ?? 0;
     const pendingWizardDrafts = (await normalizePendingGroupCheckinWizardDrafts(supabase, businessDate)).pendingCount;
     const hkRoomIds = new Set((hkRoomsRes.data ?? []).map((row) => String((row as { id: string }).id)));

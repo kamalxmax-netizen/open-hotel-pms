@@ -99,7 +99,7 @@ export default function MobileCheckinLanding() {
               
               {!loading && (
                 <div className="mt-6 inline-flex items-center gap-2 bg-white/20 backdrop-blur px-4 py-2 rounded-full text-sm font-bold text-white">
-                  <span>Due today</span>
+                  <span>Due on business date</span>
                   <span className="bg-white text-brand-700 px-2 py-0.5 rounded-full min-w-[24px] text-center">
                     {totalDueIn}
                   </span>

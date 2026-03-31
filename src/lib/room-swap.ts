@@ -7,12 +7,17 @@ import {
   PlannedRoomMoveError,
   syncReservationNightDependencyMetadata,
 } from "@/lib/planned-room-moves";
-import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { normalizeAuditSource } from "@/lib/audit-utils";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 
 type SupabaseLike = {
   from: (table: string) => any;
 };
+
+async function resolveRoomSwapBusinessDate(supabase: SupabaseLike): Promise<string> {
+  return resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
+}
 
 export type RoomSwapReasonCode =
   | "reservation_not_found"
@@ -457,6 +462,7 @@ export async function executeWholeStayRoomSwap(
 
   await syncReservationNightDependencyMetadata(supabase as any, { reservationId: sourceReservationId });
   await syncReservationNightDependencyMetadata(supabase as any, { reservationId: targetReservationId });
+  const businessDate = await resolveRoomSwapBusinessDate(supabase);
 
   const noteLineForSource = `[Room Swap] ${source.current_room_number ?? "?"} ↔ ${target.current_room_number ?? "?"} | Swapped with ${target.booking_code} (${target.guest_name})`;
   const noteLineForTarget = `[Room Swap] ${target.current_room_number ?? "?"} ↔ ${source.current_room_number ?? "?"} | Swapped with ${source.booking_code} (${source.guest_name})`;
@@ -480,7 +486,7 @@ export async function executeWholeStayRoomSwap(
         swap_with_reservation_id: targetReservationId,
         swap_with_booking_code: target.booking_code,
       },
-      business_date: toBangkokDateString(),
+      business_date: businessDate,
       source: normalizeAuditSource("manual"),
     },
     {
@@ -499,7 +505,7 @@ export async function executeWholeStayRoomSwap(
         swap_with_reservation_id: sourceReservationId,
         swap_with_booking_code: source.booking_code,
       },
-      business_date: toBangkokDateString(),
+      business_date: businessDate,
       source: normalizeAuditSource("manual"),
     },
   ]);

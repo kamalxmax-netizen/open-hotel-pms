@@ -11,6 +11,7 @@ import {
   projectReservationPlannedMovePricing,
   rebuildReservationFutureRoomPath,
 } from "@/lib/planned-room-moves";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Invalid reservation id."),
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const { id: reservationId, planId } = parsedParams.data;
     const supabase = createServerSupabaseClient();
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const today = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
     const move = (await listReservationPlannedMoves(supabase as any, reservationId)).find((row) => row.id === planId);
     if (!move) {
       return NextResponse.json({ success: false, error: "Planned move not found." }, { status: 404 });

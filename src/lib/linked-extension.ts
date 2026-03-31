@@ -1,8 +1,9 @@
 import { isValidDateString, listNights } from "@/lib/dates";
-import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { normalizeAuditSource } from "@/lib/audit-utils";
 import { assertRoomAvailableForDateRange, PlannedRoomMoveError } from "@/lib/planned-room-moves";
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -54,6 +55,19 @@ function addDaysYmd(dateYmd: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function extractHHmmFromIso(iso: string | null): string | null {
+  const value = String(iso ?? "").trim();
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
 export async function createLinkedExtensionReservation(params: {
   supabase: SupabaseLike;
   originalReservationId: string;
@@ -63,6 +77,7 @@ export async function createLinkedExtensionReservation(params: {
   const { supabase, originalReservationId } = params;
   const payload = params.payload;
   const auditSource = normalizeAuditSource(params.auditSource ?? "manual");
+  const businessDate = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
   if (!isValidDateString(payload.checkin_date) || !isValidDateString(payload.checkout_date)) {
     throw new LinkedExtensionError("Invalid date format. Use YYYY-MM-DD.", 400);
@@ -234,14 +249,37 @@ export async function createLinkedExtensionReservation(params: {
     : null;
 
   if (parentCheckedInAt) {
-    const nowIso = new Date().toISOString();
+    const inheritedCheckinAt = parentCheckedInAt;
+    const inheritedCheckinTime =
+      String(originalReservation.checkin_time ?? "").trim() || extractHHmmFromIso(parentCheckedInAt);
     const { error: autoCheckinError } = await supabase
       .from("reservations")
-      .update({ checked_in_at: nowIso })
+      .update({
+        status: "active",
+        checked_in_at: inheritedCheckinAt,
+        checkin_time: inheritedCheckinTime,
+      })
       .eq("id", newReservationId);
 
     if (!autoCheckinError) {
       autoCheckedIn = true;
+
+      await supabase.from("audit_logs").insert({
+        action: "checked_in",
+        entity_type: "reservation",
+        entity_id: newReservationId,
+        before_json: {
+          parent_reservation_id: rootParentReservationId,
+          parent_checked_in_at: parentCheckedInAt,
+        },
+        after_json: {
+          checked_in_at: inheritedCheckinAt,
+          checkin_time: inheritedCheckinTime,
+          reason: "Inherited check-in from parent linked stay",
+        },
+        business_date: businessDate,
+        source: auditSource,
+      });
 
       await supabase.from("audit_logs").insert({
         action: "auto_checkin_linked_extension",
@@ -252,10 +290,11 @@ export async function createLinkedExtensionReservation(params: {
           parent_checked_in_at: parentCheckedInAt,
         },
         after_json: {
-          checked_in_at: nowIso,
+          checked_in_at: inheritedCheckinAt,
+          checkin_time: inheritedCheckinTime,
           reason: "Inherited check-in from parent — guest already in room",
         },
-        business_date: toBangkokDateString(),
+        business_date: businessDate,
         source: auditSource,
       });
     }
@@ -283,7 +322,7 @@ export async function createLinkedExtensionReservation(params: {
       copy_preferences: Boolean(payload.copy_preferences),
       auto_checked_in: autoCheckedIn,
     },
-    business_date: toBangkokDateString(),
+    business_date: businessDate,
     source: auditSource,
   });
 

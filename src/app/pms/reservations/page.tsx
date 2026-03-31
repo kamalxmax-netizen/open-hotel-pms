@@ -91,16 +91,18 @@ function toBangkokTime(value?: string | null): string | null {
 /* ─── Main Page ───────────────────────────────── */
 export default function ReservationsPage() {
     const defaultStatus = "active";
-    const defaultDateFrom = toBangkokDateInput(new Date());
-    const defaultDateTo = toBangkokDateInput(new Date());
+    const todayBangkok = toBangkokDateInput(new Date());
+    const [defaultDateFrom, setDefaultDateFrom] = useState(todayBangkok);
+    const [defaultDateTo, setDefaultDateTo] = useState(todayBangkok);
 
     // Filters
     const [q, setQ] = useState("");
     const [status, setStatus] = useState(defaultStatus);
     const [source, setSource] = useState("");
-    const [dateFrom, setDateFrom] = useState(defaultDateFrom);
-    const [dateTo, setDateTo] = useState(defaultDateTo);
+    const [dateFrom, setDateFrom] = useState(todayBangkok);
+    const [dateTo, setDateTo] = useState(todayBangkok);
     const [page, setPage] = useState(1);
+    const [filtersReady, setFiltersReady] = useState(false);
 
     // Data
     const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -172,8 +174,42 @@ export default function ReservationsPage() {
         }
     }, [q, status, source, dateFrom, dateTo, page]);
 
+    useEffect(() => {
+        let active = true;
+
+        (async () => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const response = await fetch("/api/settings", { cache: "no-store" });
+                const payload = await response.json().catch(() => null);
+                const businessDate =
+                    payload?.success && typeof payload?.settings?.business_date === "string" && payload.settings.business_date
+                        ? payload.settings.business_date
+                        : todayBangkok;
+
+                if (!active) return;
+                setDefaultDateFrom(businessDate);
+                setDefaultDateTo(businessDate);
+                setDateFrom(params.get("date_from") || businessDate);
+                setDateTo(params.get("date_to") || businessDate);
+            } catch {
+                if (!active) return;
+            } finally {
+                if (active) setFiltersReady(true);
+            }
+        })();
+
+        return () => {
+            active = false;
+        };
+    }, [todayBangkok]);
+
     // Load on mount
-    useEffect(() => { load(1); setPage(1); }, [q, status, source, dateFrom, dateTo]); // eslint-disable-line
+    useEffect(() => {
+        if (!filtersReady) return;
+        load(1);
+        setPage(1);
+    }, [filtersReady, q, status, source, dateFrom, dateTo]); // eslint-disable-line
 
     useEffect(() => {
         if (typeof window === "undefined") return;

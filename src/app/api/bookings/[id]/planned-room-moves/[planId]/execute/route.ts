@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { addDays } from "@/lib/dates";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { findPlannedMoveEffectiveOnDate, listReservationPlannedMoves, PlannedRoomMoveError } from "@/lib/planned-room-moves";
 import { executeRoomMove, RoomMoveError } from "@/lib/room-move";
 
@@ -30,7 +31,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
 
     const { id: reservationId, planId } = parsedParams.data;
     const supabase = createServerSupabaseClient();
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const today = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
     const move = (await listReservationPlannedMoves(supabase as any, reservationId)).find((row) => row.id === planId);
     if (!move) {

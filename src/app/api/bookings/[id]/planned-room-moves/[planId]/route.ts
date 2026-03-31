@@ -19,6 +19,7 @@ import {
   validatePlannedMoveDateRange,
 } from "@/lib/planned-room-moves";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Invalid reservation id."),
@@ -95,7 +96,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { id: reservationId, planId } = parsedParams.data;
     const payload = parsedBody.data;
     const supabase = createServerSupabaseClient();
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const today = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

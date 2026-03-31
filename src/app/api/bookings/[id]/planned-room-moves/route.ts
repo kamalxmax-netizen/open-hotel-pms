@@ -18,6 +18,7 @@ import {
 } from "@/lib/planned-room-moves";
 import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Invalid reservation id."),
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const reservationId = parsedParams.data.id;
     const supabase = createServerSupabaseClient();
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const today = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

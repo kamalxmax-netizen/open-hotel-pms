@@ -98,8 +98,8 @@ function fmt(n: number) {
 }
 
 function fmtMoney(n: number) {
-    if (n === 0) return "฿0.00";
-    return `฿${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (n === 0) return "0.00";
+    return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function shortenBookingCode(bookingCode: string) {
@@ -152,7 +152,7 @@ function InlineBadge({
 // Group separator (between Cash/Transfer/Card groups)
 const B = "border-r border-[var(--border-default)]";
 // Inner separator (between Payment/Deposit within a group)
-const Bi = "border-r border-[var(--border-subtle)]";
+const Bi = "border-r border-[var(--border-default)]";
 
 function MoneyCell({ v, negativeRed = false, border = "", bg = "" }: { v: number; negativeRed?: boolean; border?: string; bg?: string }) {
     if (v === 0) return <td className={`px-2 py-2.5 text-right text-[var(--text-muted)] ${border} ${bg}`}>-</td>;
@@ -377,8 +377,8 @@ export default function PaymentDailyPage() {
                                 <tbody>
                                     <tr>
                                         <td colSpan={9} className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
-                                            <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Today&apos;s Rooms</span>
-                                            <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดชำระสำหรับห้องวันนี้</span>
+                                            <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Business Date Rooms</span>
+                                            <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดชำระสำหรับห้องใน business date นี้</span>
                                         </td>
                                     </tr>
 
@@ -535,7 +535,7 @@ export default function PaymentDailyPage() {
 
                                     {/* ─── Today Subtotal ─── */}
                                     <tr className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)] font-bold text-sm">
-                                        <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Today Subtotal</td>
+                                        <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Business Date Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.today_subtotal.grand_net)}</td>
                                         <MoneyCell v={data.today_subtotal.cash.payment} border={Bi} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
                                         <MoneyCell v={data.today_subtotal.cash.deposit} border={B} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
@@ -561,7 +561,7 @@ export default function PaymentDailyPage() {
                                         <tbody>
                                             {data.advance_payments.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded today.</td>
+                                                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded on this business date.</td>
                                                 </tr>
                                             ) : data.advance_payments.map(adv => (
                                                 <tr

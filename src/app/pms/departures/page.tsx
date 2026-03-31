@@ -249,7 +249,7 @@ export default function DeparturesPage() {
             {!loading && departures.length === 0 && !error && (
                 <div className="card p-12 text-center">
                     <p className="text-3xl mb-3">🏁</p>
-                    <p className="text-[var(--text-secondary)] font-medium">No departures today</p>
+                    <p className="text-[var(--text-secondary)] font-medium">No departures on this business date</p>
                 </div>
             )}
 
