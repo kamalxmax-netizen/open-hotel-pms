@@ -53,6 +53,12 @@ function formatStayLine(checkinDate: string, checkoutDate: string, nights: numbe
     return `${checkinDate} → ${checkoutDate} (${nights}N)`;
 }
 
+function formatSwapRoomLabel(roomNumber: string | null | undefined) {
+    const value = String(roomNumber ?? "").trim();
+    if (!value) return "?";
+    return value.includes("→") ? value : `Room ${value}`;
+}
+
 export default function AssignRoomModal({
     reservationId,
     roomTypeId,
@@ -115,6 +121,13 @@ export default function AssignRoomModal({
         allowed: swapCandidates.filter((candidate) => candidate.can_swap).length,
         blocked: swapCandidates.filter((candidate) => !candidate.can_swap).length,
     }), [swapCandidates]);
+    const eligibleSwapCandidates = useMemo(
+        () => swapCandidates.filter((candidate) => candidate.can_swap),
+        [swapCandidates]
+    );
+    const hasEligibleSwapLock = Boolean(
+        swapSource?.do_not_move_assigned_room || eligibleSwapCandidates.some((candidate) => candidate.do_not_move_assigned_room)
+    );
 
     async function handleAssign(roomId: string, roomNumber: string) {
         if (!confirm(`Assign Room ${roomNumber} to ${guestName}?`)) return;
@@ -152,7 +165,7 @@ export default function AssignRoomModal({
         }
 
         const confirmed = confirm(
-            `Swap Room ${currentRoomNumber ?? currentRoomId ?? "?"} ↔ Room ${candidate.room_number ?? "?"}?\n\n` +
+            `Swap ${formatSwapRoomLabel(currentRoomNumber ?? currentRoomId ?? "?")} ↔ ${formatSwapRoomLabel(candidate.room_number ?? "?")}?\n\n` +
             `Source: ${guestName}\n` +
             `Target: ${candidate.guest_name} (${candidate.booking_code})`
         );
@@ -197,7 +210,7 @@ export default function AssignRoomModal({
                             <p className="text-sm text-brand-600 font-semibold">{roomTypeName}</p>
                             {isSwapMode && currentRoomNumber && (
                                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                    Current room: <span className="font-semibold text-[var(--text-table-cell)]">Room {currentRoomNumber}</span>
+                                    Current assignment: <span className="font-semibold text-[var(--text-table-cell)]">{formatSwapRoomLabel(currentRoomNumber)}</span>
                                 </p>
                             )}
                         </div>
@@ -302,7 +315,19 @@ export default function AssignRoomModal({
                         <div className="flex items-center justify-between gap-2 mb-2 mt-4">
                             <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Swap Candidates</h4>
                             <div className="text-[11px] text-[var(--text-muted)]">
-                                {swapCounts.allowed} can swap · {swapCounts.blocked} blocked
+                                {swapCounts.allowed} swappable{swapCounts.blocked > 0 ? ` · ${swapCounts.blocked} hidden` : ""}
+                            </div>
+                        </div>
+
+                        <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 dark:bg-indigo-500/10 dark:border-indigo-500/20">
+                            <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-300">Swap works only when</p>
+                            <div className="mt-2 grid gap-1 text-xs text-indigo-800 dark:text-indigo-300">
+                                <div>Both bookings are active, assigned, and not checked in yet</div>
+                                <div>Both rooms use the same room type</div>
+                                <div>The booking you opened defines the swap window for the move</div>
+                                <div>The other booking must sit fully inside that window, so open the longer stay first</div>
+                                <div>Multi-room paths are allowed if the target stay fits fully inside the source window</div>
+                                <div>No day-use room and no active planned move on either booking</div>
                             </div>
                         </div>
 
@@ -312,19 +337,19 @@ export default function AssignRoomModal({
                                     <div key={i} className="h-20 bg-[var(--bg-muted)] animate-pulse rounded-lg border border-[var(--border-default)]" />
                                 ))}
                             </div>
-                        ) : swapCandidates.length === 0 ? (
+                        ) : eligibleSwapCandidates.length === 0 ? (
                             <div className="text-center py-6 bg-[var(--bg-body)] border border-[var(--border-default)] rounded-lg">
-                                <p className="text-[var(--text-secondary)] font-medium">No swap candidates found</p>
-                                <p className="text-xs text-[var(--text-muted)] mt-1">Only assigned reservations that are not checked in appear here.</p>
+                                <p className="text-[var(--text-secondary)] font-medium">No swappable reservations found</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">Only bookings that already pass all swap rules are shown here. If the stay lengths differ, open the longer booking first.</p>
                             </div>
                         ) : (
                             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                                {(swapSource?.do_not_move_assigned_room || swapCandidates.some((candidate) => candidate.do_not_move_assigned_room)) && (
+                                {hasEligibleSwapLock && (
                                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 space-y-2 dark:bg-rose-500/10 dark:border-rose-500/20">
                                         <p className="text-sm font-semibold text-rose-800 dark:text-rose-400">Room Lock Active</p>
                                         {swapSource?.do_not_move_assigned_room && (
                                             <p className="text-xs text-rose-700 dark:text-rose-500/80">
-                                                Source reservation is locked to Room {swapSource.room_number ?? currentRoomNumber ?? "?"}
+                                                Source reservation is locked to {formatSwapRoomLabel(swapSource.room_number ?? currentRoomNumber ?? "?")}
                                                 {swapSource.do_not_move_reason ? ` · ${swapSource.do_not_move_reason}` : ""}
                                             </p>
                                         )}
@@ -338,13 +363,10 @@ export default function AssignRoomModal({
                                         />
                                     </div>
                                 )}
-                                {swapCandidates.map((candidate) => (
+                                {eligibleSwapCandidates.map((candidate) => (
                                     <div
                                         key={candidate.reservation_id}
-                                        className={`rounded-lg border p-3 transition-all ${candidate.can_swap
-                                            ? "bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
-                                            : "bg-rose-50 border-rose-200 opacity-50 dark:bg-rose-500/10 dark:border-rose-500/20"
-                                            }`}
+                                        className="rounded-lg border p-3 transition-all bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-brand-300 hover:shadow-sm"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
@@ -354,32 +376,24 @@ export default function AssignRoomModal({
                                                 <div className="text-xs text-[var(--text-secondary)] mt-1">
                                                     {formatStayLine(candidate.checkin_date, candidate.checkout_date, candidate.nights)}
                                                 </div>
-                                                {candidate.can_swap ? (
-                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                                                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
-                                                            ✓ Can Swap
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
+                                                        ✓ Can Swap
+                                                    </span>
+                                                    {candidate.do_not_move_assigned_room && (
+                                                        <span className="inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
+                                                            🔒 Do Not Move
                                                         </span>
-                                                        {candidate.do_not_move_assigned_room && (
-                                                            <span className="inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
-                                                                🔒 Do Not Move
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30">
-                                                        ✗ Blocked: {candidate.reason ?? "Unavailable"}
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
-                                            {candidate.can_swap && (
-                                                <button
-                                                    className="btn btn-secondary btn-sm flex-shrink-0"
-                                                    disabled={saving}
-                                                    onClick={() => handleSwap(candidate)}
-                                                >
-                                                    Swap ↔
-                                                </button>
-                                            )}
+                                            <button
+                                                className="btn btn-secondary btn-sm flex-shrink-0"
+                                                disabled={saving}
+                                                onClick={() => handleSwap(candidate)}
+                                            >
+                                                Swap ↔
+                                            </button>
                                         </div>
                                     </div>
                                 ))}

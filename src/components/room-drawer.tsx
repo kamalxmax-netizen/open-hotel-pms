@@ -48,6 +48,7 @@ export type RoomDrawerRoom = {
         deposit_note?: string | null;
         deposit_paid_at?: string | null;
         deposit_paid_date?: string | null;
+        dayuse_status?: "active" | "checked_out" | null;
         dayuse_expires_at?: string | null;
         do_not_move_assigned_room?: boolean;
         do_not_move_reason?: string | null;
@@ -1082,7 +1083,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                     {fmtBangkokDateTime(res.checked_in_at)}
                                                 </span>
                                             </div>
-                                            {res.dayuse_expires_at && (
+                                            {res.dayuse_expires_at && res.dayuse_status !== "checked_out" && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs font-semibold text-[var(--dayuse-text)] uppercase tracking-widest pl-1">Remaining Time</span>
                                                     <DayUseTimer expiresAt={res.dayuse_expires_at} className="bg-[var(--bg-surface)] shadow-sm" />

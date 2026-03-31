@@ -11,6 +11,7 @@ import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservation
 type HousekeepingStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
 type GuestSummary = {
   reservation_id: string | null;
+  reservation_status: string | null;
   parent_reservation_id: string | null;
   linked_root_id: string | null;
   linked_full_checkin: string | null;
@@ -76,6 +77,24 @@ function mapHousekeepingToBoardStatus(status: HousekeepingStatus): BoardRoomStat
   return "available";
 }
 
+function isLaterDate(left: string | null | undefined, right: string | null | undefined): boolean {
+  const l = typeof left === "string" ? left : "";
+  const r = typeof right === "string" ? right : "";
+  if (!l) return false;
+  if (!r) return true;
+  return l > r;
+}
+
+function shouldReplaceHistoricalOccupant(existing: GuestSummary | null | undefined, incoming: GuestSummary): boolean {
+  if (!existing) return true;
+  if (isLaterDate(incoming.checkin_date, existing.checkin_date)) return true;
+  if (incoming.checkin_date === existing.checkin_date) {
+    if (incoming.reservation_status === "active" && existing.reservation_status !== "active") return true;
+    if ((incoming.reservation_id ?? "") > (existing.reservation_id ?? "")) return true;
+  }
+  return false;
+}
+
 export async function GET(request: NextRequest) {
   const t0 = performance.now();
   const requestedDate = request.nextUrl.searchParams.get("date");
@@ -85,6 +104,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerSupabaseClient();
   const date = await getBusinessDate(supabase, requestedDate);
+  const currentBusinessDate = await getBusinessDate(supabase);
+  const isHistoricalPastDate = date < currentBusinessDate;
   const tDate = performance.now();
 
   // ── Wave 1: All independent queries in parallel ─────────────────────────
@@ -192,7 +213,9 @@ export async function GET(request: NextRequest) {
     const reservationRef = Array.isArray(night?.reservations)
       ? night.reservations[0]
       : night?.reservations;
-    if (!reservationRef || reservationRef.status !== "active") return;
+    if (!reservationRef) return;
+    const reservationStatus = String(reservationRef.status ?? "");
+    if (reservationStatus !== "active" && !(isHistoricalPastDate && reservationStatus === "checked_out")) return;
     if (reservationRef?.booking_group_id) {
       groupIds.add(String(reservationRef.booking_group_id));
     }
@@ -210,7 +233,9 @@ export async function GET(request: NextRequest) {
   const reservationIdsForCheckin = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
     const reservationRef = Array.isArray(night?.reservations) ? night.reservations[0] : night?.reservations;
-    if (!reservationRef || reservationRef.status !== "active") return;
+    if (!reservationRef) return;
+    const reservationStatus = String(reservationRef.status ?? "");
+    if (reservationStatus !== "active" && !(isHistoricalPastDate && reservationStatus === "checked_out")) return;
     if (reservationRef?.id) reservationIdsForCheckin.add(String(reservationRef.id));
   });
   (departuresToday ?? []).forEach((reservation: any) => {
@@ -266,7 +291,8 @@ export async function GET(request: NextRequest) {
   const linkedRootReservationIds = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
     const reservationRef = Array.isArray(night?.reservations) ? night.reservations[0] : night?.reservations;
-    if (reservationRef?.parent_reservation_id) {
+    const reservationStatus = String(reservationRef?.status ?? "");
+    if (reservationRef?.parent_reservation_id && (reservationStatus === "active" || (isHistoricalPastDate && reservationStatus === "checked_out"))) {
       linkedRootReservationIds.add(String(reservationRef.parent_reservation_id));
     }
   });
@@ -291,6 +317,7 @@ export async function GET(request: NextRequest) {
     if (reservationId) {
       effectivePlanReservationsById.set(reservationId, {
         reservation_id: reservationId,
+        reservation_status: "active",
         parent_reservation_id: parentReservationId,
         linked_root_id: linkedRootId,
         linked_full_checkin: null,
@@ -340,7 +367,11 @@ export async function GET(request: NextRequest) {
     const reservationRef = Array.isArray(night.reservations)
       ? night.reservations[0]
       : night.reservations;
-    if (!reservationRef || reservationRef.status !== "active") return;
+    if (!reservationRef) return;
+    const reservationStatus = String(reservationRef.status ?? "");
+    const canAppearInHistoricalOccupancy =
+      reservationStatus === "active" || (isHistoricalPastDate && reservationStatus === "checked_out");
+    if (!canAppearInHistoricalOccupancy) return;
     const reservationId = reservationRef.id ? String(reservationRef.id) : null;
     const parentReservationId = reservationRef.parent_reservation_id ? String(reservationRef.parent_reservation_id) : null;
     const linkedRootId = parentReservationId ?? (reservationId && linkedRootReservationIds.has(reservationId) ? reservationId : null);
@@ -349,6 +380,7 @@ export async function GET(request: NextRequest) {
 
     const guest: GuestSummary = {
       reservation_id: reservationId,
+      reservation_status: reservationStatus || null,
       parent_reservation_id: parentReservationId,
       linked_root_id: linkedRootId,
       linked_full_checkin: null,
@@ -370,7 +402,10 @@ export async function GET(request: NextRequest) {
       group_name: groupMeta?.group_name ?? null,
     };
 
-    occupiedGuestByRoomId.set(roomId, guest);
+    const existingGuest = occupiedGuestByRoomId.get(roomId);
+    if (!isHistoricalPastDate || shouldReplaceHistoricalOccupant(existingGuest, guest)) {
+      occupiedGuestByRoomId.set(roomId, guest);
+    }
     if (guest.checkin_date === date) {
       arrivalGuestByRoomId.set(roomId, guest);
     }
@@ -399,6 +434,7 @@ export async function GET(request: NextRequest) {
 
     departureGuestByRoomId.set(roomId, {
       reservation_id: reservationId,
+      reservation_status: String(reservation.status ?? "active"),
       parent_reservation_id: parentReservationId,
       linked_root_id: linkedRootId,
       linked_full_checkin: null,
@@ -731,6 +767,7 @@ export async function GET(request: NextRequest) {
     const hasPlannedTargetToday = Boolean(plannedTargetGuest);
     const hasDepartureToday = departureGuestByRoomId.has(room.id);
     const hasOccupiedStay = occupiedGuestByRoomId.has(room.id);
+    const hasHistoricalOccupiedStay = isHistoricalPastDate && hasOccupiedStay;
     const isDueOut = hasDepartureToday || hasPlannedSourceToday;
     const isDueIn = hasArrivalTodayPending || hasPlannedTargetToday;
 
@@ -739,6 +776,8 @@ export async function GET(request: NextRequest) {
       closure_reason = block.reason;
     } else if (!room.is_sellable) {
       status = "closed";
+    } else if (hasHistoricalOccupiedStay) {
+      status = "reserved";
     } else if (reservedRoomIds.has(room.id)) {
       status = "reserved";
     } else {
@@ -748,7 +787,8 @@ export async function GET(request: NextRequest) {
 
     let diary_state: "available" | "due_in" | "inhouse" | "back_to_back" | "due_out" | null = null;
     if (!block && room.is_sellable) {
-      if (isDueOut && isDueIn) diary_state = "back_to_back";
+      if (hasHistoricalOccupiedStay) diary_state = "inhouse";
+      else if (isDueOut && isDueIn) diary_state = "back_to_back";
       else if (isDueOut) diary_state = "due_out";
       else if (isDueIn) diary_state = "due_in";
       else if (hasOccupiedStay) diary_state = "inhouse";
@@ -766,7 +806,9 @@ export async function GET(request: NextRequest) {
       (arrivalGuest && !arrivalGuest.is_checked_in ? arrivalGuest : null) ??
       (hasPlannedTargetToday ? plannedTargetGuest : null);
     const guest =
-      diary_state === "back_to_back" || diary_state === "due_out"
+      isHistoricalPastDate
+        ? occupiedGuest
+        : diary_state === "back_to_back" || diary_state === "due_out"
         ? departureGuest
         : diary_state === "due_in"
           ? dueInGuest
@@ -817,12 +859,12 @@ export async function GET(request: NextRequest) {
       main_night_count: loyalty?.main_night_count ?? 0,
       accompanying_stay_count: loyalty?.accompanying_stay_count ?? 0,
       accompanying_night_count: loyalty?.accompanying_night_count ?? 0,
-      due_in_guest_name: dueInGuest?.guest_name ?? null,
-      due_in_booking_code: dueInGuest?.booking_code ?? null,
-      due_in_checkin_date: dueInGuest?.checkin_date ?? null,
-      due_in_checkout_date: dueInGuest?.checkout_date ?? null,
-      due_in_source: dueInGuest?.source ?? null,
-      due_in_reservation_id: dueInGuest?.reservation_id ?? null,
+      due_in_guest_name: isHistoricalPastDate ? null : dueInGuest?.guest_name ?? null,
+      due_in_booking_code: isHistoricalPastDate ? null : dueInGuest?.booking_code ?? null,
+      due_in_checkin_date: isHistoricalPastDate ? null : dueInGuest?.checkin_date ?? null,
+      due_in_checkout_date: isHistoricalPastDate ? null : dueInGuest?.checkout_date ?? null,
+      due_in_source: isHistoricalPastDate ? null : dueInGuest?.source ?? null,
+      due_in_reservation_id: isHistoricalPastDate ? null : dueInGuest?.reservation_id ?? null,
       booking_group_id: guest?.booking_group_id ?? null,
       parent_reservation_id: guest?.parent_reservation_id ?? null,
       linked_root_id: guest?.linked_root_id ?? null,

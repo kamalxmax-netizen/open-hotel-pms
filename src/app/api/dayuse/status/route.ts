@@ -179,6 +179,7 @@ export async function GET(request: Request) {
         booking_code: String(reservation.booking_code ?? ""),
         guest_name: String(reservation.guest_name ?? ""),
         phone: reservation.phone ? String(reservation.phone) : null,
+        status: reservation.status === "active" ? "active" : "checked_out",
         checked_in_at: String(reservation.checked_in_at ?? ""),
         dayuse_expires_at: String(reservation.dayuse_expires_at ?? ""),
         total_price: round2(Number(reservation.total_price ?? 0)),
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
       const current = activeReservationByRoomId.get(roomId) ?? null;
       const hkStatus = hkStatusByRoomId.get(roomId) ?? null;
       const isBlockedByHousekeeping = hkStatus ? blockedHousekeepingStatuses.has(hkStatus) : false;
-      const timerState = current ? computeTimerState(current.dayuse_expires_at) : null;
+      const timerState = current?.status === "active" ? computeTimerState(current.dayuse_expires_at) : null;
       const isAvailable = !current && !isBlockedByHousekeeping;
 
       return {

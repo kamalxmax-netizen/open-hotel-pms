@@ -163,7 +163,7 @@ body {
 .sidebar {
   width: var(--sidebar-collapsed-w);
   flex-shrink: 0;
-  @apply fixed inset-y-0 left-0 z-[100] flex flex-col border-r;
+  @apply fixed inset-y-0 left-0 z-[9999] flex flex-col border-r;
   background-color: var(--bg-sidebar);
   border-color: var(--border-default);
   transition: width 0.1s ease-out;

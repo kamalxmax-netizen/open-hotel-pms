@@ -929,7 +929,7 @@ export default function LogbookPage() {
         dangerouslySetInnerHTML={{
           __html: `
             .canvas-bg {
-              background-image: radial-gradient(#cbd5e1 1px, transparent 0);
+              background-image: radial-gradient(rgba(148, 163, 184, 0.2) 1px, transparent 0);
               background-size: 24px 24px;
             }
           `,

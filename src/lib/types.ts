@@ -1202,6 +1202,7 @@ export interface DayUseReservation {
   booking_code: string;
   guest_name: string;
   phone: string | null;
+  status: "active" | "checked_out";
   checked_in_at: string;
   dayuse_expires_at: string;
   total_price: number;

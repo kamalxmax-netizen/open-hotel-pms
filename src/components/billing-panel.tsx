@@ -48,6 +48,20 @@ interface BillingPanelProps {
   } | null;
 }
 
+function getPaymentMethodBadgeClass(method: string): string {
+  const normalizedMethod = String(method || "").toLowerCase();
+  if (normalizedMethod === "cash") {
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400";
+  }
+  if (normalizedMethod === "transfer") {
+    return "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-400";
+  }
+  if (normalizedMethod === "credit_card") {
+    return "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-400";
+  }
+  return "bg-slate-100 text-slate-800 dark:bg-slate-700/40 dark:text-slate-300";
+}
+
 export function BillingPanel({
   reservationId,
   totalPrice,
@@ -474,7 +488,7 @@ export function BillingPanel({
                     <div className="flex items-center gap-2">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold shrink-0 ${
                         isPending ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400" : 
-                        isRefund ? "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-400" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400"
+                        isRefund ? "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-400" : getPaymentMethodBadgeClass(p.method)
                       }`}>
                         {methodLabel}
                       </span>

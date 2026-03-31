@@ -78,6 +78,7 @@ type ApiRoom = {
     first_alert_message?: string | null;
     alert_severity?: "info" | "warning" | "critical" | null;
     is_dayuse?: boolean;
+    dayuse_reservation_status?: "active" | "checked_out" | null;
     dayuse_expires_at?: string | null;
     dayuse_timer_state?: DayUseTimerState | null;
 };
@@ -252,6 +253,7 @@ function mapDayUseToApiRoom(room: DayUseRoomStatus): ApiRoom {
         hk_status: room.hk_status ?? null,
         hk_task_seq: null,
         is_dayuse: true,
+        dayuse_reservation_status: room.current_reservation?.status ?? null,
         dayuse_expires_at: room.current_reservation?.dayuse_expires_at ?? null,
         dayuse_timer_state: room.timer_state ?? null,
     };
@@ -277,7 +279,7 @@ function shiftDateString(baseDate: string, offsetDays: number): string {
 }
 
 function RoomCard({
-    room, selected, viewMode, isMobile, isMatched, groupHighlight, groupPeers, hkLayerEnabled, nowMs, onGroupHoverChange, onClick, clickable = true
+    room, selected, viewMode, isMobile, isMatched, groupHighlight, groupPeers, hkLayerEnabled, nowMs, alertsEnabled, onGroupHoverChange, onClick, clickable = true
 }: {
     room: ApiRoom;
     selected: boolean;
@@ -288,6 +290,7 @@ function RoomCard({
     groupPeers: ApiRoom[];
     hkLayerEnabled: boolean;
     nowMs: number;
+    alertsEnabled: boolean;
     onGroupHoverChange: (groupId: string | null) => void;
     onClick: () => void;
     clickable?: boolean;
@@ -329,7 +332,9 @@ function RoomCard({
         !isBlocked &&
         Boolean(hkStripeColor);
     const hasDayUseAlertCandidate =
+        alertsEnabled &&
         Boolean(room.is_dayuse) &&
+        room.dayuse_reservation_status === "active" &&
         Boolean(room.dayuse_expires_at) &&
         Boolean(room.reservation_id);
     const dayUseExpiresMs = room.dayuse_expires_at ? new Date(room.dayuse_expires_at).getTime() : Number.NaN;
@@ -342,6 +347,7 @@ function RoomCard({
         else if (dayUseSecondsToExpiry <= 30 * 60) dayUseAlertLevel = "yellow";
     }
     const hasTransferAlertCandidate =
+        alertsEnabled &&
         Boolean(room.transfer_pickup_at) &&
         room.transfer_alert_enabled !== false &&
         (room.transfer_status === "pending" ||
@@ -798,6 +804,7 @@ export default function BoardPage() {
     const refreshRef = useRef(0);
     const dayUseSnapshotRef = useRef<{ rooms: DayUseRoomStatus[]; settings: DayUseSettings } | null>(null);
     const isReadOnlyDiaryView = dateOffset !== 0;
+    const isHistoricalDiaryView = dateOffset !== 0;
     const requestedBoardDate =
         dateOffset === 0
             ? null
@@ -826,9 +833,10 @@ export default function BoardPage() {
     }, [viewMode]);
 
     useEffect(() => {
+        if (isHistoricalDiaryView) return;
         const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
         return () => window.clearInterval(timer);
-    }, []);
+    }, [isHistoricalDiaryView]);
 
     useEffect(() => {
         localStorage.setItem("board-hk-dirty-layer", showHkDirtyLayer ? "1" : "0");
@@ -883,6 +891,11 @@ export default function BoardPage() {
             };
             const previous = dayUseSnapshotRef.current;
 
+            if (isHistoricalDiaryView) {
+                setDayUseData(incoming);
+                return;
+            }
+
             if (!previous) {
                 setDayUseData(incoming);
                 return;
@@ -913,7 +926,10 @@ export default function BoardPage() {
 
             if (statusChanged) {
                 setDayUseData(incoming);
-                const boardRes = await fetch("/api/board");
+                const boardParams = new URLSearchParams();
+                if (requestedBoardDate) boardParams.set("date", requestedBoardDate);
+                const boardUrl = boardParams.toString() ? `/api/board?${boardParams.toString()}` : "/api/board";
+                const boardRes = await fetch(boardUrl);
                 const boardData = await boardRes.json();
                 if (boardData.success) setData(boardData);
                 return;
@@ -945,7 +961,7 @@ export default function BoardPage() {
         } catch {
             setDayUseError("Day Use status sync failed.");
         }
-    }, [dateOffset, requestedBoardDate]);
+    }, [dateOffset, requestedBoardDate, isHistoricalDiaryView]);
 
     useEffect(() => {
         loadDayUse();
@@ -1017,6 +1033,7 @@ export default function BoardPage() {
                     deposit_note: null,
                     deposit_paid_at: null,
                     deposit_paid_date: null,
+                    dayuse_status: dayUseRoom.current_reservation.status,
                     checked_in_at: dayUseRoom.current_reservation.checked_in_at,
                     dayuse_expires_at: dayUseRoom.current_reservation.dayuse_expires_at,
                 }
@@ -1204,6 +1221,7 @@ export default function BoardPage() {
                 isMobile={isMobile}
                 hkLayerEnabled={showHkDirtyLayer}
                 nowMs={nowMs}
+                alertsEnabled={!isHistoricalDiaryView}
                 isMatched={matchesAnyFilter(mapped, activeFilters)}
                 groupHighlight={resolveGroupHighlight(mapped)}
                 groupPeers={[]}
@@ -1285,8 +1303,10 @@ export default function BoardPage() {
                     </button>
                     {/* New Booking */}
                     <button
-                        className="btn btn-primary"
+                        className={`btn btn-primary ${isReadOnlyDiaryView ? "opacity-60 cursor-not-allowed" : ""}`}
+                        disabled={isReadOnlyDiaryView}
                         onClick={() => {
+                            if (isReadOnlyDiaryView) return;
                             setDetailMode("create");
                             setDetailResId(undefined);
                             setDetailRoomNumber(undefined);
@@ -1347,6 +1367,11 @@ export default function BoardPage() {
                     Day Use unavailable: {dayUseError}
                 </div>
             )}
+            {isHistoricalDiaryView && requestedBoardDate && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300">
+                    Historical mode for <span className="font-semibold">{requestedBoardDate}</span>. This view is read-only and hides live alerts, countdowns, and real-time status changes.
+                </div>
+            )}
             {!dayUseError && dayUseData && dayUseData.rooms.length === 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     Day Use configured but no mapped rooms found. Check `rooms.is_dayuse = true` for your Day Use rooms.
@@ -1391,6 +1416,7 @@ export default function BoardPage() {
                                                     isMobile={isMobile}
                                                     hkLayerEnabled={showHkDirtyLayer}
                                                     nowMs={nowMs}
+                                                    alertsEnabled={!isHistoricalDiaryView}
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
                                                     groupHighlight={resolveGroupHighlight(room)}
                                                     groupPeers={
@@ -1439,6 +1465,7 @@ export default function BoardPage() {
                                                     isMobile={isMobile}
                                                     hkLayerEnabled={showHkDirtyLayer}
                                                     nowMs={nowMs}
+                                                    alertsEnabled={!isHistoricalDiaryView}
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
                                                     groupHighlight={resolveGroupHighlight(room)}
                                                     groupPeers={

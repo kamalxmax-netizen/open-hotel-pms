@@ -1,10 +1,7 @@
 import { compareDateStrings } from "@/lib/dates";
 import {
   appendReservationNoteLine,
-  assertNoRoomBlockConflict,
-  listOverlappingPlannedRoomHolds,
   listReservationPlannedMoves,
-  PlannedRoomMoveError,
   syncReservationNightDependencyMetadata,
 } from "@/lib/planned-room-moves";
 import { normalizeAuditSource } from "@/lib/audit-utils";
@@ -24,6 +21,7 @@ export type RoomSwapReasonCode =
   | "reservation_not_active"
   | "already_checked_in"
   | "room_not_assigned"
+  | "target_outside_source_window"
   | "multiple_room_segments"
   | "planned_move_active"
   | "room_type_mismatch"
@@ -32,6 +30,16 @@ export type RoomSwapReasonCode =
   | "target_checkout_exceeds_source"
   | "source_room_conflict"
   | "target_room_conflict";
+
+type ReservationSwapNight = {
+  id: string;
+  stay_date: string;
+  room_id: string;
+  room_number: string | null;
+  room_type_id: number | null;
+  room_is_dayuse: boolean;
+  dayuse_session: number;
+};
 
 export type ReservationSwapContext = {
   reservation_id: string;
@@ -45,11 +53,13 @@ export type ReservationSwapContext = {
   room_type_name: string | null;
   current_room_id: string | null;
   current_room_number: string | null;
+  room_path_label: string | null;
   current_room_is_dayuse: boolean;
   has_multiple_room_segments: boolean;
   has_active_planned_move: boolean;
   do_not_move_assigned_room: boolean;
   do_not_move_reason: string | null;
+  active_nights: ReservationSwapNight[];
 };
 
 export type SwapCandidate = {
@@ -87,6 +97,28 @@ function roomStayNights(checkinDate: string, checkoutDate: string) {
   return diff > 0 ? diff : 0;
 }
 
+function buildRoomPathLabel(nights: ReservationSwapNight[]): string | null {
+  const labels: string[] = [];
+  for (const night of nights) {
+    const roomNumber = String(night.room_number ?? "").trim();
+    if (!roomNumber) continue;
+    if (labels[labels.length - 1] !== roomNumber) {
+      labels.push(roomNumber);
+    }
+  }
+  if (labels.length === 0) return null;
+  return labels.join(" → ");
+}
+
+function buildNightMap(nights: ReservationSwapNight[]): Map<string, ReservationSwapNight> {
+  return new Map(nights.map((night) => [night.stay_date, night]));
+}
+
+function resolveDynamicRoomCode(context: ReservationSwapContext | null): string | null {
+  if (!context || context.has_multiple_room_segments) return null;
+  return context.active_nights[0]?.room_number ?? null;
+}
+
 async function loadRoomsByIds(supabase: SupabaseLike, roomIds: string[]) {
   const ids = Array.from(new Set(roomIds.filter(Boolean)));
   if (ids.length === 0) return new Map<string, any>();
@@ -120,7 +152,7 @@ export async function loadReservationSwapContext(
 
   const { data: nights, error: nightsError } = await supabase
     .from("reservation_nights")
-    .select("room_id, room_type_id, stay_date")
+    .select("id, room_id, room_type_id, stay_date, dayuse_session")
     .eq("reservation_id", reservationId)
     .is("cancelled_at", null)
     .order("stay_date", { ascending: true });
@@ -129,19 +161,37 @@ export async function loadReservationSwapContext(
     throw new RoomSwapError(nightsError.message ?? "Failed to load reservation nights.", 500);
   }
 
-  const activeNights = nights ?? [];
+  const activeNightsRaw = nights ?? [];
   const roomIds: string[] = Array.from(
-    new Set(activeNights.map((row: any) => String(row.room_id ?? "")).filter((value: string) => Boolean(value)))
+    new Set(activeNightsRaw.map((row: any) => String(row.room_id ?? "")).filter((value: string) => Boolean(value)))
   );
   const roomTypeIds: number[] = Array.from(
     new Set(
-      activeNights
+      activeNightsRaw
         .map((row: any) => Number(row.room_type_id ?? 0))
         .filter((value: number) => Number.isFinite(value) && value > 0)
     )
   );
   const roomsById = await loadRoomsByIds(supabase, roomIds);
-  const currentRoom = roomIds[0] ? roomsById.get(roomIds[0]) : null;
+  const activeNights: ReservationSwapNight[] = activeNightsRaw
+    .map((row: any) => {
+      const roomId = String(row.room_id ?? "").trim();
+      if (!roomId) return null;
+      const room = roomsById.get(roomId);
+      return {
+        id: String(row.id),
+        stay_date: String(row.stay_date),
+        room_id: roomId,
+        room_number: room?.room_number ? String(room.room_number) : null,
+        room_type_id: Number(row.room_type_id ?? 0) || null,
+        room_is_dayuse: Boolean(room?.is_dayuse),
+        dayuse_session: Number(row.dayuse_session ?? 0),
+      } satisfies ReservationSwapNight;
+    })
+    .filter(Boolean) as ReservationSwapNight[];
+  const currentRoom = activeNights[0] ? roomsById.get(activeNights[0].room_id) : null;
+  const roomPathLabel = buildRoomPathLabel(activeNights);
+  const uniqueRoomIds = Array.from(new Set(activeNights.map((night) => night.room_id)));
 
   const plannedMoves = (await listReservationPlannedMoves(supabase as any, reservationId)).filter((row) => row.status === "planned");
 
@@ -155,73 +205,16 @@ export async function loadReservationSwapContext(
     checked_in_at: reservation.checked_in_at ? String(reservation.checked_in_at) : null,
     room_type_id: roomTypeIds[0] ?? null,
     room_type_name: null,
-    current_room_id: roomIds[0] ?? null,
-    current_room_number: currentRoom?.room_number ? String(currentRoom.room_number) : null,
-    current_room_is_dayuse: Boolean(currentRoom?.is_dayuse),
-    has_multiple_room_segments: roomIds.length > 1,
+    current_room_id: activeNights[0]?.room_id ?? null,
+    current_room_number: roomPathLabel ?? (currentRoom?.room_number ? String(currentRoom.room_number) : null),
+    room_path_label: roomPathLabel,
+    current_room_is_dayuse: activeNights.some((night) => night.room_is_dayuse),
+    has_multiple_room_segments: uniqueRoomIds.length > 1,
     has_active_planned_move: plannedMoves.length > 0,
     do_not_move_assigned_room: Boolean(reservation.do_not_move_assigned_room),
     do_not_move_reason: reservation.do_not_move_reason ? String(reservation.do_not_move_reason) : null,
+    active_nights: activeNights,
   };
-}
-
-async function assertRoomAvailableForSwapRange(params: {
-  supabase: SupabaseLike;
-  roomId: string;
-  checkinDate: string;
-  checkoutDate: string;
-  excludeReservationIds: string[];
-}) {
-  const { supabase, roomId, checkinDate, checkoutDate, excludeReservationIds } = params;
-
-  let nightsQuery = supabase
-    .from("reservation_nights")
-    .select("reservation_id, stay_date")
-    .eq("room_id", roomId)
-    .gte("stay_date", checkinDate)
-    .lt("stay_date", checkoutDate)
-    .is("cancelled_at", null)
-    .limit(1);
-
-  for (const reservationId of excludeReservationIds.filter(Boolean)) {
-    nightsQuery = nightsQuery.neq("reservation_id", reservationId);
-  }
-
-  const { data: conflictNights, error: conflictNightsError } = await nightsQuery;
-  if (conflictNightsError) {
-    throw new RoomSwapError(conflictNightsError.message ?? "Failed to check room occupancy.", 500);
-  }
-  if ((conflictNights ?? []).length > 0) {
-    const conflict = conflictNights![0];
-    return {
-      ok: false,
-      reason: `is needed by another reservation on ${String(conflict.stay_date)}.`,
-    };
-  }
-
-  try {
-    await assertNoRoomBlockConflict(supabase as any, { roomId, checkinDate, checkoutDate });
-  } catch (error) {
-    if (error instanceof PlannedRoomMoveError) {
-      return { ok: false, reason: error.message };
-    }
-    throw error;
-  }
-
-  const plannedHolds = await listOverlappingPlannedRoomHolds(supabase as any, {
-    roomIds: [roomId],
-    checkinDate,
-    checkoutDate,
-  });
-  const blockingHold = plannedHolds.find((row) => !excludeReservationIds.includes(String(row.reservation_id)));
-  if (blockingHold) {
-    return {
-      ok: false,
-      reason: `is held by planned move for reservation ${String(blockingHold.reservation_id)} (${blockingHold.start_date} → ${blockingHold.end_date}).`,
-    };
-  }
-
-  return { ok: true, reason: null } as const;
 }
 
 export async function evaluateRoomSwapEligibility(
@@ -229,20 +222,15 @@ export async function evaluateRoomSwapEligibility(
   source: ReservationSwapContext,
   target: ReservationSwapContext
 ): Promise<{ can_swap: boolean; reason_code: RoomSwapReasonCode | null; reason: string | null }> {
+  void supabase;
   if (source.status !== "active" || target.status !== "active") {
     return { can_swap: false, reason_code: "reservation_not_active", reason: "Swap unavailable: reservation is not active." };
   }
   if (source.checked_in_at || target.checked_in_at) {
     return { can_swap: false, reason_code: "already_checked_in", reason: "Swap unavailable: target reservation already checked in." };
   }
-  if (!source.current_room_id || !target.current_room_id) {
+  if (source.active_nights.length === 0 || target.active_nights.length === 0) {
     return { can_swap: false, reason_code: "room_not_assigned", reason: "Swap unavailable: both reservations must already have assigned rooms." };
-  }
-  if (source.current_room_id === target.current_room_id) {
-    return { can_swap: false, reason_code: "same_room", reason: "Swap unavailable: both reservations already use the same room." };
-  }
-  if (source.has_multiple_room_segments || target.has_multiple_room_segments) {
-    return { can_swap: false, reason_code: "multiple_room_segments", reason: "Swap unavailable: reservation has multiple room segments already." };
   }
   if (source.has_active_planned_move || target.has_active_planned_move) {
     return { can_swap: false, reason_code: "planned_move_active", reason: "Swap unavailable: target reservation has active planned move." };
@@ -253,41 +241,38 @@ export async function evaluateRoomSwapEligibility(
   if (!source.room_type_id || !target.room_type_id || source.room_type_id !== target.room_type_id) {
     return { can_swap: false, reason_code: "room_type_mismatch", reason: "Swap unavailable: room type differs." };
   }
-  if (compareDateStrings(target.checkout_date, source.checkout_date) > 0) {
+  if (
+    compareDateStrings(target.checkin_date, source.checkin_date) < 0 ||
+    compareDateStrings(target.checkout_date, source.checkout_date) > 0
+  ) {
     return {
       can_swap: false,
-      reason_code: "target_checkout_exceeds_source",
-      reason: `Swap unavailable: Room ${target.current_room_number ?? "?"} is needed after ${source.checkout_date}.`,
+      reason_code: "target_outside_source_window",
+      reason: `Swap unavailable: ${target.booking_code} must fit fully inside ${source.booking_code}'s stay window.`,
     };
   }
 
-  const sourceRoomAvailability = await assertRoomAvailableForSwapRange({
-    supabase,
-    roomId: source.current_room_id,
-    checkinDate: target.checkin_date,
-    checkoutDate: target.checkout_date,
-    excludeReservationIds: [source.reservation_id, target.reservation_id],
-  });
-  if (!sourceRoomAvailability.ok) {
-    return {
-      can_swap: false,
-      reason_code: "source_room_conflict",
-      reason: `Swap unavailable: Room ${source.current_room_number ?? "?"} ${sourceRoomAvailability.reason}`,
-    };
+  const sourceNightByDate = buildNightMap(source.active_nights);
+  let samePath = true;
+  for (const targetNight of target.active_nights) {
+    const sourceNight = sourceNightByDate.get(targetNight.stay_date);
+    if (!sourceNight || !sourceNight.room_id || !targetNight.room_id) {
+      return {
+        can_swap: false,
+        reason_code: "room_not_assigned",
+        reason: "Swap unavailable: one of the bookings has unassigned nights in the selected window.",
+      };
+    }
+    if (sourceNight.room_id !== targetNight.room_id) {
+      samePath = false;
+    }
   }
 
-  const targetRoomAvailability = await assertRoomAvailableForSwapRange({
-    supabase,
-    roomId: target.current_room_id,
-    checkinDate: source.checkin_date,
-    checkoutDate: source.checkout_date,
-    excludeReservationIds: [source.reservation_id, target.reservation_id],
-  });
-  if (!targetRoomAvailability.ok) {
+  if (samePath) {
     return {
       can_swap: false,
-      reason_code: "target_room_conflict",
-      reason: `Swap unavailable: Room ${target.current_room_number ?? "?"} ${targetRoomAvailability.reason}`,
+      reason_code: "same_room",
+      reason: "Swap unavailable: both bookings already use the same room path in that window.",
     };
   }
 
@@ -299,7 +284,7 @@ export async function listSwapCandidatesForReservation(
   reservationId: string
 ): Promise<SwapCandidate[]> {
   const source = await loadReservationSwapContext(supabase, reservationId);
-  if (!source || !source.room_type_id || !source.current_room_id || source.checked_in_at) return [];
+  if (!source || !source.room_type_id || source.active_nights.length === 0 || source.checked_in_at) return [];
 
   const { data: reservations, error } = await supabase
     .from("reservations")
@@ -344,6 +329,74 @@ export async function listSwapCandidatesForReservation(
   });
 }
 
+type SwapWindowNightPair = {
+  stay_date: string;
+  source_night: ReservationSwapNight;
+  target_night: ReservationSwapNight;
+};
+
+function buildSwapWindowNightPairs(
+  source: ReservationSwapContext,
+  target: ReservationSwapContext
+): SwapWindowNightPair[] {
+  const sourceNightByDate = buildNightMap(source.active_nights);
+  return target.active_nights
+    .map((targetNight) => {
+      const sourceNight = sourceNightByDate.get(targetNight.stay_date);
+      if (!sourceNight) {
+        throw new RoomSwapError(
+          `Swap unavailable: ${source.booking_code} has no assigned room on ${targetNight.stay_date}.`,
+          409,
+          "room_not_assigned"
+        );
+      }
+      return {
+        stay_date: targetNight.stay_date,
+        source_night: sourceNight,
+        target_night: targetNight,
+      } satisfies SwapWindowNightPair;
+    })
+    .sort((left, right) => left.stay_date.localeCompare(right.stay_date));
+}
+
+async function shiftNightSessions(
+  supabase: SupabaseLike,
+  nights: ReservationSwapNight[],
+  delta: number,
+  failureMessage: string
+) {
+  for (const night of nights) {
+    const { error: updateError } = await supabase
+      .from("reservation_nights")
+      .update({ dayuse_session: night.dayuse_session + delta })
+      .eq("id", night.id);
+    if (updateError) {
+      throw new RoomSwapError(updateError.message ?? failureMessage, 500);
+    }
+  }
+}
+
+async function updateNightRoom(
+  supabase: SupabaseLike,
+  nightId: string,
+  roomId: string,
+  failureMessage: string
+) {
+  const { error } = await supabase
+    .from("reservation_nights")
+    .update({
+      room_id: roomId,
+      assignment_source: "manual",
+      dependency_plan_id: null,
+      dependency_reason: null,
+    })
+    .eq("id", nightId);
+
+  if (error) {
+    throw new RoomSwapError(error.message ?? failureMessage, 500);
+  }
+}
+
 export async function executeWholeStayRoomSwap(
   supabase: SupabaseLike,
   sourceReservationId: string,
@@ -361,97 +414,69 @@ export async function executeWholeStayRoomSwap(
     throw new RoomSwapError(evaluation.reason ?? "Swap unavailable.", 409, evaluation.reason_code);
   }
 
+  const swapPairs = buildSwapWindowNightPairs(source, target);
+  if (swapPairs.length === 0) {
+    throw new RoomSwapError("Swap unavailable: no overlapping assigned nights found.", 409, "room_not_assigned");
+  }
+
   // NOTE:
   // reservation_nights has unique index (room_id, stay_date, dayuse_session) for active rows.
   // A direct two-step room update can collide on overlapping dates.
   // We temporarily shift source dayuse_session to avoid transient key collisions during swap.
   const SESSION_SHIFT = 100;
+  const sourceShiftNights = swapPairs.map((pair) => pair.source_night);
+  const targetShiftNights = swapPairs.map((pair) => pair.target_night);
   let sourceSessionShifted = false;
-  let sourceMovedToTarget = false;
-  let targetMovedToSource = false;
+  const updatedSourceNightIds = new Set<string>();
+  const updatedTargetNightIds = new Set<string>();
 
-  const shiftSourceSessions = async (delta: number, failureMessage: string) => {
-    const { data: rows, error: rowsError } = await supabase
-      .from("reservation_nights")
-      .select("id, dayuse_session")
-      .eq("reservation_id", sourceReservationId)
-      .is("cancelled_at", null);
-
-    if (rowsError) {
-      throw new RoomSwapError(rowsError.message ?? failureMessage, 500);
-    }
-
-    for (const row of rows ?? []) {
-      const rowId = String((row as any)?.id ?? "");
-      if (!rowId) continue;
-      const currentSession = Number((row as any)?.dayuse_session ?? 0);
-      const { error: updateError } = await supabase
-        .from("reservation_nights")
-        .update({ dayuse_session: currentSession + delta })
-        .eq("id", rowId);
-      if (updateError) {
-        throw new RoomSwapError(updateError.message ?? failureMessage, 500);
-      }
-    }
-  };
-
-  await shiftSourceSessions(SESSION_SHIFT, "Failed to prepare reservation for swap.");
+  await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT, "Failed to prepare reservation for swap.");
   sourceSessionShifted = true;
 
   try {
-    const { error: sourceUpdateError } = await supabase
-      .from("reservation_nights")
-      .update({
-        room_id: target.current_room_id,
-        assignment_source: "manual",
-        dependency_plan_id: null,
-        dependency_reason: null,
-      })
-      .eq("reservation_id", sourceReservationId)
-      .is("cancelled_at", null);
-
-    if (sourceUpdateError) {
-      throw new RoomSwapError(sourceUpdateError.message ?? "Failed to update source reservation nights for swap.", 500);
+    for (const pair of swapPairs) {
+      await updateNightRoom(
+        supabase,
+        pair.source_night.id,
+        pair.target_night.room_id,
+        "Failed to update source reservation nights for swap."
+      );
+      updatedSourceNightIds.add(pair.source_night.id);
     }
-    sourceMovedToTarget = true;
 
-    const { error: targetUpdateError } = await supabase
-      .from("reservation_nights")
-      .update({
-        room_id: source.current_room_id,
-        assignment_source: "manual",
-        dependency_plan_id: null,
-        dependency_reason: null,
-      })
-      .eq("reservation_id", targetReservationId)
-      .is("cancelled_at", null);
-
-    if (targetUpdateError) {
-      throw new RoomSwapError(targetUpdateError.message ?? "Failed to update target reservation nights for swap.", 500);
+    for (const pair of swapPairs) {
+      await updateNightRoom(
+        supabase,
+        pair.target_night.id,
+        pair.source_night.room_id,
+        "Failed to update target reservation nights for swap."
+      );
+      updatedTargetNightIds.add(pair.target_night.id);
     }
-    targetMovedToSource = true;
 
-    await shiftSourceSessions(SESSION_SHIFT * -1, "Swap succeeded but session cleanup failed.");
+    await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT * -1, "Swap succeeded but session cleanup failed.");
     sourceSessionShifted = false;
   } catch (error) {
-    if (targetMovedToSource) {
-      await supabase
-        .from("reservation_nights")
-        .update({ room_id: target.current_room_id })
-        .eq("reservation_id", targetReservationId)
-        .is("cancelled_at", null);
+    for (const pair of swapPairs) {
+      if (updatedTargetNightIds.has(pair.target_night.id)) {
+        await supabase
+          .from("reservation_nights")
+          .update({ room_id: pair.target_night.room_id })
+          .eq("id", pair.target_night.id);
+      }
     }
-    if (sourceMovedToTarget) {
-      await supabase
-        .from("reservation_nights")
-        .update({ room_id: source.current_room_id })
-        .eq("reservation_id", sourceReservationId)
-        .is("cancelled_at", null);
+    for (const pair of swapPairs) {
+      if (updatedSourceNightIds.has(pair.source_night.id)) {
+        await supabase
+          .from("reservation_nights")
+          .update({ room_id: pair.source_night.room_id })
+          .eq("id", pair.source_night.id);
+      }
     }
 
     if (sourceSessionShifted) {
       try {
-        await shiftSourceSessions(SESSION_SHIFT * -1, "Rollback session cleanup failed.");
+        await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT * -1, "Rollback session cleanup failed.");
       } catch {
         // swallow rollback cleanup error; original swap error remains primary
       }
@@ -463,9 +488,12 @@ export async function executeWholeStayRoomSwap(
   await syncReservationNightDependencyMetadata(supabase as any, { reservationId: sourceReservationId });
   await syncReservationNightDependencyMetadata(supabase as any, { reservationId: targetReservationId });
   const businessDate = await resolveRoomSwapBusinessDate(supabase);
+  const sourceAfter = await loadReservationSwapContext(supabase, sourceReservationId);
+  const targetAfter = await loadReservationSwapContext(supabase, targetReservationId);
+  const swapWindowLabel = `${target.checkin_date} → ${target.checkout_date}`;
 
-  const noteLineForSource = `[Room Swap] ${source.current_room_number ?? "?"} ↔ ${target.current_room_number ?? "?"} | Swapped with ${target.booking_code} (${target.guest_name})`;
-  const noteLineForTarget = `[Room Swap] ${target.current_room_number ?? "?"} ↔ ${source.current_room_number ?? "?"} | Swapped with ${source.booking_code} (${source.guest_name})`;
+  const noteLineForSource = `[Room Swap] Window ${swapWindowLabel} | ${source.room_path_label ?? source.current_room_number ?? "?"} ↔ ${target.room_path_label ?? target.current_room_number ?? "?"} | Swapped with ${target.booking_code} (${target.guest_name})`;
+  const noteLineForTarget = `[Room Swap] Window ${swapWindowLabel} | ${target.room_path_label ?? target.current_room_number ?? "?"} ↔ ${source.room_path_label ?? source.current_room_number ?? "?"} | Swapped with ${source.booking_code} (${source.guest_name})`;
   await appendReservationNoteLine(supabase as any, sourceReservationId, noteLineForSource);
   await appendReservationNoteLine(supabase as any, targetReservationId, noteLineForTarget);
 
@@ -477,12 +505,16 @@ export async function executeWholeStayRoomSwap(
       before_json: {
         room_id: source.current_room_id,
         room_number: source.current_room_number,
+        room_path: source.room_path_label,
         swap_with_reservation_id: targetReservationId,
         swap_with_booking_code: target.booking_code,
+        swap_window_checkin: target.checkin_date,
+        swap_window_checkout: target.checkout_date,
       },
       after_json: {
-        room_id: target.current_room_id,
-        room_number: target.current_room_number,
+        room_id: sourceAfter?.current_room_id ?? null,
+        room_number: sourceAfter?.current_room_number ?? null,
+        room_path: sourceAfter?.room_path_label ?? null,
         swap_with_reservation_id: targetReservationId,
         swap_with_booking_code: target.booking_code,
       },
@@ -496,12 +528,16 @@ export async function executeWholeStayRoomSwap(
       before_json: {
         room_id: target.current_room_id,
         room_number: target.current_room_number,
+        room_path: target.room_path_label,
         swap_with_reservation_id: sourceReservationId,
         swap_with_booking_code: source.booking_code,
+        swap_window_checkin: target.checkin_date,
+        swap_window_checkout: target.checkout_date,
       },
       after_json: {
-        room_id: source.current_room_id,
-        room_number: source.current_room_number,
+        room_id: targetAfter?.current_room_id ?? null,
+        room_number: targetAfter?.current_room_number ?? null,
+        room_path: targetAfter?.room_path_label ?? null,
         swap_with_reservation_id: sourceReservationId,
         swap_with_booking_code: source.booking_code,
       },
@@ -512,11 +548,11 @@ export async function executeWholeStayRoomSwap(
 
   await syncDynamicRoomLinksForReservation(supabase as any, {
     reservationId: sourceReservationId,
-    nextRoomCode: target.current_room_number ?? null,
+    nextRoomCode: resolveDynamicRoomCode(sourceAfter),
   });
   await syncDynamicRoomLinksForReservation(supabase as any, {
     reservationId: targetReservationId,
-    nextRoomCode: source.current_room_number ?? null,
+    nextRoomCode: resolveDynamicRoomCode(targetAfter),
   });
 
   return {
@@ -525,7 +561,7 @@ export async function executeWholeStayRoomSwap(
     target_reservation_id: targetReservationId,
     source_room_before: source.current_room_number,
     target_room_before: target.current_room_number,
-    source_room_after: target.current_room_number,
-    target_room_after: source.current_room_number,
+    source_room_after: sourceAfter?.current_room_number ?? null,
+    target_room_after: targetAfter?.current_room_number ?? null,
   };
 }

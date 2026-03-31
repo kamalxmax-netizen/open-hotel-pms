@@ -37,11 +37,31 @@ interface NoteCardProps {
 }
 
 const NOTE_COLORS: Record<LogbookNote["note_type"], { card: string; header: string; body: string }> = {
-  general: { card: "bg-[var(--bg-surface)] border-[var(--border-input)]", header: "bg-[var(--bg-surface-hover)]/90", body: "bg-[var(--bg-body)]/85" },
-  task: { card: "bg-yellow-100 border-yellow-400", header: "bg-yellow-200/90", body: "bg-yellow-50/90" },
-  urgent: { card: "bg-rose-100 border-rose-400", header: "bg-rose-200/90", body: "bg-rose-50/90" },
-  stock: { card: "bg-emerald-100 border-emerald-400", header: "bg-emerald-200/90", body: "bg-emerald-50/90" },
-  vip: { card: "bg-purple-100 border-purple-400", header: "bg-purple-200/90", body: "bg-purple-50/90" },
+  general: { 
+    card: "bg-[var(--bg-surface)] border-[var(--border-input)]", 
+    header: "bg-[var(--bg-surface-hover)]/90", 
+    body: "bg-[var(--bg-body)]/85" 
+  },
+  task: { 
+    card: "bg-yellow-100 border-yellow-400 dark:bg-[#1a1910] dark:border-yellow-700/50", 
+    header: "bg-yellow-200/90 dark:bg-yellow-800/40", 
+    body: "bg-yellow-50/90 dark:bg-yellow-900/10" 
+  },
+  urgent: { 
+    card: "bg-rose-100 border-rose-400 dark:bg-[#1a1112] dark:border-rose-700/50", 
+    header: "bg-rose-200/90 dark:bg-rose-800/40", 
+    body: "bg-rose-50/90 dark:bg-rose-900/10" 
+  },
+  stock: { 
+    card: "bg-emerald-100 border-emerald-400 dark:bg-[#0f1a14] dark:border-emerald-700/50", 
+    header: "bg-emerald-200/90 dark:bg-emerald-800/40", 
+    body: "bg-emerald-50/90 dark:bg-emerald-900/10" 
+  },
+  vip: { 
+    card: "bg-purple-100 border-purple-400 dark:bg-[#15111a] dark:border-purple-700/50", 
+    header: "bg-purple-200/90 dark:bg-purple-800/40", 
+    body: "bg-purple-50/90 dark:bg-purple-900/10" 
+  },
 }
 
 const NOTE_TYPE_META: Record<LogbookNote["note_type"], { label: string; dot: string }> = {
@@ -720,12 +740,12 @@ export function LogbookNoteCard({
                   type="button"
                   className={`rounded-full border border-black/10 px-1.5 py-0.5 text-[9px] font-semibold shadow-sm ${
                     link.link_type === "room"
-                      ? "bg-rose-200 text-rose-800"
+                      ? "bg-rose-200 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30"
                       : link.link_type === "guest"
-                        ? "bg-purple-200 text-purple-800"
+                        ? "bg-purple-200 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30"
                         : link.link_type === "stock"
-                          ? "bg-blue-200 text-blue-800"
-                          : "bg-[var(--bg-muted)] text-[var(--text-primary)]"
+                          ? "bg-blue-200 text-blue-800 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30"
+                          : "bg-[var(--bg-muted)] text-[var(--text-primary)] dark:border-[var(--border-default)]"
                   }`}
                   onClick={() => void openLink(link)}
                 >
@@ -745,7 +765,7 @@ export function LogbookNoteCard({
                 <button
                   key={mention.id}
                   type="button"
-                  className="rounded-full border border-black/10 bg-yellow-100 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-900 shadow-sm"
+                  className="rounded-full border border-black/10 bg-[var(--bg-muted)] px-1.5 py-0.5 text-[9px] font-semibold shadow-sm text-[var(--text-secondary)] dark:border-[var(--border-default)] dark:text-[var(--text-primary)]"
                 >
                   {mentionLabel(mention)}
                   <span
