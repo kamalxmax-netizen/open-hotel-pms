@@ -173,14 +173,16 @@ export function GenerateScbQrModal({
           <div className="space-y-6 py-4">
              <p className="text-sm font-semibold text-[var(--text-secondary)]">เลือกยอดที่ต้องการเรียกเก็บ:</p>
              <div className="grid grid-cols-2 gap-4">
-                <button 
+                <button
+                  type="button"
                   onClick={() => setMode("outstanding")}
                   className={`p-6 rounded-2xl border-2 text-left transition-all ${mode === "outstanding" ? "border-brand-500 bg-brand-50" : "border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)]"}`}
                 >
                    <p className="text-xs font-black uppercase text-brand-600 mb-1">Outstanding</p>
                    <p className="text-2xl font-black">฿{outstandingAmount.toLocaleString()}</p>
                 </button>
-                <button 
+                <button
+                  type="button"
                    onClick={() => setMode("custom")}
                    className={`p-6 rounded-2xl border-2 text-left transition-all ${mode === "custom" ? "border-brand-500 bg-brand-50" : "border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)]"}`}
                 >
@@ -307,7 +309,7 @@ export function GenerateScbQrModal({
             {(isExpired || status === "cancelled" || status === "failed") && (
               <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-sm font-bold text-center space-y-2">
                  <p>{isExpired ? "QR หมดอายุแล้ว" : "รายการถูกยกเลิก"}</p>
-                 <button onClick={() => setStep("mode")} className="text-xs underline text-rose-600 hover:text-rose-700 font-black uppercase tracking-widest">สร้างใหม่</button>
+                       <button type="button" onClick={() => setStep("mode")} className="text-xs underline text-rose-600 hover:text-rose-700 font-black uppercase tracking-widest">สร้างใหม่</button>
               </div>
             )}
          </div>
@@ -329,7 +331,7 @@ export function GenerateScbQrModal({
                  Reservation ID: {reservationId}
               </p>
            </div>
-           <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-[var(--text-muted)] transition-colors">
+           <button type="button" onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-[var(--text-muted)] transition-colors">
               <X className="w-5 h-5" />
            </button>
         </div>
@@ -345,7 +347,7 @@ export function GenerateScbQrModal({
              <div className="py-12 flex flex-col items-center gap-4 text-center">
                 <AlertTriangle className="w-12 h-12 text-rose-500" />
                 <p className="font-bold text-rose-700">{error}</p>
-                <button onClick={() => setStep("mode")} className="btn btn-secondary px-6 btn-sm">ลองใหม่</button>
+                <button type="button" onClick={() => setStep("mode")} className="btn btn-secondary px-6 btn-sm">ลองใหม่</button>
              </div>
            ) : (
              step === "qr" ? renderQR() : renderConfig()
@@ -356,8 +358,9 @@ export function GenerateScbQrModal({
         <div className="px-6 py-4 border-t border-[var(--border-default)] flex justify-between items-center bg-[var(--bg-body)] min-h-[72px]">
            {step === "mode" && !loading && !error && (
              <>
-               <button onClick={onClose} className="btn btn-ghost px-6 shadow-none">ยกเลิก</button>
+               <button type="button" onClick={onClose} className="btn btn-ghost px-6 shadow-none">ยกเลิก</button>
                <button 
+                 type="button"
                  onClick={() => setStep("amount")} 
                  className="btn btn-primary px-8 flex items-center gap-2"
                >
@@ -368,10 +371,11 @@ export function GenerateScbQrModal({
 
            {step === "amount" && !loading && !error && (
              <>
-               <button onClick={() => setStep("mode")} className="btn btn-ghost px-6 flex items-center gap-2">
+               <button type="button" onClick={() => setStep("mode")} className="btn btn-ghost px-6 flex items-center gap-2">
                  <ArrowLeft className="w-4 h-4" /> กลับ
                </button>
                <button 
+                 type="button"
                  onClick={handleGenerate}
                  disabled={roomAmount > outstandingAmount || (roomAmount + (includeDeposit ? depositAmount : 0)) <= 0}
                  className="btn btn-primary px-10 shadow-lg shadow-brand-500/20"
@@ -386,16 +390,17 @@ export function GenerateScbQrModal({
                 <div className="flex gap-2">
                    {status === "pending" && (
                      <>
-                       <button onClick={handleSaveImage} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
+                       <button type="button" onClick={handleSaveImage} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
                           <Save className="w-4 h-4" /> บันทึกรูป
                        </button>
-                       <button onClick={() => navigator.clipboard.writeText(request?.partner_reference_no)} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
+                       <button type="button" onClick={() => navigator.clipboard.writeText(request?.partner_reference_no)} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
                           <Copy className="w-4 h-4" /> คัดลอก Ref
                        </button>
                      </>
                    )}
                 </div>
-                <button 
+                <button
+                  type="button"
                   onClick={onClose} 
                   className={`btn h-11 px-8 font-black uppercase tracking-widest ${status === "paid" ? "btn-primary" : "btn-ghost"}`}
                 >
