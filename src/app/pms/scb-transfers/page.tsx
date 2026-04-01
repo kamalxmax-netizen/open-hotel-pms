@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScbTransferFilters, type ScbTransferFiltersValue } from "@/components/scb/scb-transfer-filters";
@@ -43,8 +43,9 @@ export default function ScbTransfersPage() {
   const [ignoreNote, setIgnoreNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const autoTabAdjustedRef = useRef(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -69,16 +70,45 @@ export default function ScbTransfersPage() {
       setCounts(json.counts ?? { matched: 0, unmatched: 0, expired_failed: 0 });
       setSummary(json.summary ?? { matched_today_count: 0, unmatched_count: 0, matched_today_amount: 0 });
       setTotal(Number(json.pagination?.total ?? (json.rows ?? []).length));
+
+      if (
+        !autoTabAdjustedRef.current &&
+        tab === "matched" &&
+        (json.rows ?? []).length === 0 &&
+        Number(json.counts?.expired_failed ?? 0) > 0
+      ) {
+        autoTabAdjustedRef.current = true;
+        setTab("expired_failed");
+        setPage(1);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load SCB transfer inbox.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.amountMax, filters.amountMin, filters.channel, filters.from, filters.to, page, pageSize, tab]);
 
   useEffect(() => {
     void fetchData();
-  }, [tab, page, pageSize, filters.from, filters.to, filters.amountMin, filters.amountMax, filters.channel]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (!document.hidden && !busy) {
+        void fetchData();
+      }
+    };
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [busy, fetchData]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
