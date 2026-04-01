@@ -1,14 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import ReservationDetailPage from "@/components/reservation-detail-page";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import { formatShortGroupCode } from "@/lib/group-label";
 import CancelFeeModal, { type CancelFeePayload } from "@/components/cancel-fee-modal";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { LinkedStaySegment } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 /* ─── Types ───────────────────────────────────── */
 type ResStatus = "active" | "cancelled" | "checked_out" | "no_show";

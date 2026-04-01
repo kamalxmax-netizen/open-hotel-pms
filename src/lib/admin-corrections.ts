@@ -351,7 +351,9 @@ async function insertCorrectionLog(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ACTION 1: VOID PAYMENT (same business day only)
+// ACTION 1: VOID PAYMENT
+// Default: same business day only.
+// Exception: admin may void extra_charge entries even after Night Audit closes.
 // ═══════════════════════════════════════════════════════════════
 
 export async function voidPayment(
@@ -366,17 +368,18 @@ export async function voidPayment(
 
   const payment = await loadPayment(supabase, paymentId);
   const today = await resolveCorrectionBusinessDate(supabase);
+  const isHistoricalExtraChargeVoid = String(payment.revenue_category ?? "") === "extra_charge";
 
-  // Guard: same business day only
-  if (String(payment.paid_date) !== today) {
+  // Guard: same business day only, except extra_charge corrections.
+  if (String(payment.paid_date) !== today && !isHistoricalExtraChargeVoid) {
     throw new AdminCorrectionError(
       `Cannot void: payment was posted on ${payment.paid_date}, business date is ${today}. Use Adjustment instead.`
     );
   }
 
-  // Guard: business day must still be open
+  // Guard: business day must still be open, except extra_charge corrections.
   const closed = await isBusinessDayClosed(supabase, today);
-  if (closed) {
+  if (closed && !isHistoricalExtraChargeVoid) {
     throw new AdminCorrectionError(
       "Cannot void: business day already closed by Night Audit. Use Adjustment instead."
     );

@@ -48,6 +48,12 @@ interface BillingPanelProps {
   } | null;
 }
 
+function getSignedExtraChargeAmount(charge: { amount?: number | string | null; tx_type?: string | null }): number {
+  const amount = Number(charge?.amount || 0);
+  if (!Number.isFinite(amount) || amount === 0) return 0;
+  return charge?.tx_type === "refund" ? -Math.abs(amount) : Math.abs(amount);
+}
+
 function getPaymentMethodBadgeClass(method: string): string {
   const normalizedMethod = String(method || "").toLowerCase();
   if (normalizedMethod === "cash") {
@@ -109,10 +115,13 @@ export function BillingPanel({
         if (eData.success && eData.charges) {
           const validCharges = eData.charges.filter((c: any) => !c.is_voided);
           setExtraCharges(validCharges);
-          const total = validCharges.reduce(
-            (sum: number, c: any) => sum + Number(c.amount || 0),
-            0
-          );
+          const summaryTotal = Number(eData.summary?.extra_charges_total);
+          const total = Number.isFinite(summaryTotal)
+            ? summaryTotal
+            : validCharges.reduce(
+                (sum: number, c: any) => sum + getSignedExtraChargeAmount(c),
+                0
+              );
           setExtraChargesTotal(total);
         }
       }
@@ -431,7 +440,10 @@ export function BillingPanel({
                   {extraCharges.map((c, idx) => (
                     <div key={idx} className="flex justify-between items-center text-sm text-[var(--text-secondary)] pl-2 border-l-2 border-[var(--border-default)]">
                       <span>{c.fee_template_name || "Extra Charge"}</span>
-                      <span className="font-mono">฿ {formatMoney(Number(c.amount))}</span>
+                      <span className={`font-mono ${c.tx_type === "refund" ? "text-rose-700 dark:text-rose-400" : ""}`}>
+                        {c.tx_type === "refund" ? "- ฿ " : "฿ "}
+                        {formatMoney(Math.abs(getSignedExtraChargeAmount(c)))}
+                      </span>
                     </div>
                   ))}
                   {policyPreviewSatang > 0 && (

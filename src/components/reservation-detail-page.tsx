@@ -2900,8 +2900,14 @@ export default function ReservationDetailPage({
             if (extraRes && extraRes.ok) {
                  const eData = await extraRes.json();
                  if (eData.success && eData.charges) {
-                      const validCharges = eData.charges.filter((c: any) => !c.is_voided);
-                      const totalAmt = validCharges.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+                      const summaryTotal = Number(eData.summary?.extra_charges_total);
+                      const totalAmt = Number.isFinite(summaryTotal)
+                        ? summaryTotal
+                        : (eData.charges || []).reduce((sum: number, c: any) => {
+                              const amount = Number(c?.amount || 0);
+                              if (!Number.isFinite(amount) || amount === 0) return sum;
+                              return sum + (c?.tx_type === "refund" ? -Math.abs(amount) : Math.abs(amount));
+                          }, 0);
                       totalChargesSatang = toSatang(totalAmt);
                       setExtraChargesTotalSatang(totalChargesSatang);
                  }

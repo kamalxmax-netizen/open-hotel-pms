@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
+import { clearPermissionCache, readPermissionCache, writePermissionCache } from "@/lib/middleware-permission-cache";
 
 // Routes that are always public (no auth required)
 const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth"];
@@ -33,20 +34,25 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(loginUrl);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      clearPermissionCache(redirectResponse);
+      return redirectResponse;
     }
 
     // Skip permission check for the unauthorized page itself (avoid redirect loop)
     if (pathname === "/pms/unauthorized") return response;
 
-    // Permission check: read allowed_pages from user's profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("allowed_pages")
-      .eq("user_id", user.id)
-      .single();
+    let allowedPages = await readPermissionCache(request, user.id);
+    if (!allowedPages) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("allowed_pages")
+        .eq("user_id", user.id)
+        .single();
 
-    const allowedPages: string[] = profile?.allowed_pages ?? ["*"];
+      allowedPages = Array.isArray(profile?.allowed_pages) ? profile.allowed_pages : ["*"];
+      await writePermissionCache(response, user.id, allowedPages);
+    }
 
     // ["*"] = full access
     if (!allowedPages.includes("*")) {

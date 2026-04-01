@@ -6,6 +6,15 @@ import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useTheme } from "@/components/theme-provider";
 
+const SIDEBAR_PERMISSION_CACHE_PREFIX = "pms.sidebar.allowed-pages.";
+const SIDEBAR_PERMISSION_CACHE_TTL_MS = 60_000;
+
+type SidebarPermissionCache = {
+    uid: string;
+    allowedPages: string[];
+    exp: number;
+};
+
 const NAV_ITEMS = [
     {
         section: "Front Desk",
@@ -120,6 +129,51 @@ function isAllowed(href: string, allowedPages: string[]): boolean {
     return allowedPages.some((p) => href === p || href.startsWith(p + "/") || href.startsWith(p));
 }
 
+function normalizeAllowedPages(value: unknown): string[] {
+    if (!Array.isArray(value)) return ["*"];
+    const pages = value
+        .map((entry) => String(entry ?? "").trim())
+        .filter(Boolean);
+    return pages.length > 0 ? Array.from(new Set(pages)) : ["*"];
+}
+
+function readSidebarPermissionCache(userId: string | null | undefined): string[] | null {
+    if (typeof window === "undefined" || !userId) return null;
+    try {
+        const raw = window.localStorage.getItem(`${SIDEBAR_PERMISSION_CACHE_PREFIX}${userId}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<SidebarPermissionCache>;
+        if (String(parsed.uid ?? "") !== userId) return null;
+        if (!Number.isFinite(parsed.exp) || Number(parsed.exp) <= Date.now()) return null;
+        return normalizeAllowedPages(parsed.allowedPages);
+    } catch {
+        return null;
+    }
+}
+
+function writeSidebarPermissionCache(userId: string, allowedPages: string[]): void {
+    if (typeof window === "undefined" || !userId) return;
+    try {
+        const payload: SidebarPermissionCache = {
+            uid: userId,
+            allowedPages: normalizeAllowedPages(allowedPages),
+            exp: Date.now() + SIDEBAR_PERMISSION_CACHE_TTL_MS,
+        };
+        window.localStorage.setItem(`${SIDEBAR_PERMISSION_CACHE_PREFIX}${userId}`, JSON.stringify(payload));
+    } catch {
+        // ignore cache write failures
+    }
+}
+
+function clearSidebarPermissionCache(userId: string | null | undefined): void {
+    if (typeof window === "undefined" || !userId) return;
+    try {
+        window.localStorage.removeItem(`${SIDEBAR_PERMISSION_CACHE_PREFIX}${userId}`);
+    } catch {
+        // ignore cache clear failures
+    }
+}
+
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
@@ -128,21 +182,41 @@ export default function Sidebar() {
 
     useEffect(() => {
         const supabase = createBrowserSupabaseClient();
-        supabase.auth.getUser().then(({ data: { user } }: { data: { user: { id: string } | null } }) => {
-            if (!user) return;
-            supabase
+        let cancelled = false;
+
+        async function loadAllowedPages() {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id ?? null;
+            if (!userId || cancelled) return;
+
+            const cached = readSidebarPermissionCache(userId);
+            if (cached) {
+                setAllowedPages(cached);
+                return;
+            }
+
+            const { data } = await supabase
                 .from("profiles")
                 .select("allowed_pages")
-                .eq("user_id", user.id)
-                .single()
-                .then(({ data }: { data: { allowed_pages: string[] } | null }) => {
-                    if (data?.allowed_pages) setAllowedPages(data.allowed_pages);
-                });
-        });
+                .eq("user_id", userId)
+                .single();
+            if (cancelled) return;
+
+            const nextAllowedPages = normalizeAllowedPages(data?.allowed_pages);
+            setAllowedPages(nextAllowedPages);
+            writeSidebarPermissionCache(userId, nextAllowedPages);
+        }
+
+        loadAllowedPages();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     async function handleLogout() {
         const supabase = createBrowserSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        clearSidebarPermissionCache(session?.user?.id ?? null);
         await supabase.auth.signOut();
         router.push("/login");
         router.refresh();

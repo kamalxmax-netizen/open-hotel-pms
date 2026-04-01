@@ -1,8 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import ReservationDetailPage from "@/components/reservation-detail-page";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import LinkedExtensionModal from "@/components/linked-extension-modal";
 import LateCheckoutFeeModal, { PolicyFeePayload } from "@/components/late-checkout-fee-modal";
@@ -14,6 +14,10 @@ import { groupLinkedStays } from "@/lib/linked-stay-ui";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 type NightlyItem = { date: string; price: number };
 

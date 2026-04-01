@@ -1143,8 +1143,14 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
     const serviceTemplates = templates.filter(t => t.category === "service" && t.is_active !== false);
     const damageTemplates = templates.filter(t => t.category === "damage" && t.is_active !== false);
 
+    function getSignedChargeAmount(charge: any): number {
+        const amount = Number(charge?.amount || 0);
+        if (!Number.isFinite(amount) || amount === 0) return 0;
+        return charge?.tx_type === "refund" ? -Math.abs(amount) : Math.abs(amount);
+    }
+
     // Total calculation
-    const total = charges.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+    const total = charges.reduce((sum, c) => sum + getSignedChargeAmount(c), 0);
 
     function getTemplateMeta(charge: any): { name: string; icon: string; method: string } {
         const relation = Array.isArray(charge?.extra_fee_templates)
@@ -1174,10 +1180,14 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
                                 </p>
                                 <p className="text-xs text-[var(--text-muted)] flex items-center gap-2">
                                     <span className="capitalize">{getTemplateMeta(c).method || "-"}</span>
+                                    {c.tx_type === "refund" && <span className="text-rose-600">· adjustment refund</span>}
                                     {c.note && <span>· {c.note}</span>}
                                 </p>
                             </div>
-                            <span className="font-mono font-bold text-[var(--text-primary)]">฿ {Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className={`font-mono font-bold ${c.tx_type === "refund" ? "text-rose-600" : "text-[var(--text-primary)]"}`}>
+                                {c.tx_type === "refund" ? "- ฿ " : "฿ "}
+                                {Math.abs(getSignedChargeAmount(c)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
                         </div>
                     ))}
                     <div className="flex items-center justify-between py-2 border-t border-[var(--border-default)] mt-2 font-bold text-sm text-[var(--text-primary)]">

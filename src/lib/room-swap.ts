@@ -236,6 +236,122 @@ function dedupeStringList(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
 }
 
+function mergeReservationSwapContexts(
+  anchor: ReservationSwapContext,
+  contexts: ReservationSwapContext[]
+): ReservationSwapContext {
+  const activeNights = Array.from(
+    new Map(
+      contexts
+        .flatMap((context) => context.active_nights)
+        .map((night) => [night.id, night])
+    ).values()
+  ).sort((left, right) => {
+    const dateCmp = left.stay_date.localeCompare(right.stay_date);
+    if (dateCmp !== 0) return dateCmp;
+    return left.reservation_id.localeCompare(right.reservation_id);
+  });
+
+  const uniqueRoomIds = Array.from(new Set(activeNights.map((night) => night.room_id)));
+  const roomTypeIds = Array.from(
+    new Set(activeNights.map((night) => Number(night.room_type_id ?? 0)).filter((value) => Number.isFinite(value) && value > 0))
+  );
+  const memberReservationIds = dedupeStringList(contexts.flatMap((context) => context.member_reservation_ids));
+  const firstCheckedInAt = contexts.map((context) => context.checked_in_at).find(Boolean) ?? null;
+  const firstLockReason = contexts.map((context) => context.do_not_move_reason).find(Boolean) ?? null;
+  const sortedByCheckin = [...contexts].sort((left, right) => {
+    const checkinCmp = left.checkin_date.localeCompare(right.checkin_date);
+    if (checkinCmp !== 0) return checkinCmp;
+    return left.primary_reservation_id.localeCompare(right.primary_reservation_id);
+  });
+  const roomPathLabel = buildRoomPathLabel(activeNights);
+
+  return {
+    reservation_id: anchor.reservation_id,
+    parent_reservation_id: anchor.parent_reservation_id,
+    root_reservation_id: anchor.root_reservation_id,
+    primary_reservation_id: anchor.primary_reservation_id,
+    booking_code: anchor.booking_code,
+    guest_name: anchor.guest_name,
+    checkin_date: sortedByCheckin[0]?.checkin_date ?? anchor.checkin_date,
+    checkout_date: sortedByCheckin.sort((left, right) => right.checkout_date.localeCompare(left.checkout_date))[0]?.checkout_date ?? anchor.checkout_date,
+    status: contexts.every((context) => context.status === "active") ? "active" : anchor.status,
+    checked_in_at: firstCheckedInAt,
+    room_type_id: roomTypeIds.length === 1 ? roomTypeIds[0] : null,
+    room_type_name: anchor.room_type_name,
+    current_room_id: activeNights[0]?.room_id ?? anchor.current_room_id,
+    current_room_number: roomPathLabel ?? anchor.current_room_number,
+    room_path_label: roomPathLabel,
+    current_room_is_dayuse: contexts.some((context) => context.current_room_is_dayuse),
+    has_multiple_room_segments: uniqueRoomIds.length > 1,
+    has_active_planned_move: contexts.some((context) => context.has_active_planned_move),
+    do_not_move_assigned_room: contexts.some((context) => context.do_not_move_assigned_room),
+    do_not_move_reason: firstLockReason,
+    active_nights: activeNights,
+    member_reservation_ids: memberReservationIds,
+    member_count: memberReservationIds.length,
+  };
+}
+
+async function expandTargetSwapContextForSourceWindow(
+  supabase: SupabaseLike,
+  source: ReservationSwapContext,
+  anchor: ReservationSwapContext
+): Promise<ReservationSwapContext> {
+  const anchorNightByDate = buildNightMap(anchor.active_nights);
+  const anchorUniqueRoomIds = Array.from(new Set(anchor.active_nights.map((night) => night.room_id)));
+  const fallbackRoomId = anchorUniqueRoomIds.length === 1 ? anchorUniqueRoomIds[0] : null;
+  const desiredTargetRoomByDate = new Map<string, string>();
+
+  for (const sourceNight of source.active_nights) {
+    const explicitTargetNight = anchorNightByDate.get(sourceNight.stay_date);
+    const desiredRoomId = explicitTargetNight?.room_id ?? fallbackRoomId;
+    if (desiredRoomId) {
+      desiredTargetRoomByDate.set(sourceNight.stay_date, desiredRoomId);
+    }
+  }
+
+  const targetRoomIds = dedupeStringList(Array.from(desiredTargetRoomByDate.values()));
+  if (targetRoomIds.length === 0) {
+    return anchor;
+  }
+
+  const sourceReservationIds = new Set(source.member_reservation_ids);
+  const { data: blockerNights, error: blockerNightsError } = await supabase
+    .from("reservation_nights")
+    .select("reservation_id, room_id, stay_date")
+    .in("room_id", targetRoomIds)
+    .in("stay_date", Array.from(desiredTargetRoomByDate.keys()))
+    .is("cancelled_at", null);
+
+  if (blockerNightsError) {
+    throw new RoomSwapError(blockerNightsError.message ?? "Failed to load swap blockers.", 500);
+  }
+
+  const blockerReservationIds = dedupeStringList(
+    (blockerNights ?? [])
+      .filter((row: any) => {
+        const reservationId = String(row?.reservation_id ?? "");
+        const stayDate = String(row?.stay_date ?? "");
+        const roomId = String(row?.room_id ?? "");
+        return !sourceReservationIds.has(reservationId) && desiredTargetRoomByDate.get(stayDate) === roomId;
+      })
+      .map((row: any) => String(row?.reservation_id ?? ""))
+  );
+
+  if (blockerReservationIds.length === 0) {
+    return anchor;
+  }
+
+  const blockerContexts = await Promise.all(blockerReservationIds.map((reservationId) => loadReservationSwapContext(supabase, reservationId)));
+  const mergedContexts = [
+    anchor,
+    ...blockerContexts.filter((context): context is ReservationSwapContext => Boolean(context)),
+  ];
+
+  return mergeReservationSwapContexts(anchor, mergedContexts);
+}
+
 export async function loadReservationSwapContext(
   supabase: SupabaseLike,
   reservationId: string
@@ -379,51 +495,105 @@ export async function evaluateRoomSwapEligibility(
   return { can_swap: true, reason_code: null, reason: null };
 }
 
-export async function listSwapCandidatesForReservation(
+async function listCandidateSwapAnchorReservationIds(
   supabase: SupabaseLike,
-  reservationId: string
-): Promise<SwapCandidate[]> {
-  const source = await loadReservationSwapContext(supabase, reservationId);
-  if (!source || !source.room_type_id || source.active_nights.length === 0 || source.checked_in_at) return [];
+  source: ReservationSwapContext
+): Promise<string[]> {
+  if (!source.room_type_id || source.active_nights.length === 0) return [];
 
-  const { data: reservations, error } = await supabase
-    .from("reservations")
-    .select("id, booking_code, guest_name, checkin_date, checkout_date, status, checked_in_at")
-    .eq("status", "active")
-    .is("checked_in_at", null)
-    .neq("id", reservationId)
-    .order("checkin_date", { ascending: true })
-    .order("booking_code", { ascending: true });
+  const sourceStayDates = dedupeStringList(source.active_nights.map((night) => night.stay_date));
+  if (sourceStayDates.length === 0) return [];
 
-  if (error) {
-    throw new RoomSwapError(error.message ?? "Failed to load swap candidates.", 500);
+  const sourceMemberIds = new Set(source.member_reservation_ids);
+  sourceMemberIds.add(source.root_reservation_id);
+
+  const { data: candidateNightRows, error: candidateNightRowsError } = await supabase
+    .from("reservation_nights")
+    .select("reservation_id")
+    .eq("room_type_id", source.room_type_id)
+    .in("stay_date", sourceStayDates)
+    .is("cancelled_at", null);
+
+  if (candidateNightRowsError) {
+    throw new RoomSwapError(candidateNightRowsError.message ?? "Failed to load swap candidates.", 500);
   }
 
-  const contexts = await Promise.all((reservations ?? []).map(async (row: any) => loadReservationSwapContext(supabase, String(row.id))));
-  const seenRoots = new Set<string>();
+  const candidateReservationIds = dedupeStringList(
+    (candidateNightRows ?? [])
+      .map((row: any) => String(row?.reservation_id ?? ""))
+      .filter((reservationId: string) => !sourceMemberIds.has(reservationId))
+  );
+
+  if (candidateReservationIds.length === 0) return [];
+
+  const { data: candidateReservations, error: candidateReservationsError } = await supabase
+    .from("reservations")
+    .select("id, parent_reservation_id, checkin_date, checkout_date, status, checked_in_at")
+    .in("id", candidateReservationIds)
+    .eq("status", "active")
+    .is("checked_in_at", null)
+    .gte("checkin_date", source.checkin_date)
+    .lte("checkout_date", source.checkout_date)
+    .order("checkin_date", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (candidateReservationsError) {
+    throw new RoomSwapError(candidateReservationsError.message ?? "Failed to load swap candidates.", 500);
+  }
+
+  const representativeReservationIdByRoot = new Map<string, string>();
+  for (const row of candidateReservations ?? []) {
+    const reservationId = String(row?.id ?? "").trim();
+    if (!reservationId || sourceMemberIds.has(reservationId)) continue;
+    const rootReservationId = String(row?.parent_reservation_id ?? reservationId).trim() || reservationId;
+    if (sourceMemberIds.has(rootReservationId)) continue;
+    if (!representativeReservationIdByRoot.has(rootReservationId)) {
+      representativeReservationIdByRoot.set(rootReservationId, reservationId);
+    }
+  }
+
+  return Array.from(representativeReservationIdByRoot.values());
+}
+
+export async function listSwapCandidatesForReservation(
+  supabase: SupabaseLike,
+  reservationId: string,
+  sourceOverride?: ReservationSwapContext | null
+): Promise<SwapCandidate[]> {
+  const source = sourceOverride ?? (await loadReservationSwapContext(supabase, reservationId));
+  if (!source || !source.room_type_id || source.active_nights.length === 0 || source.checked_in_at) return [];
+  const candidateReservationIds = await listCandidateSwapAnchorReservationIds(supabase, source);
+  if (candidateReservationIds.length === 0) return [];
+
+  const contexts = await Promise.all(
+    candidateReservationIds.map((candidateReservationId) => loadReservationSwapContext(supabase, candidateReservationId))
+  );
+  const seenCandidateKeys = new Set<string>();
 
   const results: SwapCandidate[] = [];
   for (const context of contexts) {
     if (!context || context.checked_in_at) continue;
-    if (seenRoots.has(context.root_reservation_id)) continue;
-    seenRoots.add(context.root_reservation_id);
+    const expandedContext = await expandTargetSwapContextForSourceWindow(supabase, source, context);
+    const candidateKey = dedupeStringList(expandedContext.member_reservation_ids).sort().join("|");
+    if (seenCandidateKeys.has(candidateKey)) continue;
+    seenCandidateKeys.add(candidateKey);
 
-    const evaluation = await evaluateRoomSwapEligibility(supabase, source, context);
+    const evaluation = await evaluateRoomSwapEligibility(supabase, source, expandedContext);
     results.push({
       reservation_id: context.primary_reservation_id,
-      booking_code: context.booking_code,
-      guest_name: context.guest_name,
-      room_id: context.current_room_id,
-      room_number: context.current_room_number,
-      checkin_date: context.checkin_date,
-      checkout_date: context.checkout_date,
-      nights: roomStayNights(context.checkin_date, context.checkout_date),
+      booking_code: expandedContext.booking_code,
+      guest_name: expandedContext.guest_name,
+      room_id: expandedContext.current_room_id,
+      room_number: expandedContext.current_room_number,
+      checkin_date: expandedContext.checkin_date,
+      checkout_date: expandedContext.checkout_date,
+      nights: roomStayNights(expandedContext.checkin_date, expandedContext.checkout_date),
       can_swap: evaluation.can_swap,
       reason_code: evaluation.reason_code,
       reason: evaluation.reason,
-      do_not_move_assigned_room: context.do_not_move_assigned_room,
-      do_not_move_reason: context.do_not_move_reason,
-      member_count: context.member_count,
+      do_not_move_assigned_room: expandedContext.do_not_move_assigned_room,
+      do_not_move_reason: expandedContext.do_not_move_reason,
+      member_count: expandedContext.member_count,
     });
   }
 
@@ -437,6 +607,12 @@ type SwapWindowNightPair = {
   stay_date: string;
   source_night: ReservationSwapNight;
   target_night: ReservationSwapNight;
+};
+
+type SourceMoveNightPair = {
+  stay_date: string;
+  source_night: ReservationSwapNight;
+  target_room_id: string;
 };
 
 function buildSwapWindowNightPairs(
@@ -461,6 +637,31 @@ function buildSwapWindowNightPairs(
       } satisfies SwapWindowNightPair;
     })
     .sort((left, right) => left.stay_date.localeCompare(right.stay_date));
+}
+
+function buildDesiredTargetRoomByDate(
+  source: ReservationSwapContext,
+  target: ReservationSwapContext
+): Map<string, string> {
+  const targetNightByDate = buildNightMap(target.active_nights);
+  const targetUniqueRoomIds = Array.from(new Set(target.active_nights.map((night) => night.room_id)));
+  const fallbackRoomId = targetUniqueRoomIds.length === 1 ? targetUniqueRoomIds[0] : null;
+  const desiredTargetRoomByDate = new Map<string, string>();
+
+  for (const sourceNight of source.active_nights) {
+    const targetNight = targetNightByDate.get(sourceNight.stay_date);
+    const desiredRoomId = targetNight?.room_id ?? fallbackRoomId;
+    if (!desiredRoomId) {
+      throw new RoomSwapError(
+        `Swap unavailable: ${target.booking_code} does not define a target room for ${sourceNight.stay_date}.`,
+        409,
+        "target_room_conflict"
+      );
+    }
+    desiredTargetRoomByDate.set(sourceNight.stay_date, desiredRoomId);
+  }
+
+  return desiredTargetRoomByDate;
 }
 
 async function shiftNightSessions(
@@ -507,7 +708,10 @@ export async function executeWholeStayRoomSwap(
   targetReservationId: string
 ) {
   const source = await loadReservationSwapContext(supabase, sourceReservationId);
-  const target = await loadReservationSwapContext(supabase, targetReservationId);
+  const anchorTarget = await loadReservationSwapContext(supabase, targetReservationId);
+  const target = source && anchorTarget
+    ? await expandTargetSwapContextForSourceWindow(supabase, source, anchorTarget)
+    : anchorTarget;
 
   if (!source || !target) {
     throw new RoomSwapError("Swap unavailable: reservation not found.", 404, "reservation_not_found");
@@ -518,9 +722,25 @@ export async function executeWholeStayRoomSwap(
     throw new RoomSwapError(evaluation.reason ?? "Swap unavailable.", 409, evaluation.reason_code);
   }
 
+  const desiredTargetRoomByDate = buildDesiredTargetRoomByDate(source, target);
+  const sourceMovePairs: SourceMoveNightPair[] = source.active_nights.map((sourceNight) => {
+    const targetRoomId = desiredTargetRoomByDate.get(sourceNight.stay_date);
+    if (!targetRoomId) {
+      throw new RoomSwapError(
+        `Swap unavailable: target room is missing for ${sourceNight.stay_date}.`,
+        409,
+        "target_room_conflict"
+      );
+    }
+    return {
+      stay_date: sourceNight.stay_date,
+      source_night: sourceNight,
+      target_room_id: targetRoomId,
+    } satisfies SourceMoveNightPair;
+  });
   const swapPairs = buildSwapWindowNightPairs(source, target);
-  if (swapPairs.length === 0) {
-    throw new RoomSwapError("Swap unavailable: no overlapping assigned nights found.", 409, "room_not_assigned");
+  if (sourceMovePairs.length === 0) {
+    throw new RoomSwapError("Swap unavailable: no assigned nights found in the source stay.", 409, "room_not_assigned");
   }
 
   // NOTE:
@@ -528,7 +748,7 @@ export async function executeWholeStayRoomSwap(
   // A direct two-step room update can collide on overlapping dates.
   // We temporarily shift source dayuse_session to avoid transient key collisions during swap.
   const SESSION_SHIFT = 100;
-  const sourceShiftNights = swapPairs.map((pair) => pair.source_night);
+  const sourceShiftNights = sourceMovePairs.map((pair) => pair.source_night);
   const targetShiftNights = swapPairs.map((pair) => pair.target_night);
   let sourceSessionShifted = false;
   const updatedSourceNightIds = new Set<string>();
@@ -538,11 +758,11 @@ export async function executeWholeStayRoomSwap(
   sourceSessionShifted = true;
 
   try {
-    for (const pair of swapPairs) {
+    for (const pair of sourceMovePairs) {
       await updateNightRoom(
         supabase,
         pair.source_night.id,
-        pair.target_night.room_id,
+        pair.target_room_id,
         "Failed to update source reservation nights for swap."
       );
       updatedSourceNightIds.add(pair.source_night.id);
@@ -594,7 +814,7 @@ export async function executeWholeStayRoomSwap(
   const businessDate = await resolveRoomSwapBusinessDate(supabase);
   const sourceAfter = await loadReservationSwapContext(supabase, sourceReservationId);
   const targetAfter = await loadReservationSwapContext(supabase, targetReservationId);
-  const swapWindowLabel = `${target.checkin_date} → ${target.checkout_date}`;
+  const swapWindowLabel = `${source.checkin_date} → ${source.checkout_date}`;
   const sourceMemberIds = dedupeStringList(source.member_reservation_ids);
   const targetMemberIds = dedupeStringList(target.member_reservation_ids);
 

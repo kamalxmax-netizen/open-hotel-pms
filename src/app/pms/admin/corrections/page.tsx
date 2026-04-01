@@ -365,6 +365,7 @@ export default function AdminCorrectionsPage() {
     if (!(txType === "payment" || txType === "deposit" || txType === "refund")) return false;
     if (!["payment", "deposit", "extra_charge", "refund"].includes(r.type)) return false;
     if (r.is_void_reversal || r.void_of) return false;
+    if (r.type === "extra_charge") return true;
     const occurredDateStr = new Date(r.occurred_at).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
     return occurredDateStr === todayStr;
@@ -536,7 +537,7 @@ export default function AdminCorrectionsPage() {
                 {selectedAction === "void_payment" && (
                   <div className="space-y-4">
                     <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-300">
-                      Creates a negative counter-entry (Void Reversal) and unlinks the original payment from revenue. Only payments made today can be voided.
+                      Creates a negative counter-entry (Void Reversal) and unlinks the original payment from revenue. Standard payments are same-business-day only, but Admin may void extra charges even after Night Audit.
                     </div>
                     <div>
                       <label className="form-label">Select Payment to Void</label>
@@ -548,7 +549,7 @@ export default function AdminCorrectionsPage() {
                           </option>
                         ))}
                       </select>
-                      {validPayments.length === 0 && <p className="text-xs text-rose-500 mt-1">No payments eligible for void today.</p>}
+                      {validPayments.length === 0 && <p className="text-xs text-rose-500 mt-1">No payments eligible for void.</p>}
                       {selectedPaymentId && (() => {
                         const vp = validPayments.find(p => p.id === selectedPaymentId);
                         if (!vp) return null;
@@ -600,9 +601,9 @@ export default function AdminCorrectionsPage() {
                       <label className="form-label">Original Payment (Optional)</label>
                       <select className="form-select w-full" value={adjOriginalPaymentId} onChange={e => setAdjOriginalPaymentId(e.target.value)} disabled={isSubmitting}>
                         <option value="">-- None --</option>
-                        {(folio?.ledger.filter(r => r.type === "payment" || r.type === "deposit") || []).map(p => (
+                        {(folio?.ledger.filter(r => r.type === "payment" || r.type === "deposit" || r.type === "extra_charge") || []).map(p => (
                           <option key={p.id} value={p.id}>
-                            {formatSimpleDate(p.occurred_at)} - {p.method?.toUpperCase()} ฿{formatMoney(p.amount)}
+                            [{p.type.toUpperCase()}] {formatSimpleDate(p.occurred_at)} - {p.method?.toUpperCase()} ฿{formatMoney(p.amount)}
                           </option>
                         ))}
                       </select>

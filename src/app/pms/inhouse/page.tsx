@@ -1,10 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import RoomMoveModal from "@/components/room-move-modal";
-import ReservationDetailPage from "@/components/reservation-detail-page";
 import DayUseExtendModal from "@/components/dayuse-extend-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import LinkedExtensionModal from "@/components/linked-extension-modal";
@@ -16,6 +16,10 @@ import { groupLinkedStays } from "@/lib/linked-stay-ui";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { DayUseReservation, LinkedStaySegment } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 type InHouseReservation = {
     id: string;
@@ -204,8 +208,21 @@ export default function InHousePage() {
 
     useEffect(() => {
         load();
-        const interval = window.setInterval(loadDayUseTimersOnly, 60000);
-        return () => window.clearInterval(interval);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                loadDayUseTimersOnly();
+            }
+        };
+        const interval = window.setInterval(() => {
+            if (document.visibilityState === "visible") {
+                loadDayUseTimersOnly();
+            }
+        }, 60000);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.clearInterval(interval);
+        };
     }, [load, loadDayUseTimersOnly]);
 
     function showToast(message: string) {

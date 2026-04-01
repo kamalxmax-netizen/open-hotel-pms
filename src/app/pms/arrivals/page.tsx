@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
-import ReservationDetailPage from "@/components/reservation-detail-page";
 import AssignRoomModal from "@/components/assign-room-modal";
 import AutoAssignResultsModal from "@/components/auto-assign-results-modal";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
@@ -12,6 +12,10 @@ import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { LinkedStayBadge } from "@/components/linked-stay-badge";
 import type { LinkedStay } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 type Arrival = {
     id: string;

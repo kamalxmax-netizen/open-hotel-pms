@@ -166,6 +166,12 @@ export default function LogbookPage() {
 
   useEffect(() => {
     fetchNotes()
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      fetchNotes()
+      if (archiveDrawerOpen) fetchArchivedNotes()
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
@@ -174,6 +180,7 @@ export default function LogbookPage() {
     }, 30000)
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
       clearInterval(interval)
       for (const timer of positionDebounceTimers.current.values()) clearTimeout(timer)
       for (const controller of positionAbortControllers.current.values()) controller.abort()

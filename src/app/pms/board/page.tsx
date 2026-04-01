@@ -1,15 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { createPortal } from "react-dom";
-import RoomDrawer, { type RoomDrawerRoom } from "@/components/room-drawer";
-import ReservationDetailPage from "@/components/reservation-detail-page";
+import type { RoomDrawerRoom } from "@/components/room-drawer";
 import { DayUseCheckinSidebar } from "@/components/dayuse-checkin-sidebar";
 import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import type { DayUseRoomStatus, DayUseSettings, DayUseTimerState } from "@/lib/types";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
+
+const RoomDrawer = dynamic(() => import("@/components/room-drawer"), {
+    loading: () => null,
+});
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 /* ─── Types ───────────────────────────────────── */
 type RoomStatus = "available" | "reserved" | "dirty" | "cleaning" | "approved" | "closed" | "ooo" | "oos";
@@ -966,8 +974,21 @@ export default function BoardPage() {
     useEffect(() => {
         loadDayUse();
         if (dateOffset !== 0) return;
-        const interval = window.setInterval(loadDayUse, 60000);
-        return () => window.clearInterval(interval);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                loadDayUse();
+            }
+        };
+        const interval = window.setInterval(() => {
+            if (document.visibilityState === "visible") {
+                loadDayUse();
+            }
+        }, 60000);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.clearInterval(interval);
+        };
     }, [dateOffset, loadDayUse]);
 
     useEffect(() => { loadBoard(); }, [loadBoard]);

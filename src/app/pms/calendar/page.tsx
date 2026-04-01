@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import ReservationDetailPage from "@/components/reservation-detail-page";
 import PmsModal from "@/components/pms-modal";
 import ReservationOptionsPanel from "@/components/reservation-options-panel";
 import AssignRoomModal from "@/components/assign-room-modal";
@@ -20,6 +20,10 @@ import type {
     CalendarPlannedMove as PlannedMove
 } from "@/lib/types";
 import { Settings as SettingsIcon } from "lucide-react";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 /* ─── Helpers ─────────────────────────────────── */
 function addDays(date: string, n: number): string {

@@ -173,12 +173,12 @@ export async function GET(
             return a.room_number.localeCompare(b.room_number);
         });
 
-        const swapCandidates = includeSwap
-            ? await listSwapCandidatesForReservation(supabase as any, reservationId)
-            : [];
         const swapSource = includeSwap
             ? await loadReservationSwapContext(supabase as any, reservationId)
             : null;
+        const swapCandidates = includeSwap && swapSource
+            ? await listSwapCandidatesForReservation(supabase as any, reservationId, swapSource)
+            : [];
 
         return NextResponse.json({
             success: true,

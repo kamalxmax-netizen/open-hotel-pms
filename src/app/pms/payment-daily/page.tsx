@@ -1,7 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import React, { useCallback, useEffect, useState } from "react";
-import ReservationDetailPage from "@/components/reservation-detail-page";
+
+const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
+    loading: () => null,
+});
 
 /* ─── Types ─────────────────────────────────────────── */
 type MethodBreakdown = {

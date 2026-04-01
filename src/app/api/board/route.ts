@@ -3,7 +3,7 @@ import { isValidDateString } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { BoardRoomStatus } from "@/lib/board-layout";
 import { getBusinessDate } from "@/lib/fo-prepare";
-import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
+import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
 import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
@@ -537,13 +537,29 @@ export async function GET(request: NextRequest) {
     active_segment_id: string;
   }>();
   if (linkedStayReservationIds.size > 0) {
-    const linkedStayResults = await Promise.all(
-      Array.from(linkedStayReservationIds).map(async (reservationId) => {
-        const linkedStay = await resolveLinkedStay(supabase, reservationId, hotelCheckOutTime);
-        return [reservationId, linkedStay] as const;
-      })
+    const { data: linkedStayRows, error: linkedStayRowsError } = await supabase
+      .from("reservations")
+      .select("id, parent_reservation_id, booking_code, source, checkin_date, checkout_date, checked_in_at, status, total_price")
+      .in("id", Array.from(linkedStayReservationIds));
+    if (linkedStayRowsError) {
+      return NextResponse.json({ error: linkedStayRowsError.message }, { status: 500 });
+    }
+    const linkedStayResults = await resolveLinkedStayBatch(
+      supabase,
+      (linkedStayRows ?? []).map((row: any) => ({
+        id: String(row.id),
+        parent_reservation_id: row.parent_reservation_id ?? null,
+        booking_code: row.booking_code ?? null,
+        source: row.source ?? null,
+        checkin_date: row.checkin_date ?? null,
+        checkout_date: row.checkout_date ?? null,
+        checked_in_at: row.checked_in_at ?? null,
+        status: row.status ?? null,
+        total_price: row.total_price ?? null,
+      })),
+      hotelCheckOutTime
     );
-    for (const [reservationId, linkedStay] of linkedStayResults) {
+    for (const [reservationId, linkedStay] of linkedStayResults.entries()) {
       if (!linkedStay) continue;
       linkedStayByReservationId.set(reservationId, linkedStay);
     }

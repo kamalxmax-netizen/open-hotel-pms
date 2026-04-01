@@ -96,6 +96,12 @@ type SwapCandidate = {
   move_checkout_date: string;
 };
 
+type ReservationRoomMeta = {
+  room_id: string | null;
+  room_type_id: number | null;
+  room_number: string | null;
+};
+
 export type ExtendStayPreviewResult = {
   can_commit: boolean;
   source: string;
@@ -268,6 +274,32 @@ async function resolveRoomTypeNameById(supabase: SupabaseLike, roomTypeId: numbe
   return asString(data?.name_en) || `Room Type #${roomTypeId}`;
 }
 
+async function resolveRoomTypeNamesByIds(supabase: SupabaseLike, roomTypeIds: number[]): Promise<Map<number, string>> {
+  const ids = Array.from(new Set(roomTypeIds.filter((id) => Number.isFinite(id) && id > 0)));
+  const map = new Map<number, string>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("room_types")
+    .select("id, name_en")
+    .in("id", ids);
+  if (error) throw new ExtendStayOrchestratorError(error.message ?? "Failed to load room types.", 500);
+
+  for (const row of ensureArray<any>(data)) {
+    const roomTypeId = Number(row?.id ?? 0);
+    if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) continue;
+    map.set(roomTypeId, asString(row?.name_en) || `Room Type #${roomTypeId}`);
+  }
+
+  for (const roomTypeId of ids) {
+    if (!map.has(roomTypeId)) {
+      map.set(roomTypeId, `Room Type #${roomTypeId}`);
+    }
+  }
+
+  return map;
+}
+
 async function loadOrchestratorContext(
   supabase: SupabaseLike,
   input: ExtendStayPreviewInput
@@ -360,6 +392,68 @@ async function loadReservationRoomMeta(supabase: SupabaseLike, reservationId: st
   };
 }
 
+async function loadReservationRoomMetaBatch(
+  supabase: SupabaseLike,
+  reservationIds: string[]
+): Promise<Map<string, ReservationRoomMeta>> {
+  const ids = Array.from(new Set(reservationIds.map((value) => asString(value)).filter(Boolean)));
+  const map = new Map<string, ReservationRoomMeta>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("reservation_nights")
+    .select("reservation_id, room_id, room_type_id, stay_date, rooms(room_number)")
+    .in("reservation_id", ids)
+    .is("cancelled_at", null)
+    .order("stay_date", { ascending: true });
+  if (error) throw new ExtendStayOrchestratorError(error.message ?? "Failed to load reservation room meta.", 500);
+
+  for (const row of ensureArray<any>(data)) {
+    const reservationId = asString(row?.reservation_id);
+    if (!reservationId || map.has(reservationId)) continue;
+    map.set(reservationId, {
+      room_id: asString(row?.room_id) || null,
+      room_type_id: Number(row?.room_type_id ?? 0) || null,
+      room_number: asString((row as any)?.rooms?.room_number) || null,
+    });
+  }
+
+  return map;
+}
+
+async function loadCandidateRoomsByTypeIds(
+  supabase: SupabaseLike,
+  roomTypeIds: number[],
+  currentRoomId: string
+): Promise<Map<number, Array<{ id: string; room_number: string; room_type_id: number }>>> {
+  const ids = Array.from(new Set(roomTypeIds.filter((id) => Number.isFinite(id) && id > 0)));
+  const result = new Map<number, Array<{ id: string; room_number: string; room_type_id: number }>>();
+  if (ids.length === 0) return result;
+
+  const { data: rooms, error: roomsError } = await supabase
+    .from("rooms")
+    .select("id, room_number, room_type_id, is_sellable, is_dayuse")
+    .in("room_type_id", ids)
+    .eq("is_sellable", true)
+    .neq("id", currentRoomId);
+  if (roomsError) {
+    throw new ExtendStayOrchestratorError(roomsError.message ?? "Failed to load blocker target rooms.", 500);
+  }
+
+  for (const room of ensureArray<any>(rooms)) {
+    if (Boolean(room?.is_dayuse)) continue;
+    const roomTypeId = Number(room?.room_type_id ?? 0);
+    const roomId = asString(room?.id);
+    const roomNumber = asString(room?.room_number);
+    if (!roomId || !roomNumber || !Number.isFinite(roomTypeId) || roomTypeId <= 0) continue;
+    const list = result.get(roomTypeId) ?? [];
+    list.push({ id: roomId, room_number: roomNumber, room_type_id: roomTypeId });
+    result.set(roomTypeId, list);
+  }
+
+  return result;
+}
+
 async function listBlockingReservationNights(params: {
   supabase: SupabaseLike;
   roomId: string;
@@ -414,12 +508,34 @@ async function listBlockingItems(params: {
   }
 
   const sourceSwapContext = await loadReservationSwapContext(supabase as any, ctx.reservation.id).catch(() => null);
+  const blockerReservationIds = ensureArray<any>(reservations).map((reservation) => String(reservation.id));
+  const [roomMetaByReservationId, blockerSwapContexts] = await Promise.all([
+    loadReservationRoomMetaBatch(supabase, blockerReservationIds),
+    Promise.all(blockerReservationIds.map((reservationId) => loadReservationSwapContext(supabase as any, reservationId).catch(() => null))),
+  ]);
+  const blockerSwapContextByReservationId = new Map<string, any>();
+  blockerSwapContexts.forEach((context, index) => {
+    const reservationId = blockerReservationIds[index];
+    if (context && reservationId) {
+      blockerSwapContextByReservationId.set(reservationId, context);
+    }
+  });
+  const roomTypeNameById = await resolveRoomTypeNamesByIds(
+    supabase,
+    Array.from(
+      new Set(
+        blockerReservationIds
+          .map((reservationId) => roomMetaByReservationId.get(reservationId)?.room_type_id ?? 0)
+          .filter((roomTypeId) => Number.isFinite(roomTypeId) && roomTypeId > 0)
+      )
+    )
+  );
 
   const items: BlockingItem[] = [];
   for (const reservation of ensureArray<any>(reservations)) {
     const reservationId = String(reservation.id);
-    const roomMeta = await loadReservationRoomMeta(supabase, reservationId);
-    const swapContext = await loadReservationSwapContext(supabase as any, reservationId).catch(() => null);
+    const roomMeta = roomMetaByReservationId.get(reservationId) ?? { room_id: null, room_type_id: null, room_number: null };
+    const swapContext = blockerSwapContextByReservationId.get(reservationId) ?? null;
     let swapDiagnostic: BlockingItem["swap_diagnostic"] = null;
     if (sourceSwapContext && swapContext) {
       try {
@@ -440,7 +556,7 @@ async function listBlockingItems(params: {
       guest_name: asString(reservation.guest_name) || "Guest",
       room_number: roomMeta.room_number,
       room_type_id: roomMeta.room_type_id,
-      room_type_name: roomMeta.room_type_id ? await resolveRoomTypeNameById(supabase, roomMeta.room_type_id) : null,
+      room_type_name: roomMeta.room_type_id ? roomTypeNameById.get(roomMeta.room_type_id) ?? `Room Type #${roomMeta.room_type_id}` : null,
       checkin_date: String(reservation.checkin_date),
       checkout_date: String(reservation.checkout_date),
       conflict_stay_dates: byReservation.get(reservationId) ?? [],
@@ -468,27 +584,22 @@ async function listSwapAssistCandidates(params: {
 }) {
   const { supabase, blockers, currentRoomId, today } = params;
   const candidates: SwapCandidate[] = [];
+  const candidateRoomsByTypeId = await loadCandidateRoomsByTypeIds(
+    supabase,
+    blockers.map((blocker) => Number(blocker.room_type_id ?? 0)),
+    currentRoomId
+  );
 
   for (const blocker of blockers) {
     if (!blocker.room_type_id) continue;
     const moveStartDate = deriveMoveStartDate({ today, checkinDate: blocker.checkin_date });
     if (compareDateStrings(blocker.checkout_date, moveStartDate) <= 0) continue;
 
-    const { data: rooms, error: roomsError } = await supabase
-      .from("rooms")
-      .select("id, room_number, room_type_id, is_sellable, is_dayuse")
-      .eq("room_type_id", blocker.room_type_id)
-      .eq("is_sellable", true)
-      .neq("id", currentRoomId);
-    if (roomsError) {
-      throw new ExtendStayOrchestratorError(roomsError.message ?? "Failed to load blocker target rooms.", 500);
-    }
-
-    for (const room of ensureArray<any>(rooms)) {
+    const rooms = candidateRoomsByTypeId.get(blocker.room_type_id) ?? [];
+    for (const room of rooms) {
       const candidateRoomId = String(room.id ?? "");
       const candidateRoomNumber = asString(room.room_number);
       if (!candidateRoomId || !candidateRoomNumber) continue;
-      if (Boolean(room.is_dayuse)) continue;
 
       try {
         await assertRoomAvailableForDateRange(supabase as any, {

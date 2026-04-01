@@ -1054,7 +1054,23 @@ export default function TransportationDailyBoard() {
     }, [date, fetchData]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-    useEffect(() => { const t = setInterval(fetchData, 30000); return () => clearInterval(t); }, [fetchData]);
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                fetchData();
+            }
+        };
+        const t = setInterval(() => {
+            if (document.visibilityState === "visible") {
+                fetchData();
+            }
+        }, 30000);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            clearInterval(t);
+        };
+    }, [fetchData]);
 
     async function advanceStatus(t: TransferRow) {
         const next = NEXT_STATUS[t.status];
