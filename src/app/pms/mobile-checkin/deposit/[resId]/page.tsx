@@ -88,6 +88,35 @@ export default function DepositStep() {
           </div>
         </section>
 
+        {/* SCB Transfer Info Box */}
+        {method === "transfer" && (() => {
+          const savedLine = sessionStorage.getItem(`mobile-checkin-${resId}`);
+          const session = savedLine ? JSON.parse(savedLine) : {};
+          const roomIsTransfer = session.payment_method === "transfer";
+          const roomAmount = Number(session.payment_amount || 0);
+          const currentDepAmount = Number(depositAmount || 0);
+          const total = roomIsTransfer ? (roomAmount + currentDepAmount) : currentDepAmount;
+
+          return (
+            <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="text-xl shrink-0">ℹ️</div>
+              <div className="space-y-1">
+                {roomIsTransfer ? (
+                  <p className="text-sm font-medium text-sky-800 dark:text-sky-300 leading-relaxed">
+                    ค่าห้อง + มัดจำ จะรวมเป็น QR <br/>
+                    ใบเดียว (฿{total.toLocaleString()})
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-sky-800 dark:text-sky-300 leading-relaxed">
+                    เมื่อกด "ถัดไป" ระบบจะสร้าง QR <br/>
+                    สำหรับรับชำระยอดมัดจำนี้อัตโนมัติ
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         <section className="space-y-3 pt-4 border-t border-[var(--border-default)]">
           <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">Deposit Amount</h3>
           <div className="relative">

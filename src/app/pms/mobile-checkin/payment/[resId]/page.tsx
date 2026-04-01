@@ -152,6 +152,17 @@ export default function PaymentStep() {
           </div>
         </section>
 
+        {/* SCB Transfer Info Box */}
+        {method === "transfer" && (
+          <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="text-xl shrink-0">ℹ️</div>
+            <p className="text-sm font-medium text-sky-800 dark:text-sky-300 leading-relaxed">
+              เมื่อกด "ถัดไป" ระบบจะสร้าง QR <br/>
+              สำหรับรับชำระยอดนี้อัตโนมัติ
+            </p>
+          </div>
+        )}
+
         {/* Room Payment Amount */}
         <section className="space-y-3 pt-4 border-t border-[var(--border-default)]">
           <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">Room Payment Amount</h3>

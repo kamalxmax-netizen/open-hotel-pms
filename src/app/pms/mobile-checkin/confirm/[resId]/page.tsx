@@ -67,16 +67,47 @@ export default function ConfirmStep() {
       }
       const result = json.data;
 
+      // Check if any part of the payment is transfer
+      const isTransfer = sessionData.payment_method === "transfer" || sessionData.deposit_method === "transfer";
+
+      // Create QR request if transfer
+      if (isTransfer) {
+        const roomIsTransfer = sessionData.payment_method === "transfer";
+        const depositIsTransfer = sessionData.deposit_method === "transfer";
+
+        await fetch("/api/integrations/scb/requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "reservation",
+            target_id: resId,
+            channel: "mobile_checkin",
+            room_amount: roomIsTransfer ? (sessionData.payment_amount || 0) : 0,
+            deposit_amount: depositIsTransfer ? (sessionData.deposit_amount || 0) : 0,
+          })
+        });
+      }
+
       setSubmitting(false);
       
       // Store result to pass state quickly without URL pollution
-      sessionStorage.setItem(`mobile-checkin-result-${resId}`, JSON.stringify(result));
+      // We also include the methods used so the QR page knows what to bundle
+      const finalResult = {
+        ...result,
+        payment_method: sessionData.payment_method,
+        deposit_method: sessionData.deposit_method
+      };
+      sessionStorage.setItem(`mobile-checkin-result-${resId}`, JSON.stringify(finalResult));
       
-      // Clean up working session
+      // Clean up working session (but keep result for the NEXT page)
       sessionStorage.removeItem(`mobile-checkin-${resId}`);
       sessionStorage.removeItem("mobile-checkin-temp-ocr");
 
-      router.push(`/pms/mobile-checkin/success/${resId}`);
+      if (isTransfer) {
+        router.push(`/pms/mobile-checkin/transfer-qr/${resId}`);
+      } else {
+        router.push(`/pms/mobile-checkin/success/${resId}`);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An unexpected error occurred.");
