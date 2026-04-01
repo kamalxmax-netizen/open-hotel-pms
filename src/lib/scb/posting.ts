@@ -135,15 +135,21 @@ export async function processMatchedScbTransaction(
   const expected = Number(request.request_amount_total ?? 0);
   const actual = Number(transaction.amount ?? 0);
   if (Math.abs(expected - actual) > 0.009) {
-    await supabase
+    const { error: requestUpdateError } = await supabase
       .from("scb_payment_requests")
       .update({ status: "unmatched", updated_at: new Date().toISOString(), error_message: `Amount mismatch: expected ${expected}, got ${actual}` })
       .eq("id", request.id);
+    if (requestUpdateError) {
+      throw new Error(requestUpdateError.message);
+    }
     if (transactionRowId) {
-      await supabase
+      const { error: transactionUpdateError } = await supabase
         .from("scb_payment_transactions")
         .update({ match_status: "unmatched", processed_at: new Date().toISOString() })
         .eq("id", transactionRowId);
+      if (transactionUpdateError) {
+        throw new Error(transactionUpdateError.message);
+      }
     }
     return;
   }
@@ -154,7 +160,7 @@ export async function processMatchedScbTransaction(
     await postPosTransfer(supabase, request, transaction);
   }
 
-  await supabase
+  const { error: requestPaidError } = await supabase
     .from("scb_payment_requests")
     .update({
       status: "paid",
@@ -163,9 +169,12 @@ export async function processMatchedScbTransaction(
       error_message: null,
     })
     .eq("id", request.id);
+  if (requestPaidError) {
+    throw new Error(requestPaidError.message);
+  }
 
   if (transactionRowId) {
-    await supabase
+    const { error: transactionMatchedError } = await supabase
       .from("scb_payment_transactions")
       .update({
         request_id: request.id,
@@ -173,6 +182,9 @@ export async function processMatchedScbTransaction(
         processed_at: new Date().toISOString(),
       })
       .eq("id", transactionRowId);
+    if (transactionMatchedError) {
+      throw new Error(transactionMatchedError.message);
+    }
   }
 
   if (transactionRowId) {

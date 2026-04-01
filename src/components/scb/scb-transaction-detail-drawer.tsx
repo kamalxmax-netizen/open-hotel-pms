@@ -32,7 +32,9 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/integrations/scb/inbox/${item.id}?kind=${item.kind}`);
+        const res = await fetch(`/api/integrations/scb/inbox/${item.id}?kind=${item.kind}&_ts=${Date.now()}`, {
+          cache: "no-store",
+        });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.success) {
           throw new Error(json?.error || "Failed to load transaction detail.");
@@ -59,6 +61,7 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
       const res = await fetch("/api/integrations/scb/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({ request_id: requestId, source: "manual" }),
       });
       const json = await res.json().catch(() => null);
@@ -66,7 +69,9 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
         throw new Error(json?.error || "Failed to recheck transaction.");
       }
       onRefresh?.();
-      const refresh = await fetch(`/api/integrations/scb/inbox/${item.id}?kind=${item.kind}`);
+      const refresh = await fetch(`/api/integrations/scb/inbox/${item.id}?kind=${item.kind}&_ts=${Date.now()}`, {
+        cache: "no-store",
+      });
       const refreshJson = await refresh.json().catch(() => null);
       if (refresh.ok && refreshJson?.success) {
         setDetail(refreshJson.detail);

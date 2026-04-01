@@ -61,7 +61,10 @@ export default function ScbTransfersPage() {
       if (filters.amountMin) params.set("amount_min", filters.amountMin);
       if (filters.amountMax) params.set("amount_max", filters.amountMax);
 
-      const res = await fetch(`/api/integrations/scb/inbox?${params.toString()}`);
+      params.set("_ts", String(Date.now()));
+      const res = await fetch(`/api/integrations/scb/inbox?${params.toString()}`, {
+        cache: "no-store",
+      });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
         throw new Error(json?.error || "Failed to load SCB transfer inbox.");
@@ -156,7 +159,9 @@ export default function ScbTransfersPage() {
   const handleRecheck = async (row: ScbTransferTableRow) => {
     setBusy(true);
     try {
-      const requestRes = await fetch(`/api/integrations/scb/inbox/${row.id}?kind=${row.kind}`);
+      const requestRes = await fetch(`/api/integrations/scb/inbox/${row.id}?kind=${row.kind}&_ts=${Date.now()}`, {
+        cache: "no-store",
+      });
       const requestJson = await requestRes.json().catch(() => null);
       if (!requestRes.ok || !requestJson?.success) {
         throw new Error(requestJson?.error || "Failed to load request detail for recheck.");
@@ -169,6 +174,7 @@ export default function ScbTransfersPage() {
       const res = await fetch("/api/integrations/scb/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({ request_id: requestId, source: "manual" }),
       });
       const json = await res.json().catch(() => null);

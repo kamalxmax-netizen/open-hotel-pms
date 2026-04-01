@@ -586,7 +586,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 : "hover:bg-slate-200/50 dark:hover:bg-white/5"
                                                     } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                     style={{ width: COL_W, height: ROW_H }}
-                                                    onClick={() => onCellClick?.(room.room_id, day)}
+                                                    onDoubleClick={() => onCellClick?.(room.room_id, day)}
                                                     onDragEnter={(e) => {
                                                         if (mode === "interactive") onCellDragEnter?.(room.room_id, day, e);
                                                     }}

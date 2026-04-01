@@ -50,6 +50,14 @@ type TransactionRow = {
   created_at: string;
 };
 
+type PendingLinkedTransaction = {
+  id: string;
+  request_id: string | null;
+  status: string;
+  match_status: string | null;
+  created_at: string;
+};
+
 function getBangkokDayRange(date = new Date()) {
   const local = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
   const yyyy = local.getFullYear();
@@ -188,8 +196,65 @@ export async function GET(request: NextRequest) {
       const { data, error, count } = await requestQuery.range(offset, offset + page_size - 1);
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       const requests = (data ?? []) as RequestRow[];
-      const meta = await buildTargetMeta(supabase, requests);
-      const rows = requests.map((row) => {
+      const requestIds = requests.map((row) => String(row.id));
+      const { data: linkedTransactions, error: linkedTransactionsError } = requestIds.length
+        ? await supabase
+            .from("scb_payment_transactions")
+            .select("id, request_id, status, match_status, created_at")
+            .in("request_id", requestIds)
+            .order("created_at", { ascending: false })
+        : { data: [], error: null as any };
+      if (linkedTransactionsError) {
+        return NextResponse.json({ success: false, error: linkedTransactionsError.message }, { status: 500 });
+      }
+
+      const latestTxByRequest = new Map<string, PendingLinkedTransaction>();
+      for (const transaction of (linkedTransactions ?? []) as PendingLinkedTransaction[]) {
+        const requestId = String(transaction.request_id ?? "");
+        if (!requestId) continue;
+        if (latestTxByRequest.has(requestId)) continue;
+        latestTxByRequest.set(requestId, transaction);
+      }
+
+      const requestRepairs = requests
+        .map((requestRow) => {
+          const linked = latestTxByRequest.get(String(requestRow.id));
+          if (!linked) return null;
+          if (requestRow.status !== "pending") return null;
+          if (linked.match_status !== "matched") return null;
+          return { requestId: String(requestRow.id), transactionId: String(linked.id) };
+        })
+        .filter(Boolean) as Array<{ requestId: string; transactionId: string }>;
+
+      if (requestRepairs.length > 0) {
+        await Promise.all(
+          requestRepairs.map(({ requestId, transactionId }) =>
+            supabase
+              .from("scb_payment_requests")
+              .update({
+                status: "paid",
+                paid_transaction_id: transactionId,
+                updated_at: new Date().toISOString(),
+                error_message: null,
+              })
+              .eq("id", requestId)
+              .eq("status", "pending")
+          )
+        );
+      }
+
+      const pendingRequests = requests.filter((requestRow) => {
+        const linked = latestTxByRequest.get(String(requestRow.id));
+        if (!linked) return true;
+        if (linked.match_status === "matched") return false;
+        if (linked.match_status === "unmatched") return false;
+        if (linked.match_status === "ignored") return false;
+        if (linked.status === "success") return false;
+        return true;
+      });
+
+      const meta = await buildTargetMeta(supabase, pendingRequests);
+      const rows = pendingRequests.map((row) => {
         const target = resolveTargetLabel(row, meta);
         return {
           id: row.id,
@@ -214,6 +279,10 @@ export async function GET(request: NextRequest) {
           error_message: row.error_message,
         };
       });
+
+      const hiddenByLinkedTransaction = requests.length - pendingRequests.length;
+      const effectiveTotal = Math.max(Number(count ?? pendingRequests.length) - hiddenByLinkedTransaction, pendingRequests.length);
+
       return NextResponse.json({
         success: true,
         tab,
@@ -221,7 +290,7 @@ export async function GET(request: NextRequest) {
         counts,
         summary,
         rows,
-        pagination: { page, page_size, total: count ?? rows.length },
+        pagination: { page, page_size, total: effectiveTotal },
       });
     }
 

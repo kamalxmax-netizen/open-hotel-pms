@@ -90,6 +90,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, request: scbRequest, inquiry: normalized });
     }
 
+    const nextMatchStatus =
+      existingTransaction?.match_status === "ignored"
+        ? "ignored"
+        : scbRequest.status === "paid" && normalized.status === "success"
+          ? "matched"
+          : existingTransaction?.match_status ?? "unmatched";
+
     const { data: transactionRow, error: txError } = await supabase
       .from("scb_payment_transactions")
       .upsert({
@@ -104,7 +111,7 @@ export async function POST(request: NextRequest) {
         payment_channel: normalized.paymentChannel,
         paid_at: normalized.paidAt,
         status: normalized.status,
-        match_status: existingTransaction?.match_status ?? (scbRequest.status === "paid" ? "matched" : "unmatched"),
+        match_status: nextMatchStatus,
         raw_payload: normalized.rawPayload,
       }, { onConflict: "transaction_id" })
       .select("id")
