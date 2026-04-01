@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import QRCode from "react-qr-code";
 import { ArrowLeft, Save, Share2, CheckCircle2, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { APP_NAME } from "@/lib/constants";
@@ -19,6 +20,9 @@ export default function TransferQRPage() {
   
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const qrRenderRef = useRef<HTMLDivElement | null>(null);
+  const qrValue = String(request?.qr_payload || request?.partner_reference_no || "").trim();
+  const hasQrImage = Boolean(request?.qr_image_url);
 
   // 1. Load/Create Request
   useEffect(() => {
@@ -136,14 +140,6 @@ export default function TransferQRPage() {
     if (!ctx) return;
 
     // Load QR Image
-    const qrImg = new Image();
-    qrImg.crossOrigin = "anonymous";
-    qrImg.src = request.qr_image_url;
-
-    await new Promise((resolve) => {
-      qrImg.onload = resolve;
-    });
-
     // Canvas Settings (Official/Bank Style)
     canvas.width = 600;
     canvas.height = 900;
@@ -164,7 +160,26 @@ export default function TransferQRPage() {
 
     // QR Image
     const qrSize = 400;
-    ctx.drawImage(qrImg, (canvas.width - qrSize) / 2, 140, qrSize, qrSize);
+    if (request.qr_image_url) {
+      const qrImg = new Image();
+      qrImg.crossOrigin = "anonymous";
+      qrImg.src = request.qr_image_url;
+      await new Promise((resolve) => {
+        qrImg.onload = resolve;
+      });
+      ctx.drawImage(qrImg, (canvas.width - qrSize) / 2, 140, qrSize, qrSize);
+    } else if (qrValue) {
+      const svgNode = qrRenderRef.current?.querySelector("svg");
+      if (svgNode) {
+        const svgMarkup = new XMLSerializer().serializeToString(svgNode);
+        const fallbackImg = new Image();
+        fallbackImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+        await new Promise((resolve) => {
+          fallbackImg.onload = resolve;
+        });
+        ctx.drawImage(fallbackImg, (canvas.width - qrSize) / 2, 140, qrSize, qrSize);
+      }
+    }
 
     // Amount
     ctx.fillStyle = "#000000";
@@ -275,13 +290,17 @@ export default function TransferQRPage() {
       <main className="flex-1 p-6 space-y-8 flex flex-col items-center">
         {/* QR Container */}
         <div className={`relative transition-all duration-500 ${isPaid ? "scale-95 opacity-50" : isExpired || isCancelled ? "opacity-30" : "scale-100"}`}>
-          <div className="bg-white rounded-3xl shadow-xl p-6 mx-auto max-w-[300px]">
-             {request.qr_image_url ? (
+          <div ref={qrRenderRef} className="bg-white rounded-3xl shadow-xl p-6 mx-auto max-w-[300px]">
+             {hasQrImage ? (
                <img 
                  src={request.qr_image_url} 
                  alt="SCB QR" 
                  className="w-full h-auto aspect-square rounded-xl"
                />
+             ) : qrValue ? (
+               <div className="w-[250px] h-[250px] rounded-xl bg-white flex items-center justify-center">
+                 <QRCode value={qrValue} size={220} />
+               </div>
              ) : (
                <div className="w-[250px] h-[250px] bg-slate-100 flex items-center justify-center rounded-xl italic text-slate-400">
                  Generating QR...

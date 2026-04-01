@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import QRCode from "react-qr-code";
 import { 
   X, ArrowRight, ArrowLeft, Save, Copy, CheckCircle2, 
   Clock, AlertTriangle, Loader2 
@@ -46,8 +47,11 @@ export function GenerateScbQrModal({
   
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const qrRenderRef = useRef<HTMLDivElement | null>(null);
 
   const isPOS = targetType === "pos_order";
+  const qrValue = String(request?.qr_payload || request?.partner_reference_no || "").trim();
+  const hasQrImage = Boolean(request?.qr_image_url);
 
   // 1. Initial State
   useEffect(() => {
@@ -143,16 +147,31 @@ export function GenerateScbQrModal({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const qrImg = new Image();
-    qrImg.crossOrigin = "anonymous";
-    qrImg.src = request.qr_image_url;
-    await new Promise(r => qrImg.onload = r);
-
     canvas.width = 600; canvas.height = 800;
     ctx.fillStyle = "#fff"; ctx.fillRect(0,0,600,800);
     ctx.fillStyle = "#1e293b"; ctx.font = "bold 24px Inter"; ctx.textAlign = "center";
     ctx.fillText("OFFICIAL PAYMENT QR", 300, 50);
-    ctx.drawImage(qrImg, 150, 100, 300, 300);
+
+    if (request.qr_image_url) {
+      const qrImg = new Image();
+      qrImg.crossOrigin = "anonymous";
+      qrImg.src = request.qr_image_url;
+      await new Promise((resolve) => {
+        qrImg.onload = resolve;
+      });
+      ctx.drawImage(qrImg, 150, 100, 300, 300);
+    } else if (qrValue) {
+      const svgNode = qrRenderRef.current?.querySelector("svg");
+      if (svgNode) {
+        const svgMarkup = new XMLSerializer().serializeToString(svgNode);
+        const fallbackImg = new Image();
+        fallbackImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+        await new Promise((resolve) => {
+          fallbackImg.onload = resolve;
+        });
+        ctx.drawImage(fallbackImg, 150, 100, 300, 300);
+      }
+    }
     ctx.fillStyle = "#000"; ctx.font = "bold 50px Inter";
     ctx.fillText(`฿ ${request.request_amount_total.toLocaleString()}`, 300, 500);
     ctx.fillStyle = "#64748b"; ctx.font = "18px Inter";
@@ -267,8 +286,18 @@ export function GenerateScbQrModal({
     return (
       <div className="flex flex-col items-center gap-6 py-6 scroll-smooth animate-in zoom-in-95">
          <div className="relative group">
-            <div className={`bg-white p-4 rounded-3xl shadow-xl transition-all ${isPaid ? "scale-90 opacity-40" : isPending ? "scale-100" : "opacity-20 blur-[1px]"}`}>
-              <img src={request.qr_image_url} alt="QR" className="w-64 h-64 rounded-xl" />
+            <div ref={qrRenderRef} className={`bg-white p-4 rounded-3xl shadow-xl transition-all ${isPaid ? "scale-90 opacity-40" : isPending ? "scale-100" : "opacity-20 blur-[1px]"}`}>
+              {hasQrImage ? (
+                <img src={request.qr_image_url} alt="QR" className="w-64 h-64 rounded-xl" />
+              ) : qrValue ? (
+                <div className="w-64 h-64 rounded-xl bg-white p-3 flex items-center justify-center">
+                  <QRCode value={qrValue} size={232} />
+                </div>
+              ) : (
+                <div className="w-64 h-64 rounded-xl bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  No QR Data
+                </div>
+              )}
             </div>
             {isPaid && (
               <div className="absolute inset-0 flex items-center justify-center animate-bounce">

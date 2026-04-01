@@ -6,6 +6,7 @@ import { PAYMENT_METHODS } from "@/lib/constants";
 import { resolveCheckoutRevenueCategory } from "@/lib/checkout-balance";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { GenerateScbQrModal } from "./scb/generate-scb-qr-modal";
+import { useAdminRole } from "@/hooks/use-admin-role";
 
 interface Payment {
   id: string;
@@ -95,6 +96,7 @@ export function BillingPanel({
   const [newAmount, setNewAmount] = useState("");
   const [newNote, setNewNote] = useState("");
   const [showScbModal, setShowScbModal] = useState(false);
+  const { isAdmin } = useAdminRole();
 
   const fetchData = useCallback(async () => {
     if (!reservationId || mode === "create") return;
@@ -392,13 +394,15 @@ export function BillingPanel({
             >
                {adding ? "..." : deferPersist ? "+ Queue" : "+ Add Payment"}
             </button>
-            <button
-               type="button"
-               onClick={() => setShowScbModal(true)}
-               className="btn btn-secondary h-9 px-4 text-xs shrink-0 flex items-center gap-2 border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-400 bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20"
-            >
-               QR SCB
-            </button>
+            {isAdmin === true && (
+              <button
+                 type="button"
+                 onClick={() => setShowScbModal(true)}
+                 className="btn btn-secondary h-9 px-4 text-xs shrink-0 flex items-center gap-2 border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-400 bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20"
+              >
+                 QR SCB
+              </button>
+            )}
           </div>
           
           {mode === "checkout" && onCheckoutClick && (
