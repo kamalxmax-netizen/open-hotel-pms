@@ -1,8 +1,9 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
-import { buildPartnerReferenceNo } from "@/lib/scb/matching";
+import { buildScbReferenceBundle } from "@/lib/scb/matching";
 import { processMatchedScbTransaction } from "@/lib/scb/posting";
 import { almostEqualMoney } from "@/lib/scb/presenters";
 import type { ScbNormalizedTransaction, ScbStoredRequest } from "@/lib/scb/types";
@@ -96,9 +97,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
     lockedTransactionId = String(lockedRow.id);
 
-    const partnerReferenceNo = transactionRow.partner_reference_no
-      ? String(transactionRow.partner_reference_no)
-      : buildPartnerReferenceNo(parsed.data.target_type, parsed.data.target_id);
+    const requestId = crypto.randomUUID();
+    const refs = buildScbReferenceBundle({
+      targetType: parsed.data.target_type,
+      targetId: parsed.data.target_id,
+      requestId,
+    });
 
     if (transactionRow.request_id) {
       await supabase
@@ -131,6 +135,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const { data: insertedRequest, error: insertError } = await supabase
       .from("scb_payment_requests")
       .insert({
+        id: requestId,
         target_type: parsed.data.target_type,
         target_id: parsed.data.target_id,
         channel: parsed.data.target_type === "reservation" ? "booking_folio" : "pos",
@@ -139,7 +144,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         room_amount: Number(parsed.data.room_amount ?? 0),
         deposit_amount: Number(parsed.data.deposit_amount ?? 0),
         status: "pending",
-        partner_reference_no: partnerReferenceNo,
+        partner_reference_no: refs.partnerReferenceNo,
+        scb_ref_1: refs.ref1,
+        scb_ref_2: refs.ref2,
+        scb_ref_3: refs.ref3,
         request_payload: requestPayload,
         expires_at: addMinutes(30),
         auto_inquiry_after_expiry_at: addMinutes(35),

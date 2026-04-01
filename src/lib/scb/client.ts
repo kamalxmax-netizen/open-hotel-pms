@@ -26,6 +26,9 @@ function withScbHeaders(token: string) {
 
 export async function createMaeManeeQrCode(input: {
   partnerReferenceNo: string;
+  ref1: string;
+  ref2: string;
+  ref3: string;
   amount: number;
   partnerMetaData: Record<string, unknown>;
 }): Promise<ScbCreateQrResult> {
@@ -35,13 +38,14 @@ export async function createMaeManeeQrCode(input: {
     return {
       orderId: `MOCK-${Date.now()}`,
       partnerReferenceNo: input.partnerReferenceNo,
-      walletId: config.walletId || "MOCK-WALLET",
+      walletId: config.merchantId || config.walletId || "MOCK-BILLER",
       amount: input.amount,
       qrPayload: `MOCK:${input.partnerReferenceNo}:${input.amount.toFixed(2)}`,
       qrImageBase64: null,
-      ref1: "MOCK-REF1",
-      ref2: input.partnerReferenceNo,
-      ref3: "MOCK-REF3",
+      qrImageUrl: null,
+      ref1: input.ref1,
+      ref2: input.ref2,
+      ref3: input.ref3,
       rawResponse: {
         mock: true,
         partnerReferenceNo: input.partnerReferenceNo,
@@ -50,27 +54,31 @@ export async function createMaeManeeQrCode(input: {
     };
   }
 
-  if (!config.walletId) {
-    throw new Error("SCB Mae Manee wallet id is not configured.");
+  if (!config.merchantId) {
+    throw new Error("SCB merchant id is not configured.");
   }
 
   const token = await getScbAccessToken();
   console.log("[SCB QR payload]", JSON.stringify({
-    walletId: config.walletId,
-    amount: Number(input.amount.toFixed(2)),
-    partnerReferenceNo: input.partnerReferenceNo,
-    paymentType: ["T30"],
+    qrType: "PP",
+    ppType: "BILLERID",
+    ppId: config.merchantId,
+    amount: input.amount.toFixed(2),
+    ref1: input.ref1,
+    ref2: input.ref2,
+    ref3: input.ref3,
   }));
   const response = await fetch(config.qrCreateUrl, {
     method: "POST",
     headers: withScbHeaders(token),
     body: JSON.stringify({
-      partnerReferenceNo: input.partnerReferenceNo,
-      walletId: config.walletId,
-      paymentType: ["T30"],
-      amount: Number(input.amount.toFixed(2)),
-      partnerOrderDate: new Date().toISOString(),
-      partnerMetaData: input.partnerMetaData,
+      qrType: "PP",
+      ppType: "BILLERID",
+      ppId: config.merchantId,
+      amount: input.amount.toFixed(2),
+      ref1: input.ref1,
+      ref2: input.ref2,
+      ref3: input.ref3,
     }),
   });
 
@@ -85,10 +93,12 @@ export async function createMaeManeeQrCode(input: {
       })()
     : null;
   if (!response.ok || !payload) {
+    console.error("[SCB error response]", payload ?? rawText);
     const fallbackMessage = rawText?.trim() || `SCB QR create failed (${response.status}).`;
     throw new Error(`SCB QR create failed (${response.status}): ${fallbackMessage}`);
   }
   if (String(payload?.status?.code ?? "") !== "1000") {
+    console.error("[SCB error response]", payload);
     const scbCode = String(payload?.status?.code ?? "").trim();
     const scbDescription = String(payload?.status?.description ?? "").trim();
     const suffix = [scbCode, scbDescription].filter(Boolean).join(" - ");
@@ -96,18 +106,31 @@ export async function createMaeManeeQrCode(input: {
   }
 
   const data = toObject(payload.data);
-  const tag30 = toObject(data.tag30);
+  const qrCode = toObject(data.qrCode ?? data.qrcode ?? data.qr_code);
+  const billPayment = toObject(data.billPayment ?? data.bill_payment);
+  const payment = toObject(data.payment);
+  const qrImageUrl =
+    String(qrCode.qrImageUrl ?? qrCode.qrImageURL ?? data.qrImageUrl ?? data.qrImageURL ?? "").trim() || null;
+  const qrImageBase64 =
+    String(qrCode.qrImage ?? data.qrImage ?? "").trim() || null;
+  const qrPayload =
+    String(qrCode.qrRawData ?? qrCode.qrData ?? billPayment.qrRawData ?? payment.qrRawData ?? data.qrRawData ?? "").trim() || null;
+  const orderId =
+    String(data.qrId ?? data.orderId ?? data.transactionId ?? input.partnerReferenceNo).trim();
+  const settledMerchantId =
+    String(data.ppId ?? data.billerId ?? config.merchantId).trim();
 
   return {
-    orderId: String(data.orderId ?? "").trim(),
-    partnerReferenceNo: String(data.partnerReferenceNo ?? input.partnerReferenceNo).trim(),
-    walletId: String(data.walletId ?? config.walletId).trim(),
+    orderId,
+    partnerReferenceNo: String(data.ref3 ?? data.partnerReferenceNo ?? input.partnerReferenceNo).trim(),
+    walletId: settledMerchantId,
     amount: toNumber(data.amount ?? input.amount),
-    qrPayload: typeof tag30.result === "string" ? String(tag30.result) : null,
-    qrImageBase64: String(tag30.qrImage ?? "").trim() || null,
-    ref1: String(tag30.ref1 ?? "").trim() || null,
-    ref2: String(tag30.ref2 ?? "").trim() || null,
-    ref3: String(tag30.ref3 ?? "").trim() || null,
+    qrPayload,
+    qrImageBase64,
+    qrImageUrl,
+    ref1: String(data.ref1 ?? input.ref1).trim() || null,
+    ref2: String(data.ref2 ?? input.ref2).trim() || null,
+    ref3: String(data.ref3 ?? input.ref3).trim() || null,
     rawResponse: payload as Record<string, unknown>,
   };
 }

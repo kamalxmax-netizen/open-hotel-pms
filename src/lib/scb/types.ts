@@ -54,10 +54,18 @@ export type ScbCreateQrResult = {
   amount: number;
   qrPayload: string | null;
   qrImageBase64: string | null;
+  qrImageUrl: string | null;
   ref1: string | null;
   ref2: string | null;
   ref3: string | null;
   rawResponse: Record<string, unknown>;
+};
+
+export type ScbReferenceBundle = {
+  ref1: string;
+  ref2: string;
+  ref3: string;
+  partnerReferenceNo: string;
 };
 
 export type ScbNormalizedTransaction = {

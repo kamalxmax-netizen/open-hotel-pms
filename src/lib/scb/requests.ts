@@ -1,6 +1,8 @@
+import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMaeManeeQrCode } from "@/lib/scb/client";
-import { assertNoActivePendingRequest, buildPartnerReferenceNo, expireStalePendingRequestsForTarget } from "@/lib/scb/matching";
+import { assertNoActivePendingRequest, buildScbReferenceBundle, expireStalePendingRequestsForTarget } from "@/lib/scb/matching";
+import { loadPosMetaMap, loadReservationMetaMap } from "@/lib/scb/targets";
 import type { ScbCreateRequestInput, ScbStoredRequest } from "@/lib/scb/types";
 
 function toIsoWithOffset(date = new Date()): string {
@@ -36,12 +38,24 @@ export async function createScbPaymentRequest(
 
   const expiresMinutes = Number.isFinite(input.expiresMinutes) ? Math.max(1, Math.min(240, Number(input.expiresMinutes))) : 30;
   const now = new Date();
+  const requestId = crypto.randomUUID();
   const expiresAt = addMinutes(now, expiresMinutes).toISOString();
   const autoInquiryAfterExpiryAt = addMinutes(new Date(expiresAt), 5).toISOString();
-  const partnerReferenceNo = buildPartnerReferenceNo(input.targetType, input.targetId);
 
   await expireStalePendingRequestsForTarget(supabase, input.targetType, input.targetId);
   await assertNoActivePendingRequest(supabase, input.targetType, input.targetId);
+
+  const targetCode =
+    input.targetType === "reservation"
+      ? (await loadReservationMetaMap(supabase, [input.targetId])).get(String(input.targetId))?.code
+      : (await loadPosMetaMap(supabase, [input.targetId])).get(String(input.targetId))?.code;
+  const refs = buildScbReferenceBundle({
+    targetType: input.targetType,
+    targetId: input.targetId,
+    targetCode,
+    requestId,
+    now,
+  });
 
   const requestPayload = {
     targetType: input.targetType,
@@ -52,12 +66,16 @@ export async function createScbPaymentRequest(
     depositAmount,
     total,
     expiresMinutes,
+    ref1: refs.ref1,
+    ref2: refs.ref2,
+    ref3: refs.ref3,
     partnerMetaData: input.partnerMetaData ?? {},
   };
 
   const { data: inserted, error: insertError } = await supabase
     .from("scb_payment_requests")
     .insert({
+      id: requestId,
       target_type: input.targetType,
       target_id: input.targetId,
       channel: input.channel,
@@ -66,7 +84,10 @@ export async function createScbPaymentRequest(
       room_amount: roomAmount,
       deposit_amount: depositAmount,
       status: "pending",
-      partner_reference_no: partnerReferenceNo,
+      partner_reference_no: refs.partnerReferenceNo,
+      scb_ref_1: refs.ref1,
+      scb_ref_2: refs.ref2,
+      scb_ref_3: refs.ref3,
       request_payload: requestPayload,
       expires_at: expiresAt,
       auto_inquiry_after_expiry_at: autoInquiryAfterExpiryAt,
@@ -81,7 +102,10 @@ export async function createScbPaymentRequest(
 
   try {
     const qr = await createMaeManeeQrCode({
-      partnerReferenceNo,
+      partnerReferenceNo: refs.partnerReferenceNo,
+      ref1: refs.ref1,
+      ref2: refs.ref2,
+      ref3: refs.ref3,
       amount: total,
       partnerMetaData: {
         targetType: input.targetType,

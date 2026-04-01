@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ScbCallbackIdentifiers, ScbStoredRequest, ScbTransactionStatus } from "@/lib/scb/types";
+import type { ScbCallbackIdentifiers, ScbReferenceBundle, ScbStoredRequest, ScbTransactionStatus } from "@/lib/scb/types";
 
 function toPlainObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -7,18 +7,53 @@ function toPlainObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export function buildPartnerReferenceNo(targetType: "reservation" | "pos_order", targetId: string, nowMs = Date.now()): string {
+function sanitizeAlphaNum(value: string, maxLength: number): string {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, maxLength);
+}
+
+function bangkokTimestamp(date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}${values.month}${values.day}${values.hour}${values.minute}${values.second}`;
+}
+
+export function buildScbReferenceBundle(input: {
+  targetType: "reservation" | "pos_order";
+  targetId: string;
+  targetCode?: string | null;
+  requestId: string;
+  now?: Date;
+}): ScbReferenceBundle {
   const prefix = String(process.env.SCB_REFERENCE3_PREFIX ?? "UGY")
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 3) || "UGY";
-  const typeCode = targetType === "reservation" ? "R" : "P";
-  const compactTarget = String(targetId)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 4) || "XXXX";
-  const timeCode = nowMs.toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-10);
-  return `${prefix}${typeCode}${compactTarget}${timeCode}`.slice(0, 20);
+  const typeCode = input.targetType === "reservation" ? "R" : "P";
+  const fallbackTarget = `${typeCode}${sanitizeAlphaNum(input.targetId, 19) || "UNKNOWN"}`;
+  const ref1 = sanitizeAlphaNum(input.targetCode || "", 20) || fallbackTarget.slice(0, 20);
+  const requestSeed = sanitizeAlphaNum(input.requestId, 8) || "00000000";
+  const ref2 = `REQ${requestSeed}`.slice(0, 20);
+  const uniqueSuffix = requestSeed.slice(-3) || "000";
+  const ref3 = `${prefix}${bangkokTimestamp(input.now)}${uniqueSuffix}`.slice(0, 20);
+  return {
+    ref1,
+    ref2,
+    ref3,
+    partnerReferenceNo: ref3,
+  };
 }
 
 export async function expireStalePendingRequestsForTarget(

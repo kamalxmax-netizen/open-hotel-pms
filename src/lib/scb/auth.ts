@@ -15,6 +15,7 @@ export type ScbConfig = {
   applicationKey: string;
   applicationSecret: string;
   resourceOwnerId: string;
+  merchantId: string;
   walletId: string;
   acceptLanguage: string;
   callbackHmacSecret: string | null;
@@ -36,17 +37,19 @@ export function getScbConfig(): ScbConfig {
   const applicationKey = String(process.env.SCB_APPLICATION_KEY ?? "").trim();
   const applicationSecret = String(process.env.SCB_APPLICATION_SECRET ?? "").trim();
   const resourceOwnerId = String(process.env.SCB_RESOURCE_OWNER_ID ?? applicationKey).trim();
+  const merchantId = String(process.env.SCB_MERCHANT_ID ?? process.env.SCB_MAEMANEE_WALLET_ID ?? "").trim();
   const walletId = String(process.env.SCB_MAEMANEE_WALLET_ID ?? "").trim();
   const mockMode = String(process.env.SCB_MAEMANEE_MOCK_MODE ?? "").trim().toLowerCase() === "true";
 
   return {
     baseUrl,
     tokenUrl: String(process.env.SCB_OAUTH_TOKEN_URL ?? `${baseUrl}/v1/oauth/token`).trim(),
-    qrCreateUrl: String(process.env.SCB_MAEMANEE_QR_CREATE_URL ?? `${baseUrl}/v1/maemanee/payment/qr/create`).trim(),
+    qrCreateUrl: String(process.env.SCB_QRCODE_CREATE_URL ?? `${baseUrl}/v1/payment/qrcode/create`).trim(),
     inquiryUrl: String(process.env.SCB_MAEMANEE_GETONE_URL ?? `${baseUrl}/v1/maemanee/payment/transaction/getone`).trim(),
     applicationKey,
     applicationSecret,
     resourceOwnerId,
+    merchantId,
     walletId,
     acceptLanguage: String(process.env.SCB_ACCEPT_LANGUAGE ?? "th").trim() || "th",
     callbackHmacSecret: String(process.env.SCB_CALLBACK_HMAC_SECRET ?? "").trim() || null,
