@@ -68,12 +68,25 @@ export async function createMaeManeeQrCode(input: {
     }),
   });
 
-  const payload = await response.json().catch(() => null);
+  const rawText = await response.text();
+  const payload = rawText
+    ? (() => {
+        try {
+          return JSON.parse(rawText);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
   if (!response.ok || !payload) {
-    throw new Error(`SCB QR create failed (${response.status}).`);
+    const fallbackMessage = rawText?.trim() || `SCB QR create failed (${response.status}).`;
+    throw new Error(`SCB QR create failed (${response.status}): ${fallbackMessage}`);
   }
   if (String(payload?.status?.code ?? "") !== "1000") {
-    throw new Error(String(payload?.status?.description ?? "SCB QR create failed."));
+    const scbCode = String(payload?.status?.code ?? "").trim();
+    const scbDescription = String(payload?.status?.description ?? "").trim();
+    const suffix = [scbCode, scbDescription].filter(Boolean).join(" - ");
+    throw new Error(suffix ? `SCB QR create rejected: ${suffix}` : "SCB QR create failed.");
   }
 
   const data = toObject(payload.data);
