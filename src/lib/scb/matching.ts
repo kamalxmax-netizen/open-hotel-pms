@@ -103,6 +103,11 @@ export function extractScbCallbackIdentifiers(payload: unknown): ScbCallbackIden
   const root = toPlainObject(payload);
   const data = toPlainObject(root.data);
   const transaction = toPlainObject(data.transaction);
+  const billPayment = toPlainObject(data.billPayment ?? data.bill_payment);
+  const payment = toPlainObject(data.payment);
+  const supplementaryData = toPlainObject(transaction.supplementaryData);
+  const envelope = toPlainObject(supplementaryData.envelope);
+  const additionalData = toPlainObject(envelope.additionalData);
 
   const pick = (...values: unknown[]): string | null => {
     for (const value of values) {
@@ -116,10 +121,15 @@ export function extractScbCallbackIdentifiers(payload: unknown): ScbCallbackIden
     transactionId: pick(
       root.transactionId,
       root.transaction_id,
+      root.transRef,
       data.transactionId,
       data.transaction_id,
+      data.transRef,
+      billPayment.transRef,
+      payment.transRef,
       transaction.transactionDisplayId,
       transaction.transactionRef,
+      transaction.clearingSystemReference,
       transaction.orderId
     ),
     orderId: pick(
@@ -130,28 +140,94 @@ export function extractScbCallbackIdentifiers(payload: unknown): ScbCallbackIden
       transaction.orderId
     ),
     partnerReferenceNo: pick(
+      root.ref3,
+      root.billReference3,
       root.partnerReferenceNo,
       root.partner_reference_no,
+      data.ref3,
+      data.billReference3,
       data.partnerReferenceNo,
       data.partner_reference_no,
+      billPayment.ref3,
+      billPayment.billReference3,
+      payment.ref3,
+      additionalData.billReference3,
       transaction.partnerReferenceNo,
       transaction.partner_reference_no
+    ),
+    ref1: pick(
+      root.ref1,
+      root.billReference1,
+      data.ref1,
+      data.billReference1,
+      billPayment.ref1,
+      billPayment.billReference1,
+      payment.ref1,
+      additionalData.billReference1
+    ),
+    ref2: pick(
+      root.ref2,
+      root.billReference2,
+      data.ref2,
+      data.billReference2,
+      billPayment.ref2,
+      billPayment.billReference2,
+      payment.ref2,
+      additionalData.billReference2
+    ),
+    ref3: pick(
+      root.ref3,
+      root.billReference3,
+      data.ref3,
+      data.billReference3,
+      billPayment.ref3,
+      billPayment.billReference3,
+      payment.ref3,
+      additionalData.billReference3
     ),
   };
 }
 
 export async function loadScbRequestByReference(
   supabase: SupabaseClient,
-  identifiers: ScbCallbackIdentifiers
+  identifiers: ScbCallbackIdentifiers,
+  amount?: number | null
 ): Promise<ScbStoredRequest | null> {
-  if (identifiers.partnerReferenceNo) {
+  const primaryRef = identifiers.ref3 || identifiers.partnerReferenceNo;
+
+  if (primaryRef) {
     const byRef = await supabase
       .from("scb_payment_requests")
       .select("*")
-      .eq("partner_reference_no", identifiers.partnerReferenceNo)
+      .eq("scb_ref_3", primaryRef)
       .maybeSingle();
     if (byRef.error) throw new Error(byRef.error.message);
     if (byRef.data) return byRef.data as ScbStoredRequest;
+  }
+
+  if (identifiers.ref2) {
+    const byRef2 = await supabase
+      .from("scb_payment_requests")
+      .select("*")
+      .eq("scb_ref_2", identifiers.ref2)
+      .maybeSingle();
+    if (byRef2.error) throw new Error(byRef2.error.message);
+    if (byRef2.data) return byRef2.data as ScbStoredRequest;
+  }
+
+  if (identifiers.ref1) {
+    let byRef1Query = supabase
+      .from("scb_payment_requests")
+      .select("*")
+      .eq("scb_ref_1", identifiers.ref1)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (typeof amount === "number" && Number.isFinite(amount)) {
+      byRef1Query = byRef1Query.eq("request_amount_total", Number(amount.toFixed(2)));
+    }
+    const byRef1 = await byRef1Query.limit(1).maybeSingle();
+    if (byRef1.error) throw new Error(byRef1.error.message);
+    if (byRef1.data) return byRef1.data as ScbStoredRequest;
   }
 
   if (identifiers.orderId) {
@@ -169,8 +245,9 @@ export async function loadScbRequestByReference(
 
 export function mapScbPaymentStatus(raw: unknown): ScbTransactionStatus {
   const value = String(raw ?? "").trim().toUpperCase();
-  if (value === "PAID" || value === "SUCCESS") return "success";
+  if (value === "PAID" || value === "SUCCESS" || value === "ACCC" || value === "ACSC") return "success";
   if (value === "FAILED" || value === "CANCEL") return "failed";
+  if (value === "RJCT" || value === "CANC") return "failed";
   if (value === "EXPIRED") return "expired";
   return "pending";
 }

@@ -45,7 +45,7 @@ export function getScbConfig(): ScbConfig {
     baseUrl,
     tokenUrl: String(process.env.SCB_OAUTH_TOKEN_URL ?? `${baseUrl}/v1/oauth/token`).trim(),
     qrCreateUrl: String(process.env.SCB_QRCODE_CREATE_URL ?? `${baseUrl}/v1/payment/qrcode/create`).trim(),
-    inquiryUrl: String(process.env.SCB_MAEMANEE_GETONE_URL ?? `${baseUrl}/v1/maemanee/payment/transaction/getone`).trim(),
+    inquiryUrl: String(process.env.SCB_BILLPAY_INQUIRY_URL ?? `${baseUrl}/v3/payment/billpayment/inquiry`).trim(),
     applicationKey,
     applicationSecret,
     resourceOwnerId,

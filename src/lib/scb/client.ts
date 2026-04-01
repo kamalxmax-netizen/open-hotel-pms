@@ -139,6 +139,11 @@ export async function inquireMaeManeeTransaction(input: {
   partnerReferenceNo: string;
   orderId: string;
   walletId: string;
+  ref1?: string | null;
+  ref2?: string | null;
+  ref3?: string | null;
+  createdAt?: string | null;
+  amount?: number | null;
 }): Promise<ScbNormalizedTransaction> {
   const config = getScbConfig();
 
@@ -163,13 +168,54 @@ export async function inquireMaeManeeTransaction(input: {
   }
 
   const token = await getScbAccessToken();
+  const now = new Date();
+  const requestDate = input.createdAt ? new Date(input.createdAt) : now;
+  const fromDate = requestDate.toISOString().slice(0, 10);
+  const toDate = fromDate;
   const response = await fetch(config.inquiryUrl, {
     method: "POST",
     headers: withScbHeaders(token),
     body: JSON.stringify({
-      partnerReferenceNo: input.partnerReferenceNo,
-      walletId: input.walletId,
-      orderId: input.orderId,
+      searchPayment: {
+        messageIdentification: buildScbRequestUId(),
+        creationDateTime: now.toISOString(),
+        paymentSearchCriteria: {
+          requestedExecutionDate: {
+            dateSearch: {
+              fromDate,
+              toDate,
+            },
+          },
+          instructedAmount: input.amount
+            ? {
+                currencyAndAmountRange: {
+                  amount: {
+                    fromAmount: Number(input.amount).toFixed(2),
+                    toAmount: Number(input.amount).toFixed(2),
+                  },
+                },
+                currency: "THB",
+              }
+            : undefined,
+        },
+        supplementaryData: {
+          envelope: {
+            additionalData: {
+              creditorAccount: {
+                proxyIdentificationType: "billerid",
+                proxyIdentification: input.walletId,
+              },
+              billReference1: input.ref1 || undefined,
+              billReference2: input.ref2 || undefined,
+              billReference3: input.ref3 || input.partnerReferenceNo,
+              partnerIdentification: input.orderId || undefined,
+              pageSize: "10",
+              pageNumber: "1",
+              includeHistoryDetails: "true",
+            },
+          },
+        },
+      },
     }),
   });
 
@@ -181,36 +227,36 @@ export async function inquireMaeManeeTransaction(input: {
     throw new Error(String(payload?.status?.description ?? "SCB inquiry failed."));
   }
 
-  const transaction = toObject(toObject(payload.data).transaction);
-  const t30 = toObject(transaction.t30);
-  const paymentInfo = Array.isArray(t30.paymentInfo) ? toObject(t30.paymentInfo[0]) : {};
-  const pml = toObject(transaction.pml);
-  const qrcs = toObject(transaction.qrcs);
+  const rootData = toObject(payload.data);
+  const responseStatus = toObject(rootData.status);
+  const payloadData = toObject(rootData.data);
+  const reportRoot = toObject(payloadData.searchPaymentStatusReport);
+  const report = toObject(reportRoot.searchPaymentReport);
+  const transaction = toObject(report.transactionInformationAndStatus);
+  const supplementaryData = toObject(report.supplementaryData);
+  const envelope = toObject(supplementaryData.envelope);
+  const additionalData = toObject(envelope.additionalData);
+  const amountObj = toObject(toObject(transaction.originalTransactionReference).interbankSettlementAmount);
 
-  const statusValue =
-    paymentInfo.paymentStatus
-    ?? pml.paymentStatus
-    ?? qrcs.paymentStatus
-    ?? "PENDING";
-
+  const statusValue = transaction.transactionStatus ?? responseStatus.responseStatus ?? "PDNG";
   const payerName =
-    String(paymentInfo.paymentBy ?? pml.paymentBy ?? qrcs.paymentBy ?? "").trim() || null;
+    String(additionalData.originalMessageCustomerDisplayName ?? additionalData.customerDisplayName ?? "").trim() || null;
   const payerAccount =
-    String(paymentInfo.buyerBankCode ?? pml.buyerBankCode ?? "").trim() || null;
+    String(additionalData.retrievalReferenceNumber ?? "").trim() || null;
   const paymentDatetime =
-    String(paymentInfo.paymentDatetime ?? pml.paymentDatetime ?? qrcs.paymentDatetime ?? "").trim() || null;
+    String(additionalData.localTransactionDateTime ?? transaction.acceptanceDateTime ?? "").trim() || null;
   const transactionId =
-    String(paymentInfo.transactionDisplayId ?? pml.transactionDisplayId ?? qrcs.transactionRef ?? transaction.orderId ?? "").trim();
+    String(transaction.clearingSystemReference ?? additionalData.retrievalReferenceNumber ?? input.orderId ?? input.partnerReferenceNo).trim();
 
   return {
     transactionId: transactionId || `SCB-${String(transaction.orderId ?? input.orderId)}`,
-    orderId: String(transaction.orderId ?? input.orderId).trim() || null,
-    partnerReferenceNo: String(transaction.partnerReferenceNo ?? input.partnerReferenceNo).trim() || null,
-    amount: toNumber(transaction.amount),
+    orderId: String(input.orderId ?? "").trim() || null,
+    partnerReferenceNo: String(additionalData.billReference3 ?? input.ref3 ?? input.partnerReferenceNo).trim() || null,
+    amount: toNumber(amountObj.amount ?? input.amount ?? 0),
     currency: "THB",
     payerName,
     payerAccount,
-    paymentChannel: t30.ref1 ? "T30" : (pml.webPayLink ? "PML" : "UNKNOWN"),
+    paymentChannel: "T30",
     status: mapScbPaymentStatus(statusValue),
     paidAt: paymentDatetime,
     rawPayload: payload as Record<string, unknown>,

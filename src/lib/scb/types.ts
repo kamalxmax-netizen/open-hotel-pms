@@ -86,6 +86,9 @@ export type ScbCallbackIdentifiers = {
   transactionId: string | null;
   orderId: string | null;
   partnerReferenceNo: string | null;
+  ref1: string | null;
+  ref2: string | null;
+  ref3: string | null;
 };
 
 export type ScbTargetLookupRow = {

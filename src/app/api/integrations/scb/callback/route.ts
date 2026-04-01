@@ -18,29 +18,97 @@ function normalizeFromCallbackPayload(payload: unknown, fallbackRef: string | nu
   const root = toObject(payload);
   const data = toObject(root.data);
   const transaction = toObject(data.transaction);
-  const amount = Number(root.amount ?? data.amount ?? transaction.amount ?? 0);
+  const billPayment = toObject(data.billPayment ?? data.bill_payment);
+  const payment = toObject(data.payment);
+  const supplementaryData = toObject(transaction.supplementaryData);
+  const envelope = toObject(supplementaryData.envelope);
+  const additionalData = toObject(envelope.additionalData);
+  const amount = Number(
+    root.amount
+    ?? data.amount
+    ?? billPayment.amount
+    ?? billPayment.paidLocalAmount
+    ?? payment.amount
+    ?? transaction.amount
+    ?? toObject(toObject(transaction.originalTransactionReference).interbankSettlementAmount).amount
+    ?? 0
+  );
   const transactionId = String(
     root.transactionId
     ?? root.transaction_id
+    ?? root.transRef
     ?? data.transactionId
+    ?? data.transRef
+    ?? billPayment.transRef
+    ?? payment.transRef
     ?? transaction.transactionId
     ?? transaction.transactionDisplayId
+    ?? transaction.clearingSystemReference
     ?? fallbackOrderId
     ?? fallbackRef
     ?? `SCB-${Date.now()}`
   ).trim();
-  const statusValue = root.status ?? data.status ?? transaction.status ?? "pending";
+  const statusObject = toObject(root.status);
+  const statusValue =
+    root.paymentStatus
+    ?? data.paymentStatus
+    ?? billPayment.paymentStatus
+    ?? payment.paymentStatus
+    ?? transaction.transactionStatus
+    ?? transaction.status
+    ?? statusObject.code
+    ?? root.status
+    ?? data.status
+    ?? "pending";
   return {
     transactionId,
-    orderId: String(root.orderId ?? data.orderId ?? transaction.orderId ?? fallbackOrderId ?? "").trim() || null,
-    partnerReferenceNo: String(root.partnerReferenceNo ?? root.partner_reference_no ?? data.partnerReferenceNo ?? transaction.partnerReferenceNo ?? fallbackRef ?? "").trim() || null,
+    orderId: String(root.orderId ?? data.orderId ?? transaction.orderId ?? additionalData.partnerIdentification ?? fallbackOrderId ?? "").trim() || null,
+    partnerReferenceNo: String(
+      root.ref3
+      ?? root.billReference3
+      ?? root.partnerReferenceNo
+      ?? root.partner_reference_no
+      ?? data.ref3
+      ?? data.billReference3
+      ?? data.partnerReferenceNo
+      ?? billPayment.ref3
+      ?? billPayment.billReference3
+      ?? payment.ref3
+      ?? additionalData.billReference3
+      ?? transaction.partnerReferenceNo
+      ?? fallbackRef
+      ?? ""
+    ).trim() || null,
     amount: Number.isFinite(amount) ? amount : 0,
     currency: "THB",
-    payerName: String(root.payerName ?? data.payerName ?? transaction.payerName ?? "").trim() || null,
-    payerAccount: String(root.payerAccount ?? data.payerAccount ?? transaction.payerAccount ?? "").trim() || null,
-    paymentChannel: String(root.paymentChannel ?? data.paymentChannel ?? transaction.paymentChannel ?? "").trim() || null,
-    status: mapScbPaymentStatus(typeof statusValue === "object" ? toObject(statusValue).code : statusValue),
-    paidAt: String(root.paidAt ?? data.paidAt ?? transaction.paidAt ?? "").trim() || null,
+    payerName: String(
+      root.payerName
+      ?? data.payerName
+      ?? billPayment.senderName
+      ?? toObject(billPayment.sender).displayName
+      ?? toObject(billPayment.sender).name
+      ?? additionalData.customerDisplayName
+      ?? transaction.payerName
+      ?? ""
+    ).trim() || null,
+    payerAccount: String(
+      root.payerAccount
+      ?? data.payerAccount
+      ?? toObject(toObject(billPayment.sender).account).value
+      ?? transaction.payerAccount
+      ?? ""
+    ).trim() || null,
+    paymentChannel: String(root.paymentChannel ?? data.paymentChannel ?? transaction.paymentChannel ?? "T30").trim() || null,
+    status: mapScbPaymentStatus(statusValue),
+    paidAt: String(
+      root.paidAt
+      ?? data.paidAt
+      ?? billPayment.transDateTime
+      ?? additionalData.localTransactionDateTime
+      ?? transaction.acceptanceDateTime
+      ?? transaction.paidAt
+      ?? ""
+    ).trim() || null,
     rawPayload: root,
   };
 }
@@ -53,13 +121,13 @@ export async function POST(request: NextRequest) {
     const payload = JSON.parse(rawBody);
     const identifiers = extractScbCallbackIdentifiers(payload);
     const supabase = createServerSupabaseClient();
-    const matchedRequest = await loadScbRequestByReference(supabase as any, identifiers);
 
     let normalized = normalizeFromCallbackPayload(
       payload,
-      identifiers.partnerReferenceNo,
+      identifiers.ref3 || identifiers.partnerReferenceNo,
       identifiers.orderId
     );
+    const matchedRequest = await loadScbRequestByReference(supabase as any, identifiers, normalized.amount);
 
     if (
       matchedRequest?.partner_reference_no &&
@@ -71,6 +139,11 @@ export async function POST(request: NextRequest) {
           partnerReferenceNo: matchedRequest.partner_reference_no,
           orderId: matchedRequest.scb_order_id,
           walletId: matchedRequest.wallet_id,
+          ref1: matchedRequest.scb_ref_1,
+          ref2: matchedRequest.scb_ref_2,
+          ref3: matchedRequest.scb_ref_3,
+          createdAt: matchedRequest.created_at,
+          amount: matchedRequest.request_amount_total,
         });
       } catch {
         // fall back to callback body normalization

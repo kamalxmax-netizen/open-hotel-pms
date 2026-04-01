@@ -40,6 +40,11 @@ export async function POST(request: NextRequest) {
       partnerReferenceNo: scbRequest.partner_reference_no,
       orderId: scbRequest.scb_order_id,
       walletId: scbRequest.wallet_id,
+      ref1: scbRequest.scb_ref_1,
+      ref2: scbRequest.scb_ref_2,
+      ref3: scbRequest.scb_ref_3,
+      createdAt: scbRequest.created_at,
+      amount: scbRequest.request_amount_total,
     });
 
     const { data: transactionRow, error: txError } = await supabase
