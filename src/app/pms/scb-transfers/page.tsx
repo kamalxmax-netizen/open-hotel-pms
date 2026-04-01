@@ -195,7 +195,7 @@ export default function ScbTransfersPage() {
             <p className="text-sm text-[var(--text-secondary)]">Audit trail, manual resolution, and recheck history</p>
           </div>
         </div>
-        <button className="btn btn-secondary flex items-center gap-2" onClick={() => void fetchData()} disabled={loading || busy}>
+        <button type="button" className="btn btn-secondary flex items-center gap-2" onClick={() => void fetchData()} disabled={loading || busy}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </button>
@@ -204,6 +204,7 @@ export default function ScbTransfersPage() {
       <div className="flex flex-wrap gap-3">
         {tabs.map((entry) => (
           <button
+            type="button"
             key={entry.key}
             className={`relative rounded-2xl border px-4 py-3 text-left transition ${tab === entry.key ? "border-brand-500 bg-brand-50 text-brand-700" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}
             onClick={() => {
@@ -276,11 +277,11 @@ export default function ScbTransfersPage() {
           Showing {rows.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
             Prev
           </button>
           <span className="min-w-[72px] text-center">Page {page} / {totalPages}</span>
-          <button className="btn btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
             Next
           </button>
         </div>
@@ -322,8 +323,8 @@ export default function ScbTransfersPage() {
             </label>
           </div>
           <DialogFooter>
-            <button className="btn btn-ghost" onClick={() => setIgnoreRow(null)}>ยกเลิก</button>
-            <button className="btn btn-danger" disabled={!ignoreNote.trim() || busy || role === "supervisor"} title={role === "supervisor" ? "ต้องใช้สิทธิ์ Admin" : undefined} onClick={() => void handleIgnore()}>
+            <button type="button" className="btn btn-ghost" onClick={() => setIgnoreRow(null)}>ยกเลิก</button>
+            <button type="button" className="btn btn-danger" disabled={!ignoreNote.trim() || busy || role === "supervisor"} title={role === "supervisor" ? "ต้องใช้สิทธิ์ Admin" : undefined} onClick={() => void handleIgnore()}>
               Ignore
             </button>
           </DialogFooter>

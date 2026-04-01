@@ -69,6 +69,7 @@ export type ScbReferenceBundle = {
 };
 
 export type ScbNormalizedTransaction = {
+  found: boolean;
   transactionId: string;
   orderId: string | null;
   partnerReferenceNo: string | null;

@@ -45,10 +45,10 @@ export function ScbTransferFilters({ value, onChange, onClear }: Props) {
   return (
     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap gap-2">
-        <button className="btn btn-secondary btn-sm" onClick={() => applyPreset("today")}>Today</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => applyPreset("yesterday")}>Yesterday</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => applyPreset("7d")}>7D</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => applyPreset("30d")}>30D</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => applyPreset("today")}>Today</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => applyPreset("yesterday")}>Yesterday</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => applyPreset("7d")}>7D</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => applyPreset("30d")}>30D</button>
       </div>
       <div className="grid gap-3 md:grid-cols-6">
         <label className="flex flex-col gap-1 text-sm">
@@ -105,7 +105,7 @@ export function ScbTransferFilters({ value, onChange, onClear }: Props) {
           </select>
         </label>
         <div className="flex items-end">
-          <button className="btn btn-ghost w-full" onClick={onClear}>Clear filters</button>
+          <button type="button" className="btn btn-ghost w-full" onClick={onClear}>Clear filters</button>
         </div>
       </div>
     </div>

@@ -85,6 +85,7 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
               <td>{formatDateTimeCell(row.paid_at || row.created_at)}</td>
               <td>
                 <button
+                  type="button"
                   className="max-w-[140px] truncate text-left font-mono text-xs text-[var(--text-primary)] hover:underline"
                   onClick={() => navigator.clipboard.writeText(row.transaction_id || row.id)}
                   title="Copy ID"
@@ -110,6 +111,7 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                   {tab === "pending" && (
                     <>
                       <button
+                        type="button"
                         className="btn btn-secondary btn-sm"
                         disabled={readOnly}
                         title={readOnly ? "ต้องใช้สิทธิ์ Admin" : undefined}
@@ -117,15 +119,16 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                       >
                         Recheck
                       </button>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                     </>
                   )}
                   {tab === "matched" && (
-                    <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                   )}
                   {tab === "unmatched" && (
                     <>
                       <button
+                        type="button"
                         className="btn btn-primary btn-sm"
                         disabled={readOnly}
                         title={readOnly ? "ต้องใช้สิทธิ์ Admin" : undefined}
@@ -134,6 +137,7 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                         Assign
                       </button>
                       <button
+                        type="button"
                         className="btn btn-ghost btn-sm"
                         disabled={readOnly}
                         title={readOnly ? "ต้องใช้สิทธิ์ Admin" : undefined}
@@ -141,12 +145,13 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                       >
                         Ignore
                       </button>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                     </>
                   )}
                   {tab === "expired_failed" && (
                     <>
                       <button
+                        type="button"
                         className="btn btn-secondary btn-sm"
                         disabled={readOnly}
                         title={readOnly ? "ต้องใช้สิทธิ์ Admin" : undefined}
@@ -154,11 +159,11 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                       >
                         Recheck
                       </button>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                     </>
                   )}
                   {tab === "recheck_history" && (
-                    <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                   )}
                 </div>
               </td>

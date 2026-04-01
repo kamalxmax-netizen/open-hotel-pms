@@ -61,6 +61,7 @@ function normalizeFromCallbackPayload(payload: unknown, fallbackRef: string | nu
     ?? data.status
     ?? "pending";
   return {
+    found: true,
     transactionId,
     orderId: String(root.orderId ?? data.orderId ?? transaction.orderId ?? additionalData.partnerIdentification ?? fallbackOrderId ?? "").trim() || null,
     partnerReferenceNo: String(

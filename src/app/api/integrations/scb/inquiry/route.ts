@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "SCB request is missing partner reference / order id / wallet id." }, { status: 409 });
     }
 
+    console.log("[SCB inquiry route:start]", JSON.stringify({
+      requestId: scbRequest.id,
+      partnerReferenceNo: scbRequest.partner_reference_no,
+      orderId: scbRequest.scb_order_id,
+      walletId: scbRequest.wallet_id,
+      ref1: scbRequest.scb_ref_1,
+      ref2: scbRequest.scb_ref_2,
+      ref3: scbRequest.scb_ref_3,
+      amount: scbRequest.request_amount_total,
+      source: parsed.data.source,
+    }));
+
     const normalized = await inquireMaeManeeTransaction({
       partnerReferenceNo: scbRequest.partner_reference_no,
       orderId: scbRequest.scb_order_id,
@@ -46,6 +58,24 @@ export async function POST(request: NextRequest) {
       createdAt: scbRequest.created_at,
       amount: scbRequest.request_amount_total,
     });
+
+    if (!normalized.found) {
+      await supabase.from("scb_recheck_logs").insert({
+        request_id: scbRequest.id,
+        transaction_id: null,
+        triggered_by: user.id,
+        source: parsed.data.source,
+        result_status: normalized.status,
+        raw_payload: normalized.rawPayload,
+      });
+
+      console.log("[SCB inquiry route:pending]", JSON.stringify({
+        requestId: scbRequest.id,
+        partnerReferenceNo: scbRequest.partner_reference_no,
+      }));
+
+      return NextResponse.json({ success: true, request: scbRequest, inquiry: normalized });
+    }
 
     const { data: transactionRow, error: txError } = await supabase
       .from("scb_payment_transactions")
@@ -81,9 +111,17 @@ export async function POST(request: NextRequest) {
       await processMatchedScbTransaction(supabase as any, scbRequest, normalized, transactionRow.id);
     }
 
+    console.log("[SCB inquiry route:done]", JSON.stringify({
+      requestId: scbRequest.id,
+      transactionId: normalized.transactionId,
+      status: normalized.status,
+      found: normalized.found,
+    }));
+
     return NextResponse.json({ success: true, request: scbRequest, inquiry: normalized });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
+    console.error("[SCB inquiry route:error]", message);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

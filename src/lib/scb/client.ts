@@ -13,6 +13,20 @@ function toObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function toArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function formatScbDate(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function withScbHeaders(token: string) {
   const config = getScbConfig();
   return {
@@ -149,6 +163,7 @@ export async function inquireMaeManeeTransaction(input: {
 
   if (isScbMockMode()) {
     return {
+      found: false,
       transactionId: `MOCK-TXN-${input.orderId}`,
       orderId: input.orderId,
       partnerReferenceNo: input.partnerReferenceNo,
@@ -168,91 +183,114 @@ export async function inquireMaeManeeTransaction(input: {
   }
 
   const token = await getScbAccessToken();
-  const now = new Date();
-  const requestDate = input.createdAt ? new Date(input.createdAt) : now;
-  const fromDate = requestDate.toISOString().slice(0, 10);
-  const toDate = fromDate;
-  const response = await fetch(config.inquiryUrl, {
+  const transactionDate = formatScbDate(input.createdAt ?? new Date());
+  const params = new URLSearchParams({
+    eventCode: "00300100",
+    transactionDate,
+    billerId: input.walletId,
+  });
+  if (input.ref1) params.set("reference1", input.ref1);
+  if (input.ref2) params.set("reference2", input.ref2);
+  if (input.amount != null) params.set("amount", Number(input.amount).toFixed(2));
+  const inquiryUrl = `${config.inquiryUrl}?${params.toString()}`;
+
+  console.log("[SCB inquiry request]", JSON.stringify({
+    inquiryUrl,
+    ref1: input.ref1 ?? null,
+    ref2: input.ref2 ?? null,
+    ref3: input.ref3 ?? input.partnerReferenceNo,
+    amount: input.amount ?? null,
+  }));
+
+  const response = await fetch(inquiryUrl, {
     method: "POST",
     headers: withScbHeaders(token),
-    body: JSON.stringify({
-      searchPayment: {
-        messageIdentification: buildScbRequestUId(),
-        creationDateTime: now.toISOString(),
-        paymentSearchCriteria: {
-          requestedExecutionDate: {
-            dateSearch: {
-              fromDate,
-              toDate,
-            },
-          },
-          instructedAmount: input.amount
-            ? {
-                currencyAndAmountRange: {
-                  amount: {
-                    fromAmount: Number(input.amount).toFixed(2),
-                    toAmount: Number(input.amount).toFixed(2),
-                  },
-                },
-                currency: "THB",
-              }
-            : undefined,
-        },
-        supplementaryData: {
-          envelope: {
-            additionalData: {
-              creditorAccount: {
-                proxyIdentificationType: "billerid",
-                proxyIdentification: input.walletId,
-              },
-              billReference1: input.ref1 || undefined,
-              billReference2: input.ref2 || undefined,
-              billReference3: input.ref3 || input.partnerReferenceNo,
-              partnerIdentification: input.orderId || undefined,
-              pageSize: "10",
-              pageNumber: "1",
-              includeHistoryDetails: "true",
-            },
-          },
-        },
-      },
-    }),
   });
 
-  const payload = await response.json().catch(() => null);
+  const rawText = await response.text();
+  const payload = rawText
+    ? (() => {
+        try {
+          return JSON.parse(rawText);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
   if (!response.ok || !payload) {
+    console.error("[SCB inquiry error]", payload ?? rawText);
     throw new Error(`SCB inquiry failed (${response.status}).`);
   }
   if (String(payload?.status?.code ?? "") !== "1000") {
+    console.error("[SCB inquiry error]", payload);
     throw new Error(String(payload?.status?.description ?? "SCB inquiry failed."));
   }
 
-  const rootData = toObject(payload.data);
-  const responseStatus = toObject(rootData.status);
-  const payloadData = toObject(rootData.data);
-  const reportRoot = toObject(payloadData.searchPaymentStatusReport);
-  const report = toObject(reportRoot.searchPaymentReport);
-  const transaction = toObject(report.transactionInformationAndStatus);
-  const supplementaryData = toObject(report.supplementaryData);
-  const envelope = toObject(supplementaryData.envelope);
-  const additionalData = toObject(envelope.additionalData);
-  const amountObj = toObject(toObject(transaction.originalTransactionReference).interbankSettlementAmount);
+  const dataList = toArray(payload.data).map(toObject);
+  const requestedRef3 = String(input.ref3 ?? input.partnerReferenceNo ?? "").trim();
+  const requestedAmount = input.amount != null ? Number(input.amount) : null;
+  const matchedEntry = dataList.find((entry) => {
+    const entryRef3 = String(entry.ref3 ?? entry.reference3 ?? "").trim();
+    const entryAmount = toNumber(entry.amount ?? entry.paymentAmount ?? entry.transactionAmount);
+    if (requestedRef3 && entryRef3 && entryRef3 === requestedRef3) return true;
+    if (input.ref1 && String(entry.ref1 ?? entry.reference1 ?? "").trim() !== input.ref1) return false;
+    if (input.ref2 && String(entry.ref2 ?? entry.reference2 ?? "").trim() !== input.ref2) return false;
+    if (requestedAmount != null && Math.abs(entryAmount - requestedAmount) > 0.0001) return false;
+    return Boolean(input.ref1 || input.ref2);
+  }) ?? dataList[0] ?? null;
 
-  const statusValue = transaction.transactionStatus ?? responseStatus.responseStatus ?? "PDNG";
+  if (!matchedEntry) {
+    console.log("[SCB inquiry result]", JSON.stringify({
+      found: false,
+      ref1: input.ref1 ?? null,
+      ref2: input.ref2 ?? null,
+      ref3: requestedRef3 || null,
+      amount: requestedAmount,
+      count: dataList.length,
+    }));
+    return {
+      found: false,
+      transactionId: input.partnerReferenceNo,
+      orderId: input.orderId,
+      partnerReferenceNo: requestedRef3 || input.partnerReferenceNo,
+      amount: requestedAmount ?? 0,
+      currency: "THB",
+      payerName: null,
+      payerAccount: null,
+      paymentChannel: "T30",
+      status: "pending",
+      paidAt: null,
+      rawPayload: payload as Record<string, unknown>,
+    };
+  }
+
+  const statusValue = matchedEntry.statusCode ?? matchedEntry.status ?? matchedEntry.txnStatus ?? "SUCCESS";
   const payerName =
-    String(additionalData.originalMessageCustomerDisplayName ?? additionalData.customerDisplayName ?? "").trim() || null;
+    String(matchedEntry.payerName ?? matchedEntry.customerName ?? matchedEntry.debtorName ?? "").trim() || null;
   const payerAccount =
-    String(additionalData.retrievalReferenceNumber ?? "").trim() || null;
+    String(matchedEntry.payerProxyId ?? matchedEntry.payerAccount ?? matchedEntry.debtorAccount ?? "").trim() || null;
   const paymentDatetime =
-    String(additionalData.localTransactionDateTime ?? transaction.acceptanceDateTime ?? "").trim() || null;
+    String(matchedEntry.transactionDateAndTime ?? matchedEntry.paymentDateTime ?? matchedEntry.transactionDateTime ?? "").trim() || null;
   const transactionId =
-    String(transaction.clearingSystemReference ?? additionalData.retrievalReferenceNumber ?? input.orderId ?? input.partnerReferenceNo).trim();
+    String(matchedEntry.transactionId ?? matchedEntry.transRef ?? matchedEntry.referenceNo ?? input.orderId ?? input.partnerReferenceNo).trim();
+  const resolvedAmount = toNumber(matchedEntry.amount ?? matchedEntry.paymentAmount ?? matchedEntry.transactionAmount ?? requestedAmount ?? 0);
+  const resolvedRef3 =
+    String(matchedEntry.ref3 ?? matchedEntry.reference3 ?? requestedRef3 ?? input.partnerReferenceNo).trim() || null;
+
+  console.log("[SCB inquiry result]", JSON.stringify({
+    found: true,
+    transactionId,
+    ref3: resolvedRef3,
+    amount: resolvedAmount,
+    status: statusValue,
+  }));
 
   return {
-    transactionId: transactionId || `SCB-${String(transaction.orderId ?? input.orderId)}`,
+    found: true,
+    transactionId: transactionId || `SCB-${String(input.orderId ?? input.partnerReferenceNo)}`,
     orderId: String(input.orderId ?? "").trim() || null,
-    partnerReferenceNo: String(additionalData.billReference3 ?? input.ref3 ?? input.partnerReferenceNo).trim() || null,
-    amount: toNumber(amountObj.amount ?? input.amount ?? 0),
+    partnerReferenceNo: resolvedRef3,
+    amount: resolvedAmount,
     currency: "THB",
     payerName,
     payerAccount,

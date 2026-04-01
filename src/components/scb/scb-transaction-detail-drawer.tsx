@@ -89,7 +89,7 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
             <h3 className="text-xl font-bold text-[var(--text-primary)]">{headerTitle}</h3>
             <p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">SCB Transfer Audit</p>
           </div>
-          <button className="rounded-full p-2 hover:bg-[var(--bg-surface-hover)]" onClick={onClose}>
+          <button type="button" className="rounded-full p-2 hover:bg-[var(--bg-surface-hover)]" onClick={onClose}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -180,10 +180,10 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
           )}
         </div>
         <div className="drawer-footer justify-between">
-          <button className="btn btn-secondary flex items-center gap-2" onClick={handleRecheck} disabled={!requestId || loading}>
+          <button type="button" className="btn btn-secondary flex items-center gap-2" onClick={handleRecheck} disabled={!requestId || loading}>
             <RefreshCw className="h-4 w-4" /> Recheck
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>ปิด</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>ปิด</button>
         </div>
       </div>
     </>

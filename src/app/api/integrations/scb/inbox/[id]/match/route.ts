@@ -20,6 +20,7 @@ const bodySchema = z.object({
 
 function toNormalizedTransaction(row: any): ScbNormalizedTransaction {
   return {
+    found: true,
     transactionId: String(row.transaction_id),
     orderId: row.order_id ? String(row.order_id) : null,
     partnerReferenceNo: row.partner_reference_no ? String(row.partner_reference_no) : null,
