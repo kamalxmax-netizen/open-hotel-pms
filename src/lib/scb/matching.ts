@@ -8,9 +8,17 @@ function toPlainObject(value: unknown): Record<string, unknown> {
 }
 
 export function buildPartnerReferenceNo(targetType: "reservation" | "pos_order", targetId: string, nowMs = Date.now()): string {
-  const shortType = targetType === "reservation" ? "RES" : "POS";
-  const compactTarget = String(targetId).replace(/-/g, "").slice(0, 4) || "XXXX";
-  return `PMS-${shortType}-${compactTarget}-${nowMs}`;
+  const prefix = String(process.env.SCB_REFERENCE3_PREFIX ?? "UGY")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 3) || "UGY";
+  const typeCode = targetType === "reservation" ? "R" : "P";
+  const compactTarget = String(targetId)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 4) || "XXXX";
+  const timeCode = nowMs.toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-10);
+  return `${prefix}${typeCode}${compactTarget}${timeCode}`.slice(0, 20);
 }
 
 export async function expireStalePendingRequestsForTarget(

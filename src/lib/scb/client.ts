@@ -55,6 +55,12 @@ export async function createMaeManeeQrCode(input: {
   }
 
   const token = await getScbAccessToken();
+  console.log("[SCB QR payload]", JSON.stringify({
+    walletId: config.walletId,
+    amount: Number(input.amount.toFixed(2)),
+    partnerReferenceNo: input.partnerReferenceNo,
+    paymentType: ["T30"],
+  }));
   const response = await fetch(config.qrCreateUrl, {
     method: "POST",
     headers: withScbHeaders(token),
