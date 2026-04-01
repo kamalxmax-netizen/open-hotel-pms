@@ -45,7 +45,7 @@ export type ScbTransferTableRow = {
 };
 
 type Props = {
-  tab: "matched" | "unmatched" | "expired_failed" | "recheck_history";
+  tab: "pending" | "matched" | "unmatched" | "expired_failed" | "recheck_history";
   role: string | null;
   rows: ScbTransferTableRow[];
   onDetail: (row: ScbTransferTableRow) => void;
@@ -107,6 +107,19 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
               </td>
               <td>
                 <div className="flex flex-wrap gap-2">
+                  {tab === "pending" && (
+                    <>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={readOnly}
+                        title={readOnly ? "ต้องใช้สิทธิ์ Admin" : undefined}
+                        onClick={() => onRecheck(row)}
+                      >
+                        Recheck
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
+                    </>
+                  )}
                   {tab === "matched" && (
                     <button className="btn btn-secondary btn-sm" onClick={() => onDetail(row)}>Detail</button>
                   )}

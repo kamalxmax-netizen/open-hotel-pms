@@ -7,7 +7,7 @@ import { loadPosMetaMap, loadReservationMetaMap } from "@/lib/scb/targets";
 export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
-  tab: z.enum(["matched", "unmatched", "expired_failed", "recheck_history"]).default("matched"),
+  tab: z.enum(["pending", "matched", "unmatched", "expired_failed", "recheck_history"]).default("pending"),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(100).default(30),
   from: z.string().trim().optional(),
@@ -142,11 +142,13 @@ export async function GET(request: NextRequest) {
 
     const todayRange = getBangkokDayRange();
     const [
+      pendingCountResult,
       matchedCountResult,
       unmatchedCountResult,
       expiredFailedCountResult,
       matchedTodayRowsResult,
     ] = await Promise.all([
+      supabase.from("scb_payment_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("scb_payment_transactions").select("id", { count: "exact", head: true }).eq("match_status", "matched"),
       supabase.from("scb_payment_transactions").select("id", { count: "exact", head: true }).eq("match_status", "unmatched"),
       supabase.from("scb_payment_requests").select("id", { count: "exact", head: true }).in("status", ["expired", "failed", "cancelled"]),
@@ -159,6 +161,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const counts = {
+      pending: pendingCountResult.count ?? 0,
       matched: matchedCountResult.count ?? 0,
       unmatched: unmatchedCountResult.count ?? 0,
       expired_failed: expiredFailedCountResult.count ?? 0,
@@ -170,6 +173,57 @@ export async function GET(request: NextRequest) {
       unmatched_count: counts.unmatched,
       matched_today_amount: matchedTodayRows.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0),
     };
+
+    if (tab === "pending") {
+      let requestQuery = supabase
+        .from("scb_payment_requests")
+        .select("*", { count: "exact" })
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      requestQuery = applyDateFilter(requestQuery, "created_at", from, to);
+      if (channel !== "all") requestQuery = requestQuery.eq("channel", channel);
+      if (typeof amount_min === "number") requestQuery = requestQuery.gte("request_amount_total", amount_min);
+      if (typeof amount_max === "number") requestQuery = requestQuery.lte("request_amount_total", amount_max);
+
+      const { data, error, count } = await requestQuery.range(offset, offset + page_size - 1);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      const requests = (data ?? []) as RequestRow[];
+      const meta = await buildTargetMeta(supabase, requests);
+      const rows = requests.map((row) => {
+        const target = resolveTargetLabel(row, meta);
+        return {
+          id: row.id,
+          kind: "request",
+          request_id: row.id,
+          transaction_id: null,
+          amount: Number(row.request_amount_total ?? 0),
+          payer_name: null,
+          payer_account: null,
+          paid_at: null,
+          created_at: row.created_at,
+          channel: row.channel,
+          target_type: row.target_type,
+          target_id: row.target_id,
+          target_code: target.target_code,
+          guest_name: target.guest_name,
+          status: row.status,
+          match_status: null,
+          room_amount: Number(row.room_amount ?? 0),
+          deposit_amount: Number(row.deposit_amount ?? 0),
+          partner_reference_no: row.partner_reference_no,
+          error_message: row.error_message,
+        };
+      });
+      return NextResponse.json({
+        success: true,
+        tab,
+        role,
+        counts,
+        summary,
+        rows,
+        pagination: { page, page_size, total: count ?? rows.length },
+      });
+    }
 
     if (tab === "recheck_history") {
       let logsQuery = supabase

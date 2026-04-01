@@ -4,7 +4,7 @@ export type ScbPaymentMode = "outstanding" | "custom";
 export type ScbRequestStatus = "pending" | "paid" | "expired" | "cancelled" | "failed" | "unmatched";
 export type ScbTransactionStatus = "pending" | "success" | "failed" | "expired";
 export type ScbMatchStatus = "matched" | "unmatched" | "ignored" | "duplicate" | "matching";
-export type ScbInboxTab = "matched" | "unmatched" | "expired_failed" | "recheck_history";
+export type ScbInboxTab = "pending" | "matched" | "unmatched" | "expired_failed" | "recheck_history";
 
 export type ScbCreateRequestInput = {
   targetType: ScbPaymentTargetType;

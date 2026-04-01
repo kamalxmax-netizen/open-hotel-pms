@@ -8,7 +8,7 @@ import { ScbTransferTable, type ScbTransferTableRow } from "@/components/scb/scb
 import { ScbTransactionDetailDrawer } from "@/components/scb/scb-transaction-detail-drawer";
 import { ScbUnmatchedResolveModal } from "@/components/scb/scb-unmatched-resolve-modal";
 
-type TabKey = "matched" | "unmatched" | "expired_failed" | "recheck_history";
+type TabKey = "pending" | "matched" | "unmatched" | "expired_failed" | "recheck_history";
 
 const DEFAULT_FILTERS: ScbTransferFiltersValue = {
   from: "",
@@ -19,11 +19,12 @@ const DEFAULT_FILTERS: ScbTransferFiltersValue = {
 };
 
 export default function ScbTransfersPage() {
-  const [tab, setTab] = useState<TabKey>("matched");
+  const [tab, setTab] = useState<TabKey>("pending");
   const [filters, setFilters] = useState<ScbTransferFiltersValue>(DEFAULT_FILTERS);
   const [rows, setRows] = useState<ScbTransferTableRow[]>([]);
   const [role, setRole] = useState<string | null>(null);
-  const [counts, setCounts] = useState<{ matched: number; unmatched: number; expired_failed: number }>({
+  const [counts, setCounts] = useState<{ pending: number; matched: number; unmatched: number; expired_failed: number }>({
+    pending: 0,
     matched: 0,
     unmatched: 0,
     expired_failed: 0,
@@ -67,11 +68,20 @@ export default function ScbTransfersPage() {
       }
       setRows(json.rows ?? []);
       setRole(json.role ?? null);
-      setCounts(json.counts ?? { matched: 0, unmatched: 0, expired_failed: 0 });
+      setCounts(json.counts ?? { pending: 0, matched: 0, unmatched: 0, expired_failed: 0 });
       setSummary(json.summary ?? { matched_today_count: 0, unmatched_count: 0, matched_today_amount: 0 });
       setTotal(Number(json.pagination?.total ?? (json.rows ?? []).length));
 
       if (
+        !autoTabAdjustedRef.current &&
+        tab === "matched" &&
+        (json.rows ?? []).length === 0 &&
+        Number(json.counts?.pending ?? 0) > 0
+      ) {
+        autoTabAdjustedRef.current = true;
+        setTab("pending");
+        setPage(1);
+      } else if (
         !autoTabAdjustedRef.current &&
         tab === "matched" &&
         (json.rows ?? []).length === 0 &&
@@ -113,6 +123,7 @@ export default function ScbTransfersPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const tabs = useMemo(() => ([
+    { key: "pending" as const, label: "Pending", count: counts.pending, alert: counts.pending > 0 },
     { key: "matched" as const, label: "Matched", count: counts.matched },
     { key: "unmatched" as const, label: "Unmatched", count: counts.unmatched, alert: counts.unmatched > 0 },
     { key: "expired_failed" as const, label: "Expired / Failed", count: counts.expired_failed },
