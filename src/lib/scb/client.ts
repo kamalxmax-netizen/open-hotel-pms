@@ -203,7 +203,7 @@ export async function inquireMaeManeeTransaction(input: {
   }));
 
   const response = await fetch(inquiryUrl, {
-    method: "POST",
+    method: "GET",
     headers: withScbHeaders(token),
   });
 
@@ -270,7 +270,13 @@ export async function inquireMaeManeeTransaction(input: {
   const payerAccount =
     String(matchedEntry.payerProxyId ?? matchedEntry.payerAccount ?? matchedEntry.debtorAccount ?? "").trim() || null;
   const paymentDatetime =
-    String(matchedEntry.transactionDateAndTime ?? matchedEntry.paymentDateTime ?? matchedEntry.transactionDateTime ?? "").trim() || null;
+    String(
+      matchedEntry.transactionDateAndTime
+      ?? matchedEntry.transactionDateandTime
+      ?? matchedEntry.paymentDateTime
+      ?? matchedEntry.transactionDateTime
+      ?? ""
+    ).trim() || null;
   const transactionId =
     String(matchedEntry.transactionId ?? matchedEntry.transRef ?? matchedEntry.referenceNo ?? input.orderId ?? input.partnerReferenceNo).trim();
   const resolvedAmount = toNumber(matchedEntry.amount ?? matchedEntry.paymentAmount ?? matchedEntry.transactionAmount ?? requestedAmount ?? 0);

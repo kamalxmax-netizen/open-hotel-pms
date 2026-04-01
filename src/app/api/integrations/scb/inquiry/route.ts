@@ -13,17 +13,24 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  let supabase: ReturnType<typeof createServerSupabaseClient> | null = null;
+  let requestIdForLog: string | null = null;
+  let userIdForLog: string | null = null;
+  let sourceForLog: "manual" | "scheduled" | "callback_retry" = "manual";
   try {
-    const supabase = createServerSupabaseClient();
+    supabase = createServerSupabaseClient();
     const user = await getAuthenticatedUser(supabase, request);
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
+    userIdForLog = user.id;
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success || !parsed.data.request_id) {
       return NextResponse.json({ success: false, error: "request_id is required." }, { status: 400 });
     }
+    sourceForLog = parsed.data.source;
+    requestIdForLog = parsed.data.request_id;
 
     const { data: scbRequest, error: requestError } = await supabase
       .from("scb_payment_requests")
@@ -59,6 +66,12 @@ export async function POST(request: NextRequest) {
       amount: scbRequest.request_amount_total,
     });
 
+    const { data: existingTransaction } = await supabase
+      .from("scb_payment_transactions")
+      .select("id, match_status")
+      .eq("transaction_id", normalized.transactionId)
+      .maybeSingle();
+
     if (!normalized.found) {
       await supabase.from("scb_recheck_logs").insert({
         request_id: scbRequest.id,
@@ -91,7 +104,7 @@ export async function POST(request: NextRequest) {
         payment_channel: normalized.paymentChannel,
         paid_at: normalized.paidAt,
         status: normalized.status,
-        match_status: "unmatched",
+        match_status: existingTransaction?.match_status ?? (scbRequest.status === "paid" ? "matched" : "unmatched"),
         raw_payload: normalized.rawPayload,
       }, { onConflict: "transaction_id" })
       .select("id")
@@ -122,6 +135,20 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
     console.error("[SCB inquiry route:error]", message);
+    if (supabase && requestIdForLog) {
+      try {
+        await supabase.from("scb_recheck_logs").insert({
+          request_id: requestIdForLog,
+          transaction_id: null,
+          triggered_by: userIdForLog,
+          source: sourceForLog,
+          result_status: "failed",
+          raw_payload: { error: message },
+        });
+      } catch (insertError) {
+        console.error("[SCB inquiry route:error-log-failed]", insertError instanceof Error ? insertError.message : String(insertError));
+      }
+    }
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
