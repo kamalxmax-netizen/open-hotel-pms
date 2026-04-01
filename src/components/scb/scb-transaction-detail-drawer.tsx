@@ -137,6 +137,10 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
                   <span>{detail.request?.channel || "—"}</span>
                   <span>Request ID</span>
                   <span className="font-mono text-xs">{detail.request?.partner_reference_no || detail.request?.id || "—"}</span>
+                  <span>Error</span>
+                  <span className="break-words text-rose-600 dark:text-rose-400">
+                    {detail.transaction?.error_message || detail.request?.error_message || "—"}
+                  </span>
                 </div>
               </section>
 
