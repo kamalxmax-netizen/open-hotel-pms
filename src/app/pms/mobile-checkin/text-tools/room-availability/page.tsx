@@ -68,6 +68,8 @@ export default function MobileRoomAvailabilityTextPage() {
             checkinDate={checkin}
             checkoutDate={checkout}
             nights={nights}
+            useNativeDatePicker
+            compact
             onChange={(nextCheckin, nextCheckout, nextNights) => {
               setCheckin(nextCheckin);
               setCheckout(nextCheckout);

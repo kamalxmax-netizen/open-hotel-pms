@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import PmsModal from "@/components/pms-modal";
@@ -292,7 +292,8 @@ function CalendarPageInner() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [showReno, setShowReno] = useState(false);
-    const [roomTypeFilter, setRoomTypeFilter] = useState("all");
+    const [roomTypeFilters, setRoomTypeFilters] = useState<string[]>([]);
+    const [roomTypeDropdownOpen, setRoomTypeDropdownOpen] = useState(false);
     const [showMoveRelatedOnly, setShowMoveRelatedOnly] = useState(false);
     const [showActivityOnly, setShowActivityOnly] = useState(false);
     const [roomSort, setRoomSort] = useState<"room_type" | "room_number_asc" | "room_number_desc">("room_type");
@@ -310,6 +311,7 @@ function CalendarPageInner() {
     const [swapModal, setSwapModal] = useState<{ res: Reservation; roomNumber: string } | null>(null);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const roomTypeDropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setFocusReservationId(searchParams.get("focus_reservation_id"));
@@ -338,6 +340,17 @@ function CalendarPageInner() {
     }, [startDate, endDate, focusReservationId]);
 
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (!roomTypeDropdownRef.current) return;
+            if (!roomTypeDropdownRef.current.contains(event.target as Node)) {
+                setRoomTypeDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     // Scroll to today on first load
     useEffect(() => {
@@ -413,11 +426,26 @@ function CalendarPageInner() {
         .sort(compareRooms)
         .filter((room) => {
             if (!showReno && !room.is_sellable) return false;
-            if (roomTypeFilter !== "all" && getRoomTypeFilterKey(room) !== roomTypeFilter) return false;
+            if (roomTypeFilters.length > 0 && !roomTypeFilters.includes(getRoomTypeFilterKey(room))) return false;
             if (showMoveRelatedOnly && !hasMoveActivity(room)) return false;
             if (showActivityOnly && !(hasReservationActivity(room) || hasBlockActivity(room) || hasMoveActivity(room))) return false;
             return true;
         });
+
+    const roomTypeFilterLabel = useMemo(() => {
+        if (roomTypeFilters.length === 0) return "All Types";
+        const selectedLabels = roomTypeOptions
+            .filter((option) => roomTypeFilters.includes(option.value))
+            .map((option) => option.label);
+        if (selectedLabels.length <= 2) return selectedLabels.join(", ");
+        return `${selectedLabels.slice(0, 2).join(", ")} +${selectedLabels.length - 2}`;
+    }, [roomTypeFilters, roomTypeOptions]);
+
+    function toggleRoomTypeFilter(value: string) {
+        setRoomTypeFilters((prev) =>
+            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+        );
+    }
 
     const filteredRooms = visibleRooms.filter((r) => !r.is_dayuse);
     const dayUseRooms = visibleRooms.filter((r) => r.is_dayuse);
@@ -506,18 +534,48 @@ function CalendarPageInner() {
 
                 <div className="flex items-center gap-2">
                     <label className="text-xs font-semibold text-[var(--text-secondary)]">Room Type</label>
-                    <select
-                        className="form-select py-1 text-sm w-44"
-                        value={roomTypeFilter}
-                        onChange={(e) => setRoomTypeFilter(e.target.value)}
-                    >
-                        <option value="all">All Types</option>
-                        {roomTypeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="relative z-[60]" ref={roomTypeDropdownRef}>
+                        <button
+                            type="button"
+                            className="form-select py-1 text-sm w-56 text-left flex items-center justify-between"
+                            onClick={() => setRoomTypeDropdownOpen((prev) => !prev)}
+                        >
+                            <span className="truncate">{roomTypeFilterLabel}</span>
+                            <span className="ml-2 text-xs">▾</span>
+                        </button>
+                        {roomTypeDropdownOpen ? (
+                            <div className="absolute z-[70] mt-2 w-64 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-lg p-2">
+                                <button
+                                    type="button"
+                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
+                                    onClick={() => setRoomTypeFilters([])}
+                                >
+                                    <span>All Types</span>
+                                    <span className={`h-4 w-4 rounded border ${roomTypeFilters.length === 0 ? "border-brand-500 bg-brand-600" : "border-[var(--border-default)] bg-transparent"}`} />
+                                </button>
+                                <div className="my-2 border-t border-[var(--border-subtle)]" />
+                                <div className="max-h-64 overflow-auto">
+                                    {roomTypeOptions.map((option) => {
+                                        const checked = roomTypeFilters.includes(option.value);
+                                        return (
+                                            <label
+                                                key={option.value}
+                                                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]"
+                                            >
+                                                <span>{option.label}</span>
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 rounded"
+                                                    checked={checked}
+                                                    onChange={() => toggleRoomTypeFilter(option.value)}
+                                                />
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2">

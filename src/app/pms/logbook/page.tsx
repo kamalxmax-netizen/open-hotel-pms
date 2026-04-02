@@ -38,9 +38,9 @@ function cloneSnapshot(note: LogbookNote): NoteSnapshot {
     body: note.body,
     body_rich: note.body_rich
       ? {
-          html: note.body_rich.html,
-          styles: { ...note.body_rich.styles },
-        }
+        html: note.body_rich.html,
+        styles: { ...note.body_rich.styles },
+      }
       : null,
     note_type: note.note_type,
     remind_at: note.remind_at,
@@ -84,7 +84,7 @@ function getMinimizedNoteWidth(note: LogbookNote) {
 export default function LogbookPage() {
   const [notes, setNotes] = useState<LogbookNote[]>([])
   const [archivedNotes, setArchivedNotes] = useState<LogbookNote[]>([])
-  const [filterType, setFilterType] = useState<string>("all")
+  const [filterTypes, setFilterTypes] = useState<Array<"all" | LogbookNote["note_type"]>>(["all"])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [archiveDrawerOpen, setArchiveDrawerOpen] = useState(false)
@@ -111,6 +111,14 @@ export default function LogbookPage() {
     }
   }, [])
 
+  const resetHorizontalScroll = useCallback(() => {
+    if (typeof document === "undefined") return
+    const shellBody = document.querySelector<HTMLElement>(".page-body")
+    if (shellBody) shellBody.scrollLeft = 0
+    if (document.scrollingElement) document.scrollingElement.scrollLeft = 0
+    if (typeof window !== "undefined") window.scrollTo({ left: 0 })
+  }, [])
+
   const replaceNote = useCallback((noteId: string, next: LogbookNote) => {
     setNotes((prev) => prev.map((note) => (note.id === noteId ? next : note)))
     setArchivedNotes((prev) => prev.map((note) => (note.id === noteId ? next : note)))
@@ -130,7 +138,6 @@ export default function LogbookPage() {
   const fetchNotes = useCallback(async () => {
     try {
       const url = new URL("/api/logbook/notes", window.location.origin)
-      if (filterType !== "all") url.searchParams.set("type", filterType)
       const res = await fetchWithTimeout(url.toString(), { cache: "no-store" })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.success) {
@@ -149,7 +156,7 @@ export default function LogbookPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchWithTimeout, filterType])
+  }, [fetchWithTimeout])
 
   const fetchArchivedNotes = useCallback(async () => {
     try {
@@ -201,10 +208,34 @@ export default function LogbookPage() {
     fetchArchivedNotes()
   }, [archiveDrawerOpen, fetchArchivedNotes])
 
+  useEffect(() => {
+    if (archiveDrawerOpen) return
+    const frame = requestAnimationFrame(() => resetHorizontalScroll())
+    return () => cancelAnimationFrame(frame)
+  }, [archiveDrawerOpen, resetHorizontalScroll])
+
   const fullViewNote = useMemo(
     () => notes.find((note) => note.id === fullViewNoteId) ?? null,
     [fullViewNoteId, notes]
   )
+
+  const visibleNotes = useMemo(() => {
+    if (filterTypes.includes("all")) return notes
+    const selectedTypes = new Set(filterTypes)
+    return notes.filter((note) => selectedTypes.has(note.note_type))
+  }, [filterTypes, notes])
+
+  const toggleFilterType = useCallback((type: "all" | LogbookNote["note_type"]) => {
+    setFilterTypes((prev) => {
+      if (type === "all") return ["all"]
+      const selected = prev.includes("all") ? [] : [...prev]
+      if (selected.includes(type)) {
+        const next = selected.filter((value) => value !== type)
+        return next.length > 0 ? next : ["all"]
+      }
+      return [...selected, type]
+    })
+  }, [])
 
   const getHistoryBucket = useCallback((noteId: string) => {
     const bucket = historyBuckets.current.get(noteId)
@@ -445,15 +476,15 @@ export default function LogbookPage() {
         prev.map((note) =>
           note.id === noteId
             ? {
-                ...note,
-                title: snapshot.title,
-                body: snapshot.body,
-                body_rich: snapshot.body_rich,
-                note_type: snapshot.note_type,
-                remind_at: snapshot.remind_at,
-                links: snapshot.links.map((link) => ({ ...link })),
-                mentions: snapshot.mentions.map((mention) => ({ ...mention })),
-              }
+              ...note,
+              title: snapshot.title,
+              body: snapshot.body,
+              body_rich: snapshot.body_rich,
+              note_type: snapshot.note_type,
+              remind_at: snapshot.remind_at,
+              links: snapshot.links.map((link) => ({ ...link })),
+              mentions: snapshot.mentions.map((mention) => ({ ...mention })),
+            }
             : note
         )
       )
@@ -807,25 +838,28 @@ export default function LogbookPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#f8f9fa]">
-      <div className="z-50 flex flex-none items-center justify-between gap-4 overflow-x-auto border-b bg-[var(--bg-surface)] p-3 shadow-sm sm:p-4">
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <h1 className="text-lg font-bold text-[var(--text-primary)] sm:text-xl">Logbook</h1>
-          <LogbookFilterBar filterType={filterType} setFilterType={setFilterType} />
-        </div>
+    <div className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden bg-[#f8f9fa]">
+      <div className="z-50 flex w-full min-w-0 flex-none border-b bg-[var(--bg-surface)] p-3 shadow-sm">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <h1 className="shrink-0 whitespace-nowrap text-lg font-bold text-[var(--text-primary)]">Logbook</h1>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="h-10 text-xs sm:text-sm" onClick={handleRearrangeNotes}>
-            Rearrange
-          </Button>
-          <Button variant="outline" className="h-10 text-xs sm:text-sm" onClick={() => setArchiveDrawerOpen(true)}>
-            Archive
-          </Button>
-          <LogbookCreateButton onClick={handleAddNote} />
+          <div className="min-w-0">
+            <LogbookFilterBar filterTypes={filterTypes} toggleFilterType={toggleFilterType} />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" className="h-9 px-3 text-xs sm:h-10 sm:text-sm" onClick={handleRearrangeNotes}>
+              Rearrange
+            </Button>
+            <Button variant="outline" className="h-9 px-3 text-xs sm:h-10 sm:text-sm" onClick={() => setArchiveDrawerOpen(true)}>
+              Archive
+            </Button>
+            <LogbookCreateButton onClick={handleAddNote} />
+          </div>
         </div>
       </div>
 
-      <div className="canvas-bg relative hidden flex-1 overflow-auto bg-[var(--bg-body)] sm:block">
+      <div className="canvas-bg relative hidden w-full min-w-0 flex-1 overflow-auto bg-[var(--bg-body)] sm:block">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg border bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-secondary)] shadow-sm">
@@ -845,7 +879,7 @@ export default function LogbookPage() {
               </button>
             </div>
           </div>
-        ) : notes.length === 0 ? (
+        ) : visibleNotes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="max-w-md rounded-lg border bg-[var(--bg-surface)] p-5 text-center shadow-sm">
               <p className="text-sm font-semibold text-[var(--text-primary)]">No notes yet</p>
@@ -862,7 +896,7 @@ export default function LogbookPage() {
           </div>
         ) : (
           <LogbookBoardCanvas
-            notes={notes}
+            notes={visibleNotes}
             onUpdatePosition={handleUpdateNotePosition}
             onUpdateContent={handleUpdateNoteContent}
             onBringToFront={handleBringToFront}
@@ -879,9 +913,9 @@ export default function LogbookPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto bg-[var(--bg-body)] pb-20 sm:hidden">
+      <div className="w-full min-w-0 flex-1 overflow-auto bg-[var(--bg-body)] pb-20 sm:hidden">
         <LogbookMobileList
-          notes={notes}
+          notes={visibleNotes}
           onUpdateContent={handleUpdateNoteContent}
           onArchive={handleArchiveNote}
           onOpenFullView={setFullViewNoteId}
@@ -895,7 +929,10 @@ export default function LogbookPage() {
       <LogbookArchiveDrawer
         open={archiveDrawerOpen}
         notes={archivedNotes}
-        onClose={() => setArchiveDrawerOpen(false)}
+        onClose={() => {
+          setArchiveDrawerOpen(false)
+          resetHorizontalScroll()
+        }}
         onRestore={handleRestoreArchived}
         onDelete={handleDeleteArchived}
       />

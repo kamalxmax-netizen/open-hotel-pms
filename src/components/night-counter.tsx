@@ -9,6 +9,8 @@ interface NightCounterProps {
     onChange: (checkin: string, checkout: string, nights: number) => void;
     disabled?: boolean;
     lockCheckin?: boolean;
+    useNativeDatePicker?: boolean;
+    compact?: boolean;
 }
 
 export default function NightCounter({
@@ -18,6 +20,8 @@ export default function NightCounter({
     onChange,
     disabled = false,
     lockCheckin = false,
+    useNativeDatePicker = false,
+    compact = false,
 }: NightCounterProps) {
     const [checkinInput, setCheckinInput] = useState(() => formatDateDisplay(checkinDate));
     const [checkoutInput, setCheckoutInput] = useState(() => formatDateDisplay(checkoutDate));
@@ -140,50 +144,81 @@ export default function NightCounter({
         }
     };
 
+    const wrapperClass = compact
+        ? "flex items-center gap-2 bg-[var(--bg-body)] p-2 rounded-xl border border-[var(--border-default)] shadow-sm w-full"
+        : "flex items-center gap-4 bg-[var(--bg-body)] p-3 rounded-xl border border-[var(--border-default)] shadow-sm w-full";
+    const inputClass = compact
+        ? "form-input w-full text-xs font-semibold bg-[var(--bg-surface)]"
+        : "form-input w-full text-sm font-semibold bg-[var(--bg-surface)]";
+    const nightValueClass = compact
+        ? "w-8 text-center font-bold text-[var(--text-table-cell)] text-xs"
+        : "w-12 text-center font-bold text-[var(--text-table-cell)] text-sm";
+    const nightButtonClass = compact
+        ? "px-1.5 py-1 bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] disabled:opacity-50 transition-colors"
+        : "px-2 py-1.5 bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] disabled:opacity-50 transition-colors";
+
     return (
-        <div className="flex items-center gap-4 bg-[var(--bg-body)] p-3 rounded-xl border border-[var(--border-default)] shadow-sm w-full">
+        <div className={wrapperClass}>
             {/* Check-in */}
             <div className="flex-1">
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                     Check-in
                 </label>
-                <input
-                    type="text"
-                    required
-                    disabled={disabled || lockCheckin}
-                    readOnly={lockCheckin}
-                    className={`form-input w-full text-sm font-semibold bg-[var(--bg-surface)] ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
-                    value={checkinInput}
-                    onChange={(e) => setCheckinInput(e.target.value)}
-                    onBlur={commitCheckinInput}
-                    onKeyDown={(e) => handleDateKeyDown(e, commitCheckinInput)}
-                    inputMode="numeric"
-                    placeholder="DD/MM/YYYY"
-                />
+                {useNativeDatePicker ? (
+                    <input
+                        type="date"
+                        required
+                        disabled={disabled || lockCheckin}
+                        readOnly={lockCheckin}
+                        className={`${inputClass} ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
+                        value={checkinDate}
+                        onChange={(e) => handleCheckinChange(e.target.value)}
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        required
+                        disabled={disabled || lockCheckin}
+                        readOnly={lockCheckin}
+                        className={`${inputClass} ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
+                        value={checkinInput}
+                        onChange={(e) => setCheckinInput(e.target.value)}
+                        onBlur={commitCheckinInput}
+                        onKeyDown={(e) => handleDateKeyDown(e, commitCheckinInput)}
+                        inputMode="numeric"
+                        placeholder="DD/MM/YYYY"
+                    />
+                )}
             </div>
 
             {/* Nights Counter (Center) */}
             <div className="flex flex-col items-center justify-center pt-2">
                 <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1 flex items-center gap-1 tracking-wider">
-                    <span className="text-[var(--text-muted)]">←</span> Night{nights > 1 ? "s" : ""} <span className="text-[var(--text-muted)]">→</span>
+                    {compact ? (
+                        <span>Night</span>
+                    ) : (
+                        <>
+                            <span className="text-[var(--text-muted)]">←</span> Night{nights > 1 ? "s" : ""} <span className="text-[var(--text-muted)]">→</span>
+                        </>
+                    )}
                 </div>
                 <div className="flex items-center bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] shadow-sm overflow-hidden">
                     <button
                         type="button"
                         disabled={disabled || nights <= 1}
                         onClick={() => handleNightsChange(nights - 1)}
-                        className="px-2 py-1.5 bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] disabled:opacity-50 transition-colors border-r border-[var(--border-default)]"
+                        className={`${nightButtonClass} border-r border-[var(--border-default)]`}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
-                    <div className="w-12 text-center font-bold text-[var(--text-table-cell)] text-sm">
+                    <div className={nightValueClass}>
                         {nights}
                     </div>
                     <button
                         type="button"
                         disabled={disabled}
                         onClick={() => handleNightsChange(nights + 1)}
-                        className="px-2 py-1.5 bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] disabled:opacity-50 transition-colors border-l border-[var(--border-default)]"
+                        className={`${nightButtonClass} border-l border-[var(--border-default)]`}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
@@ -195,18 +230,29 @@ export default function NightCounter({
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                     Check-out
                 </label>
-                <input
-                    type="text"
-                    required
-                    disabled={disabled}
-                    className="form-input w-full text-sm font-semibold bg-[var(--bg-surface)] cursor-pointer disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed"
-                    value={checkoutInput}
-                    onChange={(e) => setCheckoutInput(e.target.value)}
-                    onBlur={commitCheckoutInput}
-                    onKeyDown={(e) => handleDateKeyDown(e, commitCheckoutInput)}
-                    inputMode="numeric"
-                    placeholder="DD/MM/YYYY"
-                />
+                {useNativeDatePicker ? (
+                    <input
+                        type="date"
+                        required
+                        disabled={disabled}
+                        className={`${inputClass} cursor-pointer disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
+                        value={checkoutDate}
+                        onChange={(e) => handleCheckoutChange(e.target.value)}
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        required
+                        disabled={disabled}
+                        className={`${inputClass} cursor-pointer disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
+                        value={checkoutInput}
+                        onChange={(e) => setCheckoutInput(e.target.value)}
+                        onBlur={commitCheckoutInput}
+                        onKeyDown={(e) => handleDateKeyDown(e, commitCheckoutInput)}
+                        inputMode="numeric"
+                        placeholder="DD/MM/YYYY"
+                    />
+                )}
             </div>
         </div>
     );

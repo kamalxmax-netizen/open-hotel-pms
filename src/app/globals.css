@@ -243,6 +243,8 @@ html.dark .sidebar:hover {
 .main-content {
   margin-left: var(--sidebar-collapsed-w);
   @apply flex-1 flex flex-col;
+  min-width: 0;
+  width: 0;
 }
 
 .page-header {
@@ -253,6 +255,8 @@ html.dark .sidebar:hover {
 
 .page-body {
   @apply flex-1 p-6;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* ─── Cards ───────────────────────────────────── */
