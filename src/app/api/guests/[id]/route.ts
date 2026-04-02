@@ -17,6 +17,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Invalid guest profile id"),
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
     const businessDate = await resolveBusinessDate(supabase);
 
-    const [profileRes, staysRes] = await Promise.all([
+    const [profileRes, staysRes, legacyRes] = await Promise.all([
       supabase
         .from("guest_profiles")
         .select("*")
@@ -108,6 +109,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         .eq("guest_profile_id", id)
         .order("checkin_date", { ascending: false })
         .limit(20),
+      supabase
+        .from("legacy_stays")
+        .select("id", { count: "exact", head: true })
+        .eq("guest_profile_id", id),
     ]);
 
     if (profileRes.error) {
@@ -118,6 +123,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
     if (staysRes.error) {
       return NextResponse.json({ success: false, error: staysRes.error.message }, { status: 500 });
+    }
+    if (legacyRes.error) {
+      return NextResponse.json({ success: false, error: legacyRes.error.message }, { status: 500 });
     }
 
     const shouldMask = shouldMaskIdentityForRole(role);
@@ -144,9 +152,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }
     }
 
+    const legacyStayCount = Number(legacyRes.count ?? 0);
+    const hydratedProfile = {
+      ...profileRes.data,
+      stay_count: Math.max(Number(profileRes.data.stay_count ?? 0), legacyStayCount),
+      main_stay_count: Math.max(Number(profileRes.data.main_stay_count ?? 0), legacyStayCount),
+    };
+
     const profilePayload = canUnmask
-      ? profileRes.data
-      : maskSensitiveFields(profileRes.data as Record<string, unknown>);
+      ? hydratedProfile
+      : maskSensitiveFields(hydratedProfile as Record<string, unknown>);
 
     return NextResponse.json({
       success: true,

@@ -89,8 +89,15 @@ export async function GET(request: NextRequest) {
             if (phone) query = query.ilike("phone", `%${phone}%`);
             if (status && status !== "all") query = query.eq("status", status);
             if (source) query = query.eq("source", source);
-            if (dateFrom) query = query.gte(useCheckoutDateRange ? "checkout_date" : "checkin_date", dateFrom);
-            if (dateTo) query = query.lte(useCheckoutDateRange ? "checkout_date" : "checkin_date", dateTo);
+            if (status === "active") {
+                // For active reservations, filter by overlapping stay range so in-house guests
+                // remain visible even when they checked in before the selected day.
+                if (dateFrom) query = query.gte("checkout_date", dateFrom);
+                if (dateTo) query = query.lte("checkin_date", dateTo);
+            } else {
+                if (dateFrom) query = query.gte(useCheckoutDateRange ? "checkout_date" : "checkin_date", dateFrom);
+                if (dateTo) query = query.lte(useCheckoutDateRange ? "checkout_date" : "checkin_date", dateTo);
+            }
             if (checkoutFrom) query = query.gte("checkout_date", checkoutFrom);
             if (checkoutTo) query = query.lte("checkout_date", checkoutTo);
             return query;

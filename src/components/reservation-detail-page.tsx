@@ -22,6 +22,7 @@ import EarlyCheckinFeeModal, { PolicyFeePayload } from "./early-checkin-fee-moda
 import LateCheckoutFeeModal from "./late-checkout-fee-modal";
 import ShortenFeeModal from "./shorten-fee-modal";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { containsMaskedPlaceholder } from "@/lib/data-masking";
 import { addDays } from "@/lib/dates";
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
 import { buildBookedNameNoteLine, classifyGuestNameMatch } from "@/lib/guest-name-match";
@@ -667,6 +668,21 @@ function normalizeIdentityNumberByType(value: string, idType: ProfileIdTypeValue
     return String(value || "");
 }
 
+function isMaskedIdentityValue(value: unknown, isMasked = false): boolean {
+    return isMasked || containsMaskedPlaceholder(value);
+}
+
+function sanitizeIdentityForSubmit(value: unknown, isMasked = false): string {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "";
+    return isMaskedIdentityValue(trimmed, isMasked) ? "" : trimmed;
+}
+
+function hasInvalidThaiId(value: unknown, isMasked = false): boolean {
+    const sanitized = sanitizeIdentityForSubmit(value, isMasked);
+    return sanitized.length > 0 && !/^\d{13}$/.test(sanitized);
+}
+
 function createEmptyPartyDraft(): PartyDraft {
     return {
         linkedMemberId: null,
@@ -686,6 +702,7 @@ function createEmptyPartyDraft(): PartyDraft {
 
 function buildPartyDraftFromProfile(profile: any, linkedMemberId: string | null = null): PartyDraft {
     const normalizedCode = normalizeNationalityCode(profile?.nationality_code || profile?.nationality);
+    const rawIdentityNumber = String(profile?.id_number || profile?.passport_no || profile?.id_card_number || "").trim();
     return {
         linkedMemberId,
         guestProfileId: profile?.id ? String(profile.id) : null,
@@ -696,7 +713,7 @@ function buildPartyDraftFromProfile(profile: any, linkedMemberId: string | null 
         country: String(profile?.country || getCountryByCode(normalizedCode) || "").trim(),
         gender: profile?.gender === "M" || profile?.gender === "F" || profile?.gender === "Other" ? profile.gender : "",
         idType: profile?.id_type === "thai_id" || profile?.id_type === "passport" || profile?.id_type === "other" ? profile.id_type : "",
-        idNumber: String(profile?.id_number || profile?.passport_no || profile?.id_card_number || "").trim(),
+        idNumber: isMaskedIdentityValue(rawIdentityNumber, profile?._masked === true) ? "" : rawIdentityNumber,
         dob: String(profile?.dob || "").slice(0, 10),
         profileStatus:
             profile?.profile_status === "draft" ||
@@ -2983,7 +3000,8 @@ export default function ReservationDetailPage({
         const hasSingleNameToken = Boolean(normalizedFirstName) && !normalizedLastName;
         const normalizedCode = normalizeNationalityCode(profileNationalityCode);
         const inferredCountry = getCountryByCode(normalizedCode);
-        const identity = profileIdNumber.trim() || identityText.trim();
+        const rawIdentity = profileIdNumber.trim() || identityText.trim();
+        const identity = sanitizeIdentityForSubmit(rawIdentity, isProfileMasked);
         const normalizedProfileStatus = String(profileStatus || "").trim();
 
             const payload: Record<string, unknown> = {
@@ -3080,6 +3098,7 @@ export default function ReservationDetailPage({
         profileNotes,
         profileStatus,
         profileBlacklisted,
+        isProfileMasked,
         mode,
         guestProfileId,
         reservationId,
@@ -3123,7 +3142,7 @@ export default function ReservationDetailPage({
     /* ─── Submit ─── */
     const handleSubmit = async (e?: FormEvent) => {
         if (e) e.preventDefault();
-        if (profileIdType === "thai_id" && !/^\d{13}$/.test(profileIdNumber.trim())) {
+        if (profileIdType === "thai_id" && hasInvalidThaiId(profileIdNumber, isProfileMasked)) {
             if (mode === "checkin") {
                 setShowCheckinFieldValidation(true);
             }
@@ -3713,7 +3732,8 @@ export default function ReservationDetailPage({
                 gender: profileGender,
                 nationality_code: normalizedNationalityCode,
                 id_type: profileIdType,
-                id_number: profileIdNumber,
+                id_number: sanitizeIdentityForSubmit(profileIdNumber, isProfileMasked),
+                _masked: isProfileMasked,
                 country: profileCountry,
                 province: profileProvince,
                 phone,
@@ -3725,6 +3745,7 @@ export default function ReservationDetailPage({
             normalizedNationalityCode,
             profileIdType,
             profileIdNumber,
+            isProfileMasked,
             profileCountry,
             profileProvince,
             phone,
@@ -4636,7 +4657,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             inputMode={profileIdType === "thai_id" ? "numeric" : undefined}
                                                             maxLength={profileIdType === "thai_id" ? 13 : undefined}
-                                                            className={`form-input h-10 text-sm ${checkinFieldErrorClass("id_number")} ${profileIdType === "thai_id" && profileIdNumber.trim().length > 0 && !/^\d{13}$/.test(profileIdNumber.trim()) ? "!border-rose-300 !bg-rose-100 dark:!bg-rose-500/10 dark:!border-rose-500/30 text-[var(--text-primary)] dark:!text-rose-200" : ""}`}
+                                                            className={`form-input h-10 text-sm ${checkinFieldErrorClass("id_number")} ${profileIdType === "thai_id" && hasInvalidThaiId(profileIdNumber, isProfileMasked) ? "!border-rose-300 !bg-rose-100 dark:!bg-rose-500/10 dark:!border-rose-500/30 text-[var(--text-primary)] dark:!text-rose-200" : ""}`}
                                                             value={profileIdNumber}
                                                             onChange={(e) => {
                                                                 const normalized = normalizeIdentityNumberByType(e.target.value, profileIdType);
@@ -4646,8 +4667,8 @@ export default function ReservationDetailPage({
                                                             disabled={isReadonly || isProfileMasked}
                                                             placeholder={isProfileMasked ? "ข้อมูลถูกซ่อน — Admin เท่านั้นที่แก้ไขได้" : (profileIdType === "thai_id" ? "Thai ID (13 digits)" : "ID / Passport Number")}
                                                         />
-                                                        {profileIdType === "thai_id" && (
-                                                            <p className={`mt-1 text-[11px] ${/^\d{13}$/.test(profileIdNumber.trim()) ? "text-emerald-700" : "text-rose-600"}`}>
+                                                        {profileIdType === "thai_id" && !isProfileMasked && (
+                                                            <p className={`mt-1 text-[11px] ${hasInvalidThaiId(profileIdNumber, false) ? "text-rose-600" : "text-emerald-700"}`}>
                                                                 Thai ID must be exactly 13 digits.
                                                             </p>
                                                         )}

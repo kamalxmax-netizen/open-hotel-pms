@@ -1,9 +1,12 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { GuestHistoryResponse, GuestHistoryStay } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { z } from "zod";
 
 type RouteParams = { params: { id: string } };
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 const idSchema = z.string().uuid("Invalid guest profile id");
 
@@ -52,6 +55,22 @@ function sortByCheckinDesc<T extends { checkin_date: string | null; created_at?:
   });
 }
 
+function countCompletedStayNights(
+  rows: Array<{ status: string | null; checkin_date: string | null; checkout_date: string | null }>
+) {
+  return rows.reduce((sum, row) => {
+    if (row.status !== "checked_out") return sum;
+    const checkin = String(row.checkin_date ?? "").trim();
+    const checkout = String(row.checkout_date ?? "").trim();
+    if (!checkin || !checkout) return sum;
+    const checkinMs = new Date(`${checkin}T00:00:00`).getTime();
+    const checkoutMs = new Date(`${checkout}T00:00:00`).getTime();
+    if (!Number.isFinite(checkinMs) || !Number.isFinite(checkoutMs)) return sum;
+    const nights = Math.max(1, Math.round((checkoutMs - checkinMs) / 86400000));
+    return sum + nights;
+  }, 0);
+}
+
 function isMissingRelationError(error: unknown, relationName: string): boolean {
   if (!error || typeof error !== "object") return false;
   const anyError = error as { code?: string; message?: string };
@@ -61,6 +80,7 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
 }
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
+  noStore();
   try {
     const parsedId = idSchema.safeParse(params.id);
     if (!parsedId.success) {
@@ -84,14 +104,15 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     ] = await Promise.all([
       supabase
         .from("guest_profiles")
-        .select("id, first_name, last_name, email, phone, nationality")
+        .select(
+          "id, first_name, last_name, email, phone, nationality, stay_count, night_count, main_stay_count, main_night_count, accompanying_stay_count, accompanying_night_count, legacy_night_count"
+        )
         .eq("id", guestProfileId)
         .maybeSingle(),
       supabase
         .from("reservations")
         .select(reservationSelect)
         .eq("guest_profile_id", guestProfileId)
-        .in("status", ["checked_out", "cancelled"])
         .order("checkin_date", { ascending: false }),
       supabase
         .from("reservation_guests")
@@ -100,7 +121,6 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         )
         .eq("guest_profile_id", guestProfileId)
         .eq("role", "accompanying")
-        .in("reservations.status", ["checked_out", "cancelled"])
         .order("created_at", { ascending: false }),
       supabase
         .from("legacy_stays")
@@ -456,6 +476,29 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const totalStays = stays.length;
     const totalNights = stays.reduce((sum, row) => sum + Math.max(0, Number(row.nights || 0)), 0);
 
+    const summaryPrimaryStays = Math.max(
+      completedPrimaryStays.length + legacyStays.length,
+      Number(guest.stay_count ?? 0),
+      Number(guest.main_stay_count ?? 0)
+    );
+    const summaryPrimaryNights = Math.max(
+      totalNights,
+      Number(guest.night_count ?? 0),
+      Number(guest.main_night_count ?? 0)
+    );
+    const summaryAccompanyingStays = Math.max(
+      completedAccompanyingStays.length,
+      Number(guest.accompanying_stay_count ?? 0)
+    );
+    const summaryAccompanyingNights = Math.max(
+      countCompletedStayNights(accompanyingStays),
+      Number(guest.accompanying_night_count ?? 0)
+    );
+    const summaryLegacyNights = Math.max(
+      legacyStays.reduce((sum, s) => sum + Math.max(0, Number(s.nights || 0)), 0),
+      Number(guest.legacy_night_count ?? 0)
+    );
+
     return NextResponse.json({
       success: true,
       stays,
@@ -463,11 +506,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       total_nights: totalNights,
       guest,
       summary: {
-        total_stays: completedPrimaryStays.length + legacyStays.length,
-        primary_stay_count: completedPrimaryStays.length + legacyStays.length,
-        accompanying_stay_count: completedAccompanyingStays.length,
+        total_stays: summaryPrimaryStays + summaryAccompanyingStays,
+        primary_stay_count: summaryPrimaryStays,
+        primary_night_count: summaryPrimaryNights,
+        accompanying_stay_count: summaryAccompanyingStays,
+        accompanying_night_count: summaryAccompanyingNights,
         legacy_stay_count: legacyStays.length,
-        legacy_night_count: legacyStays.reduce((sum, s) => sum + Math.max(0, Number(s.nights || 0)), 0),
+        legacy_night_count: summaryLegacyNights,
         total_transfer_spend: totalTransferSpend,
         total_tips: totalTips,
       },

@@ -492,8 +492,8 @@ export default function GuestProfileDetailPage() {
       setError("");
       try {
         const [profileRes, historyRes] = await Promise.all([
-          fetch(`/api/guests/${profileId}`, { cache: "no-store" }),
-          fetch(`/api/guests/${profileId}/history`, { cache: "no-store" }),
+          fetch(`/api/guests/${profileId}?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`/api/guests/${profileId}/history?t=${Date.now()}`, { cache: "no-store" }),
         ]);
 
         const [profileJson, historyJson] = await Promise.all([
@@ -573,19 +573,20 @@ export default function GuestProfileDetailPage() {
       if (!pmsMap.has(s.reservation_id)) pmsMap.set(s.reservation_id, s);
     }
 
+    for (const stay of pmsMap.values()) {
+      enrichedList.push({ ...stay, source: "pms" });
+    }
+
     const rawStays = (history as any).stays || [];
-    
+
     for (const item of rawStays) {
-      if (item.source === "pms") {
-        const full = pmsMap.get(item.id);
-        if (full) enrichedList.push({ ...full, source: "pms" });
-      } else if (item.source === "legacy") {
+      if (item.source === "legacy") {
         enrichedList.push({
           reservation_id: item.id,
           booking_code: "LEGACY",
           guest_name: null,
           room_number: item.room_number,
-          status: "past",
+          status: "checked_out",
           checkin_date: item.date_in,
           checkout_date: item.date_out,
           checked_in_at: item.date_in,
@@ -599,7 +600,16 @@ export default function GuestProfileDetailPage() {
       }
     }
     
-    return sortStays(enrichedList);
+    return sortStays(
+      enrichedList.filter(
+        (stay, index, list) =>
+          list.findIndex(
+            (candidate) =>
+              candidate.reservation_id === stay.reservation_id &&
+              String(candidate.source ?? "") === String(stay.source ?? "")
+          ) === index
+      )
+    );
   }, [history]);
 
   const hasDateFilter = Boolean(stayDateFrom || stayDateTo);
@@ -749,8 +759,26 @@ export default function GuestProfileDetailPage() {
 
   const statusMeta = getProfileStatusMeta(profile.profile_status, profile.blacklisted);
   const vipMeta = getVipTierMeta(profile.vip_tier);
-  const mainNightCount = countStayNights(history.primary_stays ?? []) + (history.summary?.legacy_night_count ?? 0);
-  const accompanyingNightCount = countStayNights(history.accompanying_stays ?? []);
+  const mainStayCount = Math.max(
+    Number(history.summary?.primary_stay_count ?? 0),
+    Number(profile.main_stay_count ?? 0),
+    Number(profile.stay_count ?? 0)
+  );
+  const mainNightCount = Math.max(
+    Number(history.summary?.primary_night_count ?? 0),
+    countStayNights(history.primary_stays ?? []) + Number(history.summary?.legacy_night_count ?? 0),
+    Number(profile.main_night_count ?? 0),
+    Number(profile.night_count ?? 0)
+  );
+  const accompanyingStayCount = Math.max(
+    Number(history.summary?.accompanying_stay_count ?? 0),
+    Number(profile.accompanying_stay_count ?? 0)
+  );
+  const accompanyingNightCount = Math.max(
+    Number(history.summary?.accompanying_night_count ?? 0),
+    countStayNights(history.accompanying_stays ?? []),
+    Number(profile.accompanying_night_count ?? 0)
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-6">
@@ -800,9 +828,9 @@ export default function GuestProfileDetailPage() {
         ) : null}
 
         <div className="grid divide-y divide-[var(--border-default)] lg:grid-cols-6 lg:divide-y-0 lg:divide-x">
-          <SummaryMetricCard label="Main Stays" value={history.summary.primary_stay_count} />
+          <SummaryMetricCard label="Main Stays" value={mainStayCount} />
           <SummaryMetricCard label="Main Nights" value={mainNightCount} />
-          <SummaryMetricCard label="Acc. Stays" value={history.summary.accompanying_stay_count} />
+          <SummaryMetricCard label="Acc. Stays" value={accompanyingStayCount} />
           <SummaryMetricCard label="Acc. Nights" value={accompanyingNightCount} />
           <SummaryMetricCard label="Transfer" value={fmtMoney(history.summary.total_transfer_spend)} />
           <SummaryMetricCard label="Tips" value={fmtMoney(history.summary.total_tips)} />

@@ -111,6 +111,11 @@ function buildMatch(profile: CandidateProfile, query: string) {
     reasons.push("full_name_partial");
   }
 
+  if (fullName && qParts.length >= 2 && qParts.every((part) => part.length >= 2 && fullName.includes(part))) {
+    score += 35;
+    reasons.push("full_name_all_parts");
+  }
+
   if (firstName && qFirst.length >= 3 && firstName.includes(qFirst)) {
     score += 22;
     reasons.push("first_name_partial");
@@ -158,6 +163,11 @@ function buildMatch(profile: CandidateProfile, query: string) {
   if (dob && q === dob) {
     score += 5;
     reasons.push("dob_exact");
+  }
+
+  if (fullName && q.length >= 3 && fullName.startsWith(q)) {
+    score += 12;
+    reasons.push("full_name_prefix");
   }
 
   const level = score >= 70 ? "strong" : score >= 30 ? "possible" : "new";

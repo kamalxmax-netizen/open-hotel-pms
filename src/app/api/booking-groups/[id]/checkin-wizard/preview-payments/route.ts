@@ -13,6 +13,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
 
+function distributeEvenly(totalAmount: number, reservationIds: string[]) {
+  const ids = reservationIds.filter(Boolean);
+  const allocation = new Map<string, number>();
+  if (ids.length === 0) return allocation;
+
+  const totalSatang = Math.max(0, Math.round(totalAmount * 100));
+  const base = Math.floor(totalSatang / ids.length);
+  let remainder = totalSatang - base * ids.length;
+
+  ids.forEach((id) => {
+    const satang = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    allocation.set(id, satang / 100);
+  });
+
+  return allocation;
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -65,6 +83,9 @@ export async function POST(
         ? body.payment_plan.split_payment_plan
         : [];
     const masterPaymentPlan = Array.isArray(body?.master_payment_plan) ? body.master_payment_plan : [];
+    const masterDepositPlan = body?.master_deposit && typeof body.master_deposit === "object"
+      ? body.master_deposit
+      : {};
 
     const validationErrors: string[] = [];
     const allocationPreview: Array<{
@@ -91,6 +112,8 @@ export async function POST(
         const plan = splitByReservation.get(row.reservation_id);
         if (!plan) return;
         const payments = Array.isArray(plan?.payments) ? plan.payments : [];
+        const depositAmount = toRoundedMoney(plan?.deposit_amount ?? 0);
+        let roomPlanned = 0;
         payments.forEach((payment: any, paymentIdx: number) => {
           const method = String(payment?.method ?? "");
           const amount = toRoundedMoney(payment?.amount ?? 0);
@@ -101,8 +124,11 @@ export async function POST(
             return;
           }
           if (amount <= 0) return;
-          pushPlanned(row.reservation_id, amount);
+          roomPlanned += amount;
         });
+
+        const plannedTotal = toRoundedMoney(roomPlanned + depositAmount);
+        pushPlanned(row.reservation_id, plannedTotal);
       });
     }
 
@@ -143,6 +169,30 @@ export async function POST(
           if (allocated > 0) pushPlanned(row.reservation_id, allocated);
         });
       });
+
+      const masterDepositAmount = toRoundedMoney(masterDepositPlan?.amount ?? 0);
+      const masterDepositMethod = String(masterDepositPlan?.method ?? "cash");
+      const defaultDepositTotal = toRoundedMoney(roomRows.length * 200);
+      if (masterDepositAmount > 0) {
+        if (!PAYMENT_METHODS.has(masterDepositMethod)) {
+          validationErrors.push("master_deposit.method is invalid.");
+        }
+        const depositAllocation = distributeEvenly(
+          masterDepositAmount,
+          roomRows.map((row) => row.reservation_id)
+        );
+        roomRows.forEach((row) => {
+          const allocated = toRoundedMoney(depositAllocation.get(row.reservation_id) ?? 0);
+          if (allocated > 0) pushPlanned(row.reservation_id, allocated);
+        });
+      }
+      if (
+        masterDepositAmount > 0 &&
+        masterDepositAmount + 0.0001 < defaultDepositTotal &&
+        !String(masterDepositPlan?.note ?? "").trim()
+      ) {
+        validationErrors.push("Master deposit note is required when collected deposit is below default.");
+      }
     }
 
     const enhancedRoomRows = roomRows.map((row) => {
@@ -155,14 +205,23 @@ export async function POST(
       };
     });
 
+    const totalCurrentDue = toRoundedMoney(
+      roomRows.reduce((sum, row) => sum + row.remaining_balance, 0) +
+      splitPaymentPlan.reduce((sum: number, row: any) => {
+        if (paymentMode !== "split") return sum;
+        return sum + toRoundedMoney(row?.deposit_amount ?? 0);
+      }, 0) +
+      (paymentMode === "master" ? toRoundedMoney(masterDepositPlan?.amount ?? 0) : 0)
+    );
+
     const submittedPaymentTotal = toRoundedMoney(
       enhancedRoomRows.reduce((sum, row) => sum + row.planned_payment, 0)
     );
     const projectedRemainingBalance = toRoundedMoney(
-      Math.max(0, remainingBalance - submittedPaymentTotal)
+      Math.max(0, totalCurrentDue - submittedPaymentTotal)
     );
     const overpaymentAmount = toRoundedMoney(
-      Math.max(0, submittedPaymentTotal - remainingBalance)
+      Math.max(0, submittedPaymentTotal - totalCurrentDue)
     );
 
     if (overpaymentAmount > 0) {
@@ -178,7 +237,7 @@ export async function POST(
       grand_total: toRoundedMoney(grandTotal),
       payment_received: toRoundedMoney(paymentReceived),
       deposit_received: toRoundedMoney(depositReceived),
-      remaining_balance: toRoundedMoney(remainingBalance),
+      remaining_balance: paymentMode === "split" ? totalCurrentDue : toRoundedMoney(remainingBalance),
       submitted_payment_total: submittedPaymentTotal,
       projected_remaining_balance: projectedRemainingBalance,
       overpayment_amount: overpaymentAmount,

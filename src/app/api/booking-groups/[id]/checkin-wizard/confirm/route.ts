@@ -24,6 +24,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
 
+function distributeEvenly(totalAmount: number, reservationIds: string[]) {
+  const ids = reservationIds.filter(Boolean);
+  const allocation = new Map<string, number>();
+  if (ids.length === 0) return allocation;
+
+  const totalSatang = Math.max(0, Math.round(totalAmount * 100));
+  const base = Math.floor(totalSatang / ids.length);
+  let remainder = totalSatang - base * ids.length;
+
+  ids.forEach((id) => {
+    const satang = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    allocation.set(id, satang / 100);
+  });
+
+  return allocation;
+}
+
 function pushCode(codes: WizardFailCode[], code: WizardFailCode) {
   if (!codes.includes(code)) codes.push(code);
 }
@@ -206,12 +224,17 @@ export async function POST(
       : Array.isArray(body?.payment_plan?.master_payment_plan)
         ? body.payment_plan.master_payment_plan
         : [];
+    const masterDepositPlan = body?.master_deposit && typeof body.master_deposit === "object"
+      ? body.master_deposit
+      : {};
 
     const massItemsByReservation = new Map<string, any>();
     readyForCheckin.forEach((line) => {
       massItemsByReservation.set(line.reservation_id, {
         reservation_id: line.reservation_id,
         deposit_policy: "keep",
+        deposit_collection_mode: "separate",
+        deposit_method: "cash",
         deposit_amount: 0,
         payments: [] as Array<{ method: string; amount: number; note?: string | null }>,
       });
@@ -222,7 +245,9 @@ export async function POST(
       if (!reservationId || !massItemsByReservation.has(reservationId)) continue;
 
       const target = massItemsByReservation.get(reservationId)!;
-      target.deposit_policy = row?.deposit_policy === "set" ? "set" : "keep";
+      target.deposit_policy = toRoundedMoney(row?.deposit_amount ?? 0) > 0 ? "set" : "keep";
+      target.deposit_collection_mode = "separate";
+      target.deposit_method = String(row?.deposit_method ?? "") || "cash";
       target.deposit_amount = toRoundedMoney(row?.deposit_amount ?? 0);
       target.deposit_note = typeof row?.deposit_note === "string" ? row.deposit_note : null;
 
@@ -272,6 +297,39 @@ export async function POST(
           const target = massItemsByReservation.get(row.reservation_id);
           if (!target) return;
           target.payments.push({ method, amount: allocatedAmount, note });
+        });
+      }
+
+      const masterDepositAmount = toRoundedMoney(masterDepositPlan?.amount ?? 0);
+      const masterDepositMethod = String(masterDepositPlan?.method ?? "cash");
+      const masterDepositNote = typeof masterDepositPlan?.note === "string" ? masterDepositPlan.note.trim() : "";
+      const defaultDepositTotal = toRoundedMoney(readyForCheckin.length * 200);
+
+      if (masterDepositAmount > 0) {
+        if (!PAYMENT_METHODS.has(masterDepositMethod)) {
+          return NextResponse.json({ success: false, error: `Invalid master deposit method (${masterDepositMethod}).` }, { status: 400 });
+        }
+        if (masterDepositAmount + 0.0001 < defaultDepositTotal && !masterDepositNote) {
+          return NextResponse.json(
+            { success: false, error: "Master deposit note is required when collected deposit is below default." },
+            { status: 400 }
+          );
+        }
+
+        const allocation = distributeEvenly(
+          masterDepositAmount,
+          readyForCheckin.map((row) => row.reservation_id)
+        );
+
+        readyForCheckin.forEach((row) => {
+          const allocatedAmount = toRoundedMoney(allocation.get(row.reservation_id) ?? 0);
+          const target = massItemsByReservation.get(row.reservation_id);
+          if (!target || allocatedAmount <= 0) return;
+          target.deposit_policy = "set";
+          target.deposit_collection_mode = "separate";
+          target.deposit_method = masterDepositMethod;
+          target.deposit_amount = allocatedAmount;
+          target.deposit_note = masterDepositNote || null;
         });
       }
     }

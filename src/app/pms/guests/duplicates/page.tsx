@@ -43,9 +43,14 @@ type ManualSearchProfile = {
 };
 
 type ManualSearchResponse = {
-    success: boolean;
-    profiles?: ManualSearchProfile[];
-    error?: string;
+  success: boolean;
+  profiles?: ManualSearchProfile[];
+  matches?: Array<{
+    profile: ManualSearchProfile;
+    score: number;
+    match_level: string;
+  }>;
+  error?: string;
 };
 
 function formatProfileName(profile: ProfileData | ManualSearchProfile | null) {
@@ -274,17 +279,19 @@ export default function DuplicatesPage() {
         }
 
         try {
-            const params = new URLSearchParams({
-                q: trimmed,
-                limit: "8",
-                show_all: "1",
+            const res = await fetch(`/api/guests/match?t=${Date.now()}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                cache: "no-store",
+                body: JSON.stringify({ query: trimmed }),
             });
-            const res = await fetch(`/api/guests?${params.toString()}&t=${Date.now()}`, { cache: "no-store" });
             const data = (await res.json()) as ManualSearchResponse;
             if (!res.ok || data.success === false) {
                 throw new Error(data.error || "Search failed");
             }
-            const items = (data.profiles ?? []).filter((profile) => profile.profile_status !== "merged");
+            const items = (data.matches ?? [])
+                .map((match) => match.profile)
+                .filter((profile) => profile.profile_status !== "merged");
             if (target === "source") {
                 setSourceResults(items);
             } else {

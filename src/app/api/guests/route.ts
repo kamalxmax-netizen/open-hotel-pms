@@ -3,7 +3,7 @@ import { resolveBusinessDate } from "@/lib/data-masking";
 import { createGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { getAuthenticatedUser } from "@/lib/server-auth";
-import type { GuestProfileListResponse } from "@/lib/types";
+import type { GuestProfileListItem, GuestProfileListResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { z } from "zod";
@@ -201,13 +201,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: vipRes.error.message }, { status: 500 });
     }
 
+    const rawProfiles = (rowsRes.data ?? []) as Array<Record<string, unknown>>;
+    const profileIds = rawProfiles.map((row) => String(row.id ?? "")).filter(Boolean);
+    let legacyStayCountByProfile = new Map<string, number>();
+
+    if (profileIds.length > 0) {
+      const { data: legacyRows, error: legacyError } = await supabase
+        .from("legacy_stays")
+        .select("guest_profile_id")
+        .in("guest_profile_id", profileIds);
+
+      if (legacyError) {
+        return NextResponse.json({ success: false, error: legacyError.message }, { status: 500 });
+      }
+
+      legacyStayCountByProfile = (legacyRows ?? []).reduce((map, row: any) => {
+        const key = String(row.guest_profile_id ?? "");
+        if (!key) return map;
+        map.set(key, (map.get(key) ?? 0) + 1);
+        return map;
+      }, new Map<string, number>());
+    }
+
     const total = rowsRes.count ?? 0;
     const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+    const profiles: GuestProfileListItem[] = rawProfiles.map((row) => {
+      const id = String(row.id ?? "");
+      const legacyCount = legacyStayCountByProfile.get(id) ?? 0;
+      const stayCount = Math.max(Number(row.stay_count ?? 0), legacyCount);
+      return {
+        ...(row as unknown as GuestProfileListItem),
+        stay_count: stayCount,
+      };
+    });
 
     return NextResponse.json({
       success: true,
       requires_search: false,
-      profiles: rowsRes.data ?? [],
+      profiles,
       summary: {
         matched: total,
         verified: verifiedRes.count ?? 0,

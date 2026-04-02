@@ -7,7 +7,6 @@ import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import { formatDateDisplay } from "@/lib/date-display";
 
 type PaymentMethod = "cash" | "transfer" | "credit_card";
-type DepositPolicy = "keep" | "set";
 type HkStatus = "approved" | "cleaned" | "dirty" | "in_progress" | "paused" | string | null;
 
 type SplitPaymentDraft = {
@@ -18,7 +17,7 @@ type SplitPaymentDraft = {
 };
 
 type SplitRoomPlan = {
-  deposit_policy: DepositPolicy;
+  deposit_method: PaymentMethod;
   deposit_amount: string;
   deposit_note: string;
   payments: SplitPaymentDraft[];
@@ -26,6 +25,12 @@ type SplitRoomPlan = {
 
 type MasterPaymentLine = {
   id: string;
+  amount: string;
+  method: PaymentMethod;
+  note: string;
+};
+
+type MasterDepositPlan = {
   amount: string;
   method: PaymentMethod;
   note: string;
@@ -160,10 +165,10 @@ type PaymentPreviewData = {
 
 const HK_BLOCKING = new Set(["dirty", "in_progress", "paused"]);
 
-function paymentDraft(seed = "payment"): SplitPaymentDraft {
+function paymentDraft(seed = "payment", amount = ""): SplitPaymentDraft {
   return {
     id: `${seed}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    amount: "",
+    amount,
     method: "cash",
     note: "",
   };
@@ -184,15 +189,57 @@ function toMoney(value: unknown): number {
   return Math.round(n * 100) / 100;
 }
 
-function defaultSplitPlanByDeposit(reservationId: string, existingDepositAmount = 0): SplitRoomPlan {
-  const normalizedDeposit = toMoney(existingDepositAmount);
-  const hasSavedDeposit = normalizedDeposit > 0;
+function defaultDepositAmount(existingDepositAmount = 0): number {
+  const normalized = toMoney(existingDepositAmount);
+  return normalized > 0 ? normalized : 200;
+}
+
+function defaultSplitPlanByDeposit(row: Pick<WizardReservation, "id" | "deposit_amount" | "remaining_balance">): SplitRoomPlan {
+  const normalizedDeposit = defaultDepositAmount(row.deposit_amount);
   return {
-    deposit_policy: hasSavedDeposit ? "keep" : "set",
-    deposit_amount: hasSavedDeposit ? String(normalizedDeposit) : "200",
+    deposit_method: "cash",
+    deposit_amount: String(normalizedDeposit),
     deposit_note: "",
-    payments: [paymentDraft(reservationId)],
+    payments: [paymentDraft(row.id, String(toMoney(row.remaining_balance)))],
   };
+}
+
+function computeSplitCardTotals(row: WizardReservation, plan: SplitRoomPlan) {
+  const roomRemaining = toMoney(row.remaining_balance);
+  const depositTarget = Math.max(0, toMoney(plan.deposit_amount));
+  const roomPlanned = plan.payments.reduce((sum, payment) => sum + Math.max(0, toMoney(payment.amount)), 0);
+  const submittedTotal = roomPlanned + depositTarget;
+  const currentDue = toMoney(roomRemaining + depositTarget);
+  const projectedRemaining = toMoney(Math.max(0, currentDue - submittedTotal));
+  const projectedRoomRemaining = toMoney(Math.max(0, roomRemaining - roomPlanned));
+
+  return {
+    roomRemaining,
+    depositTarget,
+    roomPlanned,
+    submittedTotal,
+    currentDue,
+    projectedRemaining,
+    projectedRoomRemaining,
+  };
+}
+
+function distributeEvenly(totalAmount: number, reservationIds: string[]) {
+  const ids = reservationIds.filter(Boolean);
+  const allocation = new Map<string, number>();
+  if (ids.length === 0) return allocation;
+
+  const totalSatang = Math.max(0, Math.round(totalAmount * 100));
+  const base = Math.floor(totalSatang / ids.length);
+  let remainder = totalSatang - base * ids.length;
+
+  ids.forEach((id) => {
+    const satang = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    allocation.set(id, satang / 100);
+  });
+
+  return allocation;
 }
 
 function mapHkBadge(status: HkStatus) {
@@ -263,6 +310,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   const [splitPlans, setSplitPlans] = useState<Record<string, SplitRoomPlan>>({});
   const [paymentMode, setPaymentMode] = useState<"split" | "master">("split");
   const [masterPayments, setMasterPayments] = useState<MasterPaymentLine[]>([masterLine("master")]);
+  const [masterPaymentsEdited, setMasterPaymentsEdited] = useState(false);
+  const [masterDeposit, setMasterDeposit] = useState<MasterDepositPlan>({
+    amount: "",
+    method: "cash",
+    note: "",
+  });
+  const [masterDepositEdited, setMasterDepositEdited] = useState(false);
   const [confirmResults, setConfirmResults] = useState<ConfirmRoomResult[] | null>(null);
   const [wizardDraftJson, setWizardDraftJson] = useState<Record<string, any>>({});
 
@@ -382,32 +436,31 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       : [];
   }
 
-  function buildPlanFromDraftRow(raw: any, reservationId: string, existingDepositAmount = 0): SplitRoomPlan {
+  function buildPlanFromDraftRow(raw: any, row: Pick<WizardReservation, "id" | "deposit_amount" | "remaining_balance">): SplitRoomPlan {
     const payments = Array.isArray(raw?.payments) ? raw.payments : [];
-    const draftDepositAmount = toMoney(raw?.deposit_amount ?? existingDepositAmount);
-    const draftPolicy = raw?.deposit_policy === "set" ? "set" : "keep";
-    const looksLikeLegacyDefaultKeep =
-      draftPolicy === "keep"
-      && existingDepositAmount <= 0
-      && toMoney(raw?.deposit_amount ?? 0) === 200
-      && String(raw?.deposit_note ?? "").trim() === "";
-    const effectivePolicy: DepositPolicy = looksLikeLegacyDefaultKeep ? "set" : draftPolicy;
+    const draftDepositAmount = toMoney(raw?.deposit_amount ?? defaultDepositAmount(row.deposit_amount));
 
     return {
-      deposit_policy: effectivePolicy,
-      deposit_amount: String(draftDepositAmount > 0 ? draftDepositAmount : 200),
+      deposit_method: raw?.deposit_method === "transfer"
+        || raw?.deposit_method === "credit_card"
+        ? raw.deposit_method
+        : "cash",
+      deposit_amount: String(draftDepositAmount > 0 ? draftDepositAmount : defaultDepositAmount(row.deposit_amount)),
       deposit_note: extractDepositGeneralNote(raw?.deposit_note) ?? "",
       payments: payments.length > 0
         ? payments.map((payment: any, idx: number) => ({
-          id: `${reservationId}-${idx}-${Math.random().toString(16).slice(2)}`,
-          amount: String(payment?.amount ?? ""),
+          id: `${row.id}-${idx}-${Math.random().toString(16).slice(2)}`,
+          amount:
+            idx === 0 && String(payment?.amount ?? "").trim() === ""
+              ? String(toMoney(row.remaining_balance))
+              : String(payment?.amount ?? ""),
           method: payment?.method === "transfer"
             || payment?.method === "credit_card"
             ? payment.method
             : "cash",
           note: String(payment?.note ?? ""),
         }))
-        : [paymentDraft(reservationId)],
+        : [paymentDraft(row.id, String(toMoney(row.remaining_balance)))],
     };
   }
 
@@ -477,24 +530,27 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   );
 
   const selectedRemainingTotal = useMemo(
-    () => selectedReservations.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0),
-    [selectedReservations]
+    () =>
+      selectedReservations.reduce((sum, row) => {
+        if (paymentMode !== "split") return sum + toMoney(row.remaining_balance);
+        const plan = splitPlans[row.id] ?? defaultSplitPlanByDeposit(row);
+        return sum + computeSplitCardTotals(row, plan).currentDue;
+      }, 0) + (paymentMode === "master" ? Math.max(0, toMoney(masterDeposit.amount)) : 0),
+    [masterDeposit.amount, paymentMode, selectedReservations, splitPlans]
   );
 
   const plannedPaymentTotal = useMemo(() => {
     if (paymentMode === "master") {
-      return masterPayments.reduce((sum, line) => sum + Math.max(0, toMoney(line.amount)), 0);
+      return toMoney(
+        masterPayments.reduce((sum, line) => sum + Math.max(0, toMoney(line.amount)), 0)
+        + Math.max(0, toMoney(masterDeposit.amount))
+      );
     }
     return selectedReservations.reduce((sum, row) => {
-      const plan = splitPlans[row.id];
-      if (!plan) return sum;
-      const roomPlanned = plan.payments.reduce(
-        (lineSum, payment) => lineSum + Math.max(0, toMoney(payment.amount)),
-        0
-      );
-      return sum + roomPlanned;
+      const plan = splitPlans[row.id] ?? defaultSplitPlanByDeposit(row);
+      return sum + computeSplitCardTotals(row, plan).submittedTotal;
     }, 0);
-  }, [paymentMode, masterPayments, selectedReservations, splitPlans]);
+  }, [paymentMode, masterDeposit.amount, masterPayments, selectedReservations, splitPlans]);
 
   const projectedRemainingTotal = useMemo(
     () => Math.max(0, toMoney(selectedRemainingTotal - plannedPaymentTotal)),
@@ -510,7 +566,38 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
   useEffect(() => {
     setPaymentPreview(null);
-  }, [paymentMode, selectedReservationIds.join(","), masterPayments, splitPlans]);
+  }, [paymentMode, selectedReservationIds.join(","), masterDeposit.amount, masterDeposit.method, masterDeposit.note, masterPayments, splitPlans]);
+
+  useEffect(() => {
+    if (masterDepositEdited) return;
+    const defaultTotal = selectedReservations.reduce(
+      (sum, row) => sum + defaultDepositAmount(row.deposit_amount),
+      0
+    );
+    setMasterDeposit((prev) => ({ ...prev, amount: defaultTotal > 0 ? String(toMoney(defaultTotal)) : "" }));
+  }, [masterDepositEdited, selectedReservations]);
+
+  useEffect(() => {
+    if (masterPaymentsEdited) return;
+    const defaultRoomTotal = toMoney(
+      selectedReservations.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0)
+    );
+    setMasterPayments((prev) => {
+      if (prev.length === 0) {
+        return [
+          {
+            ...masterLine("master-default"),
+            amount: defaultRoomTotal > 0 ? String(defaultRoomTotal) : "",
+          },
+        ];
+      }
+      return prev.map((line, idx) =>
+        idx === 0
+          ? { ...line, amount: defaultRoomTotal > 0 ? String(defaultRoomTotal) : "" }
+          : line
+      );
+    });
+  }, [masterPaymentsEdited, selectedReservations]);
 
   // --- Phase 50 Mobile Scans Polling ---
   useEffect(() => {
@@ -724,8 +811,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         rows.forEach((row) => {
           const fromDraft = draftSplitMap.get(row.id);
           plan[row.id] = fromDraft
-            ? buildPlanFromDraftRow(fromDraft, row.id, row.deposit_amount)
-            : defaultSplitPlanByDeposit(row.id, row.deposit_amount);
+            ? buildPlanFromDraftRow(fromDraft, row)
+            : defaultSplitPlanByDeposit(row);
         });
         setSplitPlans(plan);
 
@@ -744,7 +831,10 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           setMasterPayments(
             draftMasterPlan.map((line: any, idx: number) => ({
               id: `draft-master-${idx}-${Math.random().toString(16).slice(2)}`,
-              amount: String(line?.amount ?? ""),
+              amount:
+                idx === 0 && toMoney(line?.amount ?? 0) <= 0
+                  ? String(toMoney(rows.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0)))
+                  : String(line?.amount ?? ""),
               method: line?.method === "transfer"
                 || line?.method === "credit_card"
                 ? line.method
@@ -753,8 +843,32 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             }))
           );
         } else {
-          setMasterPayments([masterLine("master")]);
+          setMasterPayments([
+            {
+              ...masterLine("master"),
+              amount: String(toMoney(rows.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0))),
+            },
+          ]);
         }
+        setMasterPaymentsEdited(
+          draftMasterPlan.some((line: any) => toMoney(line?.amount ?? 0) > 0)
+        );
+
+        const draftMasterDeposit = (draftJson as any)?.step3?.master_deposit;
+        setMasterDeposit({
+          amount:
+            draftMasterDeposit?.amount != null && String(draftMasterDeposit.amount).trim() !== ""
+              ? String(draftMasterDeposit.amount)
+              : "",
+          method:
+            draftMasterDeposit?.method === "transfer" || draftMasterDeposit?.method === "credit_card"
+              ? draftMasterDeposit.method
+              : "cash",
+          note: String(draftMasterDeposit?.note ?? ""),
+        });
+        setMasterDepositEdited(
+          draftMasterDeposit?.amount != null && String(draftMasterDeposit.amount).trim() !== ""
+        );
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to load wizard.");
@@ -795,7 +909,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           split_payment_plan: reservations.map((row) => ({
             reservation_id: row.id,
             ...(splitPlans[row.id] ?? {
-              ...defaultSplitPlanByDeposit(row.id, row.deposit_amount),
+              ...defaultSplitPlanByDeposit(row),
               payments: [],
             }),
           })),
@@ -804,6 +918,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
             method: line.method,
             note: line.note || null,
           })),
+          master_deposit: {
+            amount: toMoney(masterDeposit.amount),
+            method: masterDeposit.method,
+            note: masterDeposit.note || null,
+          },
         },
         step4: {
           selected_reservation_ids: reservations.filter((row) => row.selected).map((row) => row.id),
@@ -921,7 +1040,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setSplitPlans((prev) => ({
       ...prev,
       [reservationId]: {
-        ...(prev[reservationId] ?? defaultSplitPlanByDeposit(reservationId, reservation?.deposit_amount ?? 0)),
+        ...(prev[reservationId] ?? defaultSplitPlanByDeposit({
+          id: reservationId,
+          deposit_amount: reservation?.deposit_amount ?? 0,
+          remaining_balance: reservation?.remaining_balance ?? 0,
+        })),
         ...patch,
       },
     }));
@@ -930,7 +1053,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   function updateSplitPayment(reservationId: string, paymentId: string, patch: Partial<SplitPaymentDraft>) {
     const reservation = reservations.find((row) => row.id === reservationId);
     setSplitPlans((prev) => {
-      const base = prev[reservationId] ?? defaultSplitPlanByDeposit(reservationId, reservation?.deposit_amount ?? 0);
+      const base = prev[reservationId] ?? defaultSplitPlanByDeposit({
+        id: reservationId,
+        deposit_amount: reservation?.deposit_amount ?? 0,
+        remaining_balance: reservation?.remaining_balance ?? 0,
+      });
       return {
         ...prev,
         [reservationId]: {
@@ -946,7 +1073,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   function addSplitPayment(reservationId: string) {
     const reservation = reservations.find((row) => row.id === reservationId);
     setSplitPlans((prev) => {
-      const base = prev[reservationId] ?? defaultSplitPlanByDeposit(reservationId, reservation?.deposit_amount ?? 0);
+      const base = prev[reservationId] ?? defaultSplitPlanByDeposit({
+        id: reservationId,
+        deposit_amount: reservation?.deposit_amount ?? 0,
+        remaining_balance: reservation?.remaining_balance ?? 0,
+      });
       return {
         ...prev,
         [reservationId]: {
@@ -958,6 +1089,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   }
 
   function removeSplitPayment(reservationId: string, paymentId: string) {
+    const reservation = reservations.find((row) => row.id === reservationId);
     setSplitPlans((prev) => {
       const base = prev[reservationId];
       if (!base) return prev;
@@ -966,21 +1098,26 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         ...prev,
         [reservationId]: {
           ...base,
-          payments: payments.length > 0 ? payments : [paymentDraft(reservationId)],
+          payments: payments.length > 0
+            ? payments
+            : [paymentDraft(reservationId, String(toMoney(reservation?.remaining_balance ?? 0)))],
         },
       };
     });
   }
 
   function updateMasterLine(lineId: string, patch: Partial<MasterPaymentLine>) {
+    setMasterPaymentsEdited(true);
     setMasterPayments((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
   }
 
   function addMasterLine() {
+    setMasterPaymentsEdited(true);
     setMasterPayments((prev) => [...prev, masterLine("master")]);
   }
 
   function removeMasterLine(lineId: string) {
+    setMasterPaymentsEdited(true);
     setMasterPayments((prev) => {
       const remaining = prev.filter((line) => line.id !== lineId);
       return remaining.length > 0 ? remaining : [masterLine("master")];
@@ -1188,6 +1325,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   }
 
   async function handleAssignGuest(guest: GuestSearchResult) {
+    await handleAssignGuestWithRole(guest, targetRole);
+  }
+
+  async function handleAssignGuestWithRole(
+    guest: Pick<GuestSearchResult, "id">,
+    role: "primary" | "accompanying"
+  ) {
     if (!targetReservationId) {
       setError("Select a room before assigning guest.");
       return;
@@ -1201,7 +1345,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setError("");
     setInfo("");
     try {
-      if (targetRole === "primary") {
+      if (role === "primary") {
         await postStep2("step2/link-primary", {
           reservation_id: targetReservationId,
           guest_profile_id: guest.id,
@@ -1220,7 +1364,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       }
       await reloadReservationSnapshot();
       setInfo(
-        `${targetRole === "primary" ? "Primary linked" : "Accompanying added"} for room ${selectedReservations.find((row) => row.id === targetReservationId)?.room_number ?? targetReservationId
+        `${role === "primary" ? "Primary linked" : "Accompanying added"} for room ${selectedReservations.find((row) => row.id === targetReservationId)?.room_number ?? targetReservationId
         }.`
       );
     } catch (err) {
@@ -1243,6 +1387,54 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       setInfo("Accompanying guest removed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Remove accompanying failed.");
+    } finally {
+      setStep2Busy(false);
+    }
+  }
+
+  async function returnPrimaryToPool(reservationId: string, guestProfileId: string) {
+    setStep2Busy(true);
+    setError("");
+    setInfo("");
+    try {
+      const unlinkRes = await fetch(`/api/bookings/${reservationId}/guest-profile`, {
+        method: "DELETE",
+      });
+      const unlinkData = await unlinkRes.json().catch(() => null);
+      if (!unlinkRes.ok || !unlinkData?.success) {
+        throw new Error(unlinkData?.error || "Failed to remove primary guest.");
+      }
+
+      await ingestIdentityToPool({
+        source: "search",
+        guestProfileId,
+      });
+      await reloadReservationSnapshot();
+      setInfo("Primary guest moved back to pool.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move primary guest back to pool.");
+    } finally {
+      setStep2Busy(false);
+    }
+  }
+
+  async function returnAccompanyingToPool(reservationId: string, guestProfileId: string) {
+    setStep2Busy(true);
+    setError("");
+    setInfo("");
+    try {
+      await postStep2("step2/remove-accompanying", {
+        reservation_id: reservationId,
+        guest_profile_id: guestProfileId,
+      });
+      await ingestIdentityToPool({
+        source: "search",
+        guestProfileId,
+      });
+      await reloadReservationSnapshot();
+      setInfo("Accompanying guest moved back to pool.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to move accompanying guest back to pool.");
     } finally {
       setStep2Busy(false);
     }
@@ -1391,11 +1583,14 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           payment_mode: paymentMode,
           split_payment_plan: selectedReservations.map((row) => {
             const plan = splitPlans[row.id] ?? {
-              ...defaultSplitPlanByDeposit(row.id, row.deposit_amount),
+              ...defaultSplitPlanByDeposit(row),
               payments: [] as SplitPaymentDraft[],
             };
             return {
               reservation_id: row.id,
+              deposit_method: plan.deposit_method,
+              deposit_amount: toMoney(plan.deposit_amount),
+              deposit_note: plan.deposit_note.trim() || null,
               payments: plan.payments
                 .map((payment) => ({
                   amount: toMoney(payment.amount),
@@ -1412,6 +1607,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               note: line.note.trim() || null,
             }))
             .filter((line) => line.amount > 0),
+          master_deposit: {
+            amount: toMoney(masterDeposit.amount),
+            method: masterDeposit.method,
+            note: masterDeposit.note.trim() || null,
+          },
         }),
       });
 
@@ -1475,13 +1675,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     try {
       const splitPaymentPlan = selectedReservations.map((row) => {
         const plan = splitPlans[row.id] ?? {
-          ...defaultSplitPlanByDeposit(row.id, row.deposit_amount),
+          ...defaultSplitPlanByDeposit(row),
           payments: [] as SplitPaymentDraft[],
         };
 
         return {
           reservation_id: row.id,
-          deposit_policy: plan.deposit_policy,
+          deposit_method: plan.deposit_method,
           deposit_amount: toMoney(plan.deposit_amount),
           deposit_note: plan.deposit_note.trim() || null,
           payments: plan.payments
@@ -1502,6 +1702,12 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         }))
         .filter((line) => line.amount > 0);
 
+      const masterDepositPlan = {
+        amount: toMoney(masterDeposit.amount),
+        method: masterDeposit.method,
+        note: masterDeposit.note.trim() || null,
+      };
+
       const response = await fetch(`/api/booking-groups/${groupId}/checkin-wizard/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1512,6 +1718,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           payment_mode: paymentMode,
           split_payment_plan: splitPaymentPlan,
           master_payment_plan: paymentMode === "master" ? masterPaymentPlan : undefined,
+          master_deposit: paymentMode === "master" ? masterDepositPlan : undefined,
         }),
       });
 
@@ -1821,14 +2028,32 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                                 {selectedAssignedGuestIds.has(guest.id) ? <span>· assigned</span> : null}
                               </div>
                             </div>
-                            <button
-                              className="btn btn-ghost"
-                              type="button"
-                              onClick={() => removeGuestFromPool(guest.id)}
-                              disabled={step2Busy}
-                            >
-                              Remove
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="btn btn-secondary text-xs"
+                                type="button"
+                                onClick={() => { void handleAssignGuestWithRole(guest, "primary"); }}
+                                disabled={step2Busy || !targetReservationId}
+                              >
+                                Add Main
+                              </button>
+                              <button
+                                className="btn btn-secondary text-xs"
+                                type="button"
+                                onClick={() => { void handleAssignGuestWithRole(guest, "accompanying"); }}
+                                disabled={step2Busy || !targetReservationId}
+                              >
+                                Add Acc.
+                              </button>
+                              <button
+                                className="btn btn-ghost"
+                                type="button"
+                                onClick={() => removeGuestFromPool(guest.id)}
+                                disabled={step2Busy}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1996,6 +2221,23 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                                 </div>
                               </div>
                             )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs"
+                                onClick={() => setTargetReservationId(row.id)}
+                              >
+                                Reassign
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs text-amber-700"
+                                onClick={() => row.party.primary && void returnPrimaryToPool(row.id, row.party.primary.guest_profile_id)}
+                                disabled={step2Busy}
+                              >
+                                Return to Pool
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="mt-1 text-sm text-amber-700">No primary guest profile</div>
@@ -2017,6 +2259,14 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                                     {guest.nationality_code ? ` · ${guest.nationality_code}` : ""}
                                   </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost text-amber-700"
+                                  onClick={() => void returnAccompanyingToPool(row.id, guest.guest_profile_id)}
+                                  disabled={step2Busy}
+                                >
+                                  Return to Pool
+                                </button>
                                 <button
                                   type="button"
                                   className="btn btn-ghost text-rose-600"
@@ -2064,17 +2314,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="rounded-xl border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-body)] dark:bg-[#0B0E14] p-4 text-sm text-[var(--text-table-cell)]">
+                <div className="rounded-xl border border-[var(--border-default)] dark:border-[#1E2530] bg-[var(--bg-body)] dark:bg-[#0B0E14] px-4 py-3 text-sm text-[var(--text-table-cell)]">
                   <div className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Current Remaining</div>
                   <div className="font-bold text-lg mt-1 text-[var(--text-primary)]">
                     ฿ {selectedRemainingTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 p-4 text-sm text-indigo-800 dark:text-indigo-300">
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-300">
                   <div className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Planned Payment</div>
                   <div className="font-bold text-lg mt-1">฿ {plannedPaymentTotal.toFixed(2)}</div>
                 </div>
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-300">
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
                   <div className="text-xs uppercase tracking-wide text-emerald-600">Projected Remaining</div>
                   <div className="font-bold text-lg mt-1">฿ {projectedRemainingTotal.toFixed(2)}</div>
                 </div>
@@ -2095,142 +2345,215 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
                 <div className="space-y-4">
                   {selectedReservations.map((row) => {
                     const plan = splitPlans[row.id] ?? {
-                      ...defaultSplitPlanByDeposit(row.id, row.deposit_amount),
+                      ...defaultSplitPlanByDeposit(row),
                     };
+                    const cardTotals = computeSplitCardTotals(row, plan);
                     return (
-                      <div key={row.id} className="border border-[var(--border-default)] rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-3">
+                      <div key={row.id} className="border border-[var(--border-default)] rounded-xl px-4 py-3 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="font-semibold text-[var(--text-primary)]">{row.booking_code} · Room {row.room_number}</div>
-                          <div className="text-sm text-[var(--text-secondary)]">Remain: ฿ {row.remaining_balance.toFixed(2)}</div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                          <div>
-                            <label className="form-label text-xs">Deposit Policy</label>
-                            <select
-                              className="form-select"
-                              value={plan.deposit_policy}
-                              onChange={(e) => updateSplitPlan(row.id, { deposit_policy: e.target.value as DepositPolicy })}
-                            >
-                              <option value="keep">keep</option>
-                              <option value="set">set</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="form-label text-xs">Deposit Amount</label>
-                            <input
-                              className="form-input"
-                              type="number"
-                              value={plan.deposit_amount}
-                              onChange={(e) => updateSplitPlan(row.id, { deposit_amount: e.target.value })}
-                              disabled={plan.deposit_policy !== "set"}
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="form-label text-xs">Deposit Note</label>
-                            <input
-                              className="form-input"
-                              value={plan.deposit_note}
-                              onChange={(e) => updateSplitPlan(row.id, { deposit_note: e.target.value })}
-                            />
+                          <div className="text-right">
+                            <div className="text-xs text-[var(--text-secondary)]">Current Due: ฿ {cardTotals.currentDue.toFixed(2)}</div>
+                            <div className="text-sm font-semibold text-indigo-700">Remain: ฿ {cardTotals.projectedRemaining.toFixed(2)}</div>
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          {plan.payments.map((payment) => (
-                            <div key={payment.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                              <div className="md:col-span-3">
-                                <label className="form-label text-xs">Amount</label>
-                                <input
-                                  type="number"
-                                  className="form-input"
-                                  value={payment.amount}
-                                  onChange={(e) => updateSplitPayment(row.id, payment.id, { amount: e.target.value })}
-                                />
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                          <div>
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Room Payment</div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                {plan.payments.map((payment) => (
+                                  <div key={payment.id} className="contents">
+                                    <div>
+                                      <label className="form-label text-xs">Amount</label>
+                                      <input
+                                        type="number"
+                                        className="form-input"
+                                        value={payment.amount}
+                                        onChange={(e) => updateSplitPayment(row.id, payment.id, { amount: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label text-xs">Method</label>
+                                      <select
+                                        className="form-select"
+                                        value={payment.method}
+                                        onChange={(e) => updateSplitPayment(row.id, payment.id, { method: e.target.value as PaymentMethod })}
+                                      >
+                                        <option value="cash">Cash</option>
+                                        <option value="transfer">Transfer</option>
+                                        <option value="credit_card">Card</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="form-label text-xs">Note</label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          className="form-input"
+                                          value={payment.note}
+                                          onChange={(e) => updateSplitPayment(row.id, payment.id, { note: e.target.value })}
+                                        />
+                                        {plan.payments.length > 1 ? (
+                                          <button
+                                            type="button"
+                                            className="btn btn-ghost min-w-[42px]"
+                                            onClick={() => removeSplitPayment(row.id, payment.id)}
+                                          >
+                                            ×
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                              <div className="md:col-span-3">
-                                <label className="form-label text-xs">Method</label>
-                                <select
-                                  className="form-select"
-                                  value={payment.method}
-                                  onChange={(e) => updateSplitPayment(row.id, payment.id, { method: e.target.value as PaymentMethod })}
-                                >
-                                  <option value="cash">Cash</option>
-                                  <option value="transfer">Transfer</option>
-                                  <option value="credit_card">Card</option>
-                                </select>
+                              <div className="text-[11px] text-[var(--text-secondary)]">
+                                Room Due: ฿ {cardTotals.roomRemaining.toFixed(2)} · Planned: ฿ {cardTotals.roomPlanned.toFixed(2)} · Remaining Room: ฿ {cardTotals.projectedRoomRemaining.toFixed(2)}
                               </div>
-                              <div className="md:col-span-5">
-                                <label className="form-label text-xs">Note</label>
-                                <input
-                                  className="form-input"
-                                  value={payment.note}
-                                  onChange={(e) => updateSplitPayment(row.id, payment.id, { note: e.target.value })}
-                                />
+                              <button type="button" className="btn btn-secondary text-xs" onClick={() => addSplitPayment(row.id)}>
+                                Add Room Payment
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Deposit</div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div>
+                                  <label className="form-label text-xs">Amount</label>
+                                  <input
+                                    className="form-input"
+                                    type="number"
+                                    value={plan.deposit_amount}
+                                    onChange={(e) => updateSplitPlan(row.id, { deposit_amount: e.target.value })}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label text-xs">Method</label>
+                                  <select
+                                    className="form-select"
+                                    value={plan.deposit_method}
+                                    onChange={(e) => updateSplitPlan(row.id, { deposit_method: e.target.value as PaymentMethod })}
+                                  >
+                                    <option value="cash">Cash</option>
+                                    <option value="transfer">Transfer</option>
+                                    <option value="credit_card">Card</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="form-label text-xs">Note</label>
+                                  <input
+                                    className="form-input"
+                                    value={plan.deposit_note}
+                                    onChange={(e) => updateSplitPlan(row.id, { deposit_note: e.target.value })}
+                                  />
+                                </div>
                               </div>
-                              <div className="md:col-span-1">
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost w-full"
-                                  onClick={() => removeSplitPayment(row.id, payment.id)}
-                                >
-                                  x
-                                </button>
+                              <div className="text-[11px] text-[var(--text-secondary)]">
+                                Default deposit posts separately and will not reduce room outstanding.
                               </div>
                             </div>
-                          ))}
-                          <button type="button" className="btn btn-secondary" onClick={() => addSplitPayment(row.id)}>
-                            Add Payment
-                          </button>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-3 border border-[var(--border-default)] rounded-xl p-4">
-                  <p className="text-sm text-[var(--text-secondary)]">Master payment will be allocated by remaining balance on server.</p>
-                  {masterPayments.map((line) => (
-                    <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                <div className="space-y-3 border border-[var(--border-default)] rounded-xl px-4 py-3">
+                  <p className="text-sm text-[var(--text-secondary)]">Master room payment is allocated by outstanding balance. Deposit is split evenly across all selected rooms.</p>
+                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Master Room Payment</div>
+                    {masterPayments.map((line) => (
+                      <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                        <div className="md:col-span-3">
+                          <label className="form-label text-xs">Amount</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            value={line.amount}
+                            onChange={(e) => updateMasterLine(line.id, { amount: e.target.value })}
+                          />
+                        </div>
+                        <div className="md:col-span-3">
+                          <label className="form-label text-xs">Method</label>
+                          <select
+                            className="form-select"
+                            value={line.method}
+                            onChange={(e) => updateMasterLine(line.id, { method: e.target.value as PaymentMethod })}
+                          >
+                            <option value="cash">Cash</option>
+                            <option value="transfer">Transfer</option>
+                            <option value="credit_card">Card</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-5">
+                          <label className="form-label text-xs">Note</label>
+                          <input
+                            className="form-input"
+                            value={line.note}
+                            onChange={(e) => updateMasterLine(line.id, { note: e.target.value })}
+                          />
+                        </div>
+                        <div className="md:col-span-1">
+                          <button type="button" className="btn btn-ghost w-full" onClick={() => removeMasterLine(line.id)}>
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-secondary text-xs" onClick={addMasterLine}>
+                      Add Room Payment Line
+                    </button>
+                  </div>
+
+                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Master Deposit</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div className="md:col-span-3">
                         <label className="form-label text-xs">Amount</label>
                         <input
                           type="number"
                           className="form-input"
-                          value={line.amount}
-                          onChange={(e) => updateMasterLine(line.id, { amount: e.target.value })}
+                          value={masterDeposit.amount}
+                          onChange={(e) => {
+                            setMasterDepositEdited(true);
+                            setMasterDeposit((prev) => ({ ...prev, amount: e.target.value }));
+                          }}
                         />
                       </div>
-                      <div className="md:col-span-3">
+                      <div>
                         <label className="form-label text-xs">Method</label>
                         <select
                           className="form-select"
-                          value={line.method}
-                          onChange={(e) => updateMasterLine(line.id, { method: e.target.value as PaymentMethod })}
+                          value={masterDeposit.method}
+                          onChange={(e) => {
+                            setMasterDepositEdited(true);
+                            setMasterDeposit((prev) => ({ ...prev, method: e.target.value as PaymentMethod }));
+                          }}
                         >
                           <option value="cash">Cash</option>
                           <option value="transfer">Transfer</option>
                           <option value="credit_card">Card</option>
                         </select>
                       </div>
-                      <div className="md:col-span-5">
+                      <div>
                         <label className="form-label text-xs">Note</label>
                         <input
                           className="form-input"
-                          value={line.note}
-                          onChange={(e) => updateMasterLine(line.id, { note: e.target.value })}
+                          value={masterDeposit.note}
+                          onChange={(e) => {
+                            setMasterDepositEdited(true);
+                            setMasterDeposit((prev) => ({ ...prev, note: e.target.value }));
+                          }}
                         />
                       </div>
-                      <div className="md:col-span-1">
-                        <button type="button" className="btn btn-ghost w-full" onClick={() => removeMasterLine(line.id)}>
-                          x
-                        </button>
-                      </div>
                     </div>
-                  ))}
-                  <button type="button" className="btn btn-secondary" onClick={addMasterLine}>
-                    Add Payment Line
-                  </button>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      Default deposit is split evenly across {selectedReservations.length || 0} room(s). If deposit collected is below default, please add a note.
+                    </div>
+                  </div>
                 </div>
               )}
 

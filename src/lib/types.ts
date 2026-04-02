@@ -750,6 +750,12 @@ export interface GuestProfile {
   merged_into: string | null;
   do_not_merge: boolean;
   stay_count: number;
+  night_count?: number | null;
+  main_stay_count?: number | null;
+  main_night_count?: number | null;
+  accompanying_stay_count?: number | null;
+  accompanying_night_count?: number | null;
+  legacy_night_count?: number | null;
   last_stay_date: string | null;
   _masked?: boolean;
   _masked_fields?: string[];
@@ -788,7 +794,9 @@ export interface ReservationGuestWithProfile extends ReservationGuest {
 export interface GuestHistorySummary {
   total_stays: number;
   primary_stay_count: number;
+  primary_night_count?: number;
   accompanying_stay_count: number;
+  accompanying_night_count?: number;
   legacy_stay_count?: number;
   legacy_night_count?: number;
   total_transfer_spend: number;

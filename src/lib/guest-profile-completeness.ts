@@ -1,3 +1,4 @@
+import { containsMaskedPlaceholder } from "@/lib/data-masking";
 import { normalizeNationalityCode } from "@/lib/nationality-map";
 
 function isBlank(value: unknown): boolean {
@@ -13,6 +14,7 @@ export type GuestProfileLike = {
   nationality_code?: unknown;
   id_type?: unknown;
   id_number?: unknown;
+  _masked?: unknown;
   country?: unknown;
   province?: unknown;
   phone?: unknown;
@@ -31,7 +33,8 @@ export function checkProfileCompleteness(profile: GuestProfileLike | null | unde
   const isThai = nationalityCode === "THA";
   const idType = String(safeProfile.id_type ?? "").trim().toLowerCase();
   const idNumber = String(safeProfile.id_number ?? "").trim();
-  const requireIdNumber = idType !== "passport";
+  const isMaskedIdentity = Boolean(safeProfile._masked) || containsMaskedPlaceholder(idNumber);
+  const requireIdNumber = idType !== "passport" && !isMaskedIdentity;
 
   const required: Record<string, boolean> = {
     first_name: true,
@@ -53,7 +56,7 @@ export function checkProfileCompleteness(profile: GuestProfileLike | null | unde
     })
     .map(([key]) => key);
 
-  if (idType === "thai_id" && idNumber && !/^\d{13}$/.test(idNumber)) {
+  if (!isMaskedIdentity && idType === "thai_id" && idNumber && !/^\d{13}$/.test(idNumber)) {
     if (!missingFields.includes("id_number")) {
       missingFields.push("id_number");
     }

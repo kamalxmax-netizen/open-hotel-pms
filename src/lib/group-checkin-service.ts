@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card";
 export type DepositPolicy = "keep" | "set";
+export type DepositCollectionMode = "separate" | "combined";
 
 const HK_BLOCKED_CHECKIN_STATUSES = new Set(["dirty", "in_progress", "paused"]);
 const ROOM_OCCUPIED_BACK_TO_BACK_CODE = "BACK_TO_BACK_DUE_OUT_PENDING_CHECKOUT";
@@ -23,6 +24,8 @@ export type MassItemInput = {
   checked_in_at?: string | null;
   checkin_time?: string | null;
   deposit_policy?: DepositPolicy;
+  deposit_collection_mode?: DepositCollectionMode;
+  deposit_method?: PaymentMethod;
   deposit_amount?: number;
   deposit_note?: string | null;
   payments?: MassPaymentInput[];
@@ -39,6 +42,8 @@ type MassItem = {
   checkedInAtDate: Date | null;
   checkinTime: string | null;
   depositPolicy: DepositPolicy;
+  depositCollectionMode: DepositCollectionMode;
+  depositMethod: PaymentMethod | null;
   depositAmount: number;
   depositNote: string | null;
   payments: MassPayment[];
@@ -294,6 +299,8 @@ function normalizeMassItems(rawItems: unknown[]): { items: MassItem[]; error?: s
     }
 
     const depositPolicy: DepositPolicy = raw.deposit_policy === "set" ? "set" : "keep";
+    const depositCollectionMode: DepositCollectionMode = raw.deposit_collection_mode === "combined" ? "combined" : "separate";
+    const depositMethod = normalizePaymentMethod(raw.deposit_method);
     const depositMoney = toNonNegativeMoney(raw.deposit_amount ?? 0);
     const depositNote =
       typeof raw.deposit_note === "string" && raw.deposit_note.trim() ? raw.deposit_note.trim() : null;
@@ -320,6 +327,8 @@ function normalizeMassItems(rawItems: unknown[]): { items: MassItem[]; error?: s
       checkedInAtDate,
       checkinTime: checkinTimeRaw || null,
       depositPolicy,
+      depositCollectionMode,
+      depositMethod,
       depositAmount: depositMoney.amount,
       depositNote,
       payments,
@@ -464,10 +473,14 @@ export async function runGroupMassCheckin(params: {
 
     const folioRows: Array<Record<string, unknown>> = [];
     if (item.depositPolicy === "set" && item.depositAmount > 0) {
+      const depositMethod =
+        item.depositCollectionMode === "combined"
+          ? item.payments[0]?.method ?? item.depositMethod ?? "cash"
+          : item.depositMethod ?? "cash";
       folioRows.push({
         reservation_id: item.reservationId,
         tx_type: "deposit",
-        method: "cash",
+        method: depositMethod,
         amount: item.depositAmount,
         note: item.depositNote || "Deposit collected at group check-in",
         revenue_category: "deposit",
