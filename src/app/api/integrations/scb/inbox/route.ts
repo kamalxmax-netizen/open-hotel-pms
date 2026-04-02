@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
+import { reconcileScbRequestStatuses } from "@/lib/scb/inquiry-runner";
 import { loadPosMetaMap, loadReservationMetaMap } from "@/lib/scb/targets";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +119,80 @@ function resolveTargetLabel(
   };
 }
 
+async function loadVisiblePendingRequestIds(
+  supabase: ReturnType<typeof createServerSupabaseClient>
+): Promise<Set<string>> {
+  const { data: pendingRequests, error: pendingError } = await supabase
+    .from("scb_payment_requests")
+    .select("id")
+    .eq("status", "pending");
+  if (pendingError) throw new Error(pendingError.message);
+
+  const requestIds = (pendingRequests ?? []).map((row: any) => String(row.id)).filter(Boolean);
+  if (requestIds.length === 0) return new Set<string>();
+
+  const { data: linkedTransactions, error: linkedTransactionsError } = await supabase
+    .from("scb_payment_transactions")
+    .select("request_id, status, match_status, created_at")
+    .in("request_id", requestIds)
+    .order("created_at", { ascending: false });
+  if (linkedTransactionsError) throw new Error(linkedTransactionsError.message);
+
+  const latestTxByRequest = new Map<string, PendingLinkedTransaction>();
+  for (const transaction of (linkedTransactions ?? []) as PendingLinkedTransaction[]) {
+    const requestId = String(transaction.request_id ?? "");
+    if (!requestId || latestTxByRequest.has(requestId)) continue;
+    latestTxByRequest.set(requestId, transaction);
+  }
+
+  const visibleIds = requestIds.filter((requestId) => {
+    const linked = latestTxByRequest.get(requestId);
+    if (!linked) return true;
+    if (linked.match_status === "matched") return false;
+    if (linked.match_status === "unmatched") return false;
+    if (linked.match_status === "ignored") return false;
+    if (linked.status === "success") return false;
+    return true;
+  });
+
+  return new Set(visibleIds);
+}
+
+function applyRequestFilters<T extends { eq: Function; gte: Function; lte: Function }>(
+  query: T,
+  params: {
+    from?: string;
+    to?: string;
+    channel: "all" | "booking_folio" | "mobile_checkin" | "pos";
+    amount_min?: number;
+    amount_max?: number;
+  }
+): T {
+  let next = applyDateFilter(query, "created_at", params.from, params.to);
+  if (params.channel !== "all") next = next.eq("channel", params.channel);
+  if (typeof params.amount_min === "number") next = next.gte("request_amount_total", params.amount_min);
+  if (typeof params.amount_max === "number") next = next.lte("request_amount_total", params.amount_max);
+  return next;
+}
+
+function applyTransactionFilters<T extends { gte: Function; lte: Function; in: Function }>(
+  query: T,
+  params: {
+    dateColumn: "created_at" | "paid_at";
+    from?: string;
+    to?: string;
+    amount_min?: number;
+    amount_max?: number;
+    requestIdFilter: string[] | null;
+  }
+): T {
+  let next = applyDateFilter(query, params.dateColumn, params.from, params.to);
+  if (typeof params.amount_min === "number") next = next.gte("amount", params.amount_min);
+  if (typeof params.amount_max === "number") next = next.lte("amount", params.amount_max);
+  if (params.requestIdFilter) next = next.in("request_id", params.requestIdFilter);
+  return next;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -148,28 +223,89 @@ export async function GET(request: NextRequest) {
     const { tab, page, page_size, from, to, amount_min, amount_max, channel } = parsed.data;
     const offset = (page - 1) * page_size;
 
+    const visiblePendingIds = await loadVisiblePendingRequestIds(supabase);
+    await reconcileScbRequestStatuses(supabase as any, Array.from(visiblePendingIds));
+
+    let requestIdFilter: string[] | null = null;
+    if (channel !== "all") {
+      const { data: requestIdsByChannel, error: requestIdsError } = await supabase
+        .from("scb_payment_requests")
+        .select("id")
+        .eq("channel", channel);
+      if (requestIdsError) {
+        return NextResponse.json({ success: false, error: requestIdsError.message }, { status: 500 });
+      }
+      requestIdFilter = (requestIdsByChannel ?? []).map((row: any) => String(row.id));
+      if (requestIdFilter.length === 0) {
+        return NextResponse.json({
+          success: true,
+          tab,
+          role,
+          counts: { pending: 0, matched: 0, unmatched: 0, expired_failed: 0 },
+          summary: { matched_today_count: 0, unmatched_count: 0, matched_today_amount: 0 },
+          rows: [],
+          pagination: { page, page_size, total: 0 },
+        });
+      }
+    }
+
     const todayRange = getBangkokDayRange();
     const [
-      pendingCountResult,
+      filteredPendingRowsResult,
       matchedCountResult,
       unmatchedCountResult,
       expiredFailedCountResult,
       matchedTodayRowsResult,
     ] = await Promise.all([
-      supabase.from("scb_payment_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("scb_payment_transactions").select("id", { count: "exact", head: true }).eq("match_status", "matched"),
-      supabase.from("scb_payment_transactions").select("id", { count: "exact", head: true }).eq("match_status", "unmatched"),
-      supabase.from("scb_payment_requests").select("id", { count: "exact", head: true }).in("status", ["expired", "failed", "cancelled"]),
-      supabase
-        .from("scb_payment_transactions")
-        .select("id, amount, created_at")
-        .eq("match_status", "matched")
-        .gte("created_at", todayRange.start)
-        .lte("created_at", todayRange.end),
+      applyRequestFilters(
+        supabase
+          .from("scb_payment_requests")
+          .select("id, created_at")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false }),
+        { from, to, channel, amount_min, amount_max }
+      ),
+      applyTransactionFilters(
+        supabase
+          .from("scb_payment_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("match_status", "matched"),
+        { dateColumn: "paid_at", from, to, amount_min, amount_max, requestIdFilter }
+      ),
+      applyTransactionFilters(
+        supabase
+          .from("scb_payment_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("match_status", "unmatched"),
+        { dateColumn: "created_at", from, to, amount_min, amount_max, requestIdFilter }
+      ),
+      applyRequestFilters(
+        supabase
+          .from("scb_payment_requests")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["expired", "failed", "cancelled"]),
+        { from, to, channel, amount_min, amount_max }
+      ),
+      applyTransactionFilters(
+        supabase
+          .from("scb_payment_transactions")
+          .select("id, amount, paid_at")
+          .eq("match_status", "matched")
+          .gte("paid_at", todayRange.start)
+          .lte("paid_at", todayRange.end),
+        { dateColumn: "paid_at", from, to, amount_min, amount_max, requestIdFilter }
+      ),
     ]);
 
+    if (filteredPendingRowsResult.error) {
+      return NextResponse.json({ success: false, error: filteredPendingRowsResult.error.message }, { status: 500 });
+    }
+
+    const filteredPendingRows = (filteredPendingRowsResult.data ?? []) as Array<{ id: string; created_at: string }>;
+    const visibleFilteredPendingRows = filteredPendingRows.filter((row) => visiblePendingIds.has(String(row.id)));
+
     const counts = {
-      pending: pendingCountResult.count ?? 0,
+      pending: visibleFilteredPendingRows.length,
       matched: matchedCountResult.count ?? 0,
       unmatched: unmatchedCountResult.count ?? 0,
       expired_failed: expiredFailedCountResult.count ?? 0,
@@ -183,19 +319,23 @@ export async function GET(request: NextRequest) {
     };
 
     if (tab === "pending") {
-      let requestQuery = supabase
-        .from("scb_payment_requests")
-        .select("*", { count: "exact" })
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      requestQuery = applyDateFilter(requestQuery, "created_at", from, to);
-      if (channel !== "all") requestQuery = requestQuery.eq("channel", channel);
-      if (typeof amount_min === "number") requestQuery = requestQuery.gte("request_amount_total", amount_min);
-      if (typeof amount_max === "number") requestQuery = requestQuery.lte("request_amount_total", amount_max);
+      const pagedPendingIds = visibleFilteredPendingRows
+        .slice(offset, offset + page_size)
+        .map((row) => String(row.id));
 
-      const { data, error, count } = await requestQuery.range(offset, offset + page_size - 1);
+      const { data, error } = pagedPendingIds.length
+        ? await supabase
+            .from("scb_payment_requests")
+            .select("*")
+            .in("id", pagedPendingIds)
+        : { data: [], error: null as any };
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-      const requests = (data ?? []) as RequestRow[];
+      const pageOrder = new Map(pagedPendingIds.map((id, index) => [id, index]));
+      const requests = ((data ?? []) as RequestRow[]).sort((a, b) => {
+        const aIndex = pageOrder.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = pageOrder.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      });
       const requestIds = requests.map((row) => String(row.id));
       const { data: linkedTransactions, error: linkedTransactionsError } = requestIds.length
         ? await supabase
@@ -280,8 +420,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      const hiddenByLinkedTransaction = requests.length - pendingRequests.length;
-      const effectiveTotal = Math.max(Number(count ?? pendingRequests.length) - hiddenByLinkedTransaction, pendingRequests.length);
+      const effectiveTotal = visibleFilteredPendingRows.length;
 
       return NextResponse.json({
         success: true,
@@ -382,38 +521,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let requestIdFilter: string[] | null = null;
-    if (channel !== "all") {
-      const { data: requestIdsByChannel, error: requestIdsError } = await supabase
-        .from("scb_payment_requests")
-        .select("id")
-        .eq("channel", channel);
-      if (requestIdsError) {
-        return NextResponse.json({ success: false, error: requestIdsError.message }, { status: 500 });
-      }
-      requestIdFilter = (requestIdsByChannel ?? []).map((row: any) => String(row.id));
-      if (requestIdFilter.length === 0) {
-        return NextResponse.json({
-          success: true,
-          tab,
-          role,
-          counts,
-          summary,
-          rows: [],
-          pagination: { page, page_size, total: 0 },
-        });
-      }
-    }
-
     let txQuery = supabase
       .from("scb_payment_transactions")
       .select("*", { count: "exact" })
       .eq("match_status", tab)
-      .order("created_at", { ascending: false });
-    txQuery = applyDateFilter(txQuery, "created_at", from, to);
-    if (typeof amount_min === "number") txQuery = txQuery.gte("amount", amount_min);
-    if (typeof amount_max === "number") txQuery = txQuery.lte("amount", amount_max);
-    if (requestIdFilter) txQuery = txQuery.in("request_id", requestIdFilter);
+      .order(tab === "matched" ? "paid_at" : "created_at", { ascending: false });
+    txQuery = applyTransactionFilters(txQuery, {
+      dateColumn: tab === "matched" ? "paid_at" : "created_at",
+      from,
+      to,
+      amount_min,
+      amount_max,
+      requestIdFilter,
+    });
 
     const { data, error, count } = await txQuery.range(offset, offset + page_size - 1);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -19,6 +19,7 @@ export default function TransferQRPage() {
   const [status, setStatus] = useState<string>("pending"); // pending, paid, expired, cancelled, failed
   
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastInquiryAtRef = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const qrRenderRef = useRef<HTMLDivElement | null>(null);
   const qrValue = String(request?.qr_payload || request?.partner_reference_no || "").trim();
@@ -106,18 +107,42 @@ export default function TransferQRPage() {
 
     const pollStatus = async () => {
       try {
-        const res = await fetch(`/api/integrations/scb/requests/${request.id}/status`);
+        const res = await fetch(`/api/integrations/scb/requests/${request.id}/status`, {
+          cache: "no-store",
+        });
         const json = await res.json().catch(() => null);
-        
-        if (res.ok && json?.success && json.data.status !== "pending") {
-          setStatus(json.data.status);
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+        if (res.ok && json?.success) {
+          const nextStatus = String(json.data?.status ?? "pending");
+          if (nextStatus !== "pending") {
+            setStatus(nextStatus);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            return;
+          }
+
+          const createdAtMs = request?.created_at ? new Date(request.created_at).getTime() : Number.NaN;
+          const inquiryDue = !Number.isNaN(createdAtMs) && Date.now() - createdAtMs >= 2 * 60_000;
+          const canRequery = Date.now() - lastInquiryAtRef.current >= 60_000;
+
+          if (inquiryDue && canRequery) {
+            lastInquiryAtRef.current = Date.now();
+            await fetch("/api/integrations/scb/inquiry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                request_id: request.id,
+                source: "manual",
+              }),
+            }).catch(() => null);
+          }
         }
       } catch (err) {
         console.error("Polling error:", err);
       }
     };
 
+    void pollStatus();
     pollIntervalRef.current = setInterval(pollStatus, 5000);
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);

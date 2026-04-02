@@ -42,6 +42,10 @@ function readHeaderSignature(request: NextRequest, headerNames: string[]): strin
 
 export function assertScbCallbackSecurity(request: NextRequest, rawBody: string): void {
   const config = getScbConfig();
+  if (config.callbackAllowInsecureSandbox) {
+    console.warn("[SCB callback security] insecure sandbox bypass enabled");
+    return;
+  }
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     ?? request.headers.get("x-real-ip")
     ?? null;
@@ -53,7 +57,6 @@ export function assertScbCallbackSecurity(request: NextRequest, rawBody: string)
   assertRateLimit(`${ip ?? "unknown"}:${new Date().toISOString().slice(0, 16)}`);
 
   if (!config.callbackHmacSecret) {
-    if (config.callbackAllowInsecureSandbox) return;
     throw new Error("SCB callback signature secret is not configured.");
   }
 

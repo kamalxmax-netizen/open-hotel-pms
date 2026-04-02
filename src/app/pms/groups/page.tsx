@@ -189,14 +189,11 @@ export default function GroupsPage() {
                     <div className="grid gap-3 lg:grid-cols-[minmax(280px,1.4fr)_auto_auto_auto_auto] items-center">
                         <div className="relative min-w-0">
                             <input
-                                className="form-input pl-8 h-[42px]"
+                                className="form-input h-[42px]"
                                 placeholder="Search group name / code / contact"
                                 value={searchQ}
                                 onChange={(e) => setSearchQ(e.target.value)}
                             />
-                            <svg className="absolute left-2.5 top-3.5 h-3.5 w-3.5 text-[var(--text-muted)]" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                            </svg>
                         </div>
                         <select
                             className="form-select w-full lg:w-auto h-[42px]"

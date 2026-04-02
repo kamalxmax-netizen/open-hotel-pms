@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import NationalityFlag from "@/components/nationality-flag";
 import PmsModal from "@/components/pms-modal";
 import {
   formatGuestDisplayName,
@@ -11,7 +12,7 @@ import {
   getVipTierMeta,
   isVipBucket,
 } from "@/lib/guest-profile-display";
-import { formatNationalityCode, getNationalityFlag } from "@/lib/nationality";
+import { formatNationalityCode } from "@/lib/nationality";
 import type {
   GuestHistoryResponse,
   GuestHistoryStay,
@@ -830,7 +831,7 @@ export default function GuestProfileDetailPage() {
               </div>
               <div>
                 <div>
-                  Nationality: {getNationalityFlag(profile.nationality_code || profile.country || "")}{" "}
+                  Nationality: <NationalityFlag input={profile.nationality_code || profile.country || ""} className="inline-block align-[-2px]" />{" "}
                   {formatNationalityCode(profile.nationality_code || profile.nationality || "—")}
                 </div>
                 <div>Country: {valueOrDash(profile.country)}</div>

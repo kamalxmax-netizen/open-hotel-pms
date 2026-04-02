@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { formatNationalityCode, getNationalityFlag } from "@/lib/nationality";
+import NationalityFlag from "@/components/nationality-flag";
+import { formatNationalityCode } from "@/lib/nationality";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 type TraceStatus = "open" | "done" | "cancelled";
@@ -685,7 +686,10 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                             </p>
                             {linked.nationality && (
                                 <p className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                                    <span className="text-sm leading-none">{getNationalityFlag(linked.nationality)}</span>
+                                    <NationalityFlag
+                                        input={linked.nationality}
+                                        className="h-[14px] w-[18px] shrink-0 rounded-[2px] object-cover"
+                                    />
                                     {linked.nationality}
                                 </p>
                             )}
@@ -758,7 +762,10 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                                             <span className={`badge text-[10px] ${t.color}`}>{t.label}</span>
                                         </div>
                                         <div className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
-                                            {getNationalityFlag(p.nationality || "")} {p.nationality} · {p.phone} · {p.stay_count} stays
+                                            <NationalityFlag
+                                                input={p.nationality || ""}
+                                                className="mr-1 inline-block h-[14px] w-[18px] rounded-[2px] align-[-2px] object-cover"
+                                            /> {p.nationality} · {p.phone} · {p.stay_count} stays
                                         </div>
                                     </button>
                                 );

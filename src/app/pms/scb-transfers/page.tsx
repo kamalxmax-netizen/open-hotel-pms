@@ -10,9 +10,17 @@ import { ScbUnmatchedResolveModal } from "@/components/scb/scb-unmatched-resolve
 
 type TabKey = "pending" | "matched" | "unmatched" | "expired_failed" | "recheck_history";
 
+function todayInBangkok(): string {
+  const base = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const DEFAULT_FILTERS: ScbTransferFiltersValue = {
-  from: "",
-  to: "",
+  from: todayInBangkok(),
+  to: todayInBangkok(),
   amountMin: "",
   amountMax: "",
   channel: "all",

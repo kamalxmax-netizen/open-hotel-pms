@@ -287,3 +287,25 @@ export function getNationalityFlag(input: string): string {
     
     return match ? match.flag : "";
 }
+
+function decodeFlagEmojiToCode(flag: string): string | null {
+    const chars = Array.from(flag);
+    if (chars.length !== 2) return null;
+    const A = 0x1f1e6;
+    const code = chars
+        .map((char) => char.codePointAt(0))
+        .filter((point): point is number => typeof point === "number")
+        .map((point) => {
+            const offset = point - A;
+            if (offset < 0 || offset > 25) return null;
+            return String.fromCharCode(65 + offset);
+        });
+    if (code.length !== 2 || code.includes(null as never)) return null;
+    return code.join("").toLowerCase();
+}
+
+export function getNationalityFlagCode(input: string): string | null {
+    const emoji = getNationalityFlag(input);
+    if (!emoji) return null;
+    return decodeFlagEmojiToCode(emoji);
+}

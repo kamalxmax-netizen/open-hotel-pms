@@ -49,7 +49,8 @@ const NAV_ITEMS = [
             { href: "/pms/payments", label: "Payment Report", icon: PaymentIcon },
             { href: "/pms/payment-daily", label: "Payment Daily", icon: PaymentIcon },
             { href: "/pms/accounting", label: "Com and Tips", icon: PaymentIcon },
-            { href: "/pms/tax-invoice", label: "Tax Invoice", icon: FileTextIcon }
+            { href: "/pms/tax-invoice", label: "Tax Invoice", icon: FileTextIcon },
+            { href: "/pms/scb-transfers", label: "SCB Transfers", icon: ScbTransferIcon }
         ]
     },
     {
@@ -389,6 +390,13 @@ function PaymentIcon() {
         <svg viewBox="0 0 20 20" fill="currentColor">
             <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
             <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+        </svg>
+    );
+}
+function ScbTransferIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 01.707 1.707L13.414 9l3.293 3.293A1 1 0 0116 14H4a1 1 0 01-.707-1.707L6.586 9 3.293 5.707A1 1 0 013 5zm3.414 4L4.414 7h11.172l-2 2H6.414zM4.414 13h11.172l-2-2H6.414l-2 2z" clipRule="evenodd" />
         </svg>
     );
 }

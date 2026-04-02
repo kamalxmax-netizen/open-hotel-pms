@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { inquireMaeManeeTransaction } from "@/lib/scb/client";
 import { extractScbCallbackIdentifiers, loadScbRequestByReference, mapScbPaymentStatus } from "@/lib/scb/matching";
+import { reconcileScbRequestStatuses } from "@/lib/scb/inquiry-runner";
 import { processMatchedScbTransaction } from "@/lib/scb/posting";
 import { assertScbCallbackSecurity } from "@/lib/scb/security";
 import type { ScbNormalizedTransaction } from "@/lib/scb/types";
@@ -46,7 +47,7 @@ function normalizeFromCallbackPayload(payload: unknown, fallbackRef: string | nu
     ?? transaction.clearingSystemReference
     ?? fallbackOrderId
     ?? fallbackRef
-    ?? `SCB-${Date.now()}`
+    ?? ""
   ).trim();
   const statusObject = toObject(root.status);
   const statusValue =
@@ -115,12 +116,20 @@ function normalizeFromCallbackPayload(payload: unknown, fallbackRef: string | nu
 }
 
 export async function POST(request: NextRequest) {
+  let identifiers = {
+    transactionId: null,
+    orderId: null,
+    partnerReferenceNo: null,
+    ref1: null,
+    ref2: null,
+    ref3: null,
+  } as ReturnType<typeof extractScbCallbackIdentifiers>;
   try {
     const rawBody = await request.text();
-    assertScbCallbackSecurity(request, rawBody);
-
     const payload = JSON.parse(rawBody);
-    const identifiers = extractScbCallbackIdentifiers(payload);
+    identifiers = extractScbCallbackIdentifiers(payload);
+    console.log("[SCB callback route:start]", { identifiers });
+    assertScbCallbackSecurity(request, rawBody);
     const supabase = createServerSupabaseClient();
 
     let normalized = normalizeFromCallbackPayload(
@@ -146,9 +155,21 @@ export async function POST(request: NextRequest) {
           createdAt: matchedRequest.created_at,
           amount: matchedRequest.request_amount_total,
         });
-      } catch {
+      } catch (error) {
+        console.error("[SCB callback inquiry fallback failed]", {
+          message: error instanceof Error ? error.message : String(error),
+          identifiers,
+        });
         // fall back to callback body normalization
       }
+    }
+
+    if (!normalized.transactionId) {
+      console.error("[SCB callback missing transactionId]", {
+        identifiers,
+        rawPayload: normalized.rawPayload,
+      });
+      throw new Error("SCB callback transactionId is missing.");
     }
 
     const { data: existing } = await supabase
@@ -202,6 +223,7 @@ export async function POST(request: NextRequest) {
 
     if (matchedRequest && normalized.status === "success" && matchedRequest.status === "pending") {
       await processMatchedScbTransaction(supabase as any, matchedRequest, normalized, inserted.id);
+      await reconcileScbRequestStatuses(supabase as any, [matchedRequest.id]);
       return NextResponse.json({ success: true, matched: true, request_id: matchedRequest.id });
     }
 
@@ -212,6 +234,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, matched: false, request_id: matchedRequest.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ success: false, error: message }, { status: 401 });
+    console.error("[SCB callback route:error]", {
+      message,
+      identifiers,
+    });
+    const status = /callback .*invalid|callback .*missing|callback .*not allowed|callback signature/i.test(message)
+      ? 401
+      : 500;
+    return NextResponse.json({ success: false, error: message, identifiers }, { status });
   }
 }

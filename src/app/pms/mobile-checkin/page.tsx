@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users } from "lucide-react";
+import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users, MessageSquareText } from "lucide-react";
 
 interface Room {
   reservation_id: string;
@@ -144,6 +144,24 @@ export default function MobileCheckinLanding() {
                 </h2>
                 <p className="mt-1 text-[var(--text-secondary)] font-medium text-sm">
                   Scan passports for group check-in
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        <div>
+          <Link href="/pms/mobile-checkin/text-tools" className="block">
+            <div className="relative overflow-hidden rounded-2xl bg-[var(--bg-surface)] p-6 border border-[var(--border-default)] shadow-sm active:scale-[0.98] transition-all flex items-center gap-5">
+              <div className="w-14 h-14 bg-cyan-100 dark:bg-cyan-900/30 rounded-full flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
+                <MessageSquareText className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-[var(--text-primary)] tracking-widest uppercase">
+                  Guest Text Tools
+                </h2>
+                <p className="mt-1 text-[var(--text-secondary)] font-medium text-sm">
+                  Copy booking summary and room availability text for chat.
                 </p>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type RoomBlock = {
     id: string;
+    room_id: string;
     room_number: string;
     block_type: "OOO" | "OOS";
     start_date: string;
@@ -18,6 +19,7 @@ export default function RoomBlocksPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [isAdding, setIsAdding] = useState(false);
+    const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
 
     // Form states
     const [formRoom, setFormRoom] = useState("");
@@ -34,8 +36,38 @@ export default function RoomBlocksPage() {
         loadData();
     }, []);
 
+    function resetForm() {
+        setFormRoom("");
+        setFormType("OOO");
+        setFormStart("");
+        setFormEnd("");
+        setFormReason("");
+        setEditingBlockId(null);
+    }
+
+    function openAddForm() {
+        resetForm();
+        setIsAdding(true);
+    }
+
+    function openEditForm(block: RoomBlock) {
+        setFormRoom(block.room_id);
+        setFormType(block.block_type);
+        setFormStart(block.start_date);
+        setFormEnd(block.end_date);
+        setFormReason(block.reason);
+        setEditingBlockId(block.id);
+        setIsAdding(true);
+    }
+
+    function closeForm() {
+        resetForm();
+        setIsAdding(false);
+    }
+
     async function loadData() {
         setLoading(true);
+        setError("");
         try {
             const [blocksRes, roomsRes] = await Promise.all([
                 fetch("/api/room-blocks").then(r => r.json()),
@@ -57,10 +89,15 @@ export default function RoomBlocksPage() {
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
+        if (formEnd <= formStart) {
+            alert("End date must be after start date.");
+            return;
+        }
         setFormSaving(true);
         try {
-            const res = await fetch("/api/room-blocks", {
-                method: "POST",
+            const isEditing = Boolean(editingBlockId);
+            const res = await fetch(isEditing ? `/api/room-blocks/${editingBlockId}` : "/api/room-blocks", {
+                method: isEditing ? "PUT" : "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     room_id: formRoom,
@@ -72,11 +109,7 @@ export default function RoomBlocksPage() {
             });
             const data = await res.json();
             if (data.success) {
-                setIsAdding(false);
-                setFormRoom("");
-                setFormStart("");
-                setFormEnd("");
-                setFormReason("");
+                closeForm();
                 loadData();
             } else {
                 alert(data.error);
@@ -112,7 +145,7 @@ export default function RoomBlocksPage() {
                     <p className="text-sm text-[var(--text-secondary)] mt-1">Manage Out of Order (OOO) and Out of Service (OOS) rooms</p>
                 </div>
                 {!isAdding && (
-                    <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+                    <button className="btn btn-primary" onClick={openAddForm}>
                         + Add Block
                     </button>
                 )}
@@ -123,7 +156,9 @@ export default function RoomBlocksPage() {
             {/* Add Form */}
             {isAdding && (
                 <div className="card p-5 border border-brand-200 shadow-sm bg-brand-50/30">
-                    <h3 className="font-bold text-[var(--text-primary)] mb-4">New Room Block</h3>
+                    <h3 className="font-bold text-[var(--text-primary)] mb-4">
+                        {editingBlockId ? "Edit Room Block" : "New Room Block"}
+                    </h3>
                     <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Room Number</label>
@@ -186,11 +221,11 @@ export default function RoomBlocksPage() {
                         </div>
 
                         <div className="md:col-span-2 flex justify-end gap-2 mt-2">
-                            <button type="button" className="btn btn-secondary" onClick={() => setIsAdding(false)}>
+                            <button type="button" className="btn btn-secondary" onClick={closeForm}>
                                 Cancel
                             </button>
                             <button type="submit" className="btn btn-primary" disabled={formSaving}>
-                                {formSaving ? "Saving..." : "Save Block"}
+                                {formSaving ? "Saving..." : editingBlockId ? "Update Block" : "Save Block"}
                             </button>
                         </div>
                     </form>
@@ -232,13 +267,21 @@ export default function RoomBlocksPage() {
                                     </td>
                                     <td className="text-sm text-[var(--text-table-cell)]">{b.reason}</td>
                                     <td className="text-xs text-[var(--text-secondary)]">{b.created_by_name || "System"}</td>
-                                    <td className="text-right flex justify-end">
-                                        <button
-                                            className="text-xs text-red-600 hover:text-red-800 p-2"
-                                            onClick={() => handleDelete(b.id)}
-                                        >
-                                            Delete
-                                        </button>
+                                    <td className="text-right">
+                                        <div className="flex justify-end gap-1">
+                                            <button
+                                                className="text-xs text-blue-600 hover:text-blue-800 p-2"
+                                                onClick={() => openEditForm(b)}
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                className="text-xs text-red-600 hover:text-red-800 p-2"
+                                                onClick={() => handleDelete(b.id)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

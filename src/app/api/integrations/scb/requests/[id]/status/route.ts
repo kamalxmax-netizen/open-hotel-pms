@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getAuthenticatedUser } from "@/lib/server-auth";
+import { reconcileScbRequestStatuses } from "@/lib/scb/inquiry-runner";
 import { serializeScbRequest } from "@/lib/scb/presenters";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .eq("id", requestId)
       .eq("status", "pending")
       .lt("expires_at", now);
+
+    await reconcileScbRequestStatuses(supabase as any, [requestId]);
 
     const { data, error } = await supabase
       .from("scb_payment_requests")

@@ -46,6 +46,7 @@ export function GenerateScbQrModal({
   const [timeLeft, setTimeLeft] = useState(0);
   
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastInquiryAtRef = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const qrRenderRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,15 +69,39 @@ export function GenerateScbQrModal({
 
     const pollStatus = async () => {
       try {
-        const res = await fetch(`/api/integrations/scb/requests/${request.id}/status`);
+        const res = await fetch(`/api/integrations/scb/requests/${request.id}/status`, {
+          cache: "no-store",
+        });
         const json = await res.json().catch(() => null);
-        if (res.ok && json?.success && json.data.status !== "pending") {
-          setStatus(json.data.status);
-          if (json.data.status === "paid" && onSuccess) onSuccess();
+        if (res.ok && json?.success) {
+          const nextStatus = String(json.data?.status ?? "pending");
+          if (nextStatus !== "pending") {
+            setStatus(nextStatus);
+            if (nextStatus === "paid" && onSuccess) onSuccess();
+            return;
+          }
+
+          const createdAtMs = request?.created_at ? new Date(request.created_at).getTime() : Number.NaN;
+          const inquiryDue = !Number.isNaN(createdAtMs) && Date.now() - createdAtMs >= 2 * 60_000;
+          const canRequery = Date.now() - lastInquiryAtRef.current >= 60_000;
+
+          if (inquiryDue && canRequery) {
+            lastInquiryAtRef.current = Date.now();
+            await fetch("/api/integrations/scb/inquiry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                request_id: request.id,
+                source: "manual",
+              }),
+            }).catch(() => null);
+          }
         }
       } catch (err) { console.error(err); }
     };
 
+    void pollStatus();
     pollIntervalRef.current = setInterval(pollStatus, 5000);
     return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
   }, [request, status, onSuccess]);
@@ -183,6 +208,44 @@ export function GenerateScbQrModal({
       const a = document.createElement("a");
       a.href = url; a.download = `QR-${reservationId}.png`; a.click();
     });
+  };
+
+  const handleCheckPaymentNow = async () => {
+    if (!request?.id || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const inquiryRes = await fetch("/api/integrations/scb/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          request_id: request.id,
+          source: "manual",
+        }),
+      });
+      const inquiryJson = await inquiryRes.json().catch(() => null);
+      if (!inquiryRes.ok || !inquiryJson?.success) {
+        throw new Error(inquiryJson?.error || "Failed to check payment.");
+      }
+
+      const statusRes = await fetch(`/api/integrations/scb/requests/${request.id}/status?_ts=${Date.now()}`, {
+        cache: "no-store",
+      });
+      const statusJson = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !statusJson?.success) {
+        throw new Error(statusJson?.error || "Failed to refresh payment status.");
+      }
+
+      const nextStatus = String(statusJson.data?.status ?? status);
+      setRequest(statusJson.data);
+      setStatus(nextStatus);
+      if (nextStatus === "paid" && onSuccess) onSuccess();
+    } catch (err: any) {
+      setError(err.message || "Failed to check payment.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 4. Render Step 1 & 2
@@ -421,6 +484,9 @@ export function GenerateScbQrModal({
                      <>
                        <button type="button" onClick={handleSaveImage} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
                           <Save className="w-4 h-4" /> บันทึกรูป
+                       </button>
+                       <button type="button" onClick={handleCheckPaymentNow} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
+                          <CheckCircle2 className="w-4 h-4" /> ตรวจสอบการชำระ
                        </button>
                        <button type="button" onClick={() => navigator.clipboard.writeText(request?.partner_reference_no)} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
                           <Copy className="w-4 h-4" /> คัดลอก Ref

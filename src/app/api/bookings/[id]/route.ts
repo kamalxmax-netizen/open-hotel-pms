@@ -533,13 +533,6 @@ export async function PUT(
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 
-  if (payload.source === "ota" && (!payload.ota_prices || payload.ota_prices.length !== nights.length)) {
-    return NextResponse.json(
-      { error: "OTA bookings require ota_prices with exact nights length." },
-      { status: 400 }
-    );
-  }
-
   const supabase = createServerSupabaseClient();
   const user = await getAuthenticatedUser(supabase as any, request);
   if (!user) {
@@ -571,36 +564,40 @@ export async function PUT(
       { status: 403 }
     );
   }
-  if (isCheckedOutReservation) {
-    const currentRatePlanId = currentReservation.rate_plan_id ? String(currentReservation.rate_plan_id) : null;
-    const nextRatePlanId = payload.rate_plan_id !== undefined ? (payload.rate_plan_id ? String(payload.rate_plan_id) : null) : currentRatePlanId;
-    const currentDiscountType =
-      currentReservation.discount_type === "fixed_total" || currentReservation.discount_type === "fixed_per_night" || currentReservation.discount_type === "percent"
-        ? currentReservation.discount_type
-        : "percent";
-    const currentDiscountValue = Number(currentReservation.discount_value ?? currentReservation.discount_percent ?? 0);
-    const nextDiscountType = payload.discount_type ?? currentDiscountType;
-    const nextDiscountValue = Number(payload.discount_value ?? payload.discount_percent ?? currentDiscountValue);
-    const stayDatesChanged =
-      String(currentReservation.checkin_date ?? "") !== payload.checkin_date ||
-      String(currentReservation.checkout_date ?? "") !== payload.checkout_date;
-    const pricingChanged =
-      String(currentReservation.source ?? "") !== payload.source ||
-      currentRatePlanId !== nextRatePlanId ||
-      currentDiscountType !== nextDiscountType ||
-      currentDiscountValue !== nextDiscountValue ||
-      payload.ota_prices !== undefined ||
-      (payload.price_change_choice === "apply_rate_grid" || payload.price_change_choice === "keep_existing");
-    if (stayDatesChanged || pricingChanged) {
-      return NextResponse.json(
-        { error: "Checked-out reservations lock stay dates and pricing. Use Audit Correction for those changes." },
-        { status: 403 }
-      );
-    }
-  }
   const previousCheckoutDate = currentReservation.checkout_date
     ? String(currentReservation.checkout_date)
     : null;
+  const currentRatePlanId = currentReservation.rate_plan_id ? String(currentReservation.rate_plan_id) : null;
+  const nextRatePlanId = payload.rate_plan_id !== undefined ? (payload.rate_plan_id ? String(payload.rate_plan_id) : null) : currentRatePlanId;
+  const currentDiscountType =
+    currentReservation.discount_type === "fixed_total" || currentReservation.discount_type === "fixed_per_night" || currentReservation.discount_type === "percent"
+      ? currentReservation.discount_type
+      : "percent";
+  const currentDiscountValue = Number(currentReservation.discount_value ?? currentReservation.discount_percent ?? 0);
+  const nextDiscountType = payload.discount_type ?? currentDiscountType;
+  const nextDiscountValue = Number(payload.discount_value ?? payload.discount_percent ?? currentDiscountValue);
+  const stayDatesChanged =
+    String(currentReservation.checkin_date ?? "") !== payload.checkin_date ||
+    String(currentReservation.checkout_date ?? "") !== payload.checkout_date;
+  const pricingChanged =
+    currentRatePlanId !== nextRatePlanId ||
+    currentDiscountType !== nextDiscountType ||
+    currentDiscountValue !== nextDiscountValue ||
+    payload.ota_prices !== undefined ||
+    (payload.price_change_choice === "apply_rate_grid" || payload.price_change_choice === "keep_existing");
+  const checkedOutMetadataOnlyUpdate = isCheckedOutReservation && !stayDatesChanged && !pricingChanged;
+  if (isCheckedOutReservation && !checkedOutMetadataOnlyUpdate) {
+    return NextResponse.json(
+      { error: "Checked-out reservations lock stay dates and pricing. Use Audit Correction for those changes." },
+      { status: 403 }
+    );
+  }
+  if (!checkedOutMetadataOnlyUpdate && payload.source === "ota" && (!payload.ota_prices || payload.ota_prices.length !== nights.length)) {
+    return NextResponse.json(
+      { error: "OTA bookings require ota_prices with exact nights length." },
+      { status: 400 }
+    );
+  }
   const checkoutDateChanged = Boolean(previousCheckoutDate && previousCheckoutDate !== payload.checkout_date);
   const { data: currentNights, error: currentNightsError } = await supabase
     .from("reservation_nights")
@@ -622,7 +619,7 @@ export async function PUT(
   const unchangedDateScope =
     String(currentReservation.checkin_date ?? "") === payload.checkin_date &&
     String(currentReservation.checkout_date ?? "") === payload.checkout_date;
-  const unchangedSource = String(currentReservation.source ?? "") === payload.source;
+  const unchangedSource = checkedOutMetadataOnlyUpdate || String(currentReservation.source ?? "") === payload.source;
   const unchangedAssignment =
     normalizedNightSnapshots.length > 0 &&
     normalizedNightSnapshots.every((night) => {
@@ -639,7 +636,7 @@ export async function PUT(
       );
     });
   const shouldForceNightRebuild = payload.source === "ota";
-  const skipNightRebuild = !shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment;
+  const skipNightRebuild = checkedOutMetadataOnlyUpdate || (!shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment);
   const previousNightlyByDate = new Map(
     normalizedNightSnapshots.map((night) => [night.stay_date, night.nightly_price] as const)
   );
@@ -649,8 +646,6 @@ export async function PUT(
   const previousPrimaryRoomTypeId =
     normalizedNightSnapshots.find((night) => Number.isFinite(Number(night.room_type_id ?? 0)) && Number(night.room_type_id ?? 0) > 0)
       ?.room_type_id ?? null;
-  const currentRatePlanId = currentReservation.rate_plan_id ? String(currentReservation.rate_plan_id) : null;
-  const nextRatePlanId = payload.rate_plan_id !== undefined ? (payload.rate_plan_id ? String(payload.rate_plan_id) : null) : currentRatePlanId;
   const ratePlanChanged = currentRatePlanId !== nextRatePlanId;
   const requestedPriceChoice =
     payload.price_change_choice === "apply_rate_grid" || payload.price_change_choice === "keep_existing"
@@ -765,7 +760,7 @@ export async function PUT(
     : null;
 
   let pricedNights: Awaited<ReturnType<typeof calculateAppliedRateNights>> | null = null;
-  if (payload.source !== "ota" && nextRatePlanId) {
+  if (!checkedOutMetadataOnlyUpdate && payload.source !== "ota" && nextRatePlanId) {
     let pricingRoomTypeId: number | null = null;
     try {
       pricingRoomTypeId = await resolveRoomTypeIdForPricing(
@@ -820,9 +815,11 @@ export async function PUT(
       .update({
         guest_name: payload.guest_name.trim(),
         phone: payload.phone?.trim() || null,
-        source: payload.source,
-        checkin_date: payload.checkin_date,
-        checkout_date: payload.checkout_date,
+        ...(checkedOutMetadataOnlyUpdate ? {} : {
+          source: payload.source,
+          checkin_date: payload.checkin_date,
+          checkout_date: payload.checkout_date,
+        }),
         checkin_time: payload.checkin_time?.trim() || null,
         ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
         note: payload.note?.trim() || null,
@@ -891,30 +888,43 @@ export async function PUT(
   }
 
   // Update additional CRM fields (adults, children, specials, guest_profile_id)
-  const reservationExtraPatch: Record<string, unknown> = {
-    adults: payload.adults ?? 1,
-    children: payload.children ?? 0,
-    discount_percent: payload.discount_percent ?? 0,
-    discount_type: payload.discount_type ?? "percent",
-    discount_value: payload.discount_value ?? payload.discount_percent ?? 0,
-    discount_reason: payload.discount_reason?.trim() || null,
-    ...(payload.rate_plan_id !== undefined ? { rate_plan_id: payload.rate_plan_id || null } : {}),
-    ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
-    ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
-  };
+  const reservationExtraPatch: Record<string, unknown> = checkedOutMetadataOnlyUpdate
+    ? {
+      adults: payload.adults ?? 1,
+      children: payload.children ?? 0,
+      ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
+      ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
+    }
+    : {
+      adults: payload.adults ?? 1,
+      children: payload.children ?? 0,
+      discount_percent: payload.discount_percent ?? 0,
+      discount_type: payload.discount_type ?? "percent",
+      discount_value: payload.discount_value ?? payload.discount_percent ?? 0,
+      discount_reason: payload.discount_reason?.trim() || null,
+      ...(payload.rate_plan_id !== undefined ? { rate_plan_id: payload.rate_plan_id || null } : {}),
+      ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
+      ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
+    };
   let { error: reservationExtraError } = await supabase
     .from("reservations")
     .update(reservationExtraPatch)
     .eq("id", reservationId);
   if (reservationExtraError && /discount_type|discount_value|expected_arrival_time/i.test(reservationExtraError.message)) {
-    const reservationLegacyExtraPatch: Record<string, unknown> = {
-      adults: payload.adults ?? 1,
-      children: payload.children ?? 0,
-      discount_percent: payload.discount_percent ?? 0,
-      discount_reason: payload.discount_reason?.trim() || null,
-      ...(payload.rate_plan_id !== undefined ? { rate_plan_id: payload.rate_plan_id || null } : {}),
-      ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
-    };
+    const reservationLegacyExtraPatch: Record<string, unknown> = checkedOutMetadataOnlyUpdate
+      ? {
+        adults: payload.adults ?? 1,
+        children: payload.children ?? 0,
+        ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
+      }
+      : {
+        adults: payload.adults ?? 1,
+        children: payload.children ?? 0,
+        discount_percent: payload.discount_percent ?? 0,
+        discount_reason: payload.discount_reason?.trim() || null,
+        ...(payload.rate_plan_id !== undefined ? { rate_plan_id: payload.rate_plan_id || null } : {}),
+        ...(hasSpecialsField ? { specials: normalizedSpecials || null } : {}),
+      };
     const fallbackExtra = await supabase
       .from("reservations")
       .update(reservationLegacyExtraPatch)

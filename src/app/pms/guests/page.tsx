@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import NationalityFlag from "@/components/nationality-flag";
 import PmsModal from "@/components/pms-modal";
-import { formatNationalityCode, getNationalityFlag } from "@/lib/nationality";
+import { formatNationalityCode } from "@/lib/nationality";
 import { formatGuestDisplayName, getProfileStatusMeta, getVipTierMeta } from "@/lib/guest-profile-display";
 import type { GuestProfileListItem, GuestProfileListResponse } from "@/lib/types";
 
@@ -509,9 +510,10 @@ export default function GuestsPage() {
                             </td>
                             <td>
                               <div className="flex items-center gap-2 text-sm text-[var(--text-table-cell)]">
-                                <span className="text-lg leading-none">
-                                  {getNationalityFlag(profile.nationality_code || profile.country || "")}
-                                </span>
+                                <NationalityFlag
+                                  input={profile.nationality_code || profile.country || ""}
+                                  className="h-[14px] w-[18px] shrink-0 rounded-[2px] object-cover"
+                                />
                                 <span>{formatNationalityCode(profile.nationality_code || profile.nationality || "—")}</span>
                               </div>
                             </td>

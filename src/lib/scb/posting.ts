@@ -4,13 +4,65 @@ import { resolveBusinessDate } from "@/lib/folio-fees";
 import { insertScbNotification } from "@/lib/scb/notifications";
 import type { ScbNormalizedTransaction, ScbStoredRequest } from "@/lib/scb/types";
 
+function formatBangkokDateTimeParts(value: string | null | undefined) {
+  const date = value ? new Date(value) : new Date();
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const lookup = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${lookup("day")}/${lookup("month")}/${lookup("year")}`,
+    time: `${lookup("hour")}:${lookup("minute")}`,
+  };
+}
+
+function maskScbReference(ref: string | null | undefined) {
+  const value = String(ref ?? "").trim();
+  if (!value) return "—";
+  return value.slice(-5);
+}
+
 function buildScbPaymentNote(request: ScbStoredRequest, transaction: ScbNormalizedTransaction): string {
-  const fragments = [
-    `SCB Mae Manee TXN ${transaction.transactionId}`,
-    transaction.payerName ? `Payer ${transaction.payerName}` : null,
-    `Ref ${request.partner_reference_no}`,
-  ].filter(Boolean);
-  return fragments.join(" · ");
+  const { date, time } = formatBangkokDateTimeParts(transaction.paidAt);
+  const payerName = String(transaction.payerName ?? "Unknown").trim() || "Unknown";
+  const amount = Number(transaction.amount ?? request.request_amount_total ?? 0).toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const refTail = maskScbReference(request.partner_reference_no);
+  return `SCB Mae Manee: ${payerName}, ฿${amount}, ${date}, ${time}, Ref ${refTail}`;
+}
+
+async function hasExistingReservationTransfer(params: {
+  supabase: SupabaseClient;
+  reservationId: string;
+  amount: number;
+  note: string;
+  paidAt: string;
+  revenueCategory: string;
+}) {
+  const { supabase, reservationId, amount, note, paidAt, revenueCategory } = params;
+  const { data, error } = await supabase
+    .from("folio_payments")
+    .select("id")
+    .eq("reservation_id", reservationId)
+    .eq("tx_type", "payment")
+    .eq("method", "transfer")
+    .eq("amount", amount)
+    .eq("note", note)
+    .eq("paid_at", paidAt)
+    .eq("revenue_category", revenueCategory)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return Boolean(data?.id);
 }
 
 async function applyDepositSnapshotLines(params: {
@@ -62,17 +114,27 @@ async function postReservationTransfer(
   const paidAt = transaction.paidAt ?? new Date().toISOString();
 
   if (request.room_amount > 0) {
-    const { error } = await supabase.from("folio_payments").insert({
-      reservation_id: reservationId,
-      tx_type: "payment",
-      method: "transfer",
+    const exists = await hasExistingReservationTransfer({
+      supabase,
+      reservationId,
       amount: request.room_amount,
       note,
-      paid_at: paidAt,
-      paid_date: businessDate,
-      revenue_category: "room_revenue",
+      paidAt,
+      revenueCategory: "room_revenue",
     });
-    if (error) throw new Error(error.message);
+    if (!exists) {
+      const { error } = await supabase.from("folio_payments").insert({
+        reservation_id: reservationId,
+        tx_type: "payment",
+        method: "transfer",
+        amount: request.room_amount,
+        note,
+        paid_at: paidAt,
+        paid_date: businessDate,
+        revenue_category: "room_revenue",
+      });
+      if (error) throw new Error(error.message);
+    }
   }
 
   if (request.deposit_amount > 0) {
@@ -84,9 +146,14 @@ async function postReservationTransfer(
     if (error) throw new Error(error.message);
 
     const parsed = parseDepositSnapshotNote(reservation?.deposit_note);
+    const hasDepositLine = parsed.lines.some((line) =>
+      String(line.method ?? "").trim().toLowerCase() === "transfer"
+      && Math.abs(Number(line.amount ?? 0) - Number(request.deposit_amount)) <= 0.009
+      && String(line.note ?? "").trim() === note
+    );
     const nextLines = [
       ...parsed.lines.map((line) => ({ method: line.method, amount: line.amount, note: line.note })),
-      { method: "transfer", amount: request.deposit_amount, note },
+      ...(hasDepositLine ? [] : [{ method: "transfer", amount: request.deposit_amount, note }]),
     ];
 
     await applyDepositSnapshotLines({
@@ -132,6 +199,36 @@ export async function processMatchedScbTransaction(
   transaction: ScbNormalizedTransaction,
   transactionRowId?: string | null
 ): Promise<void> {
+  const { data: currentRequest, error: currentRequestError } = await supabase
+    .from("scb_payment_requests")
+    .select("id, status, paid_transaction_id")
+    .eq("id", request.id)
+    .maybeSingle();
+  if (currentRequestError) {
+    throw new Error(currentRequestError.message);
+  }
+
+  if (
+    currentRequest
+    && String(currentRequest.status ?? "") === "paid"
+    && (
+      !transactionRowId
+      || String(currentRequest.paid_transaction_id ?? "") === String(transactionRowId)
+    )
+  ) {
+    if (transactionRowId) {
+      await supabase
+        .from("scb_payment_transactions")
+        .update({
+          request_id: request.id,
+          match_status: "matched",
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", transactionRowId);
+    }
+    return;
+  }
+
   const expected = Number(request.request_amount_total ?? 0);
   const actual = Number(transaction.amount ?? 0);
   if (Math.abs(expected - actual) > 0.009) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
+import { reconcileScbRequestStatuses } from "@/lib/scb/inquiry-runner";
 import { loadPosMetaMap, loadReservationMetaMap } from "@/lib/scb/targets";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     if (parsed.data.kind === "request") {
+      await reconcileScbRequestStatuses(supabase as any, [params.id]);
       const { data: requestRow, error } = await supabase
         .from("scb_payment_requests")
         .select("*")
@@ -98,6 +100,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .maybeSingle();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     if (!transactionRow) return NextResponse.json({ success: false, error: "Transaction not found." }, { status: 404 });
+
+    if (transactionRow.request_id) {
+      await reconcileScbRequestStatuses(supabase as any, [String(transactionRow.request_id)]);
+    }
 
     const { data: requestRow } = transactionRow.request_id
       ? await supabase.from("scb_payment_requests").select("*").eq("id", transactionRow.request_id).maybeSingle()

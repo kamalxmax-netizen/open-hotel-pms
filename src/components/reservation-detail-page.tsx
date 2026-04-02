@@ -3351,6 +3351,7 @@ export default function ReservationDetailPage({
 
             } else if (mode === "edit" && reservationId) {
                 const shouldUseShortenSettlement = shouldApplyShortenPolicy && checkoutDate < originalCheckoutDate;
+                const checkedOutMetadataOnlyEdit = canEditCheckedOutReservation;
 
                 const payload: any = {
                     guest_name: guestName.trim(),
@@ -3361,18 +3362,20 @@ export default function ReservationDetailPage({
                     phone: phone.trim() || undefined,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
-                    discount_percent: discountPercent || undefined,
-                    discount_type: discountType,
-                    discount_value: discountValue || 0,
-                    discount_reason: discountReason.trim() || undefined,
                 };
                 if (roomTypeId) payload.room_type_id = roomTypeId;
-                if (ratePlanId) payload.rate_plan_id = ratePlanId;
-                else if (originalRatePlanId) payload.rate_plan_id = null;
-                if (priceChangeChoice) payload.price_change_choice = priceChangeChoice;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
-                if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
+                if (!checkedOutMetadataOnlyEdit) {
+                    payload.discount_percent = discountPercent || undefined;
+                    payload.discount_type = discountType;
+                    payload.discount_value = discountValue || 0;
+                    payload.discount_reason = discountReason.trim() || undefined;
+                    if (ratePlanId) payload.rate_plan_id = ratePlanId;
+                    else if (originalRatePlanId) payload.rate_plan_id = null;
+                    if (priceChangeChoice) payload.price_change_choice = priceChangeChoice;
+                    if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
+                }
 
                 if (shouldUseShortenSettlement) {
                     const shortenRes = await fetch(`/api/bookings/${reservationId}/shorten`, {

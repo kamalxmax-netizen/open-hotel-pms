@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { reconcileScbRequestStatuses } from "@/lib/scb/inquiry-runner";
 import { createScbPaymentRequest } from "@/lib/scb/requests";
 import { serializeScbRequest } from "@/lib/scb/presenters";
 import { getActivePendingRequestForTarget } from "@/lib/scb/matching";
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     await markExpiredIfNeeded(supabase, data.id);
+    await reconcileScbRequestStatuses(supabase as any, [data.id]);
     const { data: refreshed, error: refreshError } = await supabase
       .from("scb_payment_requests")
       .select("*")
