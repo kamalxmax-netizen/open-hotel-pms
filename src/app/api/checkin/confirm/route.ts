@@ -132,6 +132,8 @@ export async function POST(request: NextRequest) {
 
     const payload = parsed.data;
     const businessDate = await getBusinessDate(supabase);
+    const terminalId = request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id");
+    const userAgent = request.headers.get("user-agent");
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
@@ -217,6 +219,15 @@ export async function POST(request: NextRequest) {
         full_name: effectiveName,
       },
       passportRaw: scanParsed,
+      conflictContext: {
+        actorUserId: auth.userId,
+        reservationId: payload.reservation_id,
+        businessDate,
+        sourceFlow: "mobile_checkin_confirm_primary",
+        terminalId,
+        userAgent,
+        source: "manual",
+      },
     });
 
     await linkPrimaryGuestToReservation(supabase as any, payload.reservation_id, resolvedPrimary.guestProfileId);
@@ -227,6 +238,15 @@ export async function POST(request: NextRequest) {
       reservationId: payload.reservation_id,
       primaryGuestProfileId: resolvedPrimary.guestProfileId,
       accompanyingGuests: accompanying,
+      conflictContext: {
+        actorUserId: auth.userId,
+        reservationId: payload.reservation_id,
+        businessDate,
+        sourceFlow: "mobile_checkin_confirm_accompanying",
+        terminalId,
+        userAgent,
+        source: "manual",
+      },
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);

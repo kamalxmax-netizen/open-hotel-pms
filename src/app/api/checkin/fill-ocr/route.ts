@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
     const auth = await requireMobileCheckinAuth(supabase, request);
+    const businessDate = await getBusinessDate(supabase);
+    const terminalId = request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id");
+    const userAgent = request.headers.get("user-agent");
 
     const formData = await request.formData();
     const image = formData.get("image");
@@ -119,6 +122,15 @@ export async function POST(request: NextRequest) {
           : null,
         guestInfo,
         passportRaw: null,
+        conflictContext: {
+          actorUserId: auth.userId,
+          reservationId,
+          businessDate,
+          sourceFlow: "mobile_checkin_fill_ocr_primary",
+          terminalId,
+          userAgent,
+          source: "manual",
+        },
       });
 
       profileId = resolved.guestProfileId;
@@ -179,6 +191,15 @@ export async function POST(request: NextRequest) {
           ...info,
           source: "ocr" as const,
         })),
+        conflictContext: {
+          actorUserId: auth.userId,
+          reservationId,
+          businessDate,
+          sourceFlow: "mobile_checkin_fill_ocr_accompanying",
+          terminalId,
+          userAgent,
+          source: "manual",
+        },
       });
     }
 

@@ -1,5 +1,10 @@
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
 import { findExistingGuestProfileByDocument, resolveGuestProfile } from "@/lib/guest-resolution";
+import type { GuestProfileConflictLogContext } from "@/lib/guest-profile-conflict-log";
+import {
+  createGuestProfileWithConflictHandling,
+  updateGuestProfileWithConflictHandling,
+} from "@/lib/guest-profile-persistence";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { assertBusinessDayOpen } from "@/lib/folio-fees";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
@@ -27,6 +32,11 @@ export type MobileAccompanyingInput = {
   gender?: string | null;
   source?: "ocr" | "manual" | null;
 };
+
+type GuestProfileConflictContextBase = Omit<
+  GuestProfileConflictLogContext,
+  "attemptedProfileId" | "resolvedProfileId" | "documentType" | "documentNumber" | "retryCount"
+>;
 
 export class MobileCheckinError extends Error {
   status: number;
@@ -352,15 +362,24 @@ function buildGuestProfilePatch(guestInfo: MobileGuestInfoInput, passportRaw?: R
 async function updateGuestProfile(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   profileId: string,
-  patch: Record<string, unknown>
-) {
-  const { error } = await supabase
-    .from("guest_profiles")
-    .update(patch)
-    .eq("id", profileId);
-
-  if (error) {
-    throw new MobileCheckinError(error.message, 500, "PROFILE_UPDATE_FAILED");
+  patch: Record<string, unknown>,
+  conflictContext?: GuestProfileConflictContextBase
+): Promise<string> {
+  try {
+    const mutation = await updateGuestProfileWithConflictHandling({
+      supabase,
+      profileId,
+      payload: patch,
+      logContext: conflictContext,
+    });
+    const resolvedProfileId = String(mutation.profile?.id ?? "").trim();
+    if (resolvedProfileId) {
+      return resolvedProfileId;
+    }
+    throw new Error("Guest profile update returned no profile.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update guest profile.";
+    throw new MobileCheckinError(message, 500, "PROFILE_UPDATE_FAILED");
   }
 }
 
@@ -371,6 +390,7 @@ export async function resolvePrimaryGuestProfile(params: {
   existingGuestProfileId?: string | null;
   guestInfo: MobileGuestInfoInput;
   passportRaw?: Record<string, unknown> | null;
+  conflictContext?: GuestProfileConflictContextBase;
 }): Promise<{ guestProfileId: string; fullName: string }> {
   const {
     supabase,
@@ -379,6 +399,7 @@ export async function resolvePrimaryGuestProfile(params: {
     existingGuestProfileId,
     guestInfo,
     passportRaw,
+    conflictContext,
   } = params;
   const normalizedName = normalizeWhitespace(guestInfo.full_name);
   const fallbackName = normalizedName || "Unknown Guest";
@@ -422,7 +443,7 @@ export async function resolvePrimaryGuestProfile(params: {
         profileId = String(existingByPassport.id);
       }
     }
-    await updateGuestProfile(supabase, profileId, patch);
+    profileId = await updateGuestProfile(supabase, profileId, patch, conflictContext);
 
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
@@ -440,21 +461,51 @@ export async function resolvePrimaryGuestProfile(params: {
   const passportNo = normalizePassportNo(guestInfo.passport_no);
   const nationalityCode = normalizeNationalityCode(guestInfo.nationality ?? null);
 
-  const resolution = await resolveGuestProfile(supabase as any, {
-    first_name: firstName || null,
-    last_name: lastName || "Unknown",
-    nationality_code: nationalityCode,
-    id_type: passportNo ? "passport" : null,
-    id_number: passportNo || null,
-    profile_status: "draft",
-  });
+  if (passportNo) {
+    const existingByPassport = await findExistingGuestProfileByDocument(supabase as any, {
+      idType: "passport",
+      idNumber: passportNo,
+    });
+    if (existingByPassport?.id) {
+      profileId = String(existingByPassport.id);
+    } else {
+      try {
+        const mutation = await createGuestProfileWithConflictHandling({
+          supabase,
+          payload: {
+            first_name: firstName || null,
+            last_name: lastName || "Unknown",
+            nationality_code: nationalityCode,
+            id_type: "passport",
+            id_number: passportNo,
+            passport_no: passportNo,
+            profile_status: "draft",
+          },
+          logContext: conflictContext,
+        });
+        profileId = String(mutation.profile?.id ?? "").trim();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to create guest profile.";
+        throw new MobileCheckinError(message, 500, "PROFILE_RESOLVE_FAILED");
+      }
+    }
+  } else {
+    const resolution = await resolveGuestProfile(supabase as any, {
+      first_name: firstName || null,
+      last_name: lastName || "Unknown",
+      nationality_code: nationalityCode,
+      id_type: null,
+      id_number: null,
+      profile_status: "draft",
+    });
+    profileId = String(resolution.profile?.id ?? "").trim();
+  }
 
-  profileId = String(resolution.profile?.id ?? "").trim();
   if (!profileId) {
     throw new MobileCheckinError("Failed to resolve guest profile.", 500, "PROFILE_RESOLVE_FAILED");
   }
 
-  await updateGuestProfile(supabase, profileId, patch);
+  profileId = await updateGuestProfile(supabase, profileId, patch, conflictContext);
 
   const { error: reservationUpdateError } = await supabase
     .from("reservations")
@@ -473,8 +524,9 @@ export async function syncAccompanyingGuests(params: {
   reservationId: string;
   primaryGuestProfileId: string;
   accompanyingGuests: MobileAccompanyingInput[];
+  conflictContext?: GuestProfileConflictContextBase;
 }): Promise<void> {
-  const { supabase, reservationId, primaryGuestProfileId, accompanyingGuests } = params;
+  const { supabase, reservationId, primaryGuestProfileId, accompanyingGuests, conflictContext } = params;
 
   const cleaned = accompanyingGuests
     .map((guest) => ({
@@ -511,17 +563,47 @@ export async function syncAccompanyingGuests(params: {
     const guest = cleaned[idx];
     const { firstName, lastName } = splitFullName(guest.full_name);
     const nationalityCode = normalizeNationalityCode(guest.nationality ?? null);
+    let profileId = "";
+    if (guest.passport_no) {
+      const existingByPassport = await findExistingGuestProfileByDocument(supabase as any, {
+        idType: "passport",
+        idNumber: guest.passport_no,
+      });
+      if (existingByPassport?.id) {
+        profileId = String(existingByPassport.id);
+      } else {
+        try {
+          const mutation = await createGuestProfileWithConflictHandling({
+            supabase,
+            payload: {
+              first_name: firstName || null,
+              last_name: lastName || "Unknown",
+              nationality_code: nationalityCode,
+              id_type: "passport",
+              id_number: guest.passport_no,
+              passport_no: guest.passport_no,
+              profile_status: "draft",
+            },
+            logContext: conflictContext,
+          });
+          profileId = String(mutation.profile?.id ?? "").trim();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to create accompanying guest profile.";
+          throw new MobileCheckinError(message, 500, "PROFILE_RESOLVE_FAILED");
+        }
+      }
+    } else {
+      const resolution = await resolveGuestProfile(supabase as any, {
+        first_name: firstName || null,
+        last_name: lastName || "Unknown",
+        nationality_code: nationalityCode,
+        id_type: null,
+        id_number: null,
+        profile_status: "draft",
+      });
+      profileId = String(resolution.profile?.id ?? "").trim();
+    }
 
-    const resolution = await resolveGuestProfile(supabase as any, {
-      first_name: firstName || null,
-      last_name: lastName || "Unknown",
-      nationality_code: nationalityCode,
-      id_type: guest.passport_no ? "passport" : null,
-      id_number: guest.passport_no || null,
-      profile_status: "draft",
-    });
-
-    const profileId = String(resolution.profile?.id ?? "").trim();
     if (!profileId || profileId === primaryGuestProfileId) continue;
 
     const patch = buildGuestProfilePatch(
@@ -534,11 +616,12 @@ export async function syncAccompanyingGuests(params: {
       },
       null
     );
-    await updateGuestProfile(supabase, profileId, patch);
+    const resolvedProfileId = await updateGuestProfile(supabase, profileId, patch, conflictContext);
+    if (!resolvedProfileId || resolvedProfileId === primaryGuestProfileId) continue;
 
     rows.push({
       reservation_id: reservationId,
-      guest_profile_id: profileId,
+      guest_profile_id: resolvedProfileId,
       role: "accompanying",
       display_order: idx + 2,
     });

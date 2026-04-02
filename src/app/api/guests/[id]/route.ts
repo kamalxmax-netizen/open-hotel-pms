@@ -9,6 +9,7 @@ import {
   shouldMaskIdentityForRole,
   validateGuestUnmaskAccess,
 } from "@/lib/data-masking";
+import { updateGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { NextRequest, NextResponse } from "next/server";
@@ -52,6 +53,8 @@ const patchSchema = z
     passport_raw: z.record(z.any()).optional().nullable(),
     profile_status: z.enum(["draft", "verified", "merged", "blacklisted"]).optional(),
     do_not_merge: z.boolean().optional(),
+    reservation_id: z.string().uuid().optional().nullable(),
+    source_flow: z.string().trim().max(120).optional().nullable(),
   })
   .strict();
 
@@ -177,6 +180,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     for (const [key, value] of Object.entries(parsedBody.data)) {
       if (value !== undefined) updates[key] = value;
     }
+    const reservationId = String(parsedBody.data.reservation_id ?? "").trim();
+    const sourceFlow = String(parsedBody.data.source_flow ?? "").trim();
+    delete updates.reservation_id;
+    delete updates.source_flow;
     for (const key of ["passport_no", "id_card_number", "id_number"] as const) {
       if (containsMaskedPlaceholder(updates[key])) {
         delete updates[key];
@@ -198,6 +205,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const supabase = createServerSupabaseClient();
     const targetId = parsedParams.data.id;
+    const actor = await getAuthenticatedUser(supabase, request).catch(() => null);
+    const businessDate = await resolveBusinessDate(supabase);
     if (Object.keys(updates).length === 0) {
       const { data: current, error: currentError } = await supabase
         .from("guest_profiles")
@@ -213,21 +222,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ success: true, profile: current });
     }
 
-    const { data, error } = await supabase
-      .from("guest_profiles")
-      .update(updates)
-      .eq("id", targetId)
-      .select("*")
-      .maybeSingle();
+    const mutation = await updateGuestProfileWithConflictHandling({
+      supabase,
+      profileId: targetId,
+      payload: updates,
+      logContext: {
+        actorUserId: actor?.id ?? null,
+        reservationId: reservationId || null,
+        businessDate,
+        sourceFlow: sourceFlow || "guest_profile_api_patch",
+        terminalId: request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id"),
+        userAgent: request.headers.get("user-agent"),
+        source: "manual",
+      },
+    });
 
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-    if (!data) {
+    if (!mutation.profile) {
       return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, profile: data });
+    return NextResponse.json({ success: true, profile: mutation.profile, rerouted: mutation.rerouted });
   } catch (err) {
     console.error("api/guests/[id] PATCH failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";

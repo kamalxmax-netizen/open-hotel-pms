@@ -1,5 +1,8 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveBusinessDate } from "@/lib/data-masking";
+import { createGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import type { GuestProfileListResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -256,6 +259,8 @@ export async function POST(request: NextRequest) {
       passport_raw,
       profile_status,
       do_not_merge,
+      reservation_id,
+      source_flow,
     } = body;
 
     if (!last_name) {
@@ -265,9 +270,12 @@ export async function POST(request: NextRequest) {
     const normalizedCode = normalizeNationalityCode(nationality_code || nationality);
     const resolvedCountry = country || getCountryByCode(normalizedCode) || country || null;
 
-    const { data, error } = await supabase
-      .from("guest_profiles")
-      .insert({
+    const actor = await getAuthenticatedUser(supabase, request).catch(() => null);
+    const businessDate = await resolveBusinessDate(supabase);
+    const terminalId = request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id");
+    const mutation = await createGuestProfileWithConflictHandling({
+      supabase,
+      payload: {
         first_name,
         last_name,
         gender,
@@ -296,13 +304,22 @@ export async function POST(request: NextRequest) {
         passport_raw,
         profile_status,
         do_not_merge,
-      })
-      .select("*")
-      .single();
+      },
+      logContext: {
+        actorUserId: actor?.id ?? null,
+        reservationId: String(reservation_id ?? "").trim() || null,
+        businessDate,
+        sourceFlow: String(source_flow ?? "").trim() || "guest_profile_api_create",
+        terminalId,
+        userAgent: request.headers.get("user-agent"),
+        source: "manual",
+      },
+    });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ success: true, profile: data }, { status: 201 });
+    return NextResponse.json(
+      { success: true, profile: mutation.profile, rerouted: mutation.rerouted },
+      { status: mutation.rerouted ? 200 : 201 }
+    );
   } catch (err) {
     console.error("api/guests POST failed", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

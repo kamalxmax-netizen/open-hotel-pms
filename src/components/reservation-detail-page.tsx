@@ -2508,6 +2508,10 @@ export default function ReservationDetailPage({
                 id_card_number: partyDraft.idType === "thai_id" ? partyDraft.idNumber.trim() || undefined : undefined,
                 dob: partyDraft.dob || undefined,
                 profile_status: (partyDraft.profileStatus || "draft") as "draft" | "verified" | "merged" | "blacklisted",
+                reservation_id: reservationId || undefined,
+                source_flow: mode === "checkin"
+                    ? "pms_checkin_sync_profile_accompanying"
+                    : "pms_reservation_detail_accompanying",
             };
             const compactPayload = Object.fromEntries(
                 Object.entries(payload).filter(([, value]) => value !== undefined)
@@ -2523,6 +2527,7 @@ export default function ReservationDetailPage({
                 if (!patchRes.ok || !patchData?.success) {
                     throw new Error(patchData?.error || "Failed to update accompanying guest profile.");
                 }
+                profileId = String(patchData?.profile?.id ?? profileId);
             } else {
                 const createRes = await fetch("/api/guests", {
                     method: "POST",
@@ -2981,9 +2986,9 @@ export default function ReservationDetailPage({
         const identity = profileIdNumber.trim() || identityText.trim();
         const normalizedProfileStatus = String(profileStatus || "").trim();
 
-        const payload: Record<string, unknown> = {
-            first_name: hasSingleNameToken ? undefined : normalizedFirstName || undefined,
-            last_name: normalizedLastName || normalizedFirstName || "Guest",
+            const payload: Record<string, unknown> = {
+                first_name: hasSingleNameToken ? undefined : normalizedFirstName || undefined,
+                last_name: normalizedLastName || normalizedFirstName || "Guest",
             phone: phone.trim() || undefined,
             email: profileEmail.trim() || undefined,
             gender: profileGender || undefined,
@@ -3000,10 +3005,14 @@ export default function ReservationDetailPage({
             address: profileAddress.trim() || undefined,
             vip_tier: profileVipTier.trim() || undefined,
             preferences: profilePreferences.trim() || undefined,
-            notes: profileNotes.trim() || undefined,
-            profile_status: normalizedProfileStatus || (mode === "checkin" ? "draft" : undefined),
-            blacklisted: profileBlacklisted
-        };
+                notes: profileNotes.trim() || undefined,
+                profile_status: normalizedProfileStatus || (mode === "checkin" ? "draft" : undefined),
+                blacklisted: profileBlacklisted,
+                reservation_id: reservationId || undefined,
+                source_flow: mode === "checkin"
+                    ? "pms_checkin_sync_profile_primary"
+                    : "pms_reservation_detail_primary",
+            };
 
         const compactPayload = Object.fromEntries(
             Object.entries(payload).filter(([, value]) => value !== undefined)
@@ -3033,6 +3042,8 @@ export default function ReservationDetailPage({
             if (!patchRes.ok || !patchData?.success) {
                 throw new Error(patchData?.error || "Failed to update guest profile.");
             }
+            profileId = String(patchData?.profile?.id ?? profileId);
+            setGuestProfileId(profileId);
             applyProfileDraft(patchData.profile, { overwriteGuest: false });
         }
 

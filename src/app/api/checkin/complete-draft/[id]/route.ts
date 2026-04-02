@@ -68,6 +68,8 @@ export async function POST(
 
     const payload = parsed.data;
     const businessDate = await getBusinessDate(supabase);
+    const terminalId = request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id");
+    const userAgent = request.headers.get("user-agent");
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
@@ -103,6 +105,15 @@ export async function POST(
         full_name: effectiveName,
       },
       passportRaw: null,
+      conflictContext: {
+        actorUserId: auth.userId,
+        reservationId,
+        businessDate,
+        sourceFlow: "mobile_checkin_complete_draft_primary",
+        terminalId,
+        userAgent,
+        source: "manual",
+      },
     });
 
     await linkPrimaryGuestToReservation(supabase as any, reservationId, resolvedPrimary.guestProfileId);
@@ -113,6 +124,15 @@ export async function POST(
       reservationId,
       primaryGuestProfileId: resolvedPrimary.guestProfileId,
       accompanyingGuests: accompanying,
+      conflictContext: {
+        actorUserId: auth.userId,
+        reservationId,
+        businessDate,
+        sourceFlow: "mobile_checkin_complete_draft_accompanying",
+        terminalId,
+        userAgent,
+        source: "manual",
+      },
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);

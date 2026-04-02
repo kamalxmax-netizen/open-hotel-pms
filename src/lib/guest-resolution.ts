@@ -54,12 +54,13 @@ function buildDisplayLastName(input: GuestResolutionInput): string {
 
 export async function findExistingGuestProfileByDocument(
   supabase: SupabaseLike,
-  params: { idType: GuestDocumentType; idNumber: string }
+  params: { idType: GuestDocumentType; idNumber: string; select?: string }
 ) {
   const normalized = normalizeGuestDocumentNumber(params.idType, params.idNumber);
   if (!normalized) return null;
 
-  const baseSelect = "id, first_name, last_name, phone, profile_status, id_type, id_number, id_card_number, nationality_code, country";
+  const baseSelect = params.select
+    ?? "id, first_name, last_name, phone, profile_status, id_type, id_number, id_card_number, nationality_code, country";
 
   let { data, error } = await supabase
     .from("guest_profiles")
