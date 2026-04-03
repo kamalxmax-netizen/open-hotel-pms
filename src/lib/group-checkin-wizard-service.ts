@@ -36,6 +36,7 @@ export type WizardReservationLine = {
   room_id: string | null;
   room_number: string | null;
   room_type: string | null;
+  room_type_max_guests: number;
   hk_status: string | null;
   has_assigned_room: boolean;
   total_price: number;
@@ -171,9 +172,9 @@ export async function getGroupReservationLines(
         nightly_price,
         rooms(
           room_number,
-          room_types(name_en)
+          room_types(name_en, max_guests)
         ),
-        room_types(name_en)
+        room_types(name_en, max_guests)
       )
     `)
     .eq("booking_group_id", groupId)
@@ -185,7 +186,12 @@ export async function getGroupReservationLines(
   const reservationIds = reservations.map((row: any) => String(row.id));
   const roomIds = new Set<string>();
 
-  const roomByReservation = new Map<string, { room_id: string | null; room_number: string | null; room_type: string | null }>();
+  const roomByReservation = new Map<string, {
+    room_id: string | null;
+    room_number: string | null;
+    room_type: string | null;
+    room_type_max_guests: number;
+  }>();
   for (const row of reservations) {
     const nights = Array.isArray(row.reservation_nights) ? row.reservation_nights : [];
     const activeNight = nights.find((night: any) => !night?.cancelled_at && String(night?.stay_date ?? "") === businessDate)
@@ -202,6 +208,14 @@ export async function getGroupReservationLines(
       room_id: roomId,
       room_number: roomRef?.room_number ? String(roomRef.room_number) : null,
       room_type: roomTypeFromRoom?.name_en ? String(roomTypeFromRoom.name_en) : (roomTypeFromNight?.name_en ? String(roomTypeFromNight.name_en) : null),
+      room_type_max_guests: Math.max(
+        1,
+        Number(
+          roomTypeFromRoom?.max_guests
+          ?? roomTypeFromNight?.max_guests
+          ?? 2
+        ) || 2
+      ),
     });
   }
 
@@ -311,7 +325,12 @@ export async function getGroupReservationLines(
 
   return reservations.map((row: any) => {
     const reservationId = String(row.id);
-    const room = roomByReservation.get(reservationId) ?? { room_id: null, room_number: null, room_type: null };
+    const room = roomByReservation.get(reservationId) ?? {
+      room_id: null,
+      room_number: null,
+      room_type: null,
+      room_type_max_guests: 2,
+    };
     const checkedInAt = checkedInAtByReservation.get(reservationId) ?? null;
     const payment = paymentByReservation.get(reservationId) ?? { payment: 0, deposit: 0 };
     const total = toRoundedMoney(row.total_price ?? 0);
@@ -381,6 +400,7 @@ export async function getGroupReservationLines(
       room_id: room.room_id,
       room_number: room.room_number,
       room_type: room.room_type,
+      room_type_max_guests: room.room_type_max_guests,
       hk_status: room.room_id ? (hkStatusByRoomId.get(room.room_id) ?? null) : null,
       has_assigned_room: Boolean(room.room_id),
       total_price: total,

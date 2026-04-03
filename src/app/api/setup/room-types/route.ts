@@ -13,6 +13,7 @@ export const fetchCache = "force-no-store";
 const updateSchema = z.object({
   room_type_id: z.coerce.number().int().positive(),
   cleaning_duration_min: z.coerce.number().int().min(1).max(600),
+  max_guests: z.coerce.number().int().min(1).max(8),
 });
 
 function isMissingCleaningDurationColumn(error: { message?: string | null } | null): boolean {
@@ -24,7 +25,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("room_types")
-      .select("id, code, name_en, cleaning_duration_min")
+      .select("id, code, name_en, cleaning_duration_min, max_guests")
       .order("id", { ascending: true });
 
     if (error) {
@@ -46,6 +47,7 @@ export async function GET() {
       code: String(row.code ?? ""),
       name_en: String(row.name_en ?? ""),
       cleaning_duration_min: Math.max(Number(row.cleaning_duration_min ?? 60), 1),
+      max_guests: Math.max(Number(row.max_guests ?? 2), 1),
     }));
 
     return NextResponse.json({ success: true, room_types: roomTypes });
@@ -65,12 +67,12 @@ export async function PUT(req: Request) {
       );
     }
 
-    const { room_type_id, cleaning_duration_min } = parsed.data;
+    const { room_type_id, cleaning_duration_min, max_guests } = parsed.data;
     const { data, error } = await supabase
       .from("room_types")
-      .update({ cleaning_duration_min })
+      .update({ cleaning_duration_min, max_guests })
       .eq("id", room_type_id)
-      .select("id, code, name_en, cleaning_duration_min")
+      .select("id, code, name_en, cleaning_duration_min, max_guests")
       .single();
 
     if (error) {
@@ -97,6 +99,7 @@ export async function PUT(req: Request) {
         code: String((data as any).code ?? ""),
         name_en: String((data as any).name_en ?? ""),
         cleaning_duration_min: Math.max(Number((data as any).cleaning_duration_min ?? 60), 1),
+        max_guests: Math.max(Number((data as any).max_guests ?? 2), 1),
       },
     });
   } catch (err: any) {

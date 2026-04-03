@@ -58,6 +58,7 @@ type RoomTypeTiming = {
     code: string;
     name_en: string;
     cleaning_duration_min: number;
+    max_guests: number;
 };
 
 const BED_TYPES: BedType[] = [
@@ -594,6 +595,7 @@ export default function RoomsSetupPage() {
     const [amenities, setAmenities] = useState<AmenityItem[]>([]);
     const [roomTypeTimings, setRoomTypeTimings] = useState<RoomTypeTiming[]>([]);
     const [roomTypeDurationDrafts, setRoomTypeDurationDrafts] = useState<Record<string, string>>({});
+    const [roomTypeGuestDrafts, setRoomTypeGuestDrafts] = useState<Record<string, string>>({});
     const [timingSavingId, setTimingSavingId] = useState<string | null>(null);
     const [timingMsg, setTimingMsg] = useState("");
     const [loading, setLoading] = useState(true);
@@ -646,6 +648,7 @@ export default function RoomsSetupPage() {
                     code: String(row.code ?? ""),
                     name_en: String(row.name_en ?? ""),
                     cleaning_duration_min: Math.max(Number(row.cleaning_duration_min ?? 60), 1),
+                    max_guests: Math.max(Number(row.max_guests ?? 2), 1),
                 }))
                 .filter((row: RoomTypeTiming) => Number.isFinite(row.id));
             setRoomTypeTimings(timingRows);
@@ -654,6 +657,14 @@ export default function RoomsSetupPage() {
                 timingRows.forEach((row: RoomTypeTiming) => {
                     const key = String(row.id);
                     if (next[key] == null) next[key] = String(row.cleaning_duration_min);
+                });
+                return next;
+            });
+            setRoomTypeGuestDrafts((prev) => {
+                const next = { ...prev };
+                timingRows.forEach((row: RoomTypeTiming) => {
+                    const key = String(row.id);
+                    if (next[key] == null) next[key] = String(row.max_guests);
                 });
                 return next;
             });
@@ -803,9 +814,14 @@ export default function RoomsSetupPage() {
 
     async function saveRoomTypeDuration(roomTypeId: number) {
         const key = String(roomTypeId);
-        const parsed = Number(roomTypeDurationDrafts[key] ?? "");
-        if (!Number.isInteger(parsed) || parsed < 1 || parsed > 600) {
+        const parsedDuration = Number(roomTypeDurationDrafts[key] ?? "");
+        const parsedGuests = Number(roomTypeGuestDrafts[key] ?? "");
+        if (!Number.isInteger(parsedDuration) || parsedDuration < 1 || parsedDuration > 600) {
             setTimingMsg("Cleaning duration must be an integer between 1 and 600 minutes.");
+            return;
+        }
+        if (!Number.isInteger(parsedGuests) || parsedGuests < 1 || parsedGuests > 8) {
+            setTimingMsg("Standard adults / room must be an integer between 1 and 8.");
             return;
         }
 
@@ -817,7 +833,8 @@ export default function RoomsSetupPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     room_type_id: roomTypeId,
-                    cleaning_duration_min: parsed,
+                    cleaning_duration_min: parsedDuration,
+                    max_guests: parsedGuests,
                 }),
             });
             const data = await res.json().catch(() => ({} as { success?: boolean; error?: string }));
@@ -829,12 +846,13 @@ export default function RoomsSetupPage() {
             setRoomTypeTimings((prev) =>
                 prev.map((row) =>
                     row.id === roomTypeId
-                        ? { ...row, cleaning_duration_min: parsed }
+                        ? { ...row, cleaning_duration_min: parsedDuration, max_guests: parsedGuests }
                         : row
                 )
             );
-            setRoomTypeDurationDrafts((prev) => ({ ...prev, [key]: String(parsed) }));
-            setTimingMsg("Cleaning duration updated.");
+            setRoomTypeDurationDrafts((prev) => ({ ...prev, [key]: String(parsedDuration) }));
+            setRoomTypeGuestDrafts((prev) => ({ ...prev, [key]: String(parsedGuests) }));
+            setTimingMsg("Room type setup updated.");
             setTimeout(() => setTimingMsg(""), 2500);
         } finally {
             setTimingSavingId(null);
@@ -896,7 +914,7 @@ export default function RoomsSetupPage() {
                         <div>
                             <h2 className="text-sm font-bold text-[var(--text-primary)]">Housekeeping Cleaning Time by Room Type</h2>
                             <p className="text-xs text-[var(--text-secondary)]">
-                                Base cleaning time per room type. System adds maintenance minutes on top automatically in HK Dashboard and Maid App.
+                                Base cleaning time and standard adults per room type. Group Check-in auto-assign uses this adult capacity.
                             </p>
                         </div>
                         {timingMsg && (
@@ -909,6 +927,7 @@ export default function RoomsSetupPage() {
                                 <tr className="border-b border-[var(--border-default)]">
                                     <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Room Type</th>
                                     <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Code</th>
+                                    <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Standard Adults / Room</th>
                                     <th className="text-left py-2 pr-2 font-semibold text-[var(--text-secondary)]">Cleaning Duration (min)</th>
                                     <th className="text-right py-2 font-semibold text-[var(--text-secondary)]">Action</th>
                                 </tr>
@@ -916,11 +935,17 @@ export default function RoomsSetupPage() {
                             <tbody>
                                 {roomTypeTimings.map((row) => {
                                     const key = String(row.id);
-                                    const draftValue = roomTypeDurationDrafts[key] ?? String(row.cleaning_duration_min);
-                                    const parsedDraft = Number(draftValue);
-                                    const isValidDraft =
-                                        Number.isInteger(parsedDraft) && parsedDraft >= 1 && parsedDraft <= 600;
-                                    const isChanged = isValidDraft && parsedDraft !== row.cleaning_duration_min;
+                                    const durationDraftValue = roomTypeDurationDrafts[key] ?? String(row.cleaning_duration_min);
+                                    const guestDraftValue = roomTypeGuestDrafts[key] ?? String(row.max_guests);
+                                    const parsedDuration = Number(durationDraftValue);
+                                    const parsedGuests = Number(guestDraftValue);
+                                    const isValidDuration =
+                                        Number.isInteger(parsedDuration) && parsedDuration >= 1 && parsedDuration <= 600;
+                                    const isValidGuests =
+                                        Number.isInteger(parsedGuests) && parsedGuests >= 1 && parsedGuests <= 8;
+                                    const isChanged =
+                                        (isValidDuration && parsedDuration !== row.cleaning_duration_min)
+                                        || (isValidGuests && parsedGuests !== row.max_guests);
                                     const isSaving = timingSavingId === key;
                                     return (
                                         <tr key={row.id} className="border-b border-[var(--border-subtle)]">
@@ -930,9 +955,29 @@ export default function RoomsSetupPage() {
                                                 <input
                                                     type="number"
                                                     min={1}
+                                                    max={8}
+                                                    className="form-input w-28 text-sm"
+                                                    value={guestDraftValue}
+                                                    onChange={(e) =>
+                                                        setRoomTypeGuestDrafts((prev) => ({
+                                                            ...prev,
+                                                            [key]: e.target.value,
+                                                        }))
+                                                    }
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" && isChanged && !isSaving) {
+                                                            void saveRoomTypeDuration(row.id);
+                                                        }
+                                                    }}
+                                                />
+                                            </td>
+                                            <td className="py-2 pr-2">
+                                                <input
+                                                    type="number"
+                                                    min={1}
                                                     max={600}
                                                     className="form-input w-28 text-sm"
-                                                    value={draftValue}
+                                                    value={durationDraftValue}
                                                     onChange={(e) =>
                                                         setRoomTypeDurationDrafts((prev) => ({
                                                             ...prev,
@@ -949,7 +994,7 @@ export default function RoomsSetupPage() {
                                             <td className="py-2 text-right">
                                                 <button
                                                     className="btn btn-secondary text-xs"
-                                                    disabled={!isChanged || !isValidDraft || isSaving}
+                                                    disabled={!isChanged || !isValidDuration || !isValidGuests || isSaving}
                                                     onClick={() => void saveRoomTypeDuration(row.id)}
                                                 >
                                                     {isSaving ? "Saving..." : "Save"}
@@ -960,7 +1005,7 @@ export default function RoomsSetupPage() {
                                 })}
                                 {roomTypeTimings.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="py-4 text-xs text-[var(--text-secondary)]">
+                                        <td colSpan={5} className="py-4 text-xs text-[var(--text-secondary)]">
                                             No room types found.
                                         </td>
                                     </tr>

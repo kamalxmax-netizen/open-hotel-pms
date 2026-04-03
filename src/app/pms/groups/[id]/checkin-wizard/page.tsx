@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import { formatDateDisplay } from "@/lib/date-display";
 
@@ -57,6 +57,7 @@ type WizardReservation = {
   status: string;
   room_number: string;
   room_type: string;
+  room_type_max_guests: number;
   hk_status: HkStatus;
   checkin_date: string;
   is_checked_in: boolean;
@@ -388,6 +389,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       status: String(line.status ?? ""),
       room_number: line.room_number ? String(line.room_number) : "—",
       room_type: line.room_type ? String(line.room_type) : "—",
+      room_type_max_guests: Math.max(1, Number(line.room_type_max_guests ?? 2) || 2),
       hk_status: (line.hk_status ?? null) as HkStatus,
       checkin_date: String(line.checkin_date ?? ""),
       is_checked_in: Boolean(line.is_checked_in),
@@ -464,6 +466,84 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     };
   }
 
+  function hydrateScannedPoolFromDraft(rows: WizardReservation[], draftJson: Record<string, any>) {
+    const draftStep2Pool = Array.isArray((draftJson as any)?.step2?.scanned_pool)
+      ? (draftJson as any).step2.scanned_pool
+      : [];
+    const draftStep2Ids = draftStep2Pool.length > 0
+      ? draftStep2Pool
+        .map((item: any) => String(item?.guest_profile_id ?? "").trim())
+        .filter(Boolean)
+      : Array.isArray((draftJson as any)?.step2?.scanned_guest_profile_ids)
+        ? (draftJson as any).step2.scanned_guest_profile_ids.map((value: unknown) => String(value))
+        : [];
+    const knownGuestMap = new Map<string, GuestSearchResult>();
+    rows.forEach((row) => {
+      if (row.party.primary) {
+        knownGuestMap.set(row.party.primary.guest_profile_id, {
+          id: row.party.primary.guest_profile_id,
+          first_name: row.party.primary.display_name,
+          last_name: null,
+          phone: null,
+          member_no: null,
+          profile_status: row.party.primary.profile_status,
+          nationality_code: row.party.primary.nationality_code,
+        });
+      }
+      row.party.accompanying.forEach((guest) => {
+        knownGuestMap.set(guest.guest_profile_id, {
+          id: guest.guest_profile_id,
+          first_name: guest.display_name,
+          last_name: null,
+          phone: null,
+          member_no: null,
+          profile_status: guest.profile_status,
+          nationality_code: guest.nationality_code,
+        });
+      });
+    });
+
+    const sourceById = new Map<string, ScanPoolSource>();
+    const orderById = new Map<string, number>();
+    const displayById = new Map<string, string>();
+    draftStep2Pool.forEach((item: any, idx: number) => {
+      const profileId = String(item?.guest_profile_id ?? "").trim();
+      if (!profileId) return;
+      const sourceRaw = String(item?.source ?? "search").trim() as ScanPoolSource;
+      sourceById.set(
+        profileId,
+        sourceRaw === "thai_id" || sourceRaw === "passport_ocr" || sourceRaw === "search"
+          ? sourceRaw
+          : "search"
+      );
+      orderById.set(profileId, Number.isFinite(Number(item?.scan_order)) ? Number(item.scan_order) : idx + 1);
+      const snapshotName = String(item?.display_name ?? "").trim();
+      if (snapshotName) displayById.set(profileId, snapshotName);
+    });
+
+    const hydratedPool: ScannedPoolItem[] = draftStep2Ids
+      .map((id: string, idx: number) => {
+        const known = knownGuestMap.get(id);
+        return {
+          ...(known ?? {
+            id,
+            first_name: null,
+            last_name: null,
+            phone: null,
+            member_no: null,
+            profile_status: null,
+            nationality_code: null,
+          }),
+          source: sourceById.get(id) ?? "search",
+          scan_order: orderById.get(id) ?? idx + 1,
+          display_name: displayById.get(id) ?? known?.first_name ?? id,
+        } as ScannedPoolItem;
+      })
+      .sort((a: ScannedPoolItem, b: ScannedPoolItem) => a.scan_order - b.scan_order);
+
+    setScannedGuestPool(hydratedPool);
+  }
+
   async function reloadReservationSnapshot() {
     const response = await fetch(
       `/api/booking-groups/${groupId}/checkin-wizard?business_date=${encodeURIComponent(businessDate || "")}`,
@@ -480,7 +560,9 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         ? data.draft.draft_json
         : {};
     setWizardDraftJson(draftJson);
-    setReservations(buildReservationRows(data));
+    const rows = buildReservationRows(data);
+    setReservations(rows);
+    hydrateScannedPoolFromDraft(rows, draftJson);
   }
 
   const step4Buckets = useMemo(() => {
@@ -599,51 +681,76 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     });
   }, [masterPaymentsEdited, selectedReservations]);
 
+  const refreshMobileScans = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}`, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.pool) {
+          setMobileScans(json.pool);
+          return;
+        }
+      }
+      const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
+      setMobileScans(mock.pool);
+    } catch {
+      const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
+      setMobileScans(mock.pool);
+    }
+  }, [groupId]);
+
   // --- Phase 50 Mobile Scans Polling ---
   useEffect(() => {
     if (currentStep !== 2 || !groupId) return;
 
     const poll = async () => {
       if (document.visibilityState !== "visible") return;
-      try {
-        const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.pool) setMobileScans(json.pool);
-        } else {
-          const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
-          setMobileScans(mock.pool);
-        }
-      } catch (err) {
-        const mock = (await import("@/lib/mock/group-ocr")).mockGroupOcrPool(groupId);
-        setMobileScans(mock.pool);
-      }
+      await refreshMobileScans();
     };
 
-    poll(); // immediate
-    const interval = setInterval(poll, 3000);
+    void poll();
+    const interval = setInterval(() => { void poll(); }, 3000);
     return () => clearInterval(interval);
-  }, [currentStep, groupId]);
+  }, [currentStep, groupId, refreshMobileScans]);
 
   const filteredMobileScans = useMemo(() => {
-    const existingIds = new Set(scannedGuestPool.map(g => g.id));
-    return mobileScans.filter(scan => {
-      if (scan.guest_profile_id && existingIds.has(scan.guest_profile_id)) return false;
-      return true;
+    const seenScanIds = new Set<string>();
+    return mobileScans.filter((scan) => {
+      const scanId = String(scan?.scan_id ?? "").trim();
+      const status = String(scan?.pool_status ?? "").trim();
+      if (!scanId || seenScanIds.has(scanId)) return false;
+      seenScanIds.add(scanId);
+      return status !== "assigned";
     });
-  }, [mobileScans, scannedGuestPool]);
+  }, [mobileScans]);
 
   async function importSingleScan(scan: any) {
-    if (!scan.guest_profile_id) return;
     setStep2Busy(true);
     setError("");
     setInfo("");
     try {
-      await ingestIdentityToPool({
-        source: "search",
-        guestProfileId: scan.guest_profile_id,
+      const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}/import-to-wizard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scan_ids: [scan.scan_id],
+          business_date: businessDate,
+        }),
       });
-      setInfo(`Imported ${scan.display_name} from mobile scan.`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to import scan.");
+      }
+      await reloadReservationSnapshot();
+      await refreshMobileScans();
+      if (Number(data?.imported_count ?? 0) > 0) {
+        setInfo(`Imported ${scan.display_name} from mobile scan.`);
+      } else {
+        const reason = Array.isArray(data?.skipped_reasons) && data.skipped_reasons.length > 0
+          ? String(data.skipped_reasons[0])
+          : "Scan was skipped.";
+        setInfo(reason);
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to import scan.");
     } finally {
@@ -660,29 +767,23 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setError("");
     setInfo("");
     try {
-      let imported = 0;
-      for (const scan of readyScans) {
-        try {
-          await ingestIdentityToPool({
-            source: "search",
-            guestProfileId: scan.guest_profile_id,
-          });
-          imported++;
-        } catch (e) {
-          console.error("Failed importing row", scan.scan_id, e);
-        }
-      }
-
-      fetch(`/api/checkin/group-ocr-pool/${groupId}/import-to-wizard`, {
+      const res = await fetch(`/api/checkin/group-ocr-pool/${groupId}/import-to-wizard`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scan_ids: readyScans.map((s: any) => s.scan_id),
           business_date: businessDate,
         }),
-      }).catch(console.error);
-
-      setInfo(`Imported ${imported} profiles from Mobile Scans into local pool.`);
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to import all scans.");
+      }
+      await reloadReservationSnapshot();
+      await refreshMobileScans();
+      const imported = Number(data?.imported_count ?? 0);
+      const skipped = Number(data?.skipped_count ?? 0);
+      setInfo(`Imported ${imported} profile(s) from mobile scans.${skipped > 0 ? ` Skipped ${skipped}.` : ""}`);
     } catch (err: any) {
       setError(err?.message || "Failed to import all scans.");
     } finally {
@@ -726,78 +827,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           return rows.find((row) => row.selected)?.id ?? rows[0]?.id ?? "";
         });
 
-        const draftStep2Pool = Array.isArray((draftJson as any)?.step2?.scanned_pool)
-          ? (draftJson as any).step2.scanned_pool
-          : [];
-        const draftStep2Ids = draftStep2Pool.length > 0
-          ? draftStep2Pool
-            .map((item: any) => String(item?.guest_profile_id ?? "").trim())
-            .filter(Boolean)
-          : Array.isArray((draftJson as any)?.step2?.scanned_guest_profile_ids)
-            ? (draftJson as any).step2.scanned_guest_profile_ids.map((value: unknown) => String(value))
-            : [];
-        const knownGuestMap = new Map<string, GuestSearchResult>();
-        rows.forEach((row) => {
-          if (row.party.primary) {
-            knownGuestMap.set(row.party.primary.guest_profile_id, {
-              id: row.party.primary.guest_profile_id,
-              first_name: row.party.primary.display_name,
-              last_name: null,
-              phone: null,
-              member_no: null,
-              profile_status: row.party.primary.profile_status,
-              nationality_code: row.party.primary.nationality_code,
-            });
-          }
-          row.party.accompanying.forEach((guest) => {
-            knownGuestMap.set(guest.guest_profile_id, {
-              id: guest.guest_profile_id,
-              first_name: guest.display_name,
-              last_name: null,
-              phone: null,
-              member_no: null,
-              profile_status: guest.profile_status,
-              nationality_code: guest.nationality_code,
-            });
-          });
-        });
-        const sourceById = new Map<string, ScanPoolSource>();
-        const orderById = new Map<string, number>();
-        const displayById = new Map<string, string>();
-        draftStep2Pool.forEach((item: any, idx: number) => {
-          const profileId = String(item?.guest_profile_id ?? "").trim();
-          if (!profileId) return;
-          const sourceRaw = String(item?.source ?? "search").trim() as ScanPoolSource;
-          sourceById.set(
-            profileId,
-            sourceRaw === "thai_id" || sourceRaw === "passport_ocr" || sourceRaw === "search"
-              ? sourceRaw
-              : "search"
-          );
-          orderById.set(profileId, Number.isFinite(Number(item?.scan_order)) ? Number(item.scan_order) : idx + 1);
-          const snapshotName = String(item?.display_name ?? "").trim();
-          if (snapshotName) displayById.set(profileId, snapshotName);
-        });
-        const hydratedPool: ScannedPoolItem[] = draftStep2Ids
-          .map((id: string, idx: number) => {
-            const known = knownGuestMap.get(id);
-            return {
-              ...(known ?? {
-                id,
-                first_name: null,
-                last_name: null,
-                phone: null,
-                member_no: null,
-                profile_status: null,
-                nationality_code: null,
-              }),
-              source: sourceById.get(id) ?? "search",
-              scan_order: orderById.get(id) ?? idx + 1,
-              display_name: displayById.get(id) ?? known?.first_name ?? id,
-            } as ScannedPoolItem;
-          })
-          .sort((a: ScannedPoolItem, b: ScannedPoolItem) => a.scan_order - b.scan_order);
-        setScannedGuestPool(hydratedPool);
+        hydrateScannedPoolFromDraft(rows, draftJson);
 
         const plan: Record<string, SplitRoomPlan> = {};
         const draftSplitMap = new Map<string, any>();

@@ -55,50 +55,61 @@ function parsePaymentMode(body: any): "split" | "master" {
 async function attachGroupPassportScansToReservations(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   groupId: string;
-  successfulLines: Array<{ reservation_id: string; primary_guest_profile_id: string | null }>;
+  successfulLines: Array<{
+    reservation_id: string;
+    primary_guest_profile_id: string | null;
+    accompanying_guest_profile_ids: string[];
+  }>;
 }): Promise<string[]> {
   const warnings: string[] = [];
   const { supabase, groupId, successfulLines } = params;
 
   for (const line of successfulLines) {
     const reservationId = String(line.reservation_id ?? "").trim();
-    const guestProfileId = String(line.primary_guest_profile_id ?? "").trim();
-    if (!reservationId || !guestProfileId) continue;
+    const guestProfileIds = [
+      String(line.primary_guest_profile_id ?? "").trim(),
+      ...((Array.isArray(line.accompanying_guest_profile_ids) ? line.accompanying_guest_profile_ids : [])
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)),
+    ].filter(Boolean);
+    if (!reservationId || guestProfileIds.length === 0) continue;
 
-    const { data: scanRow, error: scanReadError } = await supabase
-      .from("passport_scans")
-      .select("id, reservation_id, pool_status")
-      .eq("booking_group_id", groupId)
-      .eq("guest_profile_id", guestProfileId)
-      .not("pool_status", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    for (const guestProfileId of guestProfileIds) {
+      const { data: scanRow, error: scanReadError } = await supabase
+        .from("passport_scans")
+        .select("id, reservation_id, pool_status")
+        .eq("booking_group_id", groupId)
+        .eq("guest_profile_id", guestProfileId)
+        .not("pool_status", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (scanReadError) {
-      warnings.push(`scan-link read failed for reservation ${reservationId}: ${scanReadError.message}`);
-      continue;
-    }
-    if (!scanRow?.id) continue;
+      if (scanReadError) {
+        warnings.push(`scan-link read failed for reservation ${reservationId}: ${scanReadError.message}`);
+        continue;
+      }
+      if (!scanRow?.id) continue;
 
-    const linkedReservationId = String((scanRow as any).reservation_id ?? "").trim();
-    if (linkedReservationId && linkedReservationId !== reservationId) {
-      warnings.push(`scan ${scanRow.id} already linked to another reservation.`);
-      continue;
-    }
-    if (linkedReservationId === reservationId) continue;
+      const linkedReservationId = String((scanRow as any).reservation_id ?? "").trim();
+      if (linkedReservationId && linkedReservationId !== reservationId) {
+        warnings.push(`scan ${scanRow.id} already linked to another reservation.`);
+        continue;
+      }
+      if (linkedReservationId === reservationId) continue;
 
-    const { error: scanUpdateError } = await supabase
-      .from("passport_scans")
-      .update({
-        reservation_id: reservationId,
-        matched_reservation_id: reservationId,
-        pool_status: "assigned",
-      })
-      .eq("id", String(scanRow.id));
+      const { error: scanUpdateError } = await supabase
+        .from("passport_scans")
+        .update({
+          reservation_id: reservationId,
+          matched_reservation_id: reservationId,
+          pool_status: "assigned",
+        })
+        .eq("id", String(scanRow.id));
 
-    if (scanUpdateError) {
-      warnings.push(`scan-link update failed for reservation ${reservationId}: ${scanUpdateError.message}`);
+      if (scanUpdateError) {
+        warnings.push(`scan-link update failed for reservation ${reservationId}: ${scanUpdateError.message}`);
+      }
     }
   }
 
@@ -411,6 +422,7 @@ export async function POST(
       .map((line) => ({
         reservation_id: line.reservation_id,
         primary_guest_profile_id: line.primary_guest_profile_id ?? null,
+        accompanying_guest_profile_ids: line.accompanying_guest_profile_ids ?? [],
       }));
 
     const scanLinkWarnings = await attachGroupPassportScansToReservations({

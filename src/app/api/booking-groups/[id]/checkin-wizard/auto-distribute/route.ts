@@ -1,5 +1,6 @@
 import {
   getBusinessDate,
+  getGroupReservationLines,
   getSelectedReservationIdsFromDraft,
 } from "@/lib/group-checkin-wizard-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -9,6 +10,7 @@ type DistributionState = {
   reservation_id: string;
   booking_code: string;
   guest_name: string | null;
+  room_capacity: number;
   primary_guest_profile_id: string | null;
   accompanying_guest_profile_ids: string[];
   expected_primary_guest_profile_id: string | null;
@@ -117,22 +119,16 @@ export async function POST(
       return NextResponse.json({ success: false, error: "No selected reservations found for distribution." }, { status: 400 });
     }
 
-    const { data: reservations, error: reservationError } = await supabase
-      .from("reservations")
-      .select("id, booking_code, booking_group_id, guest_profile_id, guest_name")
-      .in("id", selectedReservationIds);
-
-    if (reservationError) {
-      return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
-    }
-
-    const inGroup = (reservations ?? [])
-      .filter((row: any) => String(row.booking_group_id ?? "") === groupId)
-      .map((row: any) => ({
-        reservation_id: String(row.id),
-        booking_code: String(row.booking_code ?? ""),
-        guest_name: row.guest_name ? String(row.guest_name) : null,
-        fallback_primary_guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
+    const reservationLines = await getGroupReservationLines(supabase, groupId, businessDate);
+    const selectedIdSet = new Set(selectedReservationIds);
+    const inGroup = reservationLines
+      .filter((row) => selectedIdSet.has(row.reservation_id))
+      .map((row) => ({
+        reservation_id: row.reservation_id,
+        booking_code: row.booking_code,
+        guest_name: row.guest_name,
+        fallback_primary_guest_profile_id: row.primary_guest_profile_id,
+        room_capacity: Math.max(1, Number(row.room_type_max_guests ?? 2) || 2),
       }))
       .sort((a, b) => a.booking_code.localeCompare(b.booking_code));
 
@@ -140,38 +136,14 @@ export async function POST(
       return NextResponse.json({ success: false, error: "No valid reservations in this group." }, { status: 404 });
     }
 
-    const reservationIds = inGroup.map((row) => row.reservation_id);
-    const { data: reservationGuests, error: guestError } = await supabase
-      .from("reservation_guests")
-      .select("reservation_id, guest_profile_id, role, display_order")
-      .in("reservation_id", reservationIds);
-
-    if (guestError) {
-      return NextResponse.json({ success: false, error: guestError.message }, { status: 500 });
-    }
-
-    const guestRows = reservationGuests ?? [];
-    const persistedPrimaryByReservation = new Map<string, string>();
-    for (const row of guestRows) {
-      if (String(row?.role ?? "") !== "primary") continue;
-      const reservationId = String(row?.reservation_id ?? "");
-      const guestProfileId = String(row?.guest_profile_id ?? "");
-      if (!reservationId || !guestProfileId) continue;
-      if (!persistedPrimaryByReservation.has(reservationId)) {
-        persistedPrimaryByReservation.set(reservationId, guestProfileId);
-      }
-    }
-
     const state: DistributionState[] = inGroup.map((reservation) => {
-      const expectedPrimary =
-        persistedPrimaryByReservation.get(reservation.reservation_id)
-        ?? reservation.fallback_primary_guest_profile_id
-        ?? null;
+      const expectedPrimary = reservation.fallback_primary_guest_profile_id ?? null;
 
       return {
         reservation_id: reservation.reservation_id,
         booking_code: reservation.booking_code,
         guest_name: reservation.guest_name,
+        room_capacity: reservation.room_capacity,
         primary_guest_profile_id: null,
         accompanying_guest_profile_ids: [],
         expected_primary_guest_profile_id: expectedPrimary,
@@ -270,35 +242,16 @@ export async function POST(
       assignedGuestIds.add(next);
     }
 
-    // Equal split target by booking_code order.
-    const roomCount = state.length;
-    const totalGuests = scannedPool.length;
-    const base = roomCount > 0 ? Math.floor(totalGuests / roomCount) : 0;
-    const extra = roomCount > 0 ? totalGuests % roomCount : 0;
-    const targetSplit = state.map((_, idx) => Math.min(4, base + (idx < extra ? 1 : 0)));
-
-    // Pass C: fill accompanying to reach equal split targets.
-    for (let i = 0; i < state.length; i += 1) {
-      const row = state[i];
-      if (!row.primary_guest_profile_id) continue;
-      const desiredCount = Math.max(1, targetSplit[i]);
-      while (
-        remainingGuests.length > 0 &&
-        (1 + row.accompanying_guest_profile_ids.length) < desiredCount &&
-        (1 + row.accompanying_guest_profile_ids.length) < 4
-      ) {
-        const next = remainingGuests.shift();
-        if (!next) break;
-        row.accompanying_guest_profile_ids.push(next);
-        assignedGuestIds.add(next);
-      }
-    }
-
-    // Pass D: if still remaining, fill any room with capacity (<4).
-    if (remainingGuests.length > 0) {
+    // Pass C: balanced fill by actual room capacity.
+    // Each room gets 1 primary first, then we add guest #2 to every eligible room,
+    // then guest #3 to rooms that support 3, and so on.
+    const maxCapacity = state.reduce((highest, row) => Math.max(highest, row.room_capacity), 1);
+    for (let targetOccupancy = 2; targetOccupancy <= maxCapacity; targetOccupancy += 1) {
       for (const row of state) {
+        if (remainingGuests.length === 0) break;
         if (!row.primary_guest_profile_id) continue;
-        while (remainingGuests.length > 0 && (1 + row.accompanying_guest_profile_ids.length) < 4) {
+        if (row.room_capacity < targetOccupancy) continue;
+        while (remainingGuests.length > 0 && (1 + row.accompanying_guest_profile_ids.length) < targetOccupancy) {
           const next = remainingGuests.shift();
           if (!next) break;
           row.accompanying_guest_profile_ids.push(next);
@@ -343,7 +296,7 @@ export async function POST(
         rooms: state.length,
         guests: scannedPool.length,
         matched_main_count: matchedMainCount,
-        target_split: targetSplit,
+        target_split: state.map((row) => 1 + row.accompanying_guest_profile_ids.length),
       },
     });
   } catch (err) {
