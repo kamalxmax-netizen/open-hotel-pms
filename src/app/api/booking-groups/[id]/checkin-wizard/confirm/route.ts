@@ -66,18 +66,26 @@ async function attachGroupPassportScansToReservations(params: {
 
   for (const line of successfulLines) {
     const reservationId = String(line.reservation_id ?? "").trim();
-    const guestProfileIds = [
-      String(line.primary_guest_profile_id ?? "").trim(),
+    const guestAssignments = [
+      {
+        guest_profile_id: String(line.primary_guest_profile_id ?? "").trim(),
+        guest_index: 0,
+      },
       ...((Array.isArray(line.accompanying_guest_profile_ids) ? line.accompanying_guest_profile_ids : [])
-        .map((value) => String(value ?? "").trim())
-        .filter(Boolean)),
-    ].filter(Boolean);
-    if (!reservationId || guestProfileIds.length === 0) continue;
+        .map((value, index) => ({
+          guest_profile_id: String(value ?? "").trim(),
+          guest_index: index + 1,
+        }))
+        .filter((entry) => entry.guest_profile_id)),
+    ].filter((entry) => entry.guest_profile_id);
+    if (!reservationId || guestAssignments.length === 0) continue;
 
-    for (const guestProfileId of guestProfileIds) {
+    for (const assignment of guestAssignments) {
+      const guestProfileId = assignment.guest_profile_id;
+      const desiredGuestIndex = assignment.guest_index;
       const { data: scanRow, error: scanReadError } = await supabase
         .from("passport_scans")
-        .select("id, reservation_id, pool_status")
+        .select("id, reservation_id, matched_reservation_id, pool_status, guest_index")
         .eq("booking_group_id", groupId)
         .eq("guest_profile_id", guestProfileId)
         .not("pool_status", "is", null)
@@ -96,13 +104,24 @@ async function attachGroupPassportScansToReservations(params: {
         warnings.push(`scan ${scanRow.id} already linked to another reservation.`);
         continue;
       }
-      if (linkedReservationId === reservationId) continue;
+      const matchedReservationId = String((scanRow as any).matched_reservation_id ?? "").trim();
+      const currentGuestIndex = Number((scanRow as any).guest_index ?? 0);
+      const currentPoolStatus = String((scanRow as any).pool_status ?? "").trim();
+
+      const needsUpdate =
+        linkedReservationId !== reservationId
+        || matchedReservationId !== reservationId
+        || currentGuestIndex !== desiredGuestIndex
+        || currentPoolStatus !== "assigned";
+
+      if (!needsUpdate) continue;
 
       const { error: scanUpdateError } = await supabase
         .from("passport_scans")
         .update({
           reservation_id: reservationId,
           matched_reservation_id: reservationId,
+          guest_index: desiredGuestIndex,
           pool_status: "assigned",
         })
         .eq("id", String(scanRow.id));
