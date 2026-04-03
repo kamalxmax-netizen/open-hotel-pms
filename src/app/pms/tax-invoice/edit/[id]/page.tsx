@@ -50,6 +50,9 @@ export default function TaxInvoiceEditPage() {
   const formInitialData: BuildLineItemsResult = {
     reservation: {
       id: data.reservation_id,
+      reservation_ids: Array.isArray(data.booking_snapshot?.reservation_ids)
+        ? data.booking_snapshot.reservation_ids
+        : [data.reservation_id],
       booking_code: data.booking_snapshot.booking_code,
       guest_name: data.customer_name,
       source: data.booking_snapshot.source,

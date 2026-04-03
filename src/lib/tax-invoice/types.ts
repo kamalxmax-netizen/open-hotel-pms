@@ -27,11 +27,14 @@ export type TaxInvoiceTotals = {
 
 export type TaxInvoiceBookingSnapshot = {
   booking_code: string | null;
+  booking_codes?: string[];
   source: string | null;
   checkin_date: string | null;
   checkout_date: string | null;
   nights: number;
   room_numbers: string[];
+  reservation_ids?: string[];
+  booking_group_id?: string | null;
 };
 
 export type TaxInvoiceSellerSnapshot = {
@@ -48,6 +51,7 @@ export type TaxInvoiceSellerSnapshot = {
 export type BuildLineItemsResult = {
   reservation: {
     id: string;
+    reservation_ids: string[];
     booking_code: string | null;
     guest_name: string | null;
     source: string | null;

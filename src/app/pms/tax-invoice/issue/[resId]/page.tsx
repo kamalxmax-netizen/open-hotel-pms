@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import TaxInvoiceForm from "../../tax-invoice-form";
 import { BuildLineItemsResult } from "@/lib/tax-invoice/types";
 import { formatDateRangeDisplay } from "@/lib/date-display";
@@ -10,6 +10,7 @@ type DocType = "invoice" | "receipt";
 
 export default function TaxInvoiceIssuePage() {
   const { resId } = useParams<{ resId: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [data, setData] = useState<BuildLineItemsResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,11 +21,27 @@ export default function TaxInvoiceIssuePage() {
   const [rcLanguage, setRcLanguage] = useState<"th" | "en">("th");
   const [rcNote, setRcNote] = useState("");
   const [rcLoading, setRcLoading] = useState(false);
+  const reservationIds = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          resId,
+          ...String(searchParams.get("reservation_ids") ?? "")
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ])
+      ),
+    [resId, searchParams]
+  );
+  const reservationIdsQuery = useMemo(() => reservationIds.join(","), [reservationIds]);
+  const isCombinedInvoice = reservationIds.length > 1;
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/tax-invoice/build-line-items/${resId}`);
+        const query = isCombinedInvoice ? `?reservation_ids=${encodeURIComponent(reservationIdsQuery)}` : "";
+        const res = await fetch(`/api/tax-invoice/build-line-items/${resId}${query}`);
         const result = await res.json();
         if (result.success) {
           setData(result.data);
@@ -38,7 +55,7 @@ export default function TaxInvoiceIssuePage() {
       }
     }
     fetchData();
-  }, [resId]);
+  }, [isCombinedInvoice, reservationIdsQuery, resId]);
 
   const handleIssueReceipt = async () => {
     if (!data) return;
@@ -100,7 +117,9 @@ export default function TaxInvoiceIssuePage() {
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
             {docType === "invoice"
-              ? "ใบเสร็จรับเงิน / ใบกำกับภาษี — พร้อมรายละเอียด VAT"
+              ? isCombinedInvoice
+                ? "ใบเสร็จรับเงิน / ใบกำกับภาษีแบบรวมกลุ่ม — พร้อมรายละเอียด VAT"
+                : "ใบเสร็จรับเงิน / ใบกำกับภาษี — พร้อมรายละเอียด VAT"
               : "ใบเสร็จรับเงินธรรมดา — ไม่แยก VAT"}
           </p>
         </div>
@@ -113,13 +132,20 @@ export default function TaxInvoiceIssuePage() {
             📄 Tax Invoice
           </button>
           <button
-            onClick={() => setDocType("receipt")}
-            className={`px-5 py-2 text-xs font-bold rounded-lg transition ${docType === "receipt" ? "bg-white dark:bg-white/10 shadow text-emerald-600" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
+            onClick={() => !isCombinedInvoice && setDocType("receipt")}
+            disabled={isCombinedInvoice}
+            className={`px-5 py-2 text-xs font-bold rounded-lg transition ${docType === "receipt" ? "bg-white dark:bg-white/10 shadow text-emerald-600" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"} ${isCombinedInvoice ? "opacity-40 cursor-not-allowed" : ""}`}
           >
             🧾 Receipt
           </button>
         </div>
       </div>
+
+      {isCombinedInvoice && (
+        <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
+          Group booking นี้จะออกเป็นใบกำกับภาษีรวมตามห้องที่เลือกไว้: {data?.booking_snapshot?.room_numbers?.join(", ") || "-"}
+        </div>
+      )}
 
       {docType === "invoice" && data && (
         <TaxInvoiceForm initialData={data} mode="issue" />

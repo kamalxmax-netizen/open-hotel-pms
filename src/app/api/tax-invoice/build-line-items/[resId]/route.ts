@@ -1,5 +1,6 @@
 import {
   buildLineItemsForReservation,
+  buildLineItemsForReservations,
   getBusinessDateFromSettings,
   getSellerSnapshotFromSettings,
   TaxInvoiceError,
@@ -22,6 +23,14 @@ export async function GET(
     if (!UUID_RE.test(reservationId)) {
       return NextResponse.json({ success: false, error: "Invalid reservation id." }, { status: 400 });
     }
+    const extraReservationIds = String(request.nextUrl.searchParams.get("reservation_ids") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const reservationIds = Array.from(new Set([reservationId, ...extraReservationIds]));
+    if (!reservationIds.every((value) => UUID_RE.test(value))) {
+      return NextResponse.json({ success: false, error: "Invalid reservation_ids." }, { status: 400 });
+    }
 
     const supabase = createServerSupabaseClient();
     const user = await getAuthenticatedUser(supabase, request);
@@ -30,7 +39,9 @@ export async function GET(
     }
 
     const [result, sellerSnapshot, businessDate] = await Promise.all([
-      buildLineItemsForReservation(supabase, reservationId),
+      reservationIds.length > 1
+        ? buildLineItemsForReservations(supabase, reservationIds)
+        : buildLineItemsForReservation(supabase, reservationId),
       getSellerSnapshotFromSettings(supabase),
       getBusinessDateFromSettings(supabase),
     ]);

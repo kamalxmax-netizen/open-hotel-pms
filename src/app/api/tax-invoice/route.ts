@@ -1,8 +1,14 @@
 import { getAuthenticatedUser } from "@/lib/server-auth";
+import { getUserRole } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   buildLineItemsForReservation,
+  buildLineItemsForReservations,
+  assertReservationsCanCombine,
+  extractReservationIdsFromBookingSnapshot,
   getSellerSnapshotFromSettings,
+  isAdminRole,
+  loadReservationInvoiceContexts,
   loadReservationInvoiceContext,
   sanitizeLineItems,
   TaxInvoiceError,
@@ -18,6 +24,18 @@ export const fetchCache = "force-no-store";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+function parseBooleanParam(value: string | null, fallback: boolean): boolean {
+  if (value == null) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+  return fallback;
+}
+
 const listQuerySchema = z.object({
   date_from: z.string().regex(DATE_RE).optional(),
   date_to: z.string().regex(DATE_RE).optional(),
@@ -25,11 +43,13 @@ const listQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   per_page: z.coerce.number().int().min(1).max(200).optional().default(50),
-  include_pending: z.coerce.boolean().optional().default(true),
+  include_pending: z.boolean().optional().default(true),
+  include_cancelled: z.boolean().optional().default(false),
 });
 
 const createSchema = z.object({
   reservation_id: z.string().uuid(),
+  reservation_ids: z.array(z.string().uuid()).optional(),
   language: z.enum(["th", "en"]).optional().default("th"),
   issue_date: z.string().regex(DATE_RE).optional(),
   discount: z.coerce.number().min(0).max(100000000).optional().default(0),
@@ -47,7 +67,9 @@ const createSchema = z.object({
 type InvoiceRow = {
   id: string;
   invoice_no: string | null;
+  cancelled_invoice_no?: string | null;
   reservation_id: string;
+  booking_snapshot?: unknown;
   status: "draft" | "issued" | "cancelled";
   issue_date: string;
   customer_name: string;
@@ -66,6 +88,7 @@ type ReservationMetaRow = {
   checkin_date: string | null;
   checkout_date: string | null;
   tax_invoice_requested: boolean | null;
+  booking_group_id?: string | null;
 };
 
 function isMissingRelationError(error: { message?: string | null; code?: string | null } | null | undefined, relationName: string): boolean {
@@ -97,7 +120,7 @@ function normalizeTaxIdOrNull(value: unknown, isPassport = false): string | null
 function toInvoiceListItem(row: InvoiceRow, reservation: ReservationMetaRow | null) {
   return {
     id: String(row.id),
-    invoice_no: strOrNull(row.invoice_no),
+    invoice_no: strOrNull(row.invoice_no ?? row.cancelled_invoice_no),
     reservation_id: String(row.reservation_id),
     status: row.status,
     issue_date: String(row.issue_date),
@@ -121,6 +144,14 @@ function toInvoiceListItem(row: InvoiceRow, reservation: ReservationMetaRow | nu
   };
 }
 
+function normalizeReservationIds(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
+}
+
+function compareRowRooms(left: string[], right: string[]): number {
+  return left.join(",").localeCompare(right.join(","), undefined, { numeric: true, sensitivity: "base" });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -128,6 +159,8 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
+    const viewerRole = await getUserRole(supabase, user.id).catch(() => null);
+    const viewerIsAdmin = isAdminRole(viewerRole);
 
     const parsed = listQuerySchema.safeParse({
       date_from: request.nextUrl.searchParams.get("date_from") ?? undefined,
@@ -136,7 +169,8 @@ export async function GET(request: NextRequest) {
       search: request.nextUrl.searchParams.get("search") ?? undefined,
       page: request.nextUrl.searchParams.get("page") ?? undefined,
       per_page: request.nextUrl.searchParams.get("per_page") ?? undefined,
-      include_pending: request.nextUrl.searchParams.get("include_pending") ?? undefined,
+      include_pending: parseBooleanParam(request.nextUrl.searchParams.get("include_pending"), true),
+      include_cancelled: parseBooleanParam(request.nextUrl.searchParams.get("include_cancelled"), false),
     });
 
     if (!parsed.success) {
@@ -159,7 +193,7 @@ export async function GET(request: NextRequest) {
 
     let invoiceQuery = supabase
       .from("invoices")
-      .select("id, invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, grand_total, created_at, updated_at")
+      .select("id, invoice_no, cancelled_invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, grand_total, created_at, updated_at, booking_snapshot")
       .gte("issue_date", dateFrom)
       .lte("issue_date", dateTo)
       .order("issue_date", { ascending: false })
@@ -168,6 +202,9 @@ export async function GET(request: NextRequest) {
 
     if (queryInput.status) {
       invoiceQuery = invoiceQuery.eq("status", queryInput.status);
+    }
+    if (!viewerIsAdmin || !queryInput.include_cancelled) {
+      invoiceQuery = invoiceQuery.neq("status", "cancelled");
     }
 
     const { data: invoiceRowsRaw, error: invoiceError } = await invoiceQuery;
@@ -183,7 +220,7 @@ export async function GET(request: NextRequest) {
     if (reservationIds.length > 0) {
       const { data: reservationRows, error: reservationError } = await supabase
         .from("reservations")
-        .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested")
+        .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, booking_group_id")
         .in("id", reservationIds);
 
       if (reservationError) {
@@ -200,11 +237,23 @@ export async function GET(request: NextRequest) {
           checkin_date: strOrNull(row.checkin_date),
           checkout_date: strOrNull(row.checkout_date),
           tax_invoice_requested: Boolean(row.tax_invoice_requested ?? false),
+          booking_group_id: strOrNull(row.booking_group_id),
         });
       });
     }
 
-    const listRows = invoiceRows.map((row) => toInvoiceListItem(row, reservationMap.get(String(row.reservation_id)) ?? null));
+    const numberedRows = invoiceRows.filter((row) => strOrNull(row.invoice_no));
+    const latestIssuedNumberedInvoiceId = numberedRows
+      .sort((a, b) => String(b.invoice_no ?? "").localeCompare(String(a.invoice_no ?? ""), undefined, { numeric: true, sensitivity: "base" }))[0]
+      ?.id ?? null;
+
+    const listRows = invoiceRows.map((row) => ({
+      ...toInvoiceListItem(row, reservationMap.get(String(row.reservation_id)) ?? null),
+      can_reuse_invoice_no:
+        row.status === "issued" &&
+        Boolean(strOrNull(row.invoice_no)) &&
+        String(row.id) === latestIssuedNumberedInvoiceId,
+    }));
 
     const search = String(queryInput.search ?? "").trim().toLowerCase();
     const searched = search
@@ -232,7 +281,7 @@ export async function GET(request: NextRequest) {
     if (queryInput.include_pending) {
       const { data: pendingRows, error: pendingError } = await supabase
         .from("reservations")
-        .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, total_price")
+        .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, total_price, booking_group_id")
         .eq("tax_invoice_requested", true)
         .neq("status", "cancelled")
         .order("checkout_date", { ascending: true })
@@ -244,14 +293,17 @@ export async function GET(request: NextRequest) {
 
       const { data: issuedRows, error: issuedError } = await supabase
         .from("invoices")
-        .select("reservation_id")
+        .select("reservation_id, booking_snapshot")
         .eq("status", "issued");
 
       if (issuedError && !isMissingRelationError(issuedError, "invoices")) {
         return NextResponse.json({ success: false, error: issuedError.message }, { status: 500 });
       }
 
-      const issuedSet = new Set((issuedRows ?? []).map((row: any) => String(row.reservation_id)));
+      const issuedSet = new Set(
+        (issuedRows ?? [])
+          .flatMap((row: any) => extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id))
+      );
       const pendingFiltered = (pendingRows ?? []).filter((row: any) => !issuedSet.has(String(row.id)));
       const pendingIds = pendingFiltered.map((row: any) => String(row.id));
 
@@ -279,7 +331,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      pendingReservations = pendingFiltered.map((row: any) => {
+      const pendingBaseRows = pendingFiltered.map((row: any) => {
         const reservationId = String(row.id);
         const roomNumbers = (roomNumbersByReservation.get(reservationId) ?? []).sort((a, b) =>
           a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
@@ -288,6 +340,7 @@ export async function GET(request: NextRequest) {
         return {
           id: reservationId,
           reservation_id: reservationId,
+          reservation_ids: [reservationId],
           booking_code: strOrNull(row.booking_code),
           guest_name: strOrNull(row.guest_name),
           source: strOrNull(row.source),
@@ -297,8 +350,64 @@ export async function GET(request: NextRequest) {
           tax_invoice_requested: Boolean(row.tax_invoice_requested ?? false),
           total_amount: round2(normalizeMoney(row.total_price)),
           room_numbers: roomNumbers,
+          booking_group_id: strOrNull(row.booking_group_id),
+          member_reservations: [
+            {
+              reservation_id: reservationId,
+              booking_code: strOrNull(row.booking_code),
+              guest_name: strOrNull(row.guest_name),
+              room_numbers: roomNumbers,
+              total_amount: round2(normalizeMoney(row.total_price)),
+            },
+          ],
+          combine_eligible: false,
         };
       });
+
+      const groups = new Map<string, typeof pendingBaseRows>();
+      const standaloneRows: typeof pendingBaseRows = [];
+
+      for (const row of pendingBaseRows) {
+        if (!row.booking_group_id) {
+          standaloneRows.push(row);
+          continue;
+        }
+        const current = groups.get(row.booking_group_id) ?? [];
+        current.push(row);
+        groups.set(row.booking_group_id, current);
+      }
+
+      pendingReservations = [...standaloneRows];
+      groups.forEach((groupRows) => {
+        const sameStayWindow = new Set(groupRows.map((row) => `${row.checkin_date}|${row.checkout_date}`)).size === 1;
+        if (groupRows.length <= 1 || !sameStayWindow) {
+          pendingReservations.push(...groupRows);
+          return;
+        }
+
+        const sortedGroupRows = [...groupRows].sort((a, b) => compareRowRooms(a.room_numbers, b.room_numbers));
+        pendingReservations.push({
+          id: sortedGroupRows[0].reservation_id,
+          reservation_id: sortedGroupRows[0].reservation_id,
+          reservation_ids: sortedGroupRows.map((row) => row.reservation_id),
+          booking_code: sortedGroupRows.map((row) => row.booking_code).filter(Boolean).join(", "),
+          guest_name: sortedGroupRows[0].guest_name,
+          source: sortedGroupRows[0].source,
+          status: sortedGroupRows[0].status,
+          checkin_date: sortedGroupRows[0].checkin_date,
+          checkout_date: sortedGroupRows[0].checkout_date,
+          tax_invoice_requested: true,
+          total_amount: round2(sortedGroupRows.reduce((sum, row) => sum + normalizeMoney(row.total_amount), 0)),
+          room_numbers: Array.from(new Set(sortedGroupRows.flatMap((row) => row.room_numbers))).sort((a, b) =>
+            a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+          ),
+          booking_group_id: sortedGroupRows[0].booking_group_id,
+          member_reservations: sortedGroupRows.map((row) => row.member_reservations[0]),
+          combine_eligible: true,
+        });
+      });
+
+      pendingReservations.sort((a, b) => String(a.checkout_date ?? "").localeCompare(String(b.checkout_date ?? "")) || compareRowRooms(a.room_numbers as string[], b.room_numbers as string[]));
     }
 
     return NextResponse.json({
@@ -306,6 +415,8 @@ export async function GET(request: NextRequest) {
       data,
       items: data,
       pending_reservations: pendingReservations,
+      viewer_role: viewerRole,
+      viewer_is_admin: viewerIsAdmin,
       pagination: {
         page,
         per_page: perPage,
@@ -340,29 +451,41 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parsed.data;
-    const reservation = await loadReservationInvoiceContext(supabase, input.reservation_id);
-    if (!reservation.tax_invoice_requested) {
+    const reservationIds = normalizeReservationIds([input.reservation_id, ...(input.reservation_ids ?? [])]);
+    const reservations = reservationIds.length > 1
+      ? await loadReservationInvoiceContexts(supabase, reservationIds)
+      : [await loadReservationInvoiceContext(supabase, input.reservation_id)];
+    const reservation = reservations[0];
+
+    if (reservationIds.length > 1) {
+      assertReservationsCanCombine(reservations);
+    } else if (!reservation.tax_invoice_requested) {
       return NextResponse.json(
         { success: false, error: "Tax invoice is not requested for this reservation." },
         { status: 400 }
       );
     }
 
-    const { data: issuedExists, error: issuedExistsError } = await supabase
+    const { data: issuedRows, error: issuedExistsError } = await supabase
       .from("invoices")
-      .select("id, invoice_no")
-      .eq("reservation_id", input.reservation_id)
+      .select("id, invoice_no, reservation_id, booking_snapshot")
       .eq("status", "issued")
-      .maybeSingle();
+      .limit(5000);
 
     if (issuedExistsError) {
       return NextResponse.json({ success: false, error: issuedExistsError.message }, { status: 500 });
     }
+
+    const issuedExists = (issuedRows ?? []).find((row: any) => {
+      const existingReservationIds = extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id);
+      return existingReservationIds.some((reservationId) => reservationIds.includes(reservationId));
+    });
+
     if (issuedExists) {
       return NextResponse.json(
         {
           success: false,
-          error: "This reservation already has an issued invoice.",
+          error: "One or more selected reservations already have an issued invoice.",
           issued_invoice_id: issuedExists.id,
           issued_invoice_no: issuedExists.invoice_no,
         },
@@ -370,7 +493,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const built = await buildLineItemsForReservation(supabase, input.reservation_id);
+    const built = reservationIds.length > 1
+      ? await buildLineItemsForReservations(supabase, reservationIds)
+      : await buildLineItemsForReservation(supabase, input.reservation_id);
     const lineItems = input.line_items ? sanitizeLineItems(input.line_items) : built.line_items;
     if (lineItems.length === 0) {
       return NextResponse.json({ success: false, error: "Line items cannot be empty." }, { status: 400 });
@@ -439,7 +564,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error: insertError } = await supabase
       .from("invoices")
       .insert({
-        reservation_id: input.reservation_id,
+        reservation_id: reservation.id,
         invoice_no: null,
         status: "draft",
         language: input.language,

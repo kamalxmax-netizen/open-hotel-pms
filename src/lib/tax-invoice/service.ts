@@ -28,9 +28,11 @@ type ReservationInvoiceContextRow = {
   checkout_date: string | null;
   tax_invoice_requested: boolean | null;
   guest_profile_id: string | null;
+  booking_group_id: string | null;
 };
 
 type ReservationNightRow = {
+  reservation_id: string;
   room_id: string | null;
   stay_date: string;
   nightly_price: number | string | null;
@@ -42,12 +44,14 @@ type RoomLookupRow = {
 };
 
 type ExtraChargeRow = {
+  reservation_id: string;
   id: string;
   amount: number | string | null;
   note: string | null;
   fee_template_code: string | null;
   paid_date: string | null;
   paid_at: string | null;
+  is_record_only: boolean | null;
 };
 
 type FeeTemplateRow = {
@@ -130,43 +134,123 @@ export async function loadReservationInvoiceContext(
   supabase: SupabaseServerClient,
   reservationId: string
 ): Promise<ReservationInvoiceContextRow> {
+  const rows = await loadReservationInvoiceContexts(supabase, [reservationId]);
+  const reservation = rows[0];
+  if (!reservation) {
+    throw new TaxInvoiceError("Reservation not found.", 404);
+  }
+  return reservation;
+}
+
+export async function loadReservationInvoiceContexts(
+  supabase: SupabaseServerClient,
+  reservationIds: string[]
+): Promise<ReservationInvoiceContextRow[]> {
+  const normalizedIds = Array.from(new Set(reservationIds.map((value) => String(value ?? "").trim()).filter(Boolean)));
+  if (normalizedIds.length === 0) {
+    throw new TaxInvoiceError("Reservation not found.", 404);
+  }
+
   const { data, error } = await supabase
     .from("reservations")
-    .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, guest_profile_id")
-    .eq("id", reservationId)
-    .maybeSingle();
+    .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, guest_profile_id, booking_group_id")
+    .in("id", normalizedIds);
 
   if (error) {
     throw new TaxInvoiceError(error.message, 500);
   }
-  if (!data) {
+  if (!data || data.length !== normalizedIds.length) {
     throw new TaxInvoiceError("Reservation not found.", 404);
   }
 
-  return {
-    id: String(data.id),
-    booking_code: strOrNull(data.booking_code),
-    guest_name: strOrNull(data.guest_name),
-    source: strOrNull(data.source),
-    status: strOrNull(data.status),
-    checkin_date: strOrNull(data.checkin_date),
-    checkout_date: strOrNull(data.checkout_date),
-    tax_invoice_requested: Boolean(data.tax_invoice_requested ?? false),
-    guest_profile_id: strOrNull(data.guest_profile_id),
-  };
+  const byId = new Map<string, ReservationInvoiceContextRow>();
+  (data ?? []).forEach((row: any) => {
+    byId.set(String(row.id), {
+      id: String(row.id),
+      booking_code: strOrNull(row.booking_code),
+      guest_name: strOrNull(row.guest_name),
+      source: strOrNull(row.source),
+      status: strOrNull(row.status),
+      checkin_date: strOrNull(row.checkin_date),
+      checkout_date: strOrNull(row.checkout_date),
+      tax_invoice_requested: Boolean(row.tax_invoice_requested ?? false),
+      guest_profile_id: strOrNull(row.guest_profile_id),
+      booking_group_id: strOrNull(row.booking_group_id),
+    });
+  });
+
+  return normalizedIds.map((reservationId) => {
+    const row = byId.get(reservationId);
+    if (!row) {
+      throw new TaxInvoiceError("Reservation not found.", 404);
+    }
+    return row;
+  });
+}
+
+export function extractReservationIdsFromBookingSnapshot(
+  bookingSnapshot: unknown,
+  fallbackReservationId?: string | null
+): string[] {
+  const snapshot = bookingSnapshot && typeof bookingSnapshot === "object"
+    ? (bookingSnapshot as Record<string, unknown>)
+    : null;
+
+  const snapshotIds = Array.isArray(snapshot?.reservation_ids)
+    ? snapshot?.reservation_ids.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const fallback = String(fallbackReservationId ?? "").trim();
+
+  return Array.from(new Set([...snapshotIds, ...(fallback ? [fallback] : [])]));
+}
+
+export function assertReservationsCanCombine(reservations: ReservationInvoiceContextRow[]) {
+  if (reservations.length <= 1) return;
+
+  const [first] = reservations;
+  const groupId = String(first.booking_group_id ?? "").trim();
+  const checkinDate = String(first.checkin_date ?? "").trim();
+  const checkoutDate = String(first.checkout_date ?? "").trim();
+
+  if (!groupId) {
+    throw new TaxInvoiceError("Combined tax invoice requires all selected reservations to belong to the same group booking.", 400);
+  }
+
+  for (const reservation of reservations) {
+    if (!reservation.tax_invoice_requested) {
+      throw new TaxInvoiceError("Tax invoice must be requested for every selected reservation.", 400);
+    }
+    if (String(reservation.booking_group_id ?? "").trim() !== groupId) {
+      throw new TaxInvoiceError("Combined tax invoice requires all selected reservations to belong to the same group booking.", 400);
+    }
+    if (String(reservation.checkin_date ?? "").trim() !== checkinDate || String(reservation.checkout_date ?? "").trim() !== checkoutDate) {
+      throw new TaxInvoiceError("Combined tax invoice requires identical check-in and check-out dates for every selected reservation.", 400);
+    }
+  }
 }
 
 export async function buildLineItemsForReservation(
   supabase: SupabaseServerClient,
   reservationId: string
 ): Promise<BuildLineItemsResult> {
-  const reservation = await loadReservationInvoiceContext(supabase, reservationId);
+  return buildLineItemsForReservations(supabase, [reservationId]);
+}
+
+export async function buildLineItemsForReservations(
+  supabase: SupabaseServerClient,
+  reservationIds: string[]
+): Promise<BuildLineItemsResult> {
+  const reservations = await loadReservationInvoiceContexts(supabase, reservationIds);
+  const reservation = reservations[0];
+  const normalizedReservationIds = reservations.map((row) => row.id);
+  assertReservationsCanCombine(reservations);
 
   const { data: nightRows, error: nightError } = await supabase
     .from("reservation_nights")
-    .select("room_id, stay_date, nightly_price")
-    .eq("reservation_id", reservationId)
+    .select("reservation_id, room_id, stay_date, nightly_price")
+    .in("reservation_id", normalizedReservationIds)
     .is("cancelled_at", null)
+    .order("reservation_id", { ascending: true })
     .order("stay_date", { ascending: true });
 
   if (nightError) {
@@ -174,6 +258,7 @@ export async function buildLineItemsForReservation(
   }
 
   const nights: ReservationNightRow[] = (nightRows ?? []).map((row: any) => ({
+    reservation_id: String(row.reservation_id),
     room_id: row.room_id ? String(row.room_id) : null,
     stay_date: String(row.stay_date),
     nightly_price: row.nightly_price,
@@ -198,6 +283,7 @@ export async function buildLineItemsForReservation(
   const groupedRoomItems = new Map<
     string,
     {
+      reservation_id: string;
       room_id: string | null;
       room_number: string;
       unit_price_satang: number;
@@ -212,6 +298,7 @@ export async function buildLineItemsForReservation(
     const key = `${roomNumber}::${unitPriceSatang}`;
 
     const bucket = groupedRoomItems.get(key) ?? {
+      reservation_id: night.reservation_id,
       room_id: night.room_id,
       room_number: roomNumber,
       unit_price_satang: unitPriceSatang,
@@ -224,37 +311,82 @@ export async function buildLineItemsForReservation(
     groupedRoomItems.set(key, bucket);
   }
 
-  const roomLineItems: TaxInvoiceLineItem[] = Array.from(groupedRoomItems.values())
+  const groupedRoomEntries = Array.from(groupedRoomItems.values())
     .sort((a, b) => {
       const leftDate = a.stay_dates.slice().sort()[0] ?? "";
       const rightDate = b.stay_dates.slice().sort()[0] ?? "";
       if (leftDate !== rightDate) return leftDate.localeCompare(rightDate);
       return compareRoomNumber(a.room_number, b.room_number);
+    });
+
+  const displayRoomGroups = new Map<
+    string,
+    {
+      room_ids: (string | null)[];
+      room_numbers: string[];
+      unit_price_satang: number;
+      stay_dates: string[];
+      amount_satang: number;
+      quantity: number;
+    }
+  >();
+
+  for (const group of groupedRoomEntries) {
+    const sortedDates = Array.from(new Set(group.stay_dates)).sort();
+    const combineKey = reservations.length > 1
+      ? `${group.unit_price_satang}::${sortedDates.join(",")}`
+      : `${group.room_number}::${group.unit_price_satang}::${sortedDates.join(",")}`;
+
+    const bucket = displayRoomGroups.get(combineKey) ?? {
+      room_ids: [],
+      room_numbers: [],
+      unit_price_satang: group.unit_price_satang,
+      stay_dates: sortedDates,
+      amount_satang: 0,
+      quantity: 0,
+    };
+
+    if (!bucket.room_numbers.includes(group.room_number)) {
+      bucket.room_numbers.push(group.room_number);
+    }
+    bucket.room_ids.push(group.room_id);
+    bucket.amount_satang += group.amount_satang;
+    bucket.quantity += sortedDates.length;
+    displayRoomGroups.set(combineKey, bucket);
+  }
+
+  const roomLineItems: TaxInvoiceLineItem[] = Array.from(displayRoomGroups.values())
+    .sort((a, b) => {
+      const leftDate = a.stay_dates[0] ?? "";
+      const rightDate = b.stay_dates[0] ?? "";
+      if (leftDate !== rightDate) return leftDate.localeCompare(rightDate);
+      return compareRoomNumber(a.room_numbers[0] ?? "", b.room_numbers[0] ?? "");
     })
     .map((group) => {
       const sortedDates = Array.from(new Set(group.stay_dates)).sort();
       const dateLabel = formatThaiDateLabelFromDates(sortedDates);
-      const quantity = sortedDates.length;
+      const quantity = group.quantity;
       const unitPrice = fromSatang(group.unit_price_satang);
       const amount = fromSatang(group.amount_satang);
+      const roomNumbers = group.room_numbers.slice().sort(compareRoomNumber);
 
       return {
         kind: "room_charge",
-        description: `ค่าห้อง Room ${group.room_number} (${dateLabel})`,
+        description: `ค่าห้อง Room ${roomNumbers.join(",")} (${dateLabel})`,
         quantity,
         unit: "คืน",
         unit_price: round2(unitPrice),
         amount: round2(amount),
         stay_dates: sortedDates,
-        room_id: group.room_id,
-        room_number: group.room_number,
+        room_id: group.room_ids[0] ?? null,
+        room_number: roomNumbers.join(","),
       };
     });
 
   const { data: extraRows, error: extraError } = await supabase
     .from("folio_payments")
-    .select("id, amount, note, fee_template_code, paid_date, paid_at")
-    .eq("reservation_id", reservationId)
+    .select("reservation_id, id, amount, note, fee_template_code, paid_date, paid_at, is_record_only")
+    .in("reservation_id", normalizedReservationIds)
     .eq("revenue_category", "extra_charge")
     .eq("tx_type", "payment")
     .eq("is_void_reversal", false)
@@ -268,12 +400,14 @@ export async function buildLineItemsForReservation(
   }
 
   const extraChargeRows: ExtraChargeRow[] = (extraRows ?? []).map((row: any) => ({
+    reservation_id: String(row.reservation_id),
     id: String(row.id),
     amount: row.amount,
     note: strOrNull(row.note),
     fee_template_code: strOrNull(row.fee_template_code),
     paid_date: strOrNull(row.paid_date),
     paid_at: strOrNull(row.paid_at),
+    is_record_only: row.is_record_only === true,
   }));
 
   const feeCodes = Array.from(
@@ -294,33 +428,48 @@ export async function buildLineItemsForReservation(
     });
   }
 
-  const extraLineItems: TaxInvoiceLineItem[] = extraChargeRows.map((row) => {
-    const templateName = row.fee_template_code ? feeNameByCode.get(row.fee_template_code) : null;
-    const note = String(row.note ?? "").trim();
-    const amount = normalizeMoney(row.amount);
+  const extraLineItems: TaxInvoiceLineItem[] = extraChargeRows
+    .filter((row) => {
+      const note = String(row.note ?? "").trim();
+      const amount = normalizeMoney(row.amount);
+      if (row.is_record_only) return false;
+      if (amount <= 0) return false;
+      if (note.startsWith("[PRICE TRACE")) return false;
+      return true;
+    })
+    .map((row) => {
+      const templateName = row.fee_template_code ? feeNameByCode.get(row.fee_template_code) : null;
+      const note = String(row.note ?? "").trim();
+      const amount = normalizeMoney(row.amount);
 
-    return {
-      kind: "extra_charge",
-      description: templateName?.trim() || note || "Extra Charge",
-      quantity: 1,
-      unit: "รายการ",
-      unit_price: round2(amount),
-      amount: round2(amount),
-      fee_template_code: row.fee_template_code,
-      note: row.note,
-    };
-  });
+      return {
+        kind: "extra_charge",
+        description: templateName?.trim() || note || "Extra Charge",
+        quantity: 1,
+        unit: "รายการ",
+        unit_price: round2(amount),
+        amount: round2(amount),
+        fee_template_code: row.fee_template_code,
+        note: row.note,
+      };
+    });
 
   const lineItems = [...roomLineItems, ...extraLineItems];
   const grossTotal = lineItems.reduce((sum, item) => sum + normalizeMoney(item.amount), 0);
   const totals = computeVatInclusiveTotals(grossTotal, 0, 0.07);
 
   const bookingSnapshot = {
-    booking_code: reservation.booking_code,
+    booking_code:
+      reservations.length > 1
+        ? reservations.map((row) => row.booking_code).filter((value): value is string => Boolean(value)).join(", ")
+        : reservation.booking_code,
+    booking_codes: reservations.map((row) => row.booking_code).filter((value): value is string => Boolean(value)),
     source: reservation.source,
     checkin_date: reservation.checkin_date,
     checkout_date: reservation.checkout_date,
     nights: nights.length,
+    reservation_ids: normalizedReservationIds,
+    booking_group_id: reservation.booking_group_id,
     room_numbers: Array.from(
       new Set(
         nights
@@ -333,6 +482,7 @@ export async function buildLineItemsForReservation(
   return {
     reservation: {
       id: reservation.id,
+      reservation_ids: normalizedReservationIds,
       booking_code: reservation.booking_code,
       guest_name: reservation.guest_name,
       source: reservation.source,

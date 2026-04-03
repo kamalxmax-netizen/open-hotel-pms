@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { TaxInvoiceError } from "@/lib/tax-invoice/service";
+import { extractReservationIdsFromBookingSnapshot, TaxInvoiceError } from "@/lib/tax-invoice/service";
 import { toInvoiceYearYY } from "@/lib/tax-invoice/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -18,6 +18,7 @@ type InvoiceIssueRow = {
   id: string;
   invoice_no: string | null;
   reservation_id: string;
+  booking_snapshot?: unknown;
   status: "draft" | "issued" | "cancelled";
   issue_date: string;
   reservations: {
@@ -37,7 +38,7 @@ async function loadInvoiceForIssue(
 ): Promise<InvoiceIssueRow> {
   const { data, error } = await supabase
     .from("invoices")
-    .select("id, invoice_no, reservation_id, status, issue_date, reservations:reservation_id(id, checkout_date, tax_invoice_requested)")
+    .select("id, invoice_no, reservation_id, booking_snapshot, status, issue_date, reservations:reservation_id(id, checkout_date, tax_invoice_requested)")
     .eq("id", invoiceId)
     .maybeSingle();
 
@@ -76,10 +77,47 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Cancelled invoice cannot be issued." }, { status: 400 });
     }
 
-    if (!current.reservations?.tax_invoice_requested) {
+    const reservationIds = extractReservationIdsFromBookingSnapshot(current.booking_snapshot, current.reservation_id);
+    const { data: reservationRows, error: reservationError } = await supabase
+      .from("reservations")
+      .select("id, tax_invoice_requested")
+      .in("id", reservationIds);
+
+    if (reservationError) {
+      return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
+    }
+
+    if ((reservationRows ?? []).length !== reservationIds.length || (reservationRows ?? []).some((row: any) => !row.tax_invoice_requested)) {
       return NextResponse.json(
-        { success: false, error: "Tax invoice is not requested for this reservation." },
+        { success: false, error: "Tax invoice must still be requested for every selected reservation." },
         { status: 400 }
+      );
+    }
+
+    const { data: existingIssuedRows, error: existingIssuedError } = await supabase
+      .from("invoices")
+      .select("id, invoice_no, reservation_id, booking_snapshot")
+      .eq("status", "issued")
+      .limit(5000);
+
+    if (existingIssuedError) {
+      return NextResponse.json({ success: false, error: existingIssuedError.message }, { status: 500 });
+    }
+
+    const overlappingIssued = (existingIssuedRows ?? []).find((row: any) => {
+      if (String(row.id) === current.id) return false;
+      const existingReservationIds = extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id);
+      return existingReservationIds.some((reservationId) => reservationIds.includes(reservationId));
+    });
+
+    if (overlappingIssued) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "One or more selected reservations already have an issued invoice.",
+          existing_invoice: overlappingIssued,
+        },
+        { status: 409 }
       );
     }
 

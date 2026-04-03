@@ -249,6 +249,7 @@ export default function TaxInvoiceForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reservation_id: initialData!.reservation.id,
+            reservation_ids: initialData!.reservation.reservation_ids,
             language,
             customer_name: customerName,
             customer_tax_id: customerTaxId,

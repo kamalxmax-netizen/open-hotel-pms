@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { renderInvoiceA4Html } from "@/lib/tax-invoice/printInvoiceHtml";
+import { getInvoiceRenderPageCount, renderInvoiceA4Html } from "@/lib/tax-invoice/printInvoiceHtml";
 import { getLabels } from "@/lib/tax-invoice/utils";
 
 export default function TaxInvoicePreviewPage() {
@@ -72,6 +72,8 @@ export default function TaxInvoicePreviewPage() {
     },
     seller: data.seller_snapshot,
   });
+  const pageCount = getInvoiceRenderPageCount(data.line_items || []);
+  const previewHeight = `${pageCount * 297}mm`;
 
   return (
     <div className="max-w-[1280px] mx-auto w-full pb-20">
@@ -108,11 +110,12 @@ export default function TaxInvoicePreviewPage() {
 
       {/* A4 Frame */}
       <div className="flex justify-center bg-[var(--bg-muted)] p-8 rounded-2xl border border-[var(--border-default)] shadow-inner">
-         <div className="bg-white shadow-2xl relative" style={{ width: "210mm", height: "297mm" }}>
+         <div className="bg-white shadow-2xl relative" style={{ width: "210mm", minHeight: previewHeight }}>
             <iframe 
               ref={iframeRef}
               srcDoc={html}
-              className="w-full h-full border-none pointer-events-none"
+              className="w-full border-none pointer-events-none"
+              style={{ height: previewHeight }}
               title="A4 Print Template"
             />
          </div>

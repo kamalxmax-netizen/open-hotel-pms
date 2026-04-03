@@ -21,6 +21,44 @@ interface InvoiceRenderData {
   seller: TaxInvoiceSellerSnapshot;
 }
 
+const PAGE_ITEM_UNIT_BUDGET = 10;
+
+function estimateItemUnits(item: TaxInvoiceLineItem): number {
+  const descriptionLines = Math.max(1, Math.ceil(String(item.description || "").length / 40));
+  const noteLines = item.note ? Math.max(1, Math.ceil(String(item.note).length / 48)) : 0;
+  const roomTagLines = item.room_number ? 1 : 0;
+  return descriptionLines + noteLines + roomTagLines;
+}
+
+function paginateLineItems(items: TaxInvoiceLineItem[]): TaxInvoiceLineItem[][] {
+  if (items.length === 0) return [[]];
+
+  const pages: TaxInvoiceLineItem[][] = [];
+  let current: TaxInvoiceLineItem[] = [];
+  let usedUnits = 0;
+
+  for (const item of items) {
+    const units = estimateItemUnits(item);
+    if (current.length > 0 && usedUnits + units > PAGE_ITEM_UNIT_BUDGET) {
+      pages.push(current);
+      current = [];
+      usedUnits = 0;
+    }
+    current.push(item);
+    usedUnits += units;
+  }
+
+  if (current.length > 0) {
+    pages.push(current);
+  }
+
+  return pages;
+}
+
+export function getInvoiceRenderPageCount(items: TaxInvoiceLineItem[]): number {
+  return paginateLineItems(items).length;
+}
+
 /* ─── Amount in Words (Thai + English) ─── */
 
 function numberToThaiWords(n: number): string {
@@ -165,7 +203,7 @@ function partyBlock(data: InvoiceRenderData, lang: TaxInvoiceLanguage) {
 
 /* ─── Items Table ─── */
 
-function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage) {
+function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage, startIndex = 0) {
   const l = getLabels(lang);
 
   const rows = items
@@ -173,7 +211,7 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage) {
       const description = it.description;
       return `
         <tr>
-          <td class="center">${idx + 1}</td>
+          <td class="center">${startIndex + idx + 1}</td>
           <td>
             <b>${esc(description)}</b>
             ${it.note ? `<br/><span class="item-note">${esc(it.note)}</span>` : ""}
@@ -208,6 +246,14 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage) {
   `;
 }
 
+function continuationBlock(lang: TaxInvoiceLanguage, pageIndex: number, pageCount: number) {
+  const text = lang === "th"
+    ? `หน้าต่อไป / Continued (${pageIndex + 1}/${pageCount})`
+    : `Continued on next page (${pageIndex + 1}/${pageCount})`;
+
+  return `<div class="continuation">${esc(text)}</div>`;
+}
+
 /* ─── Summary Block ─── */
 
 function summaryBlock(totals: TaxInvoiceTotals, lang: TaxInvoiceLanguage) {
@@ -226,12 +272,23 @@ function summaryBlock(totals: TaxInvoiceTotals, lang: TaxInvoiceLanguage) {
 
 /* ─── Invoice Copy (Original / Copy) ─── */
 
-function invoiceCopy(data: InvoiceRenderData, labelType: "original" | "copy") {
+function invoiceCopy(
+  data: InvoiceRenderData,
+  labelType: "original" | "copy",
+  pageItems: TaxInvoiceLineItem[],
+  pageIndex: number,
+  pageCount: number,
+  itemOffset: number
+) {
   const { invoiceNo, issueDate, language: lang } = data;
   const l = getLabels(lang);
   const copyLabel = labelType === "original" ? l.original : l.copy;
   const amountWords = amountInWords(data.totals.grand_total, lang);
   const amountLabel = lang === "th" ? "จำนวนเงิน :" : "Amount :";
+  const isFinalPage = pageIndex === pageCount - 1;
+  const pageBadge = pageCount > 1
+    ? `<div class="page-badge">${esc(`${pageIndex + 1}/${pageCount}`)}</div>`
+    : "";
 
   return `
     <section class="invoice-copy">
@@ -241,6 +298,7 @@ function invoiceCopy(data: InvoiceRenderData, labelType: "original" | "copy") {
           <div class="th">${esc(getLabels("th").title)}</div>
           <div class="en">${esc(getLabels("en").title)}</div>
           <div class="label">${esc(copyLabel)}</div>
+          ${pageBadge}
         </div>
       </div>
 
@@ -253,9 +311,9 @@ function invoiceCopy(data: InvoiceRenderData, labelType: "original" | "copy") {
         </div>
       </div>
 
-      ${itemTable(data.lineItems, lang)}
+      ${itemTable(pageItems, lang, itemOffset)}
 
-      <div class="bottom-section">
+      ${isFinalPage ? `<div class="bottom-section">
         <div class="bottom-left">
           <div class="remark">
             <div class="remark-title">${esc(l.remark)}</div>
@@ -277,7 +335,7 @@ function invoiceCopy(data: InvoiceRenderData, labelType: "original" | "copy") {
             <div class="sig-label">${esc(l.manager)}</div>
           </div>
         </div>
-      </div>
+      </div>` : continuationBlock(lang, pageIndex, pageCount)}
     </section>
   `;
 }
@@ -307,7 +365,7 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
     margin: 0;
     padding: 0;
     width: 210mm;
-    height: 297mm;
+    min-height: 297mm;
     background: #fff;
     color: #111827;
   }
@@ -325,9 +383,16 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
 
   .paper {
     width: 210mm;
-    height: 297mm;
+    min-height: 297mm;
     display: flex;
     flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .paper:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 
   .sheet {
@@ -384,6 +449,7 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
   .doc-title {
     width: 62mm;
     text-align: center;
+    position: relative;
   }
 
   .doc-title .th {
@@ -406,6 +472,13 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
     font-weight: bold;
     margin-top: 1mm;
     padding: 0.5mm 0;
+  }
+
+  .page-badge {
+    margin-top: 0.6mm;
+    font-size: calc(7.5pt * var(--font-scale));
+    font-weight: 700;
+    color: #4b5563;
   }
 
   .party-row {
@@ -489,6 +562,15 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
 
   .center { text-align: center; }
   .num { text-align: right; }
+
+  .continuation {
+    margin-top: auto;
+    padding-top: 2mm;
+    text-align: right;
+    font-size: calc(8pt * var(--font-scale));
+    font-style: italic;
+    color: #4b5563;
+  }
 
   /* ── Bottom section: left (remark + staff sig) | right (summary + manager sig) ── */
   .bottom-section {
@@ -615,10 +697,17 @@ export function renderInvoiceA4Html(data: InvoiceRenderData) {
       <style>${css}</style>
     </head>
     <body onload="window.focus();">
-      <main class="paper">
-        <div class="sheet">${invoiceCopy(data, "original")}</div>
-        <div class="sheet">${invoiceCopy(data, "copy")}</div>
-      </main>
+      ${paginateLineItems(data.lineItems)
+        .map((pageItems, pageIndex, pages) => {
+          const itemOffset = pages
+            .slice(0, pageIndex)
+            .reduce((sum, current) => sum + current.length, 0);
+          return `<main class="paper">
+        <div class="sheet">${invoiceCopy(data, "original", pageItems, pageIndex, pages.length, itemOffset)}</div>
+        <div class="sheet">${invoiceCopy(data, "copy", pageItems, pageIndex, pages.length, itemOffset)}</div>
+      </main>`;
+        })
+        .join("")}
     </body>
   </html>`;
 }

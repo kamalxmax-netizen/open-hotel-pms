@@ -9,12 +9,22 @@ import { fmtDate, fmtMoney } from "@/lib/tax-invoice/utils";
 
 interface PendingRequest {
   reservation_id: string;
+  reservation_ids: string[];
   booking_code: string;
   guest_name: string;
   room_numbers: string[];
   checkin_date: string;
   checkout_date: string;
   total_amount: number;
+  combine_eligible?: boolean;
+  booking_group_id?: string | null;
+  member_reservations: Array<{
+    reservation_id: string;
+    booking_code: string | null;
+    guest_name: string | null;
+    room_numbers: string[];
+    total_amount: number;
+  }>;
 }
 
 interface InvoiceHistoryItem {
@@ -26,6 +36,7 @@ interface InvoiceHistoryItem {
   status: TaxInvoiceStatus;
   grand_total: number;
   language: TaxInvoiceLanguage;
+  can_reuse_invoice_no?: boolean;
 }
 
 /* ─── Mock Data (Until API is ready) ─────────────────── */
@@ -33,21 +44,49 @@ interface InvoiceHistoryItem {
 const MOCK_PENDING: PendingRequest[] = [
   {
     reservation_id: "res-1",
+    reservation_ids: ["res-1"],
     booking_code: "BK12345",
     guest_name: "John Doe",
     room_numbers: ["201"],
     checkin_date: "2026-03-25",
     checkout_date: "2026-03-28",
     total_amount: 4500,
+    member_reservations: [
+      {
+        reservation_id: "res-1",
+        booking_code: "BK12345",
+        guest_name: "John Doe",
+        room_numbers: ["201"],
+        total_amount: 4500,
+      },
+    ],
   },
   {
     reservation_id: "res-2",
+    reservation_ids: ["res-2", "res-3"],
     booking_code: "BK67890",
     guest_name: "Jane Smith",
     room_numbers: ["304", "305"],
     checkin_date: "2026-03-26",
     checkout_date: "2026-03-29",
     total_amount: 9000,
+    combine_eligible: true,
+    member_reservations: [
+      {
+        reservation_id: "res-2",
+        booking_code: "BK67890",
+        guest_name: "Jane Smith",
+        room_numbers: ["304"],
+        total_amount: 4500,
+      },
+      {
+        reservation_id: "res-3",
+        booking_code: "BK67891",
+        guest_name: "Jane Smith",
+        room_numbers: ["305"],
+        total_amount: 4500,
+      },
+    ],
   },
 ];
 
@@ -82,34 +121,51 @@ export default function TaxInvoiceListPage() {
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [history, setHistory] = useState<InvoiceHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   // Cancel modal state
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; invoiceNo: string } | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; invoiceNo: string; canReuseInvoiceNo: boolean } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelReuseMode, setCancelReuseMode] = useState<"continue" | "reuse">("continue");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showCancelled]);
 
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch("/api/tax-invoice?include_pending=true", { cache: "no-store" });
+      const res = await fetch(`/api/tax-invoice?include_pending=true&include_cancelled=${showCancelled ? "true" : "false"}`, { cache: "no-store" });
       const result = await res.json();
       if (!result?.success) throw new Error(String(result?.error || "Failed"));
 
       const nextPending: PendingRequest[] = Array.isArray(result.pending_reservations)
         ? result.pending_reservations.map((row: any) => ({
             reservation_id: String(row.reservation_id || row.id || ""),
+            reservation_ids: Array.isArray(row.reservation_ids)
+              ? row.reservation_ids.map((value: any) => String(value))
+              : [String(row.reservation_id || row.id || "")],
             booking_code: String(row.booking_code || "-"),
             guest_name: String(row.guest_name || "-"),
             room_numbers: Array.isArray(row.room_numbers) ? row.room_numbers.map((x: any) => String(x)) : [],
             checkin_date: String(row.checkin_date || ""),
             checkout_date: String(row.checkout_date || ""),
             total_amount: Number(row.total_amount || 0),
+            combine_eligible: Boolean(row.combine_eligible),
+            booking_group_id: row.booking_group_id ? String(row.booking_group_id) : null,
+            member_reservations: Array.isArray(row.member_reservations)
+              ? row.member_reservations.map((member: any) => ({
+                  reservation_id: String(member.reservation_id || ""),
+                  booking_code: member.booking_code ? String(member.booking_code) : null,
+                  guest_name: member.guest_name ? String(member.guest_name) : null,
+                  room_numbers: Array.isArray(member.room_numbers) ? member.room_numbers.map((value: any) => String(value)) : [],
+                  total_amount: Number(member.total_amount || 0),
+                }))
+              : [],
           }))
         : [];
 
@@ -123,11 +179,13 @@ export default function TaxInvoiceListPage() {
             status: String(row.status || "draft") as TaxInvoiceStatus,
             grand_total: Number(row.grand_total || 0),
             language: (String(row.language || "th") === "en" ? "en" : "th") as TaxInvoiceLanguage,
+            can_reuse_invoice_no: Boolean(row.can_reuse_invoice_no),
           }))
         : [];
 
       setPending(nextPending);
       setHistory(nextHistory);
+      setIsAdmin(Boolean(result.viewer_is_admin));
     } catch (error) {
       console.error("Failed to fetch tax invoice list:", error);
     } finally {
@@ -146,7 +204,10 @@ export default function TaxInvoiceListPage() {
       const res = await fetch(`/api/tax-invoice/${cancelTarget.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cancel_reason: cancelReason.trim() }),
+        body: JSON.stringify({
+          cancel_reason: cancelReason.trim(),
+          reuse_invoice_no: cancelTarget.canReuseInvoiceNo && cancelReuseMode === "reuse",
+        }),
       });
       const result = await res.json();
       if (!res.ok || !result.success) {
@@ -154,6 +215,7 @@ export default function TaxInvoiceListPage() {
       }
       setCancelTarget(null);
       setCancelReason("");
+      setCancelReuseMode("continue");
       fetchData(); // reload list
     } catch (err: any) {
       setCancelError(err.message || "เกิดข้อผิดพลาด");
@@ -165,7 +227,11 @@ export default function TaxInvoiceListPage() {
   const filteredPending = pending.filter(p =>
     p.guest_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.booking_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.room_numbers.some(r => r.includes(searchQuery))
+    p.room_numbers.some(r => r.includes(searchQuery)) ||
+    p.member_reservations.some(member =>
+      (member.booking_code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.room_numbers.some(r => r.includes(searchQuery))
+    )
   );
 
   const filteredHistory = history.filter(h => 
@@ -184,16 +250,23 @@ export default function TaxInvoiceListPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">🔍</span>
-            <input 
-              type="text" 
-              placeholder="Search guest, room, or invoice..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="form-input pl-9 w-64 md:w-80"
-            />
-          </div>
+          {activeTab === "history" && isAdmin && (
+            <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(e) => setShowCancelled(e.target.checked)}
+              />
+              แสดงรายการที่ยกเลิกแล้ว
+            </label>
+          )}
+          <input 
+            type="text" 
+            placeholder="Search guest, room, or invoice..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="form-input w-64 md:w-80"
+          />
         </div>
       </div>
 
@@ -263,12 +336,25 @@ export default function TaxInvoiceListPage() {
                       {fmtMoney(p.total_amount)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link 
-                        href={`/pms/tax-invoice/issue/${p.reservation_id}`}
-                        className="inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 transition shadow-sm"
-                      >
-                        Issue Invoice
-                      </Link>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {p.member_reservations.map((member) => (
+                          <Link
+                            key={member.reservation_id}
+                            href={`/pms/tax-invoice/issue/${member.reservation_id}`}
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[11px] font-bold text-[var(--text-primary)] hover:border-brand-300 hover:text-brand-600 transition"
+                          >
+                            {member.room_numbers.join(", ") || member.booking_code || "Separate"}
+                          </Link>
+                        ))}
+                        {p.combine_eligible && p.reservation_ids.length > 1 && (
+                          <Link
+                            href={`/pms/tax-invoice/issue/${p.reservation_id}?reservation_ids=${encodeURIComponent(p.reservation_ids.join(","))}`}
+                            className="inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 transition shadow-sm"
+                          >
+                            Combine
+                          </Link>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -332,9 +418,14 @@ export default function TaxInvoiceListPage() {
                           >
                             🖨️
                           </Link>
-                          {!isCancelled && (
+                          {!isCancelled && isAdmin && (
                             <button
-                              onClick={() => { setCancelTarget({ id: h.id, invoiceNo: h.invoice_no }); setCancelReason(""); setCancelError(""); }}
+                              onClick={() => {
+                                setCancelTarget({ id: h.id, invoiceNo: h.invoice_no, canReuseInvoiceNo: Boolean(h.can_reuse_invoice_no) });
+                                setCancelReason("");
+                                setCancelReuseMode("continue");
+                                setCancelError("");
+                              }}
                               className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/20 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition"
                               title="Cancel Invoice (Admin)"
                             >
@@ -365,8 +456,39 @@ export default function TaxInvoiceListPage() {
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-400 leading-relaxed">
-                ⚠️ เลข Invoice <strong>{cancelTarget.invoiceNo}</strong> จะถูกขีดฆ่า แต่ยังคงอยู่ใน record เพื่อ Audit Trail — เลขถัดไปจะรันต่อเนื่อง ไม่ถูก skip
+                {cancelTarget.canReuseInvoiceNo
+                  ? <>⚠️ ใบนี้เป็นเลขล่าสุด คุณเลือกได้ว่าจะให้เลข <strong>{cancelTarget.invoiceNo}</strong> ถูกรันต่อไป หรือเก็บเลขนี้ไว้ใช้กับใบใหม่ใบถัดไปเพื่อคง Audit Trail</>
+                  : <>⚠️ เลข Invoice <strong>{cancelTarget.invoiceNo}</strong> จะถูกขีดฆ่าและเลขถัดไปจะรันต่อเนื่อง เพื่อคง Audit Trail</>}
               </div>
+              {cancelTarget.canReuseInvoiceNo && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[var(--text-primary)]">การจัดการเลข Invoice</label>
+                  <label className="flex items-start gap-3 rounded-xl border border-[var(--border-default)] p-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cancelReuseMode"
+                      checked={cancelReuseMode === "continue"}
+                      onChange={() => setCancelReuseMode("continue")}
+                      className="mt-0.5"
+                    />
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      รันเลขต่อไป
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl border border-[var(--border-default)] p-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cancelReuseMode"
+                      checked={cancelReuseMode === "reuse"}
+                      onChange={() => setCancelReuseMode("reuse")}
+                      className="mt-0.5"
+                    />
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      เก็บเลขนี้ไว้ให้ใบใหม่ใบถัดไปใช้ต่อ
+                    </span>
+                  </label>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-bold text-[var(--text-primary)] mb-2">
                   เหตุผลการยกเลิก <span className="text-rose-500">*</span>
@@ -383,7 +505,7 @@ export default function TaxInvoiceListPage() {
             </div>
             <div className="bg-[var(--bg-muted)] p-4 flex gap-3 justify-end border-t border-[var(--border-default)]">
               <button
-                onClick={() => { setCancelTarget(null); setCancelReason(""); setCancelError(""); }}
+                onClick={() => { setCancelTarget(null); setCancelReason(""); setCancelReuseMode("continue"); setCancelError(""); }}
                 disabled={cancelLoading}
                 className="px-6 py-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-body)] transition"
               >

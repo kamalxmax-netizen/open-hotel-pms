@@ -36,12 +36,14 @@ const patchSchema = z.object({
 
 const cancelSchema = z.object({
   cancel_reason: z.string().trim().min(3).max(1000),
+  reuse_invoice_no: z.boolean().optional().default(false),
 });
 
 type InvoiceWithReservation = {
   id: string;
   reservation_id: string;
   invoice_no: string | null;
+  cancelled_invoice_no?: string | null;
   status: "draft" | "issued" | "cancelled";
   issue_date: string;
   language: "th" | "en";
@@ -103,7 +105,7 @@ async function loadInvoiceOr404(
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "id, reservation_id, invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
+      "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -112,6 +114,31 @@ async function loadInvoiceOr404(
   if (!data) throw new TaxInvoiceError("Invoice not found.", 404);
 
   return data as unknown as InvoiceWithReservation;
+}
+
+async function canReuseInvoiceNumber(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  invoice: InvoiceWithReservation
+): Promise<boolean> {
+  const currentInvoiceNo = strOrNull(invoice.invoice_no);
+  if (!currentInvoiceNo || invoice.status !== "issued") return false;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, invoice_no")
+    .eq("status", "issued")
+    .not("invoice_no", "is", null)
+    .limit(5000);
+
+  if (error) {
+    throw new TaxInvoiceError(error.message, 500);
+  }
+
+  const latest = (data ?? [])
+    .filter((row: any) => strOrNull(row.invoice_no))
+    .sort((a: any, b: any) => String(b.invoice_no ?? "").localeCompare(String(a.invoice_no ?? ""), undefined, { numeric: true, sensitivity: "base" }))[0];
+
+  return String(latest?.id ?? "") === invoice.id;
 }
 
 export async function GET(
@@ -131,6 +158,14 @@ export async function GET(
     }
 
     const invoice = await loadInvoiceOr404(supabase, invoiceId);
+    const role = await getRequestingUserRole(supabase, user.id);
+    if (invoice.status === "cancelled" && !isAdminRole(role)) {
+      return NextResponse.json({ success: false, error: "Only admin can view cancelled invoices." }, { status: 403 });
+    }
+    const invoiceForResponse = {
+      ...invoice,
+      invoice_no: invoice.invoice_no ?? invoice.cancelled_invoice_no ?? null,
+    };
 
     // Merge current seller EN fields into seller_snapshot for old invoices
     // that were created before company_name_en / company_address_en existed.
@@ -142,11 +177,11 @@ export async function GET(
         company_name_en: rawSnapshot.company_name_en ?? liveSeller.company_name_en,
         company_address_en: rawSnapshot.company_address_en ?? liveSeller.company_address_en,
       };
-      const enriched = { ...invoice, seller_snapshot: merged };
+      const enriched = { ...invoiceForResponse, seller_snapshot: merged };
       return NextResponse.json({ success: true, invoice: enriched, data: enriched });
     }
 
-    return NextResponse.json({ success: true, invoice, data: invoice });
+    return NextResponse.json({ success: true, invoice: invoiceForResponse, data: invoiceForResponse });
   } catch (err) {
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
@@ -273,7 +308,7 @@ export async function PATCH(
       .update(patch)
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
@@ -326,11 +361,21 @@ export async function DELETE(
       return NextResponse.json({ success: true, invoice, data: invoice, already_cancelled: true });
     }
 
+    const allowReuseInvoiceNo = parsed.data.reuse_invoice_no && await canReuseInvoiceNumber(supabase, invoice);
+    if (parsed.data.reuse_invoice_no && !allowReuseInvoiceNo) {
+      return NextResponse.json(
+        { success: false, error: "Invoice number can only be reused when cancelling the latest issued invoice." },
+        { status: 400 }
+      );
+    }
+
     const nowIso = new Date().toISOString();
     const { data: cancelled, error: cancelError } = await supabase
       .from("invoices")
       .update({
         status: "cancelled",
+        invoice_no: allowReuseInvoiceNo ? null : invoice.invoice_no,
+        cancelled_invoice_no: allowReuseInvoiceNo ? invoice.invoice_no : invoice.cancelled_invoice_no ?? null,
         cancelled_at: nowIso,
         cancelled_by: user.id,
         cancel_reason: parsed.data.cancel_reason,
@@ -339,7 +384,7 @@ export async function DELETE(
       })
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
