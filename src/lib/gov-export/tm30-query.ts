@@ -1,13 +1,16 @@
 /**
- * TM.30 Query — Load foreign guests who checked in on a specific date
+ * TM.30 Query — Load foreign guests relevant to a specific TM.30 report date.
  *
- * Two cases:
- * 1. All guests (primary + accompanying) from reservations that checked in on target_date
- * 2. Accompanying guests added LATER to already-checked-in reservations
+ * Default rows follow the actual arrival date. If an accompanying foreign
+ * passport holder is added after the original check-in day, we also surface a
+ * warning row on the added date so staff can decide whether that duplicate
+ * should still be exported for that day's submission.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TM30GuestRecord, TM30Validation } from "./types";
+
+const TM30_LATE_ADDED_EXCLUSION_TYPE = "late_added_duplicate" as const;
 
 /** Bangkok timezone date string from a JS Date */
 function toBangkokDate(d: Date): string {
@@ -24,6 +27,23 @@ export interface TM30QueryResult {
   validations: TM30Validation[];
 }
 
+export interface TM30QueryOptions {
+  includeExcluded?: boolean;
+}
+
+function shouldIncludeTM30Guest(profile: {
+  nationality_code?: unknown;
+  id_type?: unknown;
+} | null | undefined): boolean {
+  const natCode = String(profile?.nationality_code ?? "").trim().toUpperCase();
+  const idType = String(profile?.id_type ?? "").trim().toLowerCase();
+  return natCode !== "THA" && idType === "passport";
+}
+
+function exclusionKey(reportDate: string, reservationId: string, guestProfileId: string): string {
+  return `${reportDate}:${reservationId}:${guestProfileId}:${TM30_LATE_ADDED_EXCLUSION_TYPE}`;
+}
+
 /**
  * Query foreign guests who need TM.30 reporting for a given date.
  *
@@ -32,8 +52,10 @@ export interface TM30QueryResult {
  */
 export async function queryTM30Guests(
   supabase: SupabaseClient,
-  targetDate: string
+  targetDate: string,
+  options: TM30QueryOptions = {}
 ): Promise<TM30QueryResult> {
+  const includeExcluded = options.includeExcluded ?? true;
   const guests: TM30GuestRecord[] = [];
   const seen = new Set<string>(); // "reservationId:guestProfileId"
 
@@ -77,7 +99,7 @@ export async function queryTM30Guests(
     // Load guests for these reservations
     const { data: guestRows, error: guestError } = await supabase
       .from("reservation_guests")
-      .select("reservation_id, guest_profile_id, role, guest_profiles(id, first_name, last_name, gender, passport_no, nationality_code, dob)")
+      .select("reservation_id, guest_profile_id, role, guest_profiles(id, first_name, last_name, gender, id_type, passport_no, nationality_code, dob)")
       .in("reservation_id", matchingReservationIds);
 
     if (guestError) {
@@ -88,9 +110,7 @@ export async function queryTM30Guests(
       const gp = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
       if (!gp) continue;
 
-      // Skip Thai nationals
-      const natCode = String(gp.nationality_code ?? "").toUpperCase();
-      if (natCode === "THA") continue;
+      if (!shouldIncludeTM30Guest(gp)) continue;
 
       const key = `${row.reservation_id}:${gp.id}`;
       if (seen.has(key)) continue;
@@ -103,6 +123,7 @@ export async function queryTM30Guests(
         first_name: gp.first_name ?? null,
         last_name: gp.last_name ?? null,
         gender: gp.gender ?? null,
+        id_type: gp.id_type ?? null,
         passport_no: gp.passport_no ?? null,
         nationality_code: gp.nationality_code ?? null,
         dob: gp.dob ?? null,
@@ -110,17 +131,20 @@ export async function queryTM30Guests(
         checkout_date: dates?.checkout_date ?? "",
         role: String(row.role) as "primary" | "accompanying",
         room_number: null, // filled below
+        report_date: targetDate,
+        entry_kind: "checkin",
+        late_added_at: null,
+        excluded_from_export: false,
       });
     }
   }
 
-  // ─── Case 2: Accompanying guests added LATER ───
-  // reservation_guests.created_at (Bangkok date) = targetDate
-  // AND reservation is already checked in (before targetDate)
-  // AND role = 'accompanying'
+  // ─── Case 2: Accompanying guests added later ────────────────────────────────
+  // Keep the original check-in-day logic, but also surface the added-later row
+  // on the day it was added so staff can choose whether to re-export it.
   const { data: lateAccompanying, error: lateError } = await supabase
     .from("reservation_guests")
-    .select("reservation_id, guest_profile_id, role, created_at, guest_profiles(id, first_name, last_name, gender, passport_no, nationality_code, dob)")
+    .select("reservation_id, guest_profile_id, role, created_at, guest_profiles(id, first_name, last_name, gender, id_type, passport_no, nationality_code, dob)")
     .eq("role", "accompanying")
     .gte("created_at", utcRangeStart)
     .lte("created_at", utcRangeEnd);
@@ -134,28 +158,29 @@ export async function queryTM30Guests(
     const createdDate = isoToBangkokDate(String(row.created_at));
     if (createdDate !== targetDate) continue;
 
-    // Skip if reservation already matched in Case 1
     const resId = String(row.reservation_id);
     const gp = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
     if (!gp) continue;
+    if (!shouldIncludeTM30Guest(gp)) continue;
 
     const key = `${resId}:${gp.id}`;
     if (seen.has(key)) continue;
 
-    // Check: reservation must be checked in before today
     const reservation = (checkinReservations ?? []).find((r: any) => String(r.id) === resId) as any;
     if (!reservation?.checked_in_at) {
-      // Load it
-      const { data: resRow } = await supabase
+      const { data: resRow, error: resError } = await supabase
         .from("reservations")
         .select("id, parent_reservation_id, checkin_date, checkout_date, checked_in_at, status")
         .eq("id", resId)
         .maybeSingle();
+      if (resError) {
+        throw new Error(`Failed to load reservation for late accompanying guest: ${resError.message}`);
+      }
       if (!resRow?.checked_in_at) continue;
       if (resRow.parent_reservation_id) continue;
       if (!["active", "checked_out"].includes(String(resRow.status))) continue;
       const checkinBkkDate = isoToBangkokDate(String(resRow.checked_in_at));
-      if (checkinBkkDate >= targetDate) continue; // same day = already handled in Case 1
+      if (checkinBkkDate >= targetDate) continue;
       reservationDateMap.set(resId, {
         checkin_date: String(resRow.checkin_date ?? ""),
         checkout_date: String(resRow.checkout_date ?? ""),
@@ -166,10 +191,6 @@ export async function queryTM30Guests(
       if (checkinBkkDate >= targetDate) continue;
     }
 
-    // Skip Thai nationals
-    const natCode = String(gp.nationality_code ?? "").toUpperCase();
-    if (natCode === "THA") continue;
-
     seen.add(key);
 
     const dates = reservationDateMap.get(resId);
@@ -179,6 +200,7 @@ export async function queryTM30Guests(
       first_name: gp.first_name ?? null,
       last_name: gp.last_name ?? null,
       gender: gp.gender ?? null,
+      id_type: gp.id_type ?? null,
       passport_no: gp.passport_no ?? null,
       nationality_code: gp.nationality_code ?? null,
       dob: gp.dob ?? null,
@@ -186,6 +208,10 @@ export async function queryTM30Guests(
       checkout_date: dates?.checkout_date ?? "",
       role: "accompanying",
       room_number: null,
+      report_date: targetDate,
+      entry_kind: "late_added_duplicate",
+      late_added_at: String(row.created_at),
+      excluded_from_export: false,
     });
   }
 
@@ -214,9 +240,47 @@ export async function queryTM30Guests(
     }
   }
 
+  const lateDuplicateGuests = guests.filter((guest) => guest.entry_kind === "late_added_duplicate");
+  if (lateDuplicateGuests.length > 0) {
+    const reservationIds = [...new Set(lateDuplicateGuests.map((guest) => guest.reservation_id))];
+    const guestProfileIds = [...new Set(lateDuplicateGuests.map((guest) => guest.guest_profile_id))];
+    const { data: exclusionRows, error: exclusionError } = await supabase
+      .from("tm30_report_exclusions")
+      .select("report_date, reservation_id, guest_profile_id, exclusion_type")
+      .eq("report_date", targetDate)
+      .eq("exclusion_type", TM30_LATE_ADDED_EXCLUSION_TYPE)
+      .in("reservation_id", reservationIds)
+      .in("guest_profile_id", guestProfileIds);
+
+    if (exclusionError) {
+      throw new Error(`Failed to load TM.30 exclusions: ${exclusionError.message}`);
+    }
+
+    const excludedKeys = new Set(
+      (exclusionRows ?? []).map((row: any) =>
+        exclusionKey(
+          String(row.report_date ?? targetDate),
+          String(row.reservation_id),
+          String(row.guest_profile_id)
+        )
+      )
+    );
+
+    for (const guest of guests) {
+      if (guest.entry_kind !== "late_added_duplicate") continue;
+      guest.excluded_from_export = excludedKeys.has(
+        exclusionKey(targetDate, guest.reservation_id, guest.guest_profile_id)
+      );
+    }
+  }
+
+  const visibleGuests = includeExcluded
+    ? guests
+    : guests.filter((guest) => !guest.excluded_from_export);
+
   // ─── Validations ───
   const validations: TM30Validation[] = [];
-  for (const g of guests) {
+  for (const g of visibleGuests) {
     if (!g.first_name) {
       validations.push({ guest_profile_id: g.guest_profile_id, field: "first_name", message: "Missing first name" });
     }
@@ -231,5 +295,5 @@ export async function queryTM30Guests(
     }
   }
 
-  return { guests, validations };
+  return { guests: visibleGuests, validations };
 }

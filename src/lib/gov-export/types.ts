@@ -36,6 +36,7 @@ export interface TM30GuestRecord {
   first_name: string | null;
   last_name: string | null;
   gender: "M" | "F" | "Other" | null;
+  id_type: "thai_id" | "passport" | "other" | null;
   passport_no: string | null;
   nationality_code: string | null;
   dob: string | null;
@@ -43,6 +44,10 @@ export interface TM30GuestRecord {
   checkout_date: string;
   role: "primary" | "accompanying";
   room_number: string | null;
+  report_date: string;
+  entry_kind: "checkin" | "late_added_duplicate";
+  late_added_at: string | null;
+  excluded_from_export: boolean;
 }
 
 /** Validation warning for a TM.30 guest record */

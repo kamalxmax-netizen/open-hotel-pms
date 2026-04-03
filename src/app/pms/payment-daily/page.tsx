@@ -639,7 +639,7 @@ export default function PaymentDailyPage() {
                     </div>
 
                     {/* ═══ Cash Reconciliation ═══ */}
-                    <div className="card w-fit overflow-hidden">
+                    <div className="card overflow-hidden">
                         <div className="p-5 flex flex-col md:flex-row gap-12 items-start justify-start">
                             <div>
                                 <h3 className="font-bold text-[var(--text-primary)] mb-1 text-sm uppercase tracking-wider">Cash Reconciliation</h3>

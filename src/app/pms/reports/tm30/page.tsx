@@ -39,7 +39,11 @@ export default function TM30Page() {
   const [guests, setGuests] = useState<TM30GuestRecord[]>([]);
   const [validations, setValidations] = useState<TM30Validation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savingKeys, setSavingKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleKey = (guest: TM30GuestRecord) =>
+    `${guest.report_date}:${guest.reservation_id}:${guest.guest_profile_id}:${guest.entry_kind}`;
 
   const loadData = useCallback(async () => {
     if (!date) return;
@@ -68,7 +72,50 @@ export default function TM30Page() {
     void loadData();
   }, [loadData]);
 
-  const canExport = guests.length > 0;
+  const exportableGuests = guests.filter((guest) => !guest.excluded_from_export);
+  const lateDuplicateCount = guests.filter((guest) => guest.entry_kind === "late_added_duplicate").length;
+  const excludedCount = guests.filter((guest) => guest.excluded_from_export).length;
+  const warningCount = validations.length + lateDuplicateCount;
+  const canExport = exportableGuests.length > 0;
+
+  async function handleLateDuplicateToggle(guest: TM30GuestRecord, shouldInclude: boolean) {
+    const key = toggleKey(guest);
+    const nextExcluded = !shouldInclude;
+    setSavingKeys((prev) => [...prev, key]);
+    setGuests((prev) =>
+      prev.map((entry) =>
+        toggleKey(entry) === key ? { ...entry, excluded_from_export: nextExcluded } : entry
+      )
+    );
+    setError(null);
+
+    try {
+      const res = await fetch("/api/reports/tm30", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: guest.report_date,
+          reservation_id: guest.reservation_id,
+          guest_profile_id: guest.guest_profile_id,
+          entry_kind: guest.entry_kind,
+          excluded: nextExcluded,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? "Failed to update TM.30 exclusion");
+      }
+    } catch (err) {
+      setGuests((prev) =>
+        prev.map((entry) =>
+          toggleKey(entry) === key ? { ...entry, excluded_from_export: guest.excluded_from_export } : entry
+        )
+      );
+      setError(err instanceof Error ? err.message : "Failed to update TM.30 exclusion");
+    } finally {
+      setSavingKeys((prev) => prev.filter((entry) => entry !== key));
+    }
+  }
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-4 p-4 pb-10">
@@ -128,9 +175,17 @@ export default function TM30Page() {
         <div className="rounded-lg border border-black/10 dark:border-white/10 bg-[var(--bg-surface)] overflow-hidden">
           <div className="p-3 border-b border-black/10 dark:border-white/10 flex items-center justify-between">
              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-               Summary: {guests.length} guests <span className="text-[var(--text-muted)] font-normal mx-2">|</span> 
-               {validations.length > 0 ? (
-                 <span className="text-amber-600">⚠ {validations.length} warning{validations.length > 1 ? "s" : ""}</span>
+               Summary: {guests.length} guests <span className="text-[var(--text-muted)] font-normal mx-2">|</span>
+               <span className="text-[var(--text-secondary)]">{exportableGuests.length} ready to export</span>
+               {excludedCount > 0 && (
+                 <>
+                   <span className="text-[var(--text-muted)] font-normal mx-2">|</span>
+                   <span className="text-slate-500">{excludedCount} excluded</span>
+                 </>
+               )}
+               <span className="text-[var(--text-muted)] font-normal mx-2">|</span>
+               {warningCount > 0 ? (
+                 <span className="text-amber-600">⚠ {warningCount} warning{warningCount > 1 ? "s" : ""}</span>
                ) : (
                  <span className="text-emerald-600">0 warnings</span>
                )}
@@ -168,14 +223,16 @@ export default function TM30Page() {
                   guests.map((guest, idx) => {
                     const guestValidations = validations.filter(v => v.guest_profile_id === guest.guest_profile_id);
                     const hasWarning = guestValidations.length > 0;
+                    const isLateDuplicate = guest.entry_kind === "late_added_duplicate";
+                    const isSaving = savingKeys.includes(toggleKey(guest));
                     
                     return (
                       <tr 
                         key={`${guest.reservation_id}-${guest.guest_profile_id}-${idx}`}
-                        className={`border-b border-black/5 dark:border-white/5 hover:bg-[var(--bg-muted)] transition-colors ${hasWarning ? "bg-amber-50 dark:bg-amber-900/10" : ""}`}
+                        className={`border-b border-black/5 dark:border-white/5 hover:bg-[var(--bg-muted)] transition-colors ${(hasWarning || isLateDuplicate) ? "bg-amber-50 dark:bg-amber-900/10" : ""} ${guest.excluded_from_export ? "opacity-70" : ""}`}
                       >
                         <td className="p-3">
-                          {hasWarning && <span className="text-amber-500 mr-2" title="Warning">⚠</span>}
+                          {(hasWarning || isLateDuplicate) && <span className="text-amber-500 mr-2" title="Warning">⚠</span>}
                           <span className="font-medium text-[var(--text-primary)]">{guest.first_name || "-"}</span>
                         </td>
                         <td className="p-3 text-[var(--text-primary)]">{guest.last_name || "-"}</td>
@@ -185,13 +242,44 @@ export default function TM30Page() {
                         <td className="p-3 text-center text-[var(--text-secondary)]">{fmtDate(guest.checkin_date)}</td>
                         <td className="p-3 text-center font-semibold text-[var(--text-secondary)]">{guest.room_number || "-"}</td>
                         <td className="p-3">
-                          {hasWarning ? (
-                            <div className="flex flex-wrap gap-1">
-                              {guestValidations.map((v, i) => (
-                                <span key={i} className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] font-semibold tracking-wide uppercase">
-                                  {v.field}
-                                </span>
-                              ))}
+                          {hasWarning || isLateDuplicate ? (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-1">
+                                {isLateDuplicate ? (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] font-semibold tracking-wide uppercase">
+                                      late-added
+                                    </span>
+                                    {guest.excluded_from_export ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-[10px] font-semibold tracking-wide uppercase">
+                                        excluded
+                                      </span>
+                                    ) : null}
+                                  </>
+                                ) : null}
+                                {guestValidations.map((v, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] font-semibold tracking-wide uppercase">
+                                    {v.field}
+                                  </span>
+                                ))}
+                              </div>
+                              {isLateDuplicate ? (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    Added to this checked-in reservation on a later day. Keep checked only if this guest still needs to be sent again for {fmtDate(date)}.
+                                  </p>
+                                  <label className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded border-black/10 dark:border-white/10"
+                                      checked={!guest.excluded_from_export}
+                                      disabled={isSaving}
+                                      onChange={(e) => void handleLateDuplicateToggle(guest, e.target.checked)}
+                                    />
+                                    Include in export
+                                  </label>
+                                </div>
+                              ) : null}
                             </div>
                           ) : (
                             <span className="text-[var(--text-muted)] text-xs">-</span>
