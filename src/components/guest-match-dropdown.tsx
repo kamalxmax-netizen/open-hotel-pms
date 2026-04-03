@@ -14,8 +14,11 @@ export interface MatchResult {
         nationality_code: string | null;
         stay_count: number;
         vip_tier: string | null;
+        booking_names?: string[];
     };
     score: number;
+    match_level?: "strong" | "possible" | "new";
+    matched_booking_name?: string | null;
 }
 
 interface GuestMatchDropdownProps {
@@ -234,6 +237,11 @@ function MatchRow({ match, onSelect }: { match: MatchResult; onSelect: () => voi
                     {p.nationality_code && <span>{getFlagEmojiByNationalityCode(p.nationality_code)} {p.nationality_code}</span>}
                     <span className="text-[var(--text-muted)]">Score: {match.score}</span>
                 </div>
+                {match.matched_booking_name && (
+                    <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">
+                        Booking name: {match.matched_booking_name}
+                    </p>
+                )}
             </div>
 
             {/* Link icon */}

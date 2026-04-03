@@ -1,10 +1,20 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeBookingName } from "@/lib/guest-booking-names";
 import { normalizeNationalityCode } from "@/lib/nationality-map";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
+
+function isGuestBookingNamesTableMissing(message?: string | null): boolean {
+  const normalized = String(message ?? "").toLowerCase();
+  return normalized.includes("guest_profile_booking_names") && (
+    normalized.includes("does not exist")
+    || normalized.includes("relation")
+    || normalized.includes("schema cache")
+  );
+}
 
 const bodySchema = z.object({
   query: z.string().trim().min(2, "query must be at least 2 characters"),
@@ -27,6 +37,7 @@ type CandidateProfile = {
   do_not_merge: boolean | null;
   stay_count: number | null;
   vip_tier: string | null;
+  booking_names?: string[];
 };
 
 function normalizeText(value: unknown): string {
@@ -71,6 +82,7 @@ function levenshtein(aRaw: string, bRaw: string): number {
 function buildMatch(profile: CandidateProfile, query: string) {
   const reasons: string[] = [];
   let score = 0;
+  let matchedBookingName: string | null = null;
 
   const q = normalizeText(query);
   const qDigits = normalizeDigits(query);
@@ -87,6 +99,10 @@ function buildMatch(profile: CandidateProfile, query: string) {
   const email = normalizeText(profile.email);
   const phone = normalizeDigits(profile.phone);
   const dob = normalizeText(profile.dob);
+  const bookingNames = Array.isArray(profile.booking_names)
+    ? profile.booking_names.map((value) => normalizeText(value)).filter(Boolean)
+    : [];
+  const normalizedBookingQuery = normalizeBookingName(query);
 
   if (idNumber && q === idNumber) {
     score += 50;
@@ -165,13 +181,32 @@ function buildMatch(profile: CandidateProfile, query: string) {
     reasons.push("dob_exact");
   }
 
+  if (normalizedBookingQuery) {
+    for (const bookingName of bookingNames) {
+      const normalizedBookingName = normalizeBookingName(bookingName);
+      if (!normalizedBookingName) continue;
+      if (normalizedBookingName === normalizedBookingQuery) {
+        score += 72;
+        reasons.push("booking_name_exact");
+        matchedBookingName = bookingName;
+        break;
+      }
+      if (normalizedBookingName.includes(normalizedBookingQuery) || normalizedBookingQuery.includes(normalizedBookingName)) {
+        score += 36;
+        reasons.push("booking_name_partial");
+        matchedBookingName = bookingName;
+        break;
+      }
+    }
+  }
+
   if (fullName && q.length >= 3 && fullName.startsWith(q)) {
     score += 12;
     reasons.push("full_name_prefix");
   }
 
   const level = score >= 70 ? "strong" : score >= 30 ? "possible" : "new";
-  return { score, reasons, level };
+  return { score, reasons, level, matchedBookingName };
 }
 
 export async function POST(request: NextRequest) {
@@ -223,7 +258,89 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const matches = (data ?? [])
+    const aliasTerms = Array.from(
+      new Set(
+        [safeQuery, ...safeQuery.split(/\s+/).filter((part) => part.length >= 2)]
+          .map((term) => term.replace(/[%_,]/g, "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    let aliasRows: any[] = [];
+    if (aliasTerms.length > 0) {
+      let aliasQuery = supabase
+        .from("guest_profile_booking_names")
+        .select(`
+          guest_profile_id,
+          booking_name,
+          guest_profiles!inner(
+            id,
+            member_no,
+            first_name,
+            last_name,
+            phone,
+            email,
+            dob,
+            id_number,
+            passport_no,
+            nationality_code,
+            country,
+            profile_status,
+            do_not_merge,
+            stay_count,
+            vip_tier
+          )
+        `)
+        .limit(100);
+
+      const aliasOrParts: string[] = [];
+      for (const term of aliasTerms) {
+        aliasOrParts.push(`booking_name.ilike.%${term}%`);
+        aliasOrParts.push(`normalized_booking_name.ilike.%${normalizeBookingName(term)}%`);
+      }
+      aliasQuery = aliasQuery.or(aliasOrParts.join(","));
+
+      const aliasResult = await aliasQuery;
+      if (aliasResult.error) {
+        if (isGuestBookingNamesTableMissing(aliasResult.error.message)) {
+          aliasRows = [];
+        } else {
+        return NextResponse.json({ success: false, error: aliasResult.error.message }, { status: 500 });
+        }
+      }
+      aliasRows = aliasResult.data ?? [];
+    }
+
+    const profileById = new Map<string, CandidateProfile>();
+    for (const row of data ?? []) {
+      const profile = row as CandidateProfile;
+      profileById.set(String(profile.id), {
+        ...profile,
+        booking_names: [],
+      });
+    }
+
+    for (const row of aliasRows) {
+      const profile = Array.isArray((row as any)?.guest_profiles)
+        ? (row as any).guest_profiles[0]
+        : (row as any)?.guest_profiles;
+      const profileId = String(profile?.id ?? "").trim();
+      if (!profileId) continue;
+      if (nationalityCode && String(profile?.nationality_code ?? "").trim().toUpperCase() !== nationalityCode) {
+        continue;
+      }
+      const current = profileById.get(profileId) ?? {
+        ...(profile as CandidateProfile),
+        booking_names: [],
+      };
+      const bookingNames = new Set(current.booking_names ?? []);
+      const bookingName = String((row as any)?.booking_name ?? "").trim();
+      if (bookingName) bookingNames.add(bookingName);
+      current.booking_names = Array.from(bookingNames);
+      profileById.set(profileId, current);
+    }
+
+    const matches = Array.from(profileById.values())
       .map((row) => {
         const profile = row as CandidateProfile;
         const result = buildMatch(profile, query);
@@ -242,11 +359,14 @@ export async function POST(request: NextRequest) {
             do_not_merge: Boolean(profile.do_not_merge),
             stay_count: Number(profile.stay_count ?? 0),
             vip_tier: profile.vip_tier ?? null,
+            booking_names: profile.booking_names ?? [],
           },
           score: Number(result.score.toFixed(2)),
           match_level: result.level,
+          matched_booking_name: result.matchedBookingName,
         };
       })
+      .filter((row) => row.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
 

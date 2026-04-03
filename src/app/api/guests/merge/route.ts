@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { mergeGuestProfileBookingNames } from "@/lib/guest-booking-names";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -57,6 +58,12 @@ export async function POST(request: NextRequest) {
                         : 500;
             return NextResponse.json({ success: false, error: msg }, { status });
         }
+
+        await mergeGuestProfileBookingNames({
+            supabase: supabase as any,
+            masterProfileId: master_id,
+            sourceProfileId: source_id,
+        });
 
         return NextResponse.json({
             success: true,

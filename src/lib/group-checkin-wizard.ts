@@ -21,6 +21,7 @@ export type WizardFailCode =
   | "room_not_assigned"
   | "room_occupied"
   | "already_checked_in"
+  | "primary_guest_duplicate"
   | "runtime_error";
 
 export type WizardRoomResult = {
@@ -149,6 +150,9 @@ export function mapMassCheckinCodeToWizardCodes(code: string | null | undefined,
   }
   if (normalizedError.includes("already checked in")) {
     return ["already_checked_in"];
+  }
+  if (normalizedCode === "primary_guest_already_checked_in" || normalizedError.includes("primary guest is already checked in")) {
+    return ["primary_guest_duplicate"];
   }
   return ["runtime_error"];
 }

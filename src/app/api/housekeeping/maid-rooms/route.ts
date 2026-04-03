@@ -27,6 +27,7 @@ type MaidTaskRow = {
   id: string;
   room_id: string;
   stay_date: string;
+  task_seq: number | null;
   status: TaskStatus;
   is_no_service: boolean | null;
   no_service_note?: string | null;
@@ -90,6 +91,7 @@ function shiftDate(dateStr: string, diffDays: number): string {
 type CarryForwardTask = {
   id: string;
   room_id: string;
+  task_seq?: number | null;
   status: "dirty" | "in_progress" | "paused";
   assigned_maid_name: string | null;
   is_no_service: boolean | null;
@@ -197,6 +199,19 @@ function isMaidMatch(candidate: string | null | undefined, target: string): bool
   return c.includes(t) || t.includes(c);
 }
 
+function buildLatestTaskByRoom<T extends { room_id: string; task_seq?: number | null }>(rows: T[]) {
+  const latestByRoomId = new Map<string, T>();
+  for (const row of rows) {
+    const existing = latestByRoomId.get(row.room_id);
+    const nextSeq = Number(row.task_seq ?? 0);
+    const existingSeq = Number(existing?.task_seq ?? 0);
+    if (!existing || nextSeq >= existingSeq) {
+      latestByRoomId.set(row.room_id, row);
+    }
+  }
+  return latestByRoomId;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const rawDate = request.nextUrl.searchParams.get("date") ?? undefined;
@@ -245,22 +260,28 @@ export async function GET(request: NextRequest) {
     // Fallback source: runtime task assignment (in case plan rows are missing).
     const { data: allAssignedTasks, error: assignedTaskError } = await supabase
       .from("housekeeping_tasks")
-      .select("room_id, assigned_maid_name, status")
+      .select("room_id, task_seq, assigned_maid_name, status")
       .eq("stay_date", date)
       .not("assigned_maid_name", "is", null)
+      .order("task_seq", { ascending: true })
       .in("status", ["dirty", "in_progress", "paused", "cleaned", "approved"]);
 
     if (assignedTaskError) {
       return NextResponse.json({ error: assignedTaskError.message }, { status: 500 });
     }
 
-    const fallbackTaskRoomIds = Array.from(
-      new Set(
-        (allAssignedTasks ?? [])
-          .filter((row) => isMaidMatch(row.assigned_maid_name, maidName))
-          .map((row) => row.room_id)
-      )
+    const latestAssignedTaskByRoomId = buildLatestTaskByRoom(
+      ((allAssignedTasks ?? []) as Array<{
+        room_id: string;
+        task_seq?: number | null;
+        assigned_maid_name?: string | null;
+        status?: string | null;
+      }>)
     );
+
+    const fallbackTaskRoomIds = Array.from(latestAssignedTaskByRoomId.values())
+      .filter((row) => isMaidMatch(row.assigned_maid_name, maidName))
+      .map((row) => row.room_id);
 
     let carryForwardRoomIds: string[] = [];
     if (date === getThailandDateString()) {
@@ -416,12 +437,13 @@ export async function GET(request: NextRequest) {
     }
 
     const taskSelectBase =
-      "id, room_id, stay_date, status, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
+      "id, room_id, stay_date, task_seq, status, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
     const { data: taskRowsRaw, error: taskError } = await supabase
       .from("housekeeping_tasks")
       .select(`${taskSelectBase}, no_service_note`)
       .eq("stay_date", date)
-      .in("room_id", roomIds);
+      .in("room_id", roomIds)
+      .order("task_seq", { ascending: true });
 
     if (taskError) {
       const message = String(taskError.message ?? "").toLowerCase();
@@ -452,7 +474,9 @@ export async function GET(request: NextRequest) {
       }
     >();
 
-    for (const row of taskRows) {
+    const latestTaskByRoomId = buildLatestTaskByRoom(taskRows);
+
+    for (const row of latestTaskByRoomId.values()) {
       taskByRoomId.set(row.room_id, {
         id: row.id,
         status: row.status as TaskStatus,

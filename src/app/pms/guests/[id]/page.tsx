@@ -875,6 +875,23 @@ export default function GuestProfileDetailPage() {
             </div>
           </InfoBox>
 
+          <InfoBox title="Booking Names">
+            {Array.isArray(profile.booking_names) && profile.booking_names.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {profile.booking_names.map((bookingName) => (
+                  <span
+                    key={bookingName}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+                  >
+                    {bookingName}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-lg text-[var(--text-muted)]">—</div>
+            )}
+          </InfoBox>
+
           <InfoBox title="Preferences">
             <div className="grid gap-4 text-lg text-[var(--text-table-cell)] md:grid-cols-[1.2fr_1fr]">
               <div>{valueOrDash(profile.preferences)}</div>

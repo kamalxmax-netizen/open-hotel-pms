@@ -9,6 +9,7 @@ import {
   shouldMaskIdentityForRole,
   validateGuestUnmaskAccess,
 } from "@/lib/data-masking";
+import { listGuestProfileBookingNames } from "@/lib/guest-booking-names";
 import { updateGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
     const businessDate = await resolveBusinessDate(supabase);
 
-    const [profileRes, staysRes, legacyRes] = await Promise.all([
+    const [profileRes, staysRes, legacyRes, bookingNames] = await Promise.all([
       supabase
         .from("guest_profiles")
         .select("*")
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         .from("legacy_stays")
         .select("id", { count: "exact", head: true })
         .eq("guest_profile_id", id),
+      listGuestProfileBookingNames(supabase as any, id),
     ]);
 
     if (profileRes.error) {
@@ -157,6 +159,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       ...profileRes.data,
       stay_count: Math.max(Number(profileRes.data.stay_count ?? 0), legacyStayCount),
       main_stay_count: Math.max(Number(profileRes.data.main_stay_count ?? 0), legacyStayCount),
+      booking_names: bookingNames,
     };
 
     const profilePayload = canUnmask

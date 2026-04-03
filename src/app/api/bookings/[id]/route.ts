@@ -29,6 +29,7 @@ import { assertAssignedRoomUnlockedOrOverride, clearAssignedRoomLock, AssignedRo
 import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
+import { findPossibleReturnCandidatesByBookingNames } from "@/lib/guest-booking-names";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -373,6 +374,18 @@ export async function GET(
     return NextResponse.json({ error: latestDepositError.message }, { status: 500 });
   }
 
+  const possibleReturnMatches = row.guest_profile_id
+    ? []
+    : Array.from(
+        (
+          await findPossibleReturnCandidatesByBookingNames(supabase as any, [{
+            reservation_id: reservationId,
+            booking_name: row.guest_name ?? null,
+            exclude_guest_profile_id: null,
+          }])
+        ).get(reservationId) ?? []
+      ).slice(0, 5);
+
   const checkOutTimeHHmm = await resolveHotelCheckOutTime(supabase);
   const linkedStay = await resolveLinkedStay(supabase, reservationId, checkOutTimeHHmm);
 
@@ -466,6 +479,7 @@ export async function GET(
       room_id: roomId,
       room_type_id: roomTypeId,
       total_nights: activeNights.length,
+      possible_return_matches: possibleReturnMatches,
       nights: activeNights.map((n: any) => ({
         stay_date: n.stay_date,
         nightly_price: Number(n.nightly_price ?? 0),

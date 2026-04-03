@@ -13,6 +13,8 @@ import {
   syncAccompanyingGuests,
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
+import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
+import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -230,6 +232,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
+    const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
+    if (!isDraft) {
+      await assertPrimaryGuestAvailableForCheckin({
+        supabase: supabase as any,
+        reservationId: payload.reservation_id,
+        guestProfileId: resolvedPrimary.guestProfileId,
+      });
+    }
+
     await linkPrimaryGuestToReservation(supabase as any, payload.reservation_id, resolvedPrimary.guestProfileId);
 
     const accompanying = (payload.accompanying_guests ?? []).slice(0, 3) as MobileAccompanyingInput[];
@@ -249,8 +261,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
     const now = new Date();
     const nowIso = now.toISOString();
     const nowCheckinTime = toBangkokTimeHHmm(now);
@@ -281,6 +291,17 @@ export async function POST(request: NextRequest) {
 
     if (reservationUpdateError) {
       throw new MobileCheckinError(reservationUpdateError.message, 500, "RESERVATION_UPDATE_FAILED");
+    }
+
+    if (!isDraft) {
+      await syncReservationBookingNameAlias({
+        supabase: supabase as any,
+        guestProfileId: resolvedPrimary.guestProfileId,
+        bookingName: reservationGuestName,
+        actualName: effectiveName,
+        sourceReservationId: payload.reservation_id,
+        seenAt: nowIso,
+      });
     }
 
     if (payload.scan_id) {
@@ -388,6 +409,18 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: error.message,
+          ...(error.details ?? {}),
+        },
+        { status: error.status }
+      );
+    }
+
+    if (error instanceof PrimaryGuestCheckinConflictError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
           ...(error.details ?? {}),
         },
         { status: error.status }

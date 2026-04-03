@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/data-masking";
 import { createGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
+import { normalizeBookingName } from "@/lib/guest-booking-names";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import type { GuestProfileListItem, GuestProfileListResponse } from "@/lib/types";
@@ -10,6 +11,15 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
+
+function isGuestBookingNamesTableMissing(message?: string | null): boolean {
+  const normalized = String(message ?? "").toLowerCase();
+  return normalized.includes("guest_profile_booking_names") && (
+    normalized.includes("does not exist")
+    || normalized.includes("relation")
+    || normalized.includes("schema cache")
+  );
+}
 
 const querySchema = z.object({
   q: z.string().trim().optional().default(""),
@@ -41,7 +51,7 @@ type GuestListFilters = {
   blacklist: "all" | "normal" | "blacklisted";
 };
 
-function applyGuestFilters(query: any, filters: GuestListFilters) {
+function applyGuestFilters(query: any, filters: GuestListFilters, aliasProfileIds: string[] = []) {
   if (!filters.includeMerged) {
     query = query.neq("profile_status", "merged");
   }
@@ -91,7 +101,12 @@ function applyGuestFilters(query: any, filters: GuestListFilters) {
     }
 
     if (orParts.length > 0) {
+      if (aliasProfileIds.length > 0) {
+        orParts.push(`id.in.(${aliasProfileIds.join(",")})`);
+      }
       query = query.or(orParts.join(","));
+    } else if (aliasProfileIds.length > 0) {
+      query = query.in("id", aliasProfileIds);
     }
   }
 
@@ -158,6 +173,45 @@ export async function GET(request: NextRequest) {
     };
 
     const supabase = createServerSupabaseClient();
+    const aliasProfileIds =
+      filters.q.length > 0
+        ? await (async () => {
+            const terms = Array.from(
+              new Set(
+                [filters.q, ...filters.q.split(" ").filter((part) => part.length >= 2)]
+                  .map((term) => sanitizeSearchTerm(term))
+                  .filter(Boolean)
+              )
+            );
+            if (terms.length === 0) return [];
+
+            const aliasOrParts: string[] = [];
+            for (const term of terms) {
+              aliasOrParts.push(`booking_name.ilike.%${term}%`);
+              aliasOrParts.push(`normalized_booking_name.ilike.%${normalizeBookingName(term)}%`);
+            }
+
+            const { data: aliasRows, error: aliasError } = await supabase
+              .from("guest_profile_booking_names")
+              .select("guest_profile_id")
+              .or(aliasOrParts.join(","))
+              .limit(200);
+
+            if (aliasError) {
+              if (isGuestBookingNamesTableMissing(aliasError.message)) return [];
+              throw new Error(aliasError.message ?? "Failed to search guest booking names.");
+            }
+
+            return Array.from(
+              new Set(
+                (aliasRows ?? [])
+                  .map((row: any) => String(row.guest_profile_id ?? "").trim())
+                  .filter(Boolean)
+              )
+            );
+          })()
+        : [];
+
     const selectClause =
       "id, member_no, first_name, last_name, phone, email, nationality, nationality_code, country, vip_tier, blacklisted, profile_status, stay_count, last_stay_date";
     const start = (page - 1) * limit;
@@ -170,7 +224,8 @@ export async function GET(request: NextRequest) {
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .order("last_name", { ascending: true })
         .range(start, end),
-      filters
+      filters,
+      aliasProfileIds
     );
 
     const countBaseQuery = (overrides?: Partial<GuestListFilters>) =>
@@ -178,7 +233,8 @@ export async function GET(request: NextRequest) {
         supabase
           .from("guest_profiles")
           .select("id", { count: "exact", head: true }),
-        { ...filters, ...overrides }
+        { ...filters, ...overrides },
+        aliasProfileIds
       );
 
     const [rowsRes, verifiedRes, draftRes, vipRes] = await Promise.all([

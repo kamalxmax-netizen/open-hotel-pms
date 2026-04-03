@@ -179,6 +179,17 @@ export async function POST(
 
     const prevalidatedResults = new Map<string, WizardRoomResult>();
     const readyForCheckin: Array<typeof scopedLines[number]> = [];
+    const duplicatePrimaryProfileIds = new Set<string>();
+    const primaryCounts = new Map<string, number>();
+
+    for (const line of scopedLines) {
+      const profileId = String((line as any)?.primary_guest_profile_id ?? "").trim();
+      if (!profileId || line.is_checked_in) continue;
+      primaryCounts.set(profileId, (primaryCounts.get(profileId) ?? 0) + 1);
+    }
+    primaryCounts.forEach((count, profileId) => {
+      if (count > 1) duplicatePrimaryProfileIds.add(profileId);
+    });
 
     for (const line of scopedLines) {
       const codes: WizardFailCode[] = [];
@@ -201,6 +212,11 @@ export async function POST(
 
       if (strictDueIn && line.checkin_date !== businessDate) {
         pushCode(codes, "runtime_error");
+      }
+
+      const primaryGuestProfileId = String((line as any)?.primary_guest_profile_id ?? "").trim();
+      if (primaryGuestProfileId && duplicatePrimaryProfileIds.has(primaryGuestProfileId)) {
+        pushCode(codes, "primary_guest_duplicate");
       }
 
       if (line.room_id) {
@@ -233,9 +249,11 @@ export async function POST(
           status: "failed",
           codes,
           missing_fields: missingFields.length > 0 ? Array.from(new Set(missingFields)) : undefined,
-          error: strictDueIn && line.checkin_date !== businessDate
-            ? `Reservation is not due-in on business date ${businessDate}.`
-            : undefined,
+          error: duplicatePrimaryProfileIds.has(primaryGuestProfileId)
+            ? "Primary guest is selected on more than one room in this group check-in batch."
+            : strictDueIn && line.checkin_date !== businessDate
+              ? `Reservation is not due-in on business date ${businessDate}.`
+              : undefined,
         });
         continue;
       }

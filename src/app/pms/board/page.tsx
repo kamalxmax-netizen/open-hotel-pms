@@ -68,6 +68,9 @@ type ApiRoom = {
     main_night_count?: number;
     accompanying_stay_count?: number;
     accompanying_night_count?: number;
+    possible_return_count?: number;
+    possible_return_profile_id?: string | null;
+    possible_return_name?: string | null;
     hk_status?: HousekeepingRawStatus | null;
     hk_task_seq?: number | null;
     hk_assigned_maid?: string | null;
@@ -401,6 +404,7 @@ function RoomCard({
         : undefined;
     const loyaltyVisual = resolveGuestLoyaltyVisual(room);
     const returnStats = loyaltyVisual.returnStats;
+    const possibleReturn = !returnStats && (room.possible_return_count ?? 0) > 0;
     const roomLinkKey = resolveRoomLinkKey(room);
     const linkedStayCheckin = room.linked_full_checkin ?? room.guest_checkin_date ?? null;
     const linkedStayCheckout = room.linked_full_checkout ?? room.guest_checkout_date ?? null;
@@ -589,14 +593,21 @@ function RoomCard({
                                         ? SOURCE_LABEL[room.source] ?? room.source
                                         : room.room_type}
                             </p>
-                            {returnStats && (
+                            {returnStats ? (
                                 <span
                                     className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
                                     title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
                                 >
                                     {returnStats.text}
                                 </span>
-                            )}
+                            ) : possibleReturn ? (
+                                <span
+                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                    title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
+                                >
+                                    PR
+                                </span>
+                            ) : null}
                         </div>
                     ) : (
                         <div className="mt-auto flex justify-end">
@@ -606,6 +617,13 @@ function RoomCard({
                                     title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
                                 >
                                     {returnStats.text}
+                                </span>
+                            ) : possibleReturn ? (
+                                <span
+                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                    title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
+                                >
+                                    PR
                                 </span>
                             ) : isReserved && room.booking_code ? (
                                 <span className="text-[8px] text-[var(--text-muted)] font-mono shrink-0">

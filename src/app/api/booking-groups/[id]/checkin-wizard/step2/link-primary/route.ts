@@ -65,32 +65,6 @@ async function appendReservationNoteLine(
   if (updateError) throw new Error(updateError.message || "Failed to update reservation note.");
 }
 
-async function appendProfileNoteLine(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  profileId: string,
-  line: string
-) {
-  const trimmed = String(line ?? "").trim();
-  if (!trimmed) return;
-
-  const { data: profile, error: profileError } = await supabase
-    .from("guest_profiles")
-    .select("id, notes")
-    .eq("id", profileId)
-    .maybeSingle();
-  if (profileError) throw new Error(profileError.message || "Failed to load profile note.");
-  if (!profile) throw new Error("Guest profile not found.");
-
-  const current = typeof profile.notes === "string" ? profile.notes.trimEnd() : "";
-  if (current.includes(trimmed)) return;
-  const nextNote = current ? `${current}\n${trimmed}` : trimmed;
-  const { error: updateError } = await supabase
-    .from("guest_profiles")
-    .update({ notes: nextNote })
-    .eq("id", profileId);
-  if (updateError) throw new Error(updateError.message || "Failed to update profile note.");
-}
-
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -132,16 +106,6 @@ export async function POST(
     }
     const resolvedName = buildGuestDisplayName(profile?.first_name, profile?.last_name, reservation.guest_name || "Guest");
     const matchLevel = classifyNameMatch(reservation.guest_name, resolvedName);
-
-    if (profile?.id_type === "thai_id") {
-      const bookingName = String(reservation.guest_name ?? "").trim();
-      const cardName = String(resolvedName ?? "").trim();
-      if (bookingName && cardName && bookingName !== cardName) {
-        await appendProfileNoteLine(supabase, guestProfileId, `จองมาในชื่อ ${bookingName}`);
-      } else if (bookingName) {
-        await appendProfileNoteLine(supabase, guestProfileId, `จองมาในชื่อ ${bookingName}`);
-      }
-    }
 
     if (profile) {
       const completeness = checkProfileCompleteness(profile as Record<string, unknown>);

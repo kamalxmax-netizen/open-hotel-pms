@@ -5,6 +5,7 @@ import type { BoardRoomStatus } from "@/lib/board-layout";
 import { getBusinessDate } from "@/lib/fo-prepare";
 import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
 import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
+import { findPossibleReturnCandidatesByBookingNames } from "@/lib/guest-booking-names";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
 
@@ -497,6 +498,18 @@ export async function GET(request: NextRequest) {
   plannedMoveSourceGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
   plannedMoveTargetGuestByRoomId.forEach((guest) => pushGuestLoyaltySeed(guest));
   const reservationIdsArr = Array.from(reservationIdSet);
+  const reservationGuestByReservationId = new Map<string, GuestSummary>();
+  const registerReservationGuest = (guest: GuestSummary | null) => {
+    if (!guest?.reservation_id) return;
+    if (!reservationGuestByReservationId.has(guest.reservation_id)) {
+      reservationGuestByReservationId.set(guest.reservation_id, guest);
+    }
+  };
+  occupiedGuestByRoomId.forEach(registerReservationGuest);
+  departureGuestByRoomId.forEach(registerReservationGuest);
+  arrivalGuestByRoomId.forEach(registerReservationGuest);
+  plannedMoveSourceGuestByRoomId.forEach(registerReservationGuest);
+  plannedMoveTargetGuestByRoomId.forEach(registerReservationGuest);
 
   // Roots can still be linked even when today's row is the parent OTA segment.
   // Detect guest reservations that own at least one child reservation.
@@ -567,7 +580,7 @@ export async function GET(request: NextRequest) {
 
   // ── Wave 3: loyalty + alerts + roomMoveLogs in parallel ────────────────
   const tW3Start = performance.now();
-  const [loyaltyByReservationId, alertsResult, roomMoveLogsResult] = await Promise.all([
+  const [loyaltyByReservationId, alertsResult, roomMoveLogsResult, possibleReturnByReservationId] = await Promise.all([
     buildReservationLoyaltyMap(supabase, reservationIdsArr, reservationProfileSeed),
     reservationIdSet.size > 0
       ? supabase
@@ -583,6 +596,16 @@ export async function GET(request: NextRequest) {
           .eq("action", "room_moved")
           .in("entity_id", reservationIdsArr)
       : Promise.resolve({ data: [] as any[], error: null }),
+    reservationIdSet.size > 0
+      ? findPossibleReturnCandidatesByBookingNames(
+          supabase as any,
+          reservationIdsArr.map((reservationId) => ({
+            reservation_id: reservationId,
+            booking_name: reservationGuestByReservationId.get(reservationId)?.guest_name ?? null,
+            exclude_guest_profile_id: reservationProfileSeed.get(reservationId) ?? null,
+          }))
+        )
+      : Promise.resolve(new Map<string, any[]>()),
   ]);
 
   const tW3End = performance.now();
@@ -843,6 +866,9 @@ export async function GET(request: NextRequest) {
     const linkedStay = guest?.reservation_id
       ? linkedStayByReservationId.get(guest.reservation_id)
       : null;
+    const possibleReturnMatches = guest?.reservation_id
+      ? possibleReturnByReservationId.get(guest.reservation_id) ?? []
+      : [];
 
     return {
       room_id: room.id,
@@ -875,6 +901,13 @@ export async function GET(request: NextRequest) {
       main_night_count: loyalty?.main_night_count ?? 0,
       accompanying_stay_count: loyalty?.accompanying_stay_count ?? 0,
       accompanying_night_count: loyalty?.accompanying_night_count ?? 0,
+      possible_return_count: guest?.guest_profile_id ? 0 : possibleReturnMatches.length,
+      possible_return_profile_id: guest?.guest_profile_id ? null : possibleReturnMatches[0]?.profile?.id ?? null,
+      possible_return_name: guest?.guest_profile_id
+        ? null
+        : [possibleReturnMatches[0]?.profile?.first_name, possibleReturnMatches[0]?.profile?.last_name]
+            .filter(Boolean)
+            .join(" ") || null,
       due_in_guest_name: isHistoricalPastDate ? null : dueInGuest?.guest_name ?? null,
       due_in_booking_code: isHistoricalPastDate ? null : dueInGuest?.booking_code ?? null,
       due_in_checkin_date: isHistoricalPastDate ? null : dueInGuest?.checkin_date ?? null,

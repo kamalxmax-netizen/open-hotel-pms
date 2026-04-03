@@ -12,6 +12,8 @@ import {
   syncAccompanyingGuests,
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
+import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
+import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -116,6 +118,16 @@ export async function POST(
       },
     });
 
+    const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
+    const canComplete = completeness.is_complete;
+    if (canComplete) {
+      await assertPrimaryGuestAvailableForCheckin({
+        supabase: supabase as any,
+        reservationId,
+        guestProfileId: resolvedPrimary.guestProfileId,
+      });
+    }
+
     await linkPrimaryGuestToReservation(supabase as any, reservationId, resolvedPrimary.guestProfileId);
 
     const accompanying = (payload.accompanying_guests ?? []).slice(0, 3) as MobileAccompanyingInput[];
@@ -134,9 +146,6 @@ export async function POST(
         source: "manual",
       },
     });
-
-    const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const canComplete = completeness.is_complete;
 
     const checkinNow = new Date();
     const checkedInAt = canComplete ? checkinNow.toISOString() : null;
@@ -157,6 +166,17 @@ export async function POST(
 
     if (reservationUpdateError) {
       throw new MobileCheckinError(reservationUpdateError.message, 500, "RESERVATION_UPDATE_FAILED");
+    }
+
+    if (canComplete) {
+      await syncReservationBookingNameAlias({
+        supabase: supabase as any,
+        guestProfileId: resolvedPrimary.guestProfileId,
+        bookingName: reservationGuestName,
+        actualName: effectiveName,
+        sourceReservationId: reservationId,
+        seenAt: checkedInAt,
+      });
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
@@ -225,6 +245,18 @@ export async function POST(
         {
           success: false,
           error: error.message,
+          ...(error.details ?? {}),
+        },
+        { status: error.status }
+      );
+    }
+
+    if (error instanceof PrimaryGuestCheckinConflictError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
           ...(error.details ?? {}),
         },
         { status: error.status }

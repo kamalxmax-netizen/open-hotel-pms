@@ -1,5 +1,7 @@
 import { fromSatang, toSatang } from "@/lib/money";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { assertPrimaryGuestAvailableForCheckin } from "@/lib/guest-primary-checkin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card";
@@ -361,7 +363,7 @@ export async function runGroupMassCheckin(params: {
   const reservationIds = items.map((item) => item.reservationId);
   const { data: reservations, error: reservationError } = await supabase
     .from("reservations")
-    .select("id, booking_code, booking_group_id, status, checkin_date, guest_name")
+    .select("id, booking_code, booking_group_id, status, checkin_date, guest_name, guest_profile_id")
     .in("id", reservationIds);
 
   if (reservationError) return { ok: false, status: 500, error: reservationError.message };
@@ -397,6 +399,7 @@ export async function runGroupMassCheckin(params: {
 
   const today = params.todayOverride || await resolveBusinessDate(supabase, toLocalDate(new Date()));
   const results: GroupMassCheckinResultRow[] = [];
+  const processedPrimaryGuestProfileIds = new Set<string>();
 
   for (const item of items) {
     const reservation = reservationById.get(item.reservationId);
@@ -431,6 +434,34 @@ export async function runGroupMassCheckin(params: {
     if (!roomId) {
       results.push({ ...resultBase, ok: false, error: "Room is not assigned." });
       continue;
+    }
+
+    const guestProfileId = reservation?.guest_profile_id ? String(reservation.guest_profile_id) : "";
+    if (guestProfileId && processedPrimaryGuestProfileIds.has(guestProfileId)) {
+      results.push({
+        ...resultBase,
+        ok: false,
+        error: "Primary guest is selected on more than one room in this group check-in batch.",
+        code: "primary_guest_already_checked_in",
+      });
+      continue;
+    }
+    if (guestProfileId) {
+      try {
+        await assertPrimaryGuestAvailableForCheckin({
+          supabase: supabase as any,
+          reservationId: item.reservationId,
+          guestProfileId,
+        });
+      } catch (error) {
+        results.push({
+          ...resultBase,
+          ok: false,
+          error: error instanceof Error ? error.message : "Primary guest check-in conflict.",
+          code: "primary_guest_already_checked_in",
+        });
+        continue;
+      }
     }
 
     const checkedInDate = item.checkedInAtDate ?? new Date();
@@ -541,7 +572,30 @@ export async function runGroupMassCheckin(params: {
       continue;
     }
 
+    if (guestProfileId) {
+      try {
+        const profileName = await supabase
+          .from("guest_profiles")
+          .select("first_name, last_name")
+          .eq("id", guestProfileId)
+          .maybeSingle();
+        if (!profileName.error && profileName.data) {
+          await syncReservationBookingNameAlias({
+            supabase: supabase as any,
+            guestProfileId,
+            bookingName: reservation.guest_name,
+            actualName: `${String((profileName.data as any).first_name ?? "").trim()} ${String((profileName.data as any).last_name ?? "").trim()}`.trim(),
+            sourceReservationId: item.reservationId,
+            seenAt: checkedInAtIso,
+          });
+        }
+      } catch {
+        // Alias sync is best-effort in group flow; never roll back a successful check-in.
+      }
+    }
+
     alreadyCheckedIn.add(item.reservationId);
+    if (guestProfileId) processedPrimaryGuestProfileIds.add(guestProfileId);
     results.push({
       ...resultBase,
       ok: true,

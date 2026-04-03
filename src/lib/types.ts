@@ -757,6 +757,7 @@ export interface GuestProfile {
   accompanying_night_count?: number | null;
   legacy_night_count?: number | null;
   last_stay_date: string | null;
+  booking_names?: string[];
   _masked?: boolean;
   _masked_fields?: string[];
   created_at: string;
@@ -835,6 +836,7 @@ export interface GuestProfileListItem {
   profile_status: GuestProfile["profile_status"] | null;
   stay_count: number;
   last_stay_date: string | null;
+  booking_names?: string[];
 }
 
 export interface GuestProfileListSummary {

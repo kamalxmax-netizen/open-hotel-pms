@@ -949,8 +949,10 @@ export default function ReservationDetailPage({
     const [profileStatus, setProfileStatus] = useState("");
     const [profileStayCount, setProfileStayCount] = useState(0);
     const [profileLastStayDate, setProfileLastStayDate] = useState("");
+    const [profileBookingNames, setProfileBookingNames] = useState<string[]>([]);
     const [profileLinking, setProfileLinking] = useState(false);
     const [liveGuestMatches, setLiveGuestMatches] = useState<MatchResult[]>([]);
+    const [prefetchedPossibleReturnMatches, setPrefetchedPossibleReturnMatches] = useState<MatchResult[]>([]);
     const [showManualGuestSearch, setShowManualGuestSearch] = useState(false);
     const [manualGuestSearchQ, setManualGuestSearchQ] = useState("");
     const [manualGuestResults, setManualGuestResults] = useState<any[]>([]);
@@ -1136,6 +1138,7 @@ export default function ReservationDetailPage({
         setProfileStatus("");
         setProfileStayCount(0);
         setProfileLastStayDate("");
+        setProfileBookingNames([]);
     }, []);
 
     const resetPartyDraft = useCallback(() => {
@@ -1178,6 +1181,11 @@ export default function ReservationDetailPage({
         setProfileStatus(String(profile.profile_status || "").trim());
         setProfileStayCount(Number(profile.stay_count || 0));
         setProfileLastStayDate(String(profile.last_stay_date || "").trim());
+        setProfileBookingNames(
+            Array.isArray(profile.booking_names)
+                ? profile.booking_names.map((value: unknown) => String(value ?? "").trim()).filter(Boolean)
+                : []
+        );
         setIdentityText(String(profile.id_number || profile.passport_no || profile.id_card_number || "").trim());
         setIsProfileMasked(profile._masked === true);
     }, []);
@@ -1979,6 +1987,7 @@ export default function ReservationDetailPage({
             setIdentityText("");
             resetProfileDraft();
             setLiveGuestMatches([]);
+            setPrefetchedPossibleReturnMatches([]);
             setShowManualGuestSearch(false);
             setManualGuestSearchQ("");
             setManualGuestResults([]);
@@ -2019,6 +2028,7 @@ export default function ReservationDetailPage({
                     setGuestName(res.guest_name || "");
                     setPhone(res.phone || "");
                     setGuestProfileId(res.guest_profile_id || null);
+                    setPrefetchedPossibleReturnMatches(Array.isArray(res.possible_return_matches) ? res.possible_return_matches : []);
                     setIsProfileMasked(res._masked === true || (res.guest_profile && res.guest_profile._masked === true));
                     if (!res.guest_profile_id) {
                         resetProfileDraft();
@@ -3780,9 +3790,15 @@ export default function ReservationDetailPage({
         Boolean(roomTypeId) &&
         Boolean(originalRoomTypeId) &&
         String(roomTypeId) !== String(originalRoomTypeId);
-    const returnGuestSuggestion = liveGuestMatches.find((match) =>
-        match.score >= 70 && match.profile.id !== guestProfileId
-    );
+    const possibleReturnMatches = guestProfileId
+        ? []
+        : (liveGuestMatches.length > 0 ? liveGuestMatches : prefetchedPossibleReturnMatches)
+            .filter((match) => match.profile.id !== guestProfileId);
+    const possibleReturnSuggestion = possibleReturnMatches.find((match) => match.score >= 70) ?? possibleReturnMatches[0] ?? null;
+    const autoSelectedPossibleReturn = possibleReturnMatches.length === 1 ? possibleReturnMatches[0] : null;
+    const profileBookingNamesPreview = profileBookingNames.length <= 2
+        ? profileBookingNames.join(", ")
+        : `${profileBookingNames.slice(0, 2).join(", ")} +${profileBookingNames.length - 2}`;
     const displayedParty: ReservationGuestWithProfile[] = reservationParty.length > 0
         ? reservationParty
         : guestProfileId || guestName.trim()
@@ -4306,14 +4322,14 @@ export default function ReservationDetailPage({
                                             title="Guest Info"
                                             icon="🏷️"
                                             forceOpen
-                                            badge={
+                                                badge={
                                                 guestProfileId ? (
                                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
                                                         Linked Profile
                                                     </span>
-                                                ) : returnGuestSuggestion ? (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">
-                                                        Return Guest
+                                                ) : possibleReturnSuggestion ? (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                                        PR
                                                     </span>
                                                 ) : null
                                             }
@@ -4342,6 +4358,7 @@ export default function ReservationDetailPage({
                                                                     setGuestProfileId(null);
                                                                     resetProfileDraft();
                                                                     setLiveGuestMatches([]);
+                                                                    setPrefetchedPossibleReturnMatches([]);
                                                                     setShowManualGuestSearch(false);
                                                                     setManualGuestSearchQ("");
                                                                     setManualGuestResults([]);
@@ -4434,11 +4451,12 @@ export default function ReservationDetailPage({
                                                                 className="btn btn-ghost btn-sm text-red-500 hover:text-red-600 dark:text-rose-400 dark:hover:text-rose-300"
                                                                 onClick={async () => {
                                                                     if (!reservationId) {
-                                                                        setGuestProfileId(null);
-                                                                        resetProfileDraft();
-                                                                        setReservationParty([]);
-                                                                        return;
-                                                                    }
+                                                                    setGuestProfileId(null);
+                                                                    resetProfileDraft();
+                                                                    setPrefetchedPossibleReturnMatches([]);
+                                                                    setReservationParty([]);
+                                                                    return;
+                                                                }
                                                                     const res = await fetch(`/api/bookings/${reservationId}/guest-profile`, { method: "DELETE" });
                                                                     const data = await res.json().catch(() => null);
                                                                     if (!res.ok || !data?.success) {
@@ -4447,6 +4465,7 @@ export default function ReservationDetailPage({
                                                                     }
                                                                     setGuestProfileId(null);
                                                                     resetProfileDraft();
+                                                                    setPrefetchedPossibleReturnMatches([]);
                                                                     await loadReservationParty();
                                                                 }}
                                                             >
@@ -4454,12 +4473,33 @@ export default function ReservationDetailPage({
                                                             </button>
                                                         </>
                                                     )}
-                                                    {!guestProfileId && returnGuestSuggestion && (
-                                                        <span className="rounded px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">
-                                                            Suggested: {returnGuestSuggestion.profile.first_name} {returnGuestSuggestion.profile.last_name} (score {returnGuestSuggestion.score})
+                                                    {!guestProfileId && possibleReturnSuggestion && (
+                                                        <span className="rounded px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                                            PR please check
+                                                            {autoSelectedPossibleReturn
+                                                                ? ` • auto-selected ${autoSelectedPossibleReturn.profile.first_name || ""} ${autoSelectedPossibleReturn.profile.last_name || ""}`.trim()
+                                                                : ""}
                                                         </span>
                                                     )}
                                                 </div>
+
+                                                {guestProfileId && profileBookingNames.length > 0 && (
+                                                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                                                                Booking Name
+                                                            </span>
+                                                            {profileBookingNames.map((bookingName) => (
+                                                                <span
+                                                                    key={bookingName}
+                                                                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+                                                                >
+                                                                    {bookingName}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {accompanyingGuests.length > 0 && (
                                                     <div className="flex flex-wrap items-center gap-2">
@@ -4927,6 +4967,11 @@ export default function ReservationDetailPage({
                                                         <p className="text-xs text-[var(--text-muted)]">
                                                             Profile: {guestProfileId} {profileLastStayDate ? `• Last stay ${profileLastStayDate}` : ""}
                                                         </p>
+                                                        {profileBookingNames.length > 0 && (
+                                                            <p className="text-xs text-[var(--text-muted)]">
+                                                                Booking name{profileBookingNames.length > 1 ? "s" : ""}: {profileBookingNamesPreview}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <a
                                                         href={`/pms/guests/${guestProfileId}`}
@@ -4936,6 +4981,60 @@ export default function ReservationDetailPage({
                                                     >
                                                         Open Full Profile
                                                     </a>
+                                                </div>
+                                            ) : possibleReturnMatches.length > 0 ? (
+                                                <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-3 text-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                            <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                                                                Possible return
+                                                            </p>
+                                                            <p className="text-xs text-[var(--text-muted)]">
+                                                                {autoSelectedPossibleReturn
+                                                                    ? "1 strong candidate auto-selected. Please confirm before check-in."
+                                                                    : `${possibleReturnMatches.length} possible matches found. Please confirm before check-in.`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {possibleReturnMatches.slice(0, 4).map((match) => {
+                                                            const profileName = [match.profile.first_name, match.profile.last_name].filter(Boolean).join(" ").trim() || "Unknown";
+                                                            const isAutoSelected = autoSelectedPossibleReturn?.profile.id === match.profile.id;
+                                                            return (
+                                                                <div
+                                                                    key={match.profile.id}
+                                                                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${isAutoSelected
+                                                                        ? "border-emerald-300 bg-white/80 dark:border-emerald-700 dark:bg-emerald-950/20"
+                                                                        : "border-[var(--border-default)] bg-[var(--bg-surface)]"
+                                                                        }`}
+                                                                >
+                                                                    <div className="space-y-0.5">
+                                                                        <p className="font-medium text-[var(--text-primary)]">
+                                                                            {profileName}
+                                                                            {isAutoSelected && (
+                                                                                <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                                                                    AUTO
+                                                                                </span>
+                                                                            )}
+                                                                        </p>
+                                                                        <p className="text-xs text-[var(--text-muted)]">
+                                                                            {match.profile.stay_count} stays
+                                                                            {match.matched_booking_name ? ` • Booking name ${match.matched_booking_name}` : ""}
+                                                                        </p>
+                                                                    </div>
+                                                                    {!isReadonly && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-secondary btn-sm"
+                                                                            onClick={() => { void handleSelectMatchedProfile(match); }}
+                                                                        >
+                                                                            Link This Profile
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <p className="text-sm text-[var(--text-muted)]">Link profile to show guest history.</p>

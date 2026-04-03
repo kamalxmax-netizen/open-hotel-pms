@@ -8,6 +8,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
 import { clearAssignedRoomLock, AssignedRoomLockError } from "@/lib/assigned-room-lock";
+import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
@@ -352,6 +354,12 @@ export async function POST(
 
         const roomId = night?.room_id ?? null;
 
+        await assertPrimaryGuestAvailableForCheckin({
+            supabase: supabase as any,
+            reservationId,
+            guestProfileId: String(reservation.guest_profile_id),
+        });
+
         // Guard room occupancy + housekeeping readiness before check-in (before updating reservation)
         if (roomId) {
             const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, businessDate, reservationId);
@@ -474,6 +482,15 @@ export async function POST(
             return NextResponse.json({ error: (error as Error).message }, { status: 500 });
         }
 
+        await syncReservationBookingNameAlias({
+            supabase: supabase as any,
+            guestProfileId: String(reservation.guest_profile_id),
+            bookingName: reservation.guest_name,
+            actualName: `${String(profile.first_name ?? "").trim()} ${String(profile.last_name ?? "").trim()}`.trim(),
+            sourceReservationId: reservationId,
+            seenAt: checkedInAtIso,
+        });
+
         // Audit log
         const paymentTotalSatang = pendingPayments.reduce((sum, payment) => sum + toSatang(payment.amount), 0);
         const paymentTotal = fromSatang(paymentTotalSatang);
@@ -557,6 +574,9 @@ export async function POST(
             checkin_time: checkedInTime
         });
     } catch (err) {
+        if (err instanceof PrimaryGuestCheckinConflictError) {
+            return NextResponse.json({ error: err.message, code: err.code, ...(err.details ?? {}) }, { status: err.status });
+        }
         console.error("api/bookings/[id]/checkin POST failed", err);
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }
