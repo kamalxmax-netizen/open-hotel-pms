@@ -17,8 +17,48 @@ export async function GET(request: NextRequest) {
         const checkoutFrom = sp.get("checkout_from") ?? "";
         const checkoutTo = sp.get("checkout_to") ?? "";
         const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10));
-        const pageSize = 30;
+        const pageSize = Math.min(100, Math.max(1, parseInt(sp.get("page_size") ?? "30", 10)));
         const offset = (page - 1) * pageSize;
+        const normalizedQuery = q.replace(/\s+/g, " ").trim();
+        let roomMatchedReservationIds: string[] = [];
+        const hasFinancialActivity = sp.get("has_financial_activity") === "1";
+        let financiallyActiveReservationIds: string[] | null = null;
+
+        if (normalizedQuery) {
+            const { data: roomRows, error: roomError } = await supabase
+                .from("rooms")
+                .select("id")
+                .ilike("room_number", `%${normalizedQuery}%`)
+                .limit(100);
+
+            if (roomError) {
+                return NextResponse.json({ error: roomError.message }, { status: 500 });
+            }
+
+            const roomIds = (roomRows ?? [])
+                .map((row: any) => String(row?.id ?? "").trim())
+                .filter(Boolean);
+
+            if (roomIds.length > 0) {
+                const { data: nightRows, error: nightError } = await supabase
+                    .from("reservation_nights")
+                    .select("reservation_id")
+                    .in("room_id", roomIds)
+                    .limit(500);
+
+                if (nightError) {
+                    return NextResponse.json({ error: nightError.message }, { status: 500 });
+                }
+
+                roomMatchedReservationIds = Array.from(
+                    new Set(
+                        (nightRows ?? [])
+                            .map((row: any) => String(row?.reservation_id ?? "").trim())
+                            .filter(Boolean)
+                    )
+                );
+            }
+        }
 
         const useCheckoutDateRange = status === "checked_out";
 
@@ -77,15 +117,42 @@ export async function GET(request: NextRequest) {
         )
       `;
 
-        const buildQuery = (selectFields: string) => {
+        const buildQuery = (
+            selectFields: string,
+            options?: {
+                applyRange?: boolean;
+                reservationIds?: string[] | null;
+            }
+        ) => {
+            const applyRange = options?.applyRange !== false;
             let query = supabase
                 .from("reservations")
                 .select(selectFields, { count: "exact" })
                 .order("status", { ascending: true })
-                .order("checkin_date", { ascending: false })
-                .range(offset, offset + pageSize - 1);
+                .order("checkin_date", { ascending: false });
 
-            if (q) query = query.or(`guest_name.ilike.%${q}%,booking_code.ilike.%${q}%,phone.ilike.%${q}%`);
+            if (applyRange) {
+                query = query.range(offset, offset + pageSize - 1);
+            }
+
+            if (normalizedQuery) {
+                const orParts = [
+                    `guest_name.ilike.%${normalizedQuery}%`,
+                    `booking_code.ilike.%${normalizedQuery}%`,
+                    `phone.ilike.%${normalizedQuery}%`,
+                ];
+                if (roomMatchedReservationIds.length > 0) {
+                    orParts.push(`id.in.(${roomMatchedReservationIds.join(",")})`);
+                }
+                query = query.or(orParts.join(","));
+            }
+            if (options?.reservationIds) {
+                if (options.reservationIds.length === 0) {
+                    query = query.in("id", ["00000000-0000-0000-0000-000000000000"]);
+                } else {
+                    query = query.in("id", options.reservationIds);
+                }
+            }
             if (phone) query = query.ilike("phone", `%${phone}%`);
             if (status && status !== "all") query = query.eq("status", status);
             if (source) query = query.eq("source", source);
@@ -103,9 +170,65 @@ export async function GET(request: NextRequest) {
             return query;
         };
 
-        let { data, error, count } = await buildQuery(selectWithTimes);
+        if (hasFinancialActivity) {
+            const candidateIdRes = await buildQuery("id", { applyRange: false });
+            if (candidateIdRes.error) {
+                return NextResponse.json({ error: candidateIdRes.error.message }, { status: 500 });
+            }
+
+            const candidateIds = Array.from(
+                new Set(
+                    (candidateIdRes.data ?? [])
+                        .map((row: any) => String(row?.id ?? "").trim())
+                        .filter(Boolean)
+                )
+            ).slice(0, 1000);
+
+            if (candidateIds.length === 0) {
+                return NextResponse.json({
+                    success: true,
+                    total: 0,
+                    page,
+                    page_size: pageSize,
+                    reservations: []
+                });
+            }
+
+            const { data: paymentRows, error: paymentError } = await supabase
+                .from("folio_payments")
+                .select("reservation_id")
+                .in("reservation_id", candidateIds);
+
+            if (paymentError) {
+                return NextResponse.json({ error: paymentError.message }, { status: 500 });
+            }
+
+            financiallyActiveReservationIds = Array.from(
+                new Set(
+                    (paymentRows ?? [])
+                        .map((row: any) => String(row?.reservation_id ?? "").trim())
+                        .filter(Boolean)
+                )
+            );
+
+            if (financiallyActiveReservationIds.length === 0) {
+                return NextResponse.json({
+                    success: true,
+                    total: 0,
+                    page,
+                    page_size: pageSize,
+                    reservations: []
+                });
+            }
+        }
+
+        let { data, error, count } = await buildQuery(selectWithTimes, {
+            reservationIds: financiallyActiveReservationIds,
+        });
         if (error && /checked_in_at|checked_out_at/i.test(error.message)) {
-            const fallbackRes = await buildQuery(selectFallback);
+            const fallbackRes = await buildQuery(selectFallback, {
+                reservationIds: financiallyActiveReservationIds,
+            });
             data = fallbackRes.data;
             error = fallbackRes.error;
             count = fallbackRes.count;

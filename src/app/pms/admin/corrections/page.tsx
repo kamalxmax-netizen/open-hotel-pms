@@ -101,11 +101,20 @@ function formatSimpleDate(isoString: string) {
   return `${d.getFullYear()}-${padZero(d.getMonth() + 1)}-${padZero(d.getDate())} ${padZero(d.getHours())}:${padZero(d.getMinutes())}`;
 }
 
+function getBangkokDateInput(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+}
+
 export default function AdminCorrectionsPage() {
   const [q, setQ] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
+  const [dateFrom, setDateFrom] = useState(() => getBangkokDateInput(-7));
+  const [dateTo, setDateTo] = useState(() => getBangkokDateInput(7));
+  const [hasFinancialActivity, setHasFinancialActivity] = useState(true);
 
   const [reservationId, setReservationId] = useState<string | null>(null);
   const [selectedRes, setSelectedRes] = useState<SearchResult | null>(null);
@@ -136,9 +145,7 @@ export default function AdminCorrectionsPage() {
   const [isLoadingReinstatePreview, setIsLoadingReinstatePreview] = useState(false);
   const [reinstatePreviewError, setReinstatePreviewError] = useState("");
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!q.trim()) return;
+  const runReservationSearch = useCallback(async (autoSelectSingle: boolean) => {
     setIsSearching(true);
     setSearchError("");
     setSearchResults([]);
@@ -146,11 +153,25 @@ export default function AdminCorrectionsPage() {
     setReservationId(null);
     
     try {
-      const res = await fetch(`/api/reservations?q=${encodeURIComponent(q)}&status=all`);
+      const params = new URLSearchParams();
+      const trimmedQuery = q.trim();
+
+      if (trimmedQuery) {
+        params.set("q", trimmedQuery);
+        params.set("status", "all");
+      } else {
+        params.set("status", "active");
+      }
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      if (hasFinancialActivity) params.set("has_financial_activity", "1");
+      params.set("page_size", "100");
+
+      const res = await fetch(`/api/reservations?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setSearchResults(data.reservations || []);
-        if (data.reservations?.length === 1) {
+        if (autoSelectSingle && data.reservations?.length === 1) {
           handleSelectReservation(data.reservations[0]);
         }
       } else {
@@ -161,6 +182,11 @@ export default function AdminCorrectionsPage() {
     } finally {
       setIsSearching(false);
     }
+  }, [dateFrom, dateTo, hasFinancialActivity, q]);
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    await runReservationSearch(q.trim().length > 0);
   };
 
   const loadFolio = useCallback(async (id: string) => {
@@ -230,6 +256,11 @@ export default function AdminCorrectionsPage() {
     setSelectedAction(action);
     clearForm();
   };
+
+  useEffect(() => {
+    if (q.trim()) return;
+    void runReservationSearch(false);
+  }, [q, dateFrom, dateTo, hasFinancialActivity, runReservationSearch]);
 
   useEffect(() => {
     if (selectedAction !== "reinstate" || !reservationId) {
@@ -391,19 +422,55 @@ export default function AdminCorrectionsPage() {
         <div className="lg:col-span-1 space-y-6">
           <div className="card p-5 border-l-4 border-l-brand-600">
             <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-4">Target Reservation</h2>
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <input
-                type="text"
-                className="form-input flex-1"
-                placeholder="Name or Booking Code..."
-                value={q}
-                onChange={e => setQ(e.target.value)}
-              />
-              <button disabled={isSearching || !q.trim()} type="submit" className="btn btn-primary">
-                {isSearching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </button>
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">From</label>
+                  <input
+                    type="date"
+                    className="form-input w-full"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">To</label>
+                  <input
+                    type="date"
+                    className="form-input w-full"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-[var(--border-default)]"
+                  checked={hasFinancialActivity}
+                  onChange={(e) => setHasFinancialActivity(e.target.checked)}
+                />
+                Show only bookings with financial activity
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="form-input flex-1"
+                  placeholder="Name, Booking Code, Phone, or Room No..."
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                />
+                <button disabled={isSearching} type="submit" className="btn btn-primary">
+                  {isSearching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </button>
+              </div>
             </form>
             {searchError && <div className="mt-2 text-xs text-rose-600 font-medium">{searchError}</div>}
+            {!q.trim() && !searchError && (
+              <div className="mt-2 text-xs text-[var(--text-secondary)]">
+                Showing active bookings in the selected date window first. Default range is 7 days back and 7 days ahead.
+              </div>
+            )}
             
             {searchResults.length > 0 && !reservationId && (
               <div className="mt-4 space-y-2 border border-[var(--border-default)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
