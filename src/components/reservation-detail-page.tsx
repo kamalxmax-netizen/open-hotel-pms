@@ -950,6 +950,8 @@ export default function ReservationDetailPage({
     const [profileStayCount, setProfileStayCount] = useState(0);
     const [profileLastStayDate, setProfileLastStayDate] = useState("");
     const [profileBookingNames, setProfileBookingNames] = useState<string[]>([]);
+    const [linkedProfileName, setLinkedProfileName] = useState("");
+    const [linkedProfileActiveReservationCount, setLinkedProfileActiveReservationCount] = useState(0);
     const [profileLinking, setProfileLinking] = useState(false);
     const [liveGuestMatches, setLiveGuestMatches] = useState<MatchResult[]>([]);
     const [prefetchedPossibleReturnMatches, setPrefetchedPossibleReturnMatches] = useState<MatchResult[]>([]);
@@ -1139,6 +1141,8 @@ export default function ReservationDetailPage({
         setProfileStayCount(0);
         setProfileLastStayDate("");
         setProfileBookingNames([]);
+        setLinkedProfileName("");
+        setLinkedProfileActiveReservationCount(0);
     }, []);
 
     const resetPartyDraft = useCallback(() => {
@@ -1153,10 +1157,11 @@ export default function ReservationDetailPage({
         if (!profile) return;
         const firstName = String(profile.first_name || "").trim();
         const lastName = String(profile.last_name || "").trim();
+        const fullName = joinGuestName(firstName, lastName);
         if (options?.overwriteGuest !== false) {
-            const fullName = joinGuestName(firstName, lastName);
             if (fullName) setGuestName(fullName);
         }
+        setLinkedProfileName(fullName);
         const phoneValue = String(profile.phone || "").trim();
         if (phoneValue) setPhone(phoneValue);
 
@@ -1181,6 +1186,7 @@ export default function ReservationDetailPage({
         setProfileStatus(String(profile.profile_status || "").trim());
         setProfileStayCount(Number(profile.stay_count || 0));
         setProfileLastStayDate(String(profile.last_stay_date || "").trim());
+        setLinkedProfileActiveReservationCount(Math.max(0, Number(profile.active_primary_reservation_count || 0)));
         setProfileBookingNames(
             Array.isArray(profile.booking_names)
                 ? profile.booking_names.map((value: unknown) => String(value ?? "").trim()).filter(Boolean)
@@ -3047,7 +3053,13 @@ export default function ReservationDetailPage({
         );
 
         let profileId = guestProfileId;
-        if (!profileId) {
+        const shouldForkSharedProfile =
+            Boolean(profileId) &&
+            Boolean(reservationId) &&
+            linkedProfileActiveReservationCount > 1 &&
+            classifyGuestNameMatch(linkedProfileName, guestName) === "mismatch";
+
+        if (!profileId || shouldForkSharedProfile) {
             const createRes = await fetch("/api/guests", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

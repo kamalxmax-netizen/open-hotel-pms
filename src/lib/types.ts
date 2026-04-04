@@ -758,6 +758,7 @@ export interface GuestProfile {
   legacy_night_count?: number | null;
   last_stay_date: string | null;
   booking_names?: string[];
+  active_primary_reservation_count?: number | null;
   _masked?: boolean;
   _masked_fields?: string[];
   created_at: string;

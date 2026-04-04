@@ -160,6 +160,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       stay_count: Math.max(Number(profileRes.data.stay_count ?? 0), legacyStayCount),
       main_stay_count: Math.max(Number(profileRes.data.main_stay_count ?? 0), legacyStayCount),
       booking_names: bookingNames,
+      active_primary_reservation_count: (staysRes.data ?? []).filter((row) => String(row.status ?? "") === "active").length,
     };
 
     const profilePayload = canUnmask
