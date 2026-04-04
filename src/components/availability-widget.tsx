@@ -87,6 +87,7 @@ export default function AvailabilityWidget({ onSelect, defaultCheckin = "", defa
                     checkinDate={checkin}
                     checkoutDate={checkout}
                     nights={nights}
+                    useNativeDatePicker
                     onChange={(nextCheckin, nextCheckout, nextNights) => {
                         setCheckin(nextCheckin);
                         setCheckout(nextCheckout);

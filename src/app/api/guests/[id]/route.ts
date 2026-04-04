@@ -98,7 +98,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const reservationId = String(request.nextUrl.searchParams.get("reservation_id") ?? "").trim();
     const businessDate = await resolveBusinessDate(supabase);
 
-    const [profileRes, staysRes, legacyRes, bookingNames] = await Promise.all([
+    const [profileRes, staysRes, legacyRes, bookingNames, primaryCompletedRes, accompanyingCompletedRes] = await Promise.all([
       supabase
         .from("guest_profiles")
         .select("*")
@@ -115,6 +115,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         .select("id", { count: "exact", head: true })
         .eq("guest_profile_id", id),
       listGuestProfileBookingNames(supabase as any, id),
+      supabase
+        .from("reservations")
+        .select("id", { count: "exact", head: true })
+        .eq("guest_profile_id", id)
+        .eq("status", "checked_out"),
+      supabase
+        .from("reservation_guests")
+        .select("reservation_id, reservations!inner(status)", { count: "exact", head: true })
+        .eq("guest_profile_id", id)
+        .eq("role", "accompanying")
+        .eq("reservations.status", "checked_out"),
     ]);
 
     if (profileRes.error) {
@@ -128,6 +139,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
     if (legacyRes.error) {
       return NextResponse.json({ success: false, error: legacyRes.error.message }, { status: 500 });
+    }
+    if (primaryCompletedRes.error) {
+      return NextResponse.json({ success: false, error: primaryCompletedRes.error.message }, { status: 500 });
+    }
+    if (accompanyingCompletedRes.error) {
+      return NextResponse.json({ success: false, error: accompanyingCompletedRes.error.message }, { status: 500 });
     }
 
     const shouldMask = shouldMaskIdentityForRole(role);
@@ -155,10 +172,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const legacyStayCount = Number(legacyRes.count ?? 0);
+    const primaryCompletedStayCount = Number(primaryCompletedRes.count ?? 0);
+    const accompanyingCompletedStayCount = Number(accompanyingCompletedRes.count ?? 0);
     const hydratedProfile = {
       ...profileRes.data,
-      stay_count: Math.max(Number(profileRes.data.stay_count ?? 0), legacyStayCount),
-      main_stay_count: Math.max(Number(profileRes.data.main_stay_count ?? 0), legacyStayCount),
+      stay_count: primaryCompletedStayCount + accompanyingCompletedStayCount + legacyStayCount,
+      main_stay_count: primaryCompletedStayCount + legacyStayCount,
+      accompanying_stay_count: accompanyingCompletedStayCount,
       booking_names: bookingNames,
       active_primary_reservation_count: (staysRes.data ?? []).filter((row) => String(row.status ?? "") === "active").length,
     };

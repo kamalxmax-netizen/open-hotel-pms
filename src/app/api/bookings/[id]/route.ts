@@ -165,6 +165,15 @@ function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
 }
 
+function toLocalTime(d: Date, tz = "Asia/Bangkok"): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
 function round2(value: number): number {
   return Number(value.toFixed(2));
 }
@@ -185,6 +194,7 @@ const updateBookingSchema = z.object({
   source: z.enum(["walkin", "ota", "direct", "agent"]).default("walkin"),
   phone: z.string().optional(),
   checkin_time: z.string().optional(),
+  checked_in_at: z.string().optional().nullable(),
   expected_arrival_time: z.string().optional().nullable(),
   note: z.string().optional(),
   ota_prices: z.array(z.number()).optional(),
@@ -561,7 +571,7 @@ export async function PUT(
 
   const { data: currentReservation, error: currentReservationError } = await supabase
     .from("reservations")
-    .select("id, status, checkin_date, checkout_date, source, expected_arrival_time, rate_plan_id, total_price, discount_type, discount_value, discount_percent")
+    .select("id, status, checkin_date, checkout_date, source, expected_arrival_time, rate_plan_id, total_price, discount_type, discount_value, discount_percent, checked_in_at, checkin_time")
     .eq("id", reservationId)
     .maybeSingle();
   if (currentReservationError) {
@@ -572,9 +582,63 @@ export async function PUT(
   }
   const isCheckedOutReservation = String(currentReservation.status ?? "").trim().toLowerCase() === "checked_out";
   const isAdmin = String(userRole ?? "").trim().toLowerCase() === "admin";
+  let businessDate = toLocalDate(new Date());
+  const { data: settingsRow, error: settingsError } = await supabase
+    .from("hotel_settings")
+    .select("business_date")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!settingsError && settingsRow?.business_date) {
+    const resolvedBusinessDate = String(settingsRow.business_date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(resolvedBusinessDate)) {
+      businessDate = resolvedBusinessDate;
+    }
+  }
+
+  let normalizedCheckedInAtIso: string | null | undefined = undefined;
+  if (payload.checked_in_at !== undefined) {
+    const rawCheckedInAt = String(payload.checked_in_at ?? "").trim();
+    if (!rawCheckedInAt) {
+      normalizedCheckedInAtIso = null;
+    } else {
+      const parsedCheckedInAt = new Date(rawCheckedInAt);
+      if (Number.isNaN(parsedCheckedInAt.getTime())) {
+        return NextResponse.json({ error: "Invalid checked_in_at datetime." }, { status: 400 });
+      }
+      normalizedCheckedInAtIso = parsedCheckedInAt.toISOString();
+    }
+  }
+
+  const requestedCheckinTime = (() => {
+    const explicit = String(payload.checkin_time ?? "").trim();
+    if (explicit) return explicit;
+    if (normalizedCheckedInAtIso) {
+      return toLocalTime(new Date(normalizedCheckedInAtIso));
+    }
+    return undefined;
+  })();
+
+  const currentCheckedInAtIso = currentReservation.checked_in_at
+    ? new Date(String(currentReservation.checked_in_at)).toISOString()
+    : null;
+  const currentCheckedInBusinessDate = currentCheckedInAtIso
+    ? toLocalDate(new Date(currentCheckedInAtIso))
+    : null;
+  const checkinTimestampChanged =
+    (normalizedCheckedInAtIso !== undefined && normalizedCheckedInAtIso !== currentCheckedInAtIso) ||
+    (requestedCheckinTime !== undefined && requestedCheckinTime !== String(currentReservation.checkin_time ?? "").trim());
+  const checkinTimestampLockedByBusinessDate =
+    Boolean(currentCheckedInBusinessDate) &&
+    businessDate > String(currentCheckedInBusinessDate);
   if (isCheckedOutReservation && !isAdmin) {
     return NextResponse.json(
       { error: "Only admin can edit reservation details after checkout." },
+      { status: 403 }
+    );
+  }
+  if (!isAdmin && checkinTimestampChanged && checkinTimestampLockedByBusinessDate) {
+    return NextResponse.json(
+      { error: "Check-in time can only be changed by admin after that business date is closed." },
       { status: 403 }
     );
   }
@@ -834,7 +898,8 @@ export async function PUT(
           checkin_date: payload.checkin_date,
           checkout_date: payload.checkout_date,
         }),
-        checkin_time: payload.checkin_time?.trim() || null,
+        checkin_time: requestedCheckinTime || null,
+        ...(normalizedCheckedInAtIso !== undefined ? { checked_in_at: normalizedCheckedInAtIso } : {}),
         ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
         note: payload.note?.trim() || null,
       })
@@ -858,7 +923,7 @@ export async function PUT(
       p_checkout_date: payload.checkout_date,
       p_source: payload.source,
       p_phone: payload.phone?.trim() || null,
-      p_checkin_time: payload.checkin_time?.trim() || null,
+      p_checkin_time: requestedCheckinTime || null,
       p_note: payload.note?.trim() || null,
       p_ota_prices: normalizedOtaPrices
     });
@@ -875,7 +940,7 @@ export async function PUT(
       const fallback = await supabase.rpc("booking_update_reservation", {
         p_actor_user_id: null,
         p_checkin_date: payload.checkin_date,
-        p_checkin_time: payload.checkin_time?.trim() || null,
+        p_checkin_time: requestedCheckinTime || null,
         p_checkout_date: payload.checkout_date,
         p_guest_name: payload.guest_name.trim(),
         p_note: payload.note?.trim() || null,
@@ -947,6 +1012,22 @@ export async function PUT(
   }
   if (reservationExtraError) {
     return NextResponse.json({ error: reservationExtraError.message }, { status: 500 });
+  }
+
+  if (normalizedCheckedInAtIso !== undefined) {
+    const checkedInTimestampPatch: Record<string, unknown> = {
+      checked_in_at: normalizedCheckedInAtIso,
+    };
+    if (requestedCheckinTime !== undefined) {
+      checkedInTimestampPatch.checkin_time = requestedCheckinTime || null;
+    }
+    const { error: checkedInAtError } = await supabase
+      .from("reservations")
+      .update(checkedInTimestampPatch)
+      .eq("id", reservationId);
+    if (checkedInAtError) {
+      return NextResponse.json({ error: checkedInAtError.message }, { status: 500 });
+    }
   }
 
   if (hasExpectedArrivalField) {

@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, useEffect, useState } from "react";
+import React, { KeyboardEvent, MouseEvent, useEffect, useState } from "react";
 import { addDays, compareDateStrings } from "@/lib/dates";
 import { formatDateDisplay } from "@/lib/date-display";
 
@@ -25,6 +25,17 @@ export default function NightCounter({
 }: NightCounterProps) {
     const [checkinInput, setCheckinInput] = useState(() => formatDateDisplay(checkinDate));
     const [checkoutInput, setCheckoutInput] = useState(() => formatDateDisplay(checkoutDate));
+
+    const openNativePicker = (event: MouseEvent<HTMLInputElement>) => {
+        const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
+        if (typeof input.showPicker === "function") {
+            try {
+                input.showPicker();
+            } catch {
+                input.click();
+            }
+        }
+    };
 
     useEffect(() => {
         setCheckinInput(formatDateDisplay(checkinDate));
@@ -173,6 +184,7 @@ export default function NightCounter({
                         className={`${inputClass} ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
                         value={checkinDate}
                         onChange={(e) => handleCheckinChange(e.target.value)}
+                        onClick={openNativePicker}
                     />
                 ) : (
                     <input
@@ -238,6 +250,7 @@ export default function NightCounter({
                         className={`${inputClass} cursor-pointer disabled:bg-[var(--bg-muted)] disabled:cursor-not-allowed`}
                         value={checkoutDate}
                         onChange={(e) => handleCheckoutChange(e.target.value)}
+                        onClick={openNativePicker}
                     />
                 ) : (
                     <input

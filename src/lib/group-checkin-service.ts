@@ -1,6 +1,7 @@
 import { fromSatang, toSatang } from "@/lib/money";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { extractBookedNameFromProfileNotes } from "@/lib/guest-name-match";
 import { assertPrimaryGuestAvailableForCheckin } from "@/lib/guest-primary-checkin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -595,6 +596,16 @@ export async function runGroupMassCheckin(params: {
       } catch {
         // Alias sync is best-effort in group flow; never roll back a successful check-in.
       }
+    }
+
+    try {
+      await syncExpectedArrivalAlert({
+        supabase: supabase as any,
+        reservationId: item.reservationId,
+        expectedArrivalTime: null,
+      });
+    } catch (error) {
+      console.error("expected arrival alert auto-dismiss failed", error);
     }
 
     alreadyCheckedIn.add(item.reservationId);

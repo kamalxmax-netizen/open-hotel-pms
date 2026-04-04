@@ -13,6 +13,7 @@ import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -563,6 +564,16 @@ export async function POST(
                 return NextResponse.json({ error: error.message, reason_code: error.code }, { status: error.status });
             }
             return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+        }
+
+        try {
+            await syncExpectedArrivalAlert({
+                supabase: supabase as any,
+                reservationId,
+                expectedArrivalTime: null,
+            });
+        } catch (error) {
+            console.error("expected arrival alert auto-dismiss failed", error);
         }
 
         return NextResponse.json({

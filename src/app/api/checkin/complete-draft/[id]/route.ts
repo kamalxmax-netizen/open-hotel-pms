@@ -12,6 +12,7 @@ import {
   syncAccompanyingGuests,
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
+import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
@@ -177,6 +178,16 @@ export async function POST(
         sourceReservationId: reservationId,
         seenAt: checkedInAt,
       });
+
+      try {
+        await syncExpectedArrivalAlert({
+          supabase: supabase as any,
+          reservationId,
+          expectedArrivalTime: null,
+        });
+      } catch (error) {
+        console.error("expected arrival alert auto-dismiss failed", error);
+      }
     }
 
     const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);

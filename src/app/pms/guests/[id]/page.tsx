@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NationalityFlag from "@/components/nationality-flag";
+import DateInput from "@/components/date-input";
 import PmsModal from "@/components/pms-modal";
 import {
   formatGuestDisplayName,
@@ -241,7 +242,7 @@ function EditGuestProfileModal({
           </div>
           <div>
             <label className="form-label">DOB</label>
-            <input type="date" className="form-input" value={form.dob} onChange={(e) => onChange({ dob: e.target.value })} />
+            <DateInput className="w-full" value={form.dob} onChange={(value) => onChange({ dob: value })} />
           </div>
           <div>
             <label className="form-label">Nationality</label>
@@ -759,26 +760,10 @@ export default function GuestProfileDetailPage() {
 
   const statusMeta = getProfileStatusMeta(profile.profile_status, profile.blacklisted);
   const vipMeta = getVipTierMeta(profile.vip_tier);
-  const mainStayCount = Math.max(
-    Number(history.summary?.primary_stay_count ?? 0),
-    Number(profile.main_stay_count ?? 0),
-    Number(profile.stay_count ?? 0)
-  );
-  const mainNightCount = Math.max(
-    Number(history.summary?.primary_night_count ?? 0),
-    countStayNights(history.primary_stays ?? []) + Number(history.summary?.legacy_night_count ?? 0),
-    Number(profile.main_night_count ?? 0),
-    Number(profile.night_count ?? 0)
-  );
-  const accompanyingStayCount = Math.max(
-    Number(history.summary?.accompanying_stay_count ?? 0),
-    Number(profile.accompanying_stay_count ?? 0)
-  );
-  const accompanyingNightCount = Math.max(
-    Number(history.summary?.accompanying_night_count ?? 0),
-    countStayNights(history.accompanying_stays ?? []),
-    Number(profile.accompanying_night_count ?? 0)
-  );
+  const mainStayCount = Number(history.summary?.primary_stay_count ?? 0);
+  const mainNightCount = Number(history.summary?.primary_night_count ?? 0);
+  const accompanyingStayCount = Number(history.summary?.accompanying_stay_count ?? 0);
+  const accompanyingNightCount = Number(history.summary?.accompanying_night_count ?? 0);
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-6">

@@ -18,6 +18,7 @@ import AssignRoomModal from "./assign-room-modal";
 import { ReservationHistoryModal } from "./reservation-history-modal";
 import GuestMatchDropdown, { MatchResult } from "./guest-match-dropdown";
 import CollapsibleSection from "./collapsible-section";
+import DateInput from "./date-input";
 import EarlyCheckinFeeModal, { PolicyFeePayload } from "./early-checkin-fee-modal";
 import LateCheckoutFeeModal from "./late-checkout-fee-modal";
 import ShortenFeeModal from "./shorten-fee-modal";
@@ -1219,11 +1220,38 @@ export default function ReservationDetailPage({
         return data.profile;
     }, [mode, reservationId]);
 
+    const fetchGuestProfileHistorySummary = useCallback(async (profileId: string) => {
+        if (!profileId) return null;
+        const response = await fetch(`/api/guests/${profileId}/history`);
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.success) {
+            throw new Error(data?.error || "Failed to load guest history.");
+        }
+        return data;
+    }, []);
+
     const loadGuestProfileById = useCallback(async (profileId: string, options?: { overwriteGuest?: boolean }) => {
         if (!profileId) return;
         const profile = await fetchGuestProfileById(profileId);
         applyProfileDraft(profile, options);
-    }, [applyProfileDraft, fetchGuestProfileById]);
+        try {
+            const history = await fetchGuestProfileHistorySummary(profileId);
+            if (history) {
+                const totalStays = Number(history.summary?.total_stays ?? 0);
+                const latestStayDate = Array.isArray(history.stays)
+                    ? history.stays
+                        .map((stay: any) => String(stay?.date_out ?? "").trim())
+                        .filter(Boolean)
+                        .sort()
+                        .at(-1) ?? ""
+                    : "";
+                setProfileStayCount(totalStays);
+                setProfileLastStayDate(latestStayDate);
+            }
+        } catch {
+            // Keep profile fallback values when history lookup fails.
+        }
+    }, [applyProfileDraft, fetchGuestProfileById, fetchGuestProfileHistorySummary]);
 
     const applyPartyDraftFromProfile = useCallback((profile: any, linkedMemberId: string | null = null) => {
         setPartyDraft(buildPartyDraftFromProfile(profile, linkedMemberId));
@@ -3144,6 +3172,14 @@ export default function ReservationDetailPage({
     ]);
 
     const isActiveCheckedInReservation = reservationStatus === "active" && Boolean(checkedInAt);
+    const checkedInBusinessDate =
+        /^\d{4}-\d{2}-\d{2}/.test(checkedInAt) ? checkedInAt.slice(0, 10) : "";
+    const canEditCheckedInTimestamp =
+        !isActiveCheckedInReservation ||
+        isCheckedOutEditAdmin ||
+        !businessDate ||
+        !checkedInBusinessDate ||
+        businessDate <= checkedInBusinessDate;
     const shouldApplyShortenPolicy =
         Boolean(reservationId) &&
         (mode === "inhouse" || (mode === "edit" && isActiveCheckedInReservation));
@@ -3501,6 +3537,7 @@ export default function ReservationDetailPage({
                     room_id: roomId || null,
                     phone: phone.trim() || undefined,
                     checkin_time: extractHHmmFromLocalDateTime(checkedInAt),
+                    checked_in_at: checkedInAt ? bangkokLocalToIso(checkedInAt) : null,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
                     discount_percent: discountPercent || undefined,
@@ -3619,7 +3656,9 @@ export default function ReservationDetailPage({
                     discount_reason: discountReason.trim() || undefined,
                 };
                 const checkinTimeDraft = extractHHmmFromLocalDateTime(checkedInAt);
-                if (checkinTimeDraft) updatePayload.checkin_time = checkinTimeDraft;
+                if (activeIntent === "draft" && checkinTimeDraft) {
+                    updatePayload.checkin_time = checkinTimeDraft;
+                }
                 if (chargeRoomTypeId) updatePayload.room_type_id = chargeRoomTypeId;
                 if (ratePlanId) updatePayload.rate_plan_id = ratePlanId;
                 else if (originalRatePlanId) updatePayload.rate_plan_id = null;
@@ -4768,11 +4807,10 @@ export default function ReservationDetailPage({
                                                     </div>
                                                     <div>
                                                         <label className="form-label">DOB</label>
-                                                        <input
-                                                            type="date"
-                                                            className="form-input h-10 text-sm"
+                                                        <DateInput
+                                                            className="h-10 text-sm"
                                                             value={profileDob}
-                                                            onChange={(e) => setProfileDob(e.target.value)}
+                                                            onChange={setProfileDob}
                                                             disabled={isReadonly}
                                                         />
                                                     </div>
@@ -4786,8 +4824,13 @@ export default function ReservationDetailPage({
                                                                 className="form-input h-10 text-sm bg-[var(--bg-surface)]"
                                                                 value={checkedInAt || nowForTimestamp}
                                                                 onChange={(e) => setCheckedInAt(e.target.value)}
-                                                                disabled={isReadonly}
+                                                                disabled={isReadonly || !canEditCheckedInTimestamp}
                                                             />
+                                                            {!canEditCheckedInTimestamp && (
+                                                                <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                                                    Check-in time is locked after this business date. Admin can still edit it.
+                                                                </p>
+                                                            )}
                                                         </div>
                                                         <div>
                                                             <label className="form-label">Nationality Display</label>
@@ -5714,11 +5757,10 @@ export default function ReservationDetailPage({
                                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div>
                                                 <label className="form-label">DOB</label>
-                                                <input
-                                                    type="date"
-                                                    className="form-input text-sm"
+                                                <DateInput
+                                                    className="text-sm"
                                                     value={partyDraft.dob}
-                                                    onChange={(e) => setPartyDraft((current) => ({ ...current, dob: e.target.value }))}
+                                                    onChange={(value) => setPartyDraft((current) => ({ ...current, dob: value }))}
                                                     disabled={isReadonly}
                                                 />
                                             </div>

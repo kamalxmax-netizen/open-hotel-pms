@@ -476,28 +476,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const totalStays = stays.length;
     const totalNights = stays.reduce((sum, row) => sum + Math.max(0, Number(row.nights || 0)), 0);
 
-    const summaryPrimaryStays = Math.max(
-      completedPrimaryStays.length + legacyStays.length,
-      Number(guest.stay_count ?? 0),
-      Number(guest.main_stay_count ?? 0)
-    );
-    const summaryPrimaryNights = Math.max(
-      totalNights,
-      Number(guest.night_count ?? 0),
-      Number(guest.main_night_count ?? 0)
-    );
-    const summaryAccompanyingStays = Math.max(
-      completedAccompanyingStays.length,
-      Number(guest.accompanying_stay_count ?? 0)
-    );
-    const summaryAccompanyingNights = Math.max(
-      countCompletedStayNights(accompanyingStays),
-      Number(guest.accompanying_night_count ?? 0)
-    );
-    const summaryLegacyNights = Math.max(
-      legacyStays.reduce((sum, s) => sum + Math.max(0, Number(s.nights || 0)), 0),
-      Number(guest.legacy_night_count ?? 0)
-    );
+    const summaryPrimaryStays = completedPrimaryStays.length + legacyStays.length;
+    const summaryPrimaryNights = totalNights;
+    const summaryAccompanyingStays = completedAccompanyingStays.length;
+    const summaryAccompanyingNights = countCompletedStayNights(accompanyingStays);
+    const summaryLegacyNights = legacyStays.reduce((sum, s) => sum + Math.max(0, Number(s.nights || 0)), 0);
 
     return NextResponse.json({
       success: true,

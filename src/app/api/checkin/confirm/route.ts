@@ -13,6 +13,7 @@ import {
   syncAccompanyingGuests,
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
+import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
@@ -302,6 +303,16 @@ export async function POST(request: NextRequest) {
         sourceReservationId: payload.reservation_id,
         seenAt: nowIso,
       });
+
+      try {
+        await syncExpectedArrivalAlert({
+          supabase: supabase as any,
+          reservationId: payload.reservation_id,
+          expectedArrivalTime: null,
+        });
+      } catch (error) {
+        console.error("expected arrival alert auto-dismiss failed", error);
+      }
     }
 
     if (payload.scan_id) {
