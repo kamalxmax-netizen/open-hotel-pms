@@ -29,6 +29,11 @@ type MethodsMap = {
   other: MethodBreakdown;
 };
 
+type ReportNote = {
+  label: string;
+  title?: string;
+};
+
 type RoomBaseRow = {
   id: string;
   room_number: string;
@@ -150,6 +155,20 @@ function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function formatCompactDate(value: string | null | undefined): string {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return text || "—";
+  return `${match[3]}/${match[2]}`;
+}
+
+function formatMoneyLabel(value: number): string {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function normalizeMethod(raw: unknown): MethodKey {
   const value = String(raw ?? "").trim().toLowerCase();
   if (!value) return "other";
@@ -164,6 +183,13 @@ function normalizeMethod(raw: unknown): MethodKey {
   if (value.includes("card")) return "credit_card";
   if (value.includes("cash")) return "cash";
   return "other";
+}
+
+function methodLabel(method: MethodKey): string {
+  if (method === "credit_card") return "Card";
+  if (method === "transfer") return "Transfer";
+  if (method === "cash") return "Cash";
+  return "Other";
 }
 
 function normalizeTxType(raw: unknown): TxType {
@@ -273,6 +299,22 @@ function sumMethods(list: MethodsMap[]): MethodsMap {
     }
   }
   return finalizeMethods(out);
+}
+
+function hasAnyMethodMovement(methods: MethodsMap): boolean {
+  return METHOD_KEYS.some((key) => {
+    const row = methods[key];
+    return Math.abs(row.payment) > 0.009 || Math.abs(row.deposit) > 0.009 || Math.abs(row.refund) > 0.009;
+  });
+}
+
+function addReportNote(noteMap: Map<string, ReportNote>, label: string, title?: string | null) {
+  const normalizedLabel = String(label ?? "").trim();
+  if (!normalizedLabel) return;
+  const normalizedTitle = String(title ?? "").trim() || undefined;
+  const key = `${normalizedLabel}__${normalizedTitle ?? ""}`;
+  if (noteMap.has(key)) return;
+  noteMap.set(key, { label: normalizedLabel, title: normalizedTitle });
 }
 
 function isHiddenByReason(reason: string | null): boolean {
@@ -578,9 +620,11 @@ export async function GET(request: NextRequest) {
     let linkedRemarkByReservationId = new Map<string, string>();
     let nightsByReservation = new Map<string, ReservationNightRoom[]>();
     let cumulativePaidMap = new Map<string, number>();
+    const priorPrepaymentReservationIds = new Set<string>();
+    const priorPrepaymentNotesByReservationId = new Map<string, ReportNote[]>();
 
     if (reservationIdList.length > 0) {
-      const [reservationRes, nightsRes, cumulativeRes] = await Promise.all([
+      const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
         supabase
           .from("reservations")
           .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source, status")
@@ -596,6 +640,11 @@ export async function GET(request: NextRequest) {
           .select("reservation_id, tx_type, amount")
           .in("reservation_id", reservationIdList)
           .lte("paid_date", businessDate),
+        supabase
+          .from("folio_payments")
+          .select("id, reservation_id, paid_date, method, tx_type, amount, note, revenue_category, is_record_only, void_of")
+          .in("reservation_id", reservationIdList)
+          .lt("paid_date", businessDate),
       ]);
 
       if (reservationRes.error) {
@@ -606,6 +655,9 @@ export async function GET(request: NextRequest) {
       }
       if (cumulativeRes.error) {
         return NextResponse.json({ success: false, error: cumulativeRes.error.message }, { status: 500 });
+      }
+      if (priorPaymentsRes.error) {
+        return NextResponse.json({ success: false, error: priorPaymentsRes.error.message }, { status: 500 });
       }
 
       reservationMap = new Map(
@@ -646,6 +698,40 @@ export async function GET(request: NextRequest) {
         const next = txType === "refund" ? current - amount : current + amount;
         cumulativePaidMap.set(rid, round2(next));
       }
+
+      const priorRows = (priorPaymentsRes.data ?? []) as PaymentRow[];
+      const priorVoidedPaymentIds = buildVoidedPaymentIdSet(priorRows);
+      const priorNetByReservationId = new Map<string, number>();
+      for (const row of priorRows) {
+        const paymentId = String(row.id ?? "").trim();
+        if (paymentId && priorVoidedPaymentIds.has(paymentId)) continue;
+        const reservationId = String(row.reservation_id ?? "").trim();
+        if (!reservationId) continue;
+        if (row.is_record_only === true) continue;
+
+        const txType = normalizeTxType(row.tx_type);
+        const amount = Number(row.amount ?? 0);
+        const current = priorNetByReservationId.get(reservationId) ?? 0;
+        const next = txType === "refund" ? current - amount : current + amount;
+        priorNetByReservationId.set(reservationId, round2(next));
+
+        if (txType === "refund" || amount <= 0) continue;
+        const method = methodLabel(normalizeMethod(row.method));
+        const paidDate = formatCompactDate(row.paid_date);
+        const detail = `Prepayment ${paidDate} ${method} ${formatMoneyLabel(amount)}`;
+        const originalNote = String(row.note ?? "").trim();
+        const title = originalNote && originalNote !== detail ? `${detail}\n${originalNote}` : detail;
+        const currentNotes = priorPrepaymentNotesByReservationId.get(reservationId) ?? [];
+        if (!currentNotes.some((item) => item.label === detail && (item.title ?? "") === title)) {
+          currentNotes.push({ label: detail, title });
+          priorPrepaymentNotesByReservationId.set(reservationId, currentNotes);
+        }
+      }
+      for (const [reservationId, total] of priorNetByReservationId.entries()) {
+        if (total > 0.009) {
+          priorPrepaymentReservationIds.add(reservationId);
+        }
+      }
     }
 
     const todayGroup = new Map<
@@ -663,7 +749,7 @@ export async function GET(request: NextRequest) {
         is_cancelled: boolean;
         methods: MethodsMap;
         total_net: number;
-        notes: Set<string>;
+        notes: Map<string, ReportNote>;
       }
     >();
 
@@ -681,7 +767,7 @@ export async function GET(request: NextRequest) {
         is_cancelled: boolean;
         methods: MethodsMap;
         total_net: number;
-        notes: Set<string>;
+        notes: Map<string, ReportNote>;
       }
     >();
 
@@ -806,7 +892,7 @@ export async function GET(request: NextRequest) {
           is_cancelled: String(reservation.status ?? "").toLowerCase() === "cancelled",
           methods: createMethodsMap(),
           total_net: 0,
-          notes: new Set<string>(),
+          notes: new Map<string, ReportNote>(),
         };
         if (!isRecordOnly) {
           if (isCorrection) {
@@ -818,12 +904,12 @@ export async function GET(request: NextRequest) {
         }
         if (normalizedNote) {
           const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
-          current.notes.add(`${normalizedNote}${suffix}`);
+          addReportNote(current.notes, `${normalizedNote}${suffix}`);
         }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
-        if (linkedRemark) current.notes.add(linkedRemark);
+        if (linkedRemark) addReportNote(current.notes, linkedRemark);
         if (String(reservation.status ?? "").toLowerCase() === "cancelled") {
-          current.notes.add("Cancelled");
+          addReportNote(current.notes, "Cancelled");
         }
 
         const paidToDate = current.total_paid_to_date;
@@ -851,7 +937,7 @@ export async function GET(request: NextRequest) {
           is_cancelled: String(reservation?.status ?? "").toLowerCase() === "cancelled",
           methods: createMethodsMap(),
           total_net: 0,
-          notes: new Set<string>(),
+          notes: new Map<string, ReportNote>(),
         };
         if (!isRecordOnly) {
           if (isCorrection) {
@@ -864,15 +950,52 @@ export async function GET(request: NextRequest) {
         }
         if (normalizedNote) {
           const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
-          current.notes.add(`${normalizedNote}${suffix}`);
+          addReportNote(current.notes, `${normalizedNote}${suffix}`);
         }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
-        if (linkedRemark) current.notes.add(linkedRemark);
+        if (linkedRemark) addReportNote(current.notes, linkedRemark);
         if (String(reservation?.status ?? "").toLowerCase() === "cancelled") {
-          current.notes.add("Cancelled");
+          addReportNote(current.notes, "Cancelled");
         }
         todayGroup.set(key, current);
       }
+    }
+
+    for (const [reservationId, reservation] of reservationMap.entries()) {
+      if (!priorPrepaymentReservationIds.has(reservationId)) continue;
+      if (String(reservation.status ?? "").toLowerCase() === "cancelled") continue;
+      if (String(reservation.checkin_date ?? "") !== businessDate) continue;
+
+      const resolvedRoom = resolveRoomForDate(
+        nightsByReservation.get(reservationId),
+        businessDate,
+        reservation.checkin_date ?? null
+      );
+      const roomNumber = resolvedRoom.room_number ?? "NO ROOM";
+      const floorNumber = resolvedRoom.floor_number ?? 0;
+      const key = `${roomNumber}::${reservationId}`;
+      const stayFlow = resolveStayFlow(reservation.checkin_date, reservation.checkout_date, businessDate);
+      const current = todayGroup.get(key) ?? {
+        reservation_id: reservationId,
+        room_number: roomNumber,
+        floor_number: floorNumber,
+        guest_name: reservation.guest_name ?? "Unknown",
+        booking_code: (reservation.booking_code ?? reservationId) || reservationId,
+        checkin_date: reservation.checkin_date ?? null,
+        checkout_date: reservation.checkout_date ?? null,
+        stay_flow: stayFlow,
+        is_dayuse: Boolean(reservation.is_dayuse),
+        is_cancelled: false,
+        methods: createMethodsMap(),
+        total_net: 0,
+        notes: new Map<string, ReportNote>(),
+      };
+      for (const detail of priorPrepaymentNotesByReservationId.get(reservationId) ?? []) {
+        addReportNote(current.notes, detail.label, detail.title);
+      }
+      const linkedRemark = linkedRemarkByReservationId.get(reservationId);
+      if (linkedRemark) addReportNote(current.notes, linkedRemark);
+      todayGroup.set(key, current);
     }
 
     const todayRooms = Array.from(todayGroup.values())
@@ -889,7 +1012,7 @@ export async function GET(request: NextRequest) {
         is_cancelled: row.is_cancelled,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
-        notes: Array.from(row.notes),
+        notes: Array.from(row.notes.values()),
       }))
       .sort((a, b) => {
         if (a.floor_number !== b.floor_number) return a.floor_number - b.floor_number;
@@ -913,8 +1036,9 @@ export async function GET(request: NextRequest) {
         is_cancelled: row.is_cancelled,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
-        notes: Array.from(row.notes),
+        notes: Array.from(row.notes.values()),
       }))
+      .filter((row) => hasAnyMethodMovement(row.methods))
       .sort((a, b) => {
         if (a.checkin_date !== b.checkin_date) return a.checkin_date.localeCompare(b.checkin_date);
         return a.booking_code.localeCompare(b.booking_code, undefined, { sensitivity: "base" });

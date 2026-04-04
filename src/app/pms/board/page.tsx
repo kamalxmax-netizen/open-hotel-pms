@@ -597,43 +597,47 @@ function RoomCard({
                                         ? SOURCE_LABEL[room.source] ?? room.source
                                         : room.room_type}
                             </p>
-                            {returnStats ? (
-                                <span
-                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
-                                    title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
-                                >
-                                    {returnStats.text}
-                                </span>
-                            ) : possibleReturn ? (
-                                <span
-                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
-                                    title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
-                                >
-                                    PR
-                                </span>
-                            ) : null}
+                            <div className="flex items-center gap-1 shrink-0">
+                                {returnStats ? (
+                                    <span
+                                        className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                        title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
+                                    >
+                                        {returnStats.text}
+                                    </span>
+                                ) : possibleReturn ? (
+                                    <span
+                                        className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                        title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
+                                    >
+                                        PR
+                                    </span>
+                                ) : null}
+                            </div>
                         </div>
                     ) : (
                         <div className="mt-auto flex justify-end">
-                            {returnStats ? (
-                                <span
-                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
-                                    title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
-                                >
-                                    {returnStats.text}
-                                </span>
-                            ) : possibleReturn ? (
-                                <span
-                                    className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
-                                    title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
-                                >
-                                    PR
-                                </span>
-                            ) : isReserved && room.booking_code ? (
-                                <span className="text-[8px] text-[var(--text-muted)] font-mono shrink-0">
-                                    #{room.booking_code.slice(-4)}
-                                </span>
-                            ) : null}
+                            <div className="flex items-center gap-1">
+                                {returnStats ? (
+                                    <span
+                                        className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                        title={returnStats.source === "main" ? "Main guest history" : "Accompanying guest history"}
+                                    >
+                                        {returnStats.text}
+                                    </span>
+                                ) : possibleReturn ? (
+                                    <span
+                                        className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0"
+                                        title={room.possible_return_name ? `Possible return: ${room.possible_return_name}` : "Possible return"}
+                                    >
+                                        PR
+                                    </span>
+                                ) : isReserved && room.booking_code ? (
+                                    <span className="text-[8px] text-[var(--text-muted)] font-mono shrink-0">
+                                        #{room.booking_code.slice(-4)}
+                                    </span>
+                                ) : null}
+                            </div>
                         </div>
                     )}
                     {(room.alert_count ?? 0) > 0 && (

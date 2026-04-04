@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
 
   // ── Wave 2: Dependent queries in parallel ───────────────────────────────
   const tW2Start = performance.now();
-  const [groupsResult, plannedReservationsResult, checkedInLogsResult] = await Promise.all([
+  const [groupsResult, plannedReservationsResult, checkedInLogsResult, groupReservationsResult] = await Promise.all([
     groupIds.size > 0
       ? supabase.from("booking_groups").select("id, group_code, group_name").in("id", Array.from(groupIds))
       : Promise.resolve({ data: [] as { id: string; group_code: string | null; group_name: string | null }[], error: null }),
@@ -266,6 +266,9 @@ export async function GET(request: NextRequest) {
     reservationIdsForCheckin.size > 0
       ? supabase.from("audit_logs").select("entity_id").eq("entity_type", "reservation").eq("action", "checked_in").in("entity_id", Array.from(reservationIdsForCheckin))
       : Promise.resolve({ data: [] as { entity_id: string }[], error: null }),
+    groupIds.size > 0
+      ? supabase.from("reservations").select("id, booking_group_id").in("booking_group_id", Array.from(groupIds)).neq("status", "cancelled")
+      : Promise.resolve({ data: [] as { id: string; booking_group_id: string | null }[], error: null }),
   ]);
 
   const tW2End = performance.now();
@@ -273,6 +276,7 @@ export async function GET(request: NextRequest) {
   if (groupsResult.error) return NextResponse.json({ error: groupsResult.error.message }, { status: 500 });
   if (plannedReservationsResult.error) return NextResponse.json({ error: plannedReservationsResult.error.message }, { status: 500 });
   if (checkedInLogsResult.error) return NextResponse.json({ error: checkedInLogsResult.error.message }, { status: 500 });
+  if (groupReservationsResult.error) return NextResponse.json({ error: groupReservationsResult.error.message }, { status: 500 });
 
   const groupMetaById = new Map<string, { group_code: string | null; group_name: string | null }>();
   (groupsResult.data ?? []).forEach((g: any) => {
@@ -297,6 +301,15 @@ export async function GET(request: NextRequest) {
   const checkedInReservationSet = new Set<string>();
   (checkedInLogsResult.data ?? []).forEach((log: any) => {
     checkedInReservationSet.add(String(log.entity_id));
+  });
+  const groupReservationIdsByGroupId = new Map<string, Set<string>>();
+  (groupReservationsResult.data ?? []).forEach((row: any) => {
+    const groupId = row?.booking_group_id ? String(row.booking_group_id) : "";
+    const reservationId = row?.id ? String(row.id) : "";
+    if (!groupId || !reservationId) return;
+    const current = groupReservationIdsByGroupId.get(groupId) ?? new Set<string>();
+    current.add(reservationId);
+    groupReservationIdsByGroupId.set(groupId, current);
   });
   const linkedRootReservationIds = new Set<string>();
   (reservationNights ?? []).forEach((night: any) => {
@@ -878,7 +891,6 @@ export async function GET(request: NextRequest) {
     const possibleReturnMatches = guest?.reservation_id
       ? possibleReturnByReservationId.get(guest.reservation_id) ?? []
       : [];
-
     return {
       room_id: room.id,
       room_number: room.room_number,

@@ -48,6 +48,26 @@ function applyFilters(
   return next;
 }
 
+async function deleteUiEventLogsInChunks(supabase: any, ids: string[]) {
+  const chunkSize = 200;
+  let deletedCount = 0;
+
+  for (let index = 0; index < ids.length; index += chunkSize) {
+    const chunk = ids.slice(index, index + chunkSize);
+    if (chunk.length === 0) continue;
+    const { error } = await supabase
+      .from("ui_event_logs")
+      .delete()
+      .in("id", chunk);
+    if (error) {
+      return { success: false as const, error };
+    }
+    deletedCount += chunk.length;
+  }
+
+  return { success: true as const, deletedCount };
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdminRouteAccess(request);
   if (!auth.ok) return auth.response;
@@ -135,16 +155,12 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, deleted_count: 0 });
   }
 
-  const { error } = await auth.supabase
-    .from("ui_event_logs")
-    .delete()
-    .in("id", targetIds);
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  const deleteResult = await deleteUiEventLogsInChunks(auth.supabase, targetIds);
+  if (!deleteResult.success) {
+    return NextResponse.json({ success: false, error: deleteResult.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, deleted_count: targetIds.length });
+  return NextResponse.json({ success: true, deleted_count: deleteResult.deletedCount });
 }
 
 export async function PUT(request: NextRequest) {

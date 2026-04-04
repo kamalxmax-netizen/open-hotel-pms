@@ -15,6 +15,11 @@ type MethodBreakdown = {
     net: number;
 };
 
+type PaymentDailyNote = {
+    label: string;
+    title?: string;
+};
+
 type MethodsMap = {
     cash: MethodBreakdown;
     transfer: MethodBreakdown;
@@ -43,7 +48,7 @@ type PaymentDailyTodayRoom = {
     is_dayuse: boolean;
     methods: MethodsMap;
     total_net: number;
-    notes: string[];
+    notes: PaymentDailyNote[];
 };
 
 type PaymentDailyAdvance = {
@@ -57,7 +62,7 @@ type PaymentDailyAdvance = {
     payment_status: "deposit" | "partial" | "full";
     methods: MethodsMap;
     total_net: number;
-    notes: string[];
+    notes: PaymentDailyNote[];
 };
 
 type SubtotalRow = MethodsMap & { grand_net: number };
@@ -116,17 +121,23 @@ function noteBadgeClass(note: string) {
         : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
 }
 
-function NoteCapsules({ notes }: { notes: string[] }) {
+function getPrepaymentTitle(notes: PaymentDailyNote[]) {
+    const matches = notes.filter((note) => note.label.startsWith("Prepayment "));
+    if (matches.length === 0) return null;
+    return matches.map((note) => note.title || note.label).join("\n\n");
+}
+
+function NoteCapsules({ notes }: { notes: PaymentDailyNote[] }) {
     if (notes.length === 0) return <span className="text-[var(--text-muted)]">-</span>;
     return (
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none max-w-full pb-0.5">
-            {notes.map((n, i) => (
+            {notes.map((note, i) => (
                 <span
                     key={i}
-                    title={n}
-                    className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 max-w-[180px] truncate ${noteBadgeClass(n)}`}
+                    title={note.title || note.label}
+                    className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 max-w-[220px] truncate ${noteBadgeClass(note.label)}`}
                 >
-                    {n}
+                    {note.label}
                 </span>
             ))}
         </div>
@@ -151,6 +162,8 @@ function InlineBadge({
         </span>
     );
 }
+
+const PRE_BADGE_CLASS = "rounded-full bg-amber-500 text-white dark:border dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300";
 
 /* ─── Column border constants ──────────────────────── */
 // Group separator (between Cash/Transfer/Card groups)
@@ -275,7 +288,15 @@ export default function PaymentDailyPage() {
     const todayRooms = data?.today_rooms ?? [];
     const unassignedTodayRooms = todayRooms.filter((row) => row.room_number === "NO ROOM" && !row.is_dayuse);
     const floors = Array.from(new Set(allRooms.map(r => r.floor_number))).sort((a, b) => b - a);
-
+    const displayedGrandTotalNet = data
+        ? data.reconciliation.net_cash
+        + data.grand_total.transfer.payment
+        + data.grand_total.transfer.deposit
+        + data.grand_total.credit_card.payment
+        + data.grand_total.credit_card.deposit
+        + data.grand_total.other.payment
+        + data.grand_total.other.deposit
+        : 0;
     return (
         <div className="flex flex-col gap-6 max-w-[1400px] mx-auto w-full pb-20">
             {/* Header */}
@@ -350,7 +371,7 @@ export default function PaymentDailyPage() {
                     <div className="ml-auto flex items-center gap-4 text-xs font-bold border-l border-[var(--border-default)] pl-4 h-8">
                         <div className="flex flex-col items-end">
                             <span className="text-[9px] uppercase tracking-tighter text-[var(--text-muted)]">Net Total</span>
-                            <span className="text-brand-700 text-sm">{fmtMoney(data.grand_total.grand_net)}</span>
+                            <span className="text-brand-700 text-sm">{fmtMoney(displayedGrandTotalNet)}</span>
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[9px] uppercase tracking-tighter text-[var(--text-muted)]">Cash Drawer</span>
@@ -429,6 +450,7 @@ export default function PaymentDailyPage() {
                                                                 : tr.stay_flow === "in_house"
                                                                     ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" }
                                                                     : null;
+                                                        const prepaymentTitle = getPrepaymentTitle(tr.notes);
                                                         return (
                                                             <tr
                                                                 key={`${br.room_number}-${tr.reservation_id || "no-res"}-${idx}`}
@@ -439,6 +461,11 @@ export default function PaymentDailyPage() {
                                                                     <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
                                                                         {tr.room_number}
                                                                         {badge && <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>{badge.text}</span>}
+                                                                        {prepaymentTitle && (
+                                                                            <InlineBadge className={PRE_BADGE_CLASS} title={prepaymentTitle}>
+                                                                                Pre
+                                                                            </InlineBadge>
+                                                                        )}
                                                                     </span>
                                                                     <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                                 </td>
@@ -468,6 +495,7 @@ export default function PaymentDailyPage() {
                                                         : tr.stay_flow === "in_house"
                                                             ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" }
                                                             : null;
+                                                const prepaymentTitle = getPrepaymentTitle(tr.notes);
                                                 return (
                                                     <tr
                                                         key={`no-room-${tr.reservation_id || "no-res"}-${idx}`}
@@ -475,7 +503,15 @@ export default function PaymentDailyPage() {
                                                         onClick={() => openReservation(tr.reservation_id, tr.stay_flow === "due_in" ? "edit" : "inhouse")}
                                                     >
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
-                                                            <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">NO ROOM{badge && <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>{badge.text}</span>}</span>
+                                                            <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
+                                                                NO ROOM
+                                                                {badge && <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>{badge.text}</span>}
+                                                                {prepaymentTitle && (
+                                                                    <InlineBadge className={PRE_BADGE_CLASS} title={prepaymentTitle}>
+                                                                        Pre
+                                                                    </InlineBadge>
+                                                                )}
+                                                            </span>
                                                             <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                         </td>
                                                         <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>{fmtMoney(tr.total_net)}</td>
@@ -499,7 +535,14 @@ export default function PaymentDailyPage() {
                                                 {duRooms.map(tr => (
                                                     <tr key={`du-${tr.room_number}`} className="hover:bg-[var(--bg-body)]/50 transition-colors border-b border-[var(--border-subtle)]">
                                                         <td className={`px-4 py-2 ${B} leading-tight`}>
-                                                            <span className="font-bold text-[var(--text-primary)] block">{tr.room_number}</span>
+                                                            <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
+                                                                {tr.room_number}
+                                                                {getPrepaymentTitle(tr.notes) && (
+                                                                    <InlineBadge className={PRE_BADGE_CLASS} title={getPrepaymentTitle(tr.notes) ?? undefined}>
+                                                                        Pre
+                                                                    </InlineBadge>
+                                                                )}
+                                                            </span>
                                                             <span className="text-xs text-[var(--text-secondary)] block">Day Use</span>
                                                         </td>
                                                         <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>{fmtMoney(tr.total_net)}</td>
@@ -593,9 +636,9 @@ export default function PaymentDailyPage() {
                                                             {adv.payment_status === "partial" && <InlineBadge className="bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">บางส่วน</InlineBadge>}
                                                             {adv.payment_status === "full" && <InlineBadge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">เต็ม</InlineBadge>}
                                                             {adv.notes.length > 0 && (
-                                                                <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none pb-0.5" title={adv.notes.join(" | ")}>
+                                                                <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none pb-0.5" title={adv.notes.map((note) => note.title || note.label).join(" | ")}>
                                                                     {adv.notes.map((note, idx) => (
-                                                                        <InlineBadge key={`${adv.booking_code}-note-${idx}`} title={note} className={`${noteBadgeClass(note)} shrink-0 max-w-[180px] truncate`}>{note}</InlineBadge>
+                                                                        <InlineBadge key={`${adv.booking_code}-note-${idx}`} title={note.title || note.label} className={`${noteBadgeClass(note.label)} shrink-0 max-w-[220px] truncate`}>{note.label}</InlineBadge>
                                                                     ))}
                                                                 </div>
                                                             )}
@@ -624,7 +667,7 @@ export default function PaymentDailyPage() {
                                 <tfoot className="border-t-2 border-emerald-200 dark:border-emerald-800">
                                     <tr className="font-bold text-sm">
                                         <td className={`px-4 py-4 ${B} text-emerald-900 dark:text-emerald-300 uppercase tracking-wider w-48 bg-emerald-50 dark:bg-emerald-950/30`}>Grand Total</td>
-                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24 bg-emerald-50 dark:bg-emerald-950/30`}>{fmtMoney(data.grand_total.grand_net)}</td>
+                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24 bg-emerald-50 dark:bg-emerald-950/30`}>{fmtMoney(displayedGrandTotalNet)}</td>
                                         <MoneyCell v={data.grand_total.cash.payment} border={Bi} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.cash.deposit} border={B} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.transfer.payment} border={Bi} bg="bg-sky-100/50 dark:bg-sky-950/50" />
@@ -703,7 +746,7 @@ export default function PaymentDailyPage() {
                                                     <td className="px-4 py-2.5 text-[var(--text-secondary)] uppercase">{row.method}</td>
                                                     <td className="px-4 py-2.5 text-right font-medium text-[var(--text-table-cell)]">{fmtMoney(row.amount)}</td>
                                                     <td className="px-4 py-2.5 text-[var(--text-secondary)]">
-                                                        {row.note ? <NoteCapsules notes={[row.note]} /> : "-"}
+                                                        {row.note ? <NoteCapsules notes={[{ label: row.note }]} /> : "-"}
                                                     </td>
                                                 </tr>
                                             ))
