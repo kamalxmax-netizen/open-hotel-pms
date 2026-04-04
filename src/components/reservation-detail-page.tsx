@@ -34,6 +34,7 @@ import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import LinkedStayPanel from "./linked-stay-panel";
+import { useLostFoundPopup } from "@/components/providers/lost-found-popup-context";
 
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
 type ReservationRecordStatus = "active" | "cancelled" | "checked_out" | "no_show" | "";
@@ -836,6 +837,7 @@ export default function ReservationDetailPage({
 }: ReservationDetailPageProps) {
 
     const router = useRouter();
+    const { showPopup } = useLostFoundPopup();
     const [isCheckedOutEditAdmin, setIsCheckedOutEditAdmin] = useState(false);
     const [reservationId, setReservationId] = useState(propReservationId);
     
@@ -3388,6 +3390,19 @@ export default function ReservationDetailPage({
                     nights,
                     totalPrice: Number.isFinite(createdTotal) ? fromSatang(toSatang(createdTotal)) : effectiveTotal
                 });
+                
+                // L&F Alert
+                if (syncedGuestProfileId) {
+                    try {
+                        const lfRes = await fetch(`/api/lost-found/check-guest?guest_profile_id=${syncedGuestProfileId}`);
+                        if (lfRes.ok) {
+                            const lfData = await lfRes.json();
+                            // Handle if backend wraps it in { alert: ... } or returns directly
+                            if (lfData.alert) showPopup(lfData.alert);
+                            else if (lfData.items) showPopup(lfData);
+                        }
+                    } catch(e) { console.error("L&F check failed", e); }
+                }
                 return;
 
             } else if (mode === "edit" && reservationId) {
@@ -3686,6 +3701,18 @@ export default function ReservationDetailPage({
                 setPendingCheckinPayments([]);
                 setShowCheckinFieldValidation(false);
                 onSuccess();
+
+                // L&F Alert
+                if (syncedGuestProfileId) {
+                    try {
+                        const lfRes = await fetch(`/api/lost-found/check-guest?guest_profile_id=${syncedGuestProfileId}`);
+                        if (lfRes.ok) {
+                            const lfData = await lfRes.json();
+                            if (lfData.alert) showPopup(lfData.alert);
+                            else if (lfData.items) showPopup(lfData);
+                        }
+                    } catch(e) { console.error("L&F check failed", e); }
+                }
 
             } else if (mode === "checkout" && reservationId) {
                 const amt = fromSatang(toSatang(paymentAmount));

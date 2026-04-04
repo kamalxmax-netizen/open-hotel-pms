@@ -255,10 +255,13 @@ export default function ConfirmStep() {
               <Loader2 className="w-6 h-6 animate-spin" />
             ) : (
               <>
-                <Check className="w-6 h-6" /> {isDraft ? "Save Draft" : "Save Guest Data"}
+                <Check className="w-6 h-6" /> {isDraft ? "Save Draft" : "Check In"}
               </>
             )}
           </button>
+          <p className="mt-3 px-2 text-center text-xs font-semibold text-[var(--text-secondary)]">
+            ข้อมูลครบจะเข้า In House ทันที ถ้าข้อมูลไม่ครบระบบจะบันทึกเป็น Draft ให้อัตโนมัติ
+          </p>
         </div>
       </div>
     </div>

@@ -1354,3 +1354,54 @@ export type DraftOverride = {
     room_id: string;
     nights?: string[];             // NEW: if present, only these nights are overridden
 };
+
+// ── Phase 56: Lost & Found ──────────────────────────────────
+
+export type LostFoundCategory = "general" | "electronics" | "clothing" | "documents" | "valuables" | "other";
+
+/** Display status — 'expired' is virtual (query-time: found_date + 1yr < now) */
+export type LostFoundStatus = "pending" | "claimed" | "cleared";
+
+export interface LostFoundItem {
+  id: string;
+  room_id: string;
+  room_number: string;
+  reservation_id: string | null;
+  guest_profile_id: string | null;
+  booking_code: string | null;
+  guest_name: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+  description: string;
+  photo_path: string | null;
+  /** Signed URL for display — populated by API, not stored */
+  photo_url?: string | null;
+  category: LostFoundCategory;
+  status: LostFoundStatus;
+  found_date: string;
+  found_by: string;
+  reported_by_user_id: string | null;
+  location_detail: string | null;
+  claim_note: string | null;
+  claimed_at: string | null;
+  claimed_by: string | null;
+  cleared_at: string | null;
+  cleared_by: string | null;
+  /** Virtual — true when found_date + 1 year < today AND status = 'pending' */
+  is_expired?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LostFoundGuestAlert {
+  guest_profile_id: string;
+  guest_name: string | null;
+  items: Array<{
+    id: string;
+    description: string;
+    room_number: string;
+    booking_code: string | null;
+    found_date: string;
+    category: LostFoundCategory;
+  }>;
+}

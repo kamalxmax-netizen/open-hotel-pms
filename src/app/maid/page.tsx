@@ -6,6 +6,8 @@ import ExtraTaskCard from "@/components/maid/extra-task-card";
 import ChecklistModal from "@/components/maid/checklist-modal";
 import NoServiceModal from "@/components/maid/no-service-modal";
 import EmptyState from "@/components/maid/empty-state";
+import LfReportSheet from "@/components/maid/lf-report-sheet";
+import { Plus } from "lucide-react";
 import type { ChecklistItem, ExtraTaskAssignment, MaidRoom, MaintenanceChecklistSubmission } from "@/lib/types";
 
 interface MaidData {
@@ -126,6 +128,7 @@ export default function MaidPage() {
   const [activeChecklistRoom, setActiveChecklistRoom] = useState<MaidRoom | null>(null);
   const [activeNsRoom, setActiveNsRoom] = useState<MaidRoom | null>(null);
   const [pendingNsFinishNote, setPendingNsFinishNote] = useState("");
+  const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
 
   const normalizeName = (value: string | null | undefined) =>
     (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -635,6 +638,22 @@ export default function MaidPage() {
         onSubmit={handleNoServiceSubmit}
         isSubmitting={isActionLoading}
       />
+
+      <LfReportSheet 
+        isOpen={isReportSheetOpen}
+        onClose={() => setIsReportSheetOpen(false)}
+        onSuccess={() => {
+            // Optional: toast notification
+        }}
+      />
+
+      {/* Floating Action Button for L&F */}
+      <button 
+        onClick={() => setIsReportSheetOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-brand-600 hover:bg-brand-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import "./globals.css";
 import "@/styles/print.css";
 import AppShell from "@/components/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LostFoundPopupProvider } from "@/components/providers/lost-found-popup-context";
 
 export const metadata: Metadata = {
   title: "OpenHotel PMS",
@@ -28,7 +29,9 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <LostFoundPopupProvider>
+            <AppShell>{children}</AppShell>
+          </LostFoundPopupProvider>
         </ThemeProvider>
       </body>
     </html>

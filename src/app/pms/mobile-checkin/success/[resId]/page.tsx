@@ -54,13 +54,13 @@ export default function SuccessStep() {
               <CheckCircle2 className="w-12 h-12" />
             </div>
             <h1 className="text-3xl font-black tracking-tight text-[var(--text-primary)] mb-2 uppercase">
-              Data Saved
+              In House
             </h1>
             <p className="text-[var(--text-secondary)] font-medium text-lg mb-2">
               Room {result?.room_number ?? "Updated"}
             </p>
-            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-6">
-              FO ต้องกด Check-in จาก Desktop อีกครั้ง
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 mb-6">
+              Check-in สำเร็จแล้ว และสถานะห้องเข้า In House เรียบร้อย
             </p>
           </>
         )}

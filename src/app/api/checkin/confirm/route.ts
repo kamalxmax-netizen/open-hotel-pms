@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const isDraft = Boolean(payload.force_draft || scanBelowThreshold);
+    const isDraft = Boolean(payload.force_draft || scanBelowThreshold || !completeness.is_complete);
     if (!isDraft) {
       await assertPrimaryGuestAvailableForCheckin({
         supabase: supabase as any,
