@@ -345,12 +345,12 @@ html.dark .status-closed {
 
 /* ─── Drawer ──────────────────────────────────── */
 .drawer-overlay {
-  @apply fixed inset-0 z-40 backdrop-blur-[2px];
+  @apply fixed inset-0 z-[140] backdrop-blur-[2px];
   background-color: var(--overlay-bg);
 }
 
 .drawer-panel {
-  @apply fixed inset-y-0 right-0 z-50 flex w-full max-w-[480px] flex-col shadow-2xl;
+  @apply fixed inset-y-0 right-0 z-[150] flex w-full max-w-[480px] flex-col shadow-2xl;
   background-color: var(--bg-surface);
 }
 
@@ -370,7 +370,7 @@ html.dark .status-closed {
 
 /* ─── Modal ───────────────────────────────────── */
 .modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px];
+  @apply fixed inset-0 z-[140] flex items-center justify-center p-4 backdrop-blur-[2px];
   background-color: var(--modal-overlay-bg);
 }
 
