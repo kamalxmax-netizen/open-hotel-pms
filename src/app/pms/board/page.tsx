@@ -10,6 +10,7 @@ import NightAuditPendingPopup from "@/components/night-audit-pending-popup";
 import type { DayUseRoomStatus, DayUseSettings, DayUseTimerState } from "@/lib/types";
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, getTransportAlertLevel } from "@/lib/transport-alert-settings";
 
 const RoomDrawer = dynamic(() => import("@/components/room-drawer"), {
     loading: () => null,
@@ -85,6 +86,7 @@ type ApiRoom = {
     transfer_id?: string | null;
     transfer_guest_note?: string | null;
     transfer_alert_enabled?: boolean | null;
+    transfer_alert_lead_min?: number | null;
     alert_count?: number;
     first_alert_message?: string | null;
     alert_severity?: "info" | "warning" | "critical" | null;
@@ -267,6 +269,7 @@ function mapDayUseToApiRoom(room: DayUseRoomStatus): ApiRoom {
         dayuse_reservation_status: room.current_reservation?.status ?? null,
         dayuse_expires_at: room.current_reservation?.dayuse_expires_at ?? null,
         dayuse_timer_state: room.timer_state ?? null,
+        transfer_alert_lead_min: DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
     };
 }
 
@@ -370,9 +373,10 @@ function RoomCard({
         : Math.floor((transferPickupMs - nowMs) / 1000);
     let transferAlertLevel: "yellow" | "red" | null = null;
     if (hasTransferAlertCandidate && transferSecondsToPickup !== null) {
-        if (transferSecondsToPickup < 0) transferAlertLevel = "red";
-        else if (transferSecondsToPickup <= 10 * 60) transferAlertLevel = "red";
-        else if (transferSecondsToPickup <= 30 * 60) transferAlertLevel = "yellow";
+        transferAlertLevel = getTransportAlertLevel(
+            transferSecondsToPickup,
+            room.transfer_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES
+        );
     }
     const activeAlertLevel: "yellow" | "red" | null = (
         transferAlertLevel === "red" || dayUseAlertLevel === "red"
@@ -1054,6 +1058,7 @@ export default function BoardPage() {
             transfer_id: null,
             transfer_guest_note: null,
             transfer_alert_enabled: true,
+            transfer_alert_lead_min: DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
             is_dayuse: true,
             reservation: dayUseRoom.current_reservation
                 ? {
@@ -1105,6 +1110,7 @@ export default function BoardPage() {
                 transfer_id: room.transfer_id ?? null,
                 transfer_guest_note: room.transfer_guest_note ?? null,
                 transfer_alert_enabled: room.transfer_alert_enabled ?? true,
+                transfer_alert_lead_min: room.transfer_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
                 reservation: null
             });
             return;
@@ -1137,6 +1143,7 @@ export default function BoardPage() {
                 transfer_id: room.transfer_id ?? null,
                 transfer_guest_note: room.transfer_guest_note ?? null,
                 transfer_alert_enabled: room.transfer_alert_enabled ?? true,
+                transfer_alert_lead_min: room.transfer_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
                 reservation: reservation
                     ? {
                         id: String(reservation.id),
@@ -1191,6 +1198,7 @@ export default function BoardPage() {
                 transfer_id: room.transfer_id ?? null,
                 transfer_guest_note: room.transfer_guest_note ?? null,
                 transfer_alert_enabled: room.transfer_alert_enabled ?? true,
+                transfer_alert_lead_min: room.transfer_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
                 reservation: null
             });
         }

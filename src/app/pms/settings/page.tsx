@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, MAX_TRANSPORT_ALERT_LEAD_MINUTES, TRANSPORT_ALERT_RED_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 
 type Settings = {
     hotel_name: string;
@@ -12,6 +13,7 @@ type Settings = {
     check_in_time: string;
     check_out_time: string;
     late_checkout_fee: number;
+    transport_alert_lead_min: number;
     identity_alert_under18_thai_id_enabled: boolean;
     identity_alert_under18_passport_enabled: boolean;
     identity_alert_over18_thai_id_enabled: boolean;
@@ -38,6 +40,7 @@ const DEFAULTS: Settings = {
     check_in_time: "14:00",
     check_out_time: "12:00",
     late_checkout_fee: 0,
+    transport_alert_lead_min: DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES,
     identity_alert_under18_thai_id_enabled: true,
     identity_alert_under18_passport_enabled: true,
     identity_alert_over18_thai_id_enabled: true,
@@ -59,6 +62,7 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         check_in_time: data?.check_in_time ?? "14:00",
         check_out_time: data?.check_out_time ?? "12:00",
         late_checkout_fee: data?.late_checkout_fee ?? 0,
+        transport_alert_lead_min: normalizeTransportAlertLeadMinutes(data?.transport_alert_lead_min),
         identity_alert_under18_thai_id_enabled: data?.identity_alert_under18_thai_id_enabled ?? true,
         identity_alert_under18_passport_enabled: data?.identity_alert_under18_passport_enabled ?? true,
         identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
@@ -303,6 +307,24 @@ export default function SettingsPage() {
                             <span className="absolute left-3 top-2.5 text-sm text-[var(--text-muted)]">฿</span>
                             <input type="number" min="0" step="0.01" className="form-input pl-7" value={settings.late_checkout_fee} onChange={(e) => setField("late_checkout_fee", parseFloat(e.target.value) || 0)} />
                         </div>
+                    </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Transportation Alerts</h2>
+                    <div>
+                        <label className="form-label">Alert lead time before pickup (minutes)</label>
+                        <input
+                            type="number"
+                            min={TRANSPORT_ALERT_RED_MINUTES}
+                            max={MAX_TRANSPORT_ALERT_LEAD_MINUTES}
+                            className="form-input"
+                            value={settings.transport_alert_lead_min}
+                            onChange={(e) => setField("transport_alert_lead_min", parseInt(e.target.value, 10) || DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES)}
+                        />
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                            Car and boat alerts will start this many minutes before pickup. Red alert remains fixed at {TRANSPORT_ALERT_RED_MINUTES} minutes.
+                        </p>
                     </div>
                 </div>
 

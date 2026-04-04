@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, getTransportAlertLevel, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 
 // ─── Types ────────────────────────────────────────────
 interface TransferRow {
@@ -116,12 +117,13 @@ function transferIcon(row: TransferRow): string {
     return TYPE_ICONS[row.transfer_type] ?? "🚗";
 }
 
-function getUrgencyClass(dt: string, status: string): string {
+function getUrgencyClass(dt: string, status: string, transportAlertLeadMin: number): string {
     if (["completed", "cancelled"].includes(status)) return "";
     const diffMin = (new Date(dt).getTime() - Date.now()) / 60000;
     if (diffMin < 0) return "border-l-4 border-l-red-500 bg-red-50 dark:bg-rose-500/5";
-    if (diffMin <= 10) return "border-l-4 border-l-orange-400 bg-orange-50 dark:bg-amber-500/5";
-    if (diffMin <= 30) return "border-l-4 border-l-blue-300 dark:bg-blue-500/5";
+    const alertLevel = getTransportAlertLevel(Math.floor(diffMin * 60), transportAlertLeadMin);
+    if (alertLevel === "red") return "border-l-4 border-l-orange-400 bg-orange-50 dark:bg-amber-500/5";
+    if (alertLevel === "yellow") return "border-l-4 border-l-blue-300 dark:bg-blue-500/5";
     return "";
 }
 
@@ -1030,6 +1032,7 @@ function EditTransferModal({
 export default function TransportationDailyBoard() {
     const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
     const [data, setData] = useState<DashboardData | null>(null);
+    const [transportAlertLeadMin, setTransportAlertLeadMin] = useState(DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTransfer, setEditingTransfer] = useState<TransferRow | null>(null);
@@ -1053,7 +1056,20 @@ export default function TransportationDailyBoard() {
         fetchData();
     }, [date, fetchData]);
 
+    const fetchTransportSettings = useCallback(async () => {
+        try {
+            const res = await fetch("/api/settings", { cache: "no-store" });
+            const json = await res.json();
+            if (json.success) {
+                setTransportAlertLeadMin(normalizeTransportAlertLeadMinutes(json.settings?.transport_alert_lead_min));
+            }
+        } catch {
+            setTransportAlertLeadMin(DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES);
+        }
+    }, []);
+
     useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => { fetchTransportSettings(); }, [fetchTransportSettings]);
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
@@ -1167,7 +1183,7 @@ export default function TransportationDailyBoard() {
                         </thead>
                         <tbody>
                             {data.transfers.map(t => (
-                                <tr key={t.id} className={`border-b border-[var(--border-subtle)] transition-colors hover:bg-[var(--bg-body)] ${getUrgencyClass(t.pickup_datetime, t.status)}`}>
+                                <tr key={t.id} className={`border-b border-[var(--border-subtle)] transition-colors hover:bg-[var(--bg-body)] ${getUrgencyClass(t.pickup_datetime, t.status, transportAlertLeadMin)}`}>
                                     <td className="px-4 py-3 font-mono font-bold">{formatTime(t.pickup_datetime)}</td>
                                     <td className="px-4 py-3 text-lg">{transferIcon(t)}</td>
                                     <td className="px-4 py-3">

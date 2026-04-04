@@ -2,6 +2,7 @@
 
 import Sidebar from "@/components/sidebar";
 import BugReportButton from "@/components/bug-report-button";
+import UiEventLogProvider from "@/components/ui-event-log-provider";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -59,6 +60,7 @@ export default function AppShell({
 
   return (
     <div className="app-shell">
+      <UiEventLogProvider />
       <Sidebar />
       <div className="main-content">
         <main className="page-body">{children}</main>

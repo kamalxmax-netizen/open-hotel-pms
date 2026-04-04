@@ -107,6 +107,7 @@ const NAV_ITEMS = [
             { href: "/pms/training", label: "Training", icon: BookOpenIcon },
             { href: "/pms/night-audit", label: "Night Audit", icon: MoonIcon },
             { href: "/pms/audit", label: "Audit Explorer", icon: ListIcon },
+            { href: "/pms/admin/debug-logs", label: "Debug Logs", icon: BugIcon },
             { href: "/pms/admin/corrections", label: "Admin Corrections", icon: WrenchIcon },
             { href: "/pms/audit/monthly", label: "Monthly Audit", icon: ListIcon },
             { href: "/pms/settings", label: "Settings", icon: SettingsIcon },

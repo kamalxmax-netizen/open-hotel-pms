@@ -12,6 +12,7 @@ import LateCheckoutFeeModal, { PolicyFeePayload } from "./late-checkout-fee-moda
 import { DayUseTimer } from "./dayuse-timer";
 import type { LinkedStay } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 import { LinkedStayBadge } from "./linked-stay-badge";
 import { Link as LinkIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,6 +74,7 @@ export type RoomDrawerRoom = {
     transfer_id?: string | null;
     transfer_guest_note?: string | null;
     transfer_alert_enabled?: boolean | null;
+    transfer_alert_lead_min?: number | null;
 };
 
 type DrawerHousekeepingState = {
@@ -189,18 +191,20 @@ function fmtBangkokDateTime(value: string | null | undefined) {
     }).format(d);
 }
 
-function canToggleTransferAlertNow(pickupAt: string | null | undefined) {
+function canToggleTransferAlertNow(pickupAt: string | null | undefined, leadMinutes: unknown) {
     if (!pickupAt) return false;
     const pickupMs = new Date(pickupAt).getTime();
     if (Number.isNaN(pickupMs)) return false;
-    return Date.now() >= pickupMs - 30 * 60 * 1000;
+    return Date.now() >= pickupMs - normalizeTransportAlertLeadMinutes(leadMinutes) * 60 * 1000;
 }
 
-function earliestToggleTransferAlertAt(pickupAt: string | null | undefined) {
+function earliestToggleTransferAlertAt(pickupAt: string | null | undefined, leadMinutes: unknown) {
     if (!pickupAt) return "—";
     const pickupMs = new Date(pickupAt).getTime();
     if (Number.isNaN(pickupMs)) return "—";
-    return fmtBangkokDateTime(new Date(pickupMs - 30 * 60 * 1000).toISOString());
+    return fmtBangkokDateTime(
+        new Date(pickupMs - normalizeTransportAlertLeadMinutes(leadMinutes) * 60 * 1000).toISOString()
+    );
 }
 
 function getThailandDateString(date = new Date()) {
@@ -546,7 +550,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     async function handleToggleTransferAlert() {
         if (!room.transfer_id) return;
         if (!transferAlertToggleReady) {
-            setMsg(`Alert switch is blocked until ${earliestToggleTransferAlertAt(room.transfer_pickup_at)}.`);
+            setMsg(`Alert switch is blocked until ${earliestToggleTransferAlertAt(room.transfer_pickup_at, transferAlertLeadMinutes)}.`);
             return;
         }
         const nextValue = !transferAlertEnabledLocal;
@@ -620,7 +624,10 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const disableInHouseControls = hkActionLoading !== null || housekeepingLocked;
     const noServiceAllowed = (hkView.hk_task_seq ?? 1) <= 1;
     const transferAlertEnabled = transferAlertEnabledLocal;
-    const transferAlertToggleReady = canToggleTransferAlertNow(room.transfer_pickup_at);
+    const transferAlertLeadMinutes = normalizeTransportAlertLeadMinutes(
+        room.transfer_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES
+    );
+    const transferAlertToggleReady = canToggleTransferAlertNow(room.transfer_pickup_at, transferAlertLeadMinutes);
     const editMode: "edit" | "inhouse" = diaryState === "due_in" ? "edit" : "inhouse";
     const linkedStay = res?.linked_stay ?? null;
     const displayCheckinDate = linkedStay?.full_checkin ?? res?.checkin_date ?? "";
@@ -1458,7 +1465,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                 title={
                                                     transferAlertToggleReady
                                                         ? "Toggle transfer alert ON/OFF"
-                                                        : `Switch is available at ${earliestToggleTransferAlertAt(room.transfer_pickup_at)}`
+                                                        : `Switch is available at ${earliestToggleTransferAlertAt(room.transfer_pickup_at, transferAlertLeadMinutes)}`
                                                 }
                                             >
                                                 <span
@@ -1476,8 +1483,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                 )}
                                 {canControlTransferAlert && !transferAlertToggleReady && (
                                     <p className="text-[11px] text-sky-700 dark:text-sky-400">
-                                        Alert switch is allowed 30 minutes before pickup.
-                                        Earliest: {earliestToggleTransferAlertAt(room.transfer_pickup_at)}
+                                        Alert switch is allowed {transferAlertLeadMinutes} minutes before pickup.
+                                        Earliest: {earliestToggleTransferAlertAt(room.transfer_pickup_at, transferAlertLeadMinutes)}
                                     </p>
                                 )}
                             </div>

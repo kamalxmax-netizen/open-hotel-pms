@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest } from "next/server";
 
-export type AuthUser = { id: string };
+export type AuthUser = { id: string; email?: string | null };
 
 type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
 
@@ -36,7 +36,7 @@ export async function getAuthenticatedUser(
   if (bearerToken) {
     const { data, error } = await supabase.auth.getUser(bearerToken);
     if (!error && data.user) {
-      return { id: data.user.id };
+      return { id: data.user.id, email: data.user.email ?? null };
     }
   }
 
@@ -44,13 +44,13 @@ export async function getAuthenticatedUser(
   if (cookieAuthClient) {
     const { data, error } = await cookieAuthClient.auth.getUser();
     if (!error && data.user) {
-      return { id: data.user.id };
+      return { id: data.user.id, email: data.user.email ?? null };
     }
   }
 
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
-  return { id: data.user.id };
+  return { id: data.user.id, email: data.user.email ?? null };
 }
 
 export async function getUserRole(

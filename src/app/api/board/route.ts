@@ -8,6 +8,7 @@ import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-st
 import { findPossibleReturnCandidatesByBookingNames } from "@/lib/guest-booking-names";
 import { buildReservationLoyaltyMap } from "@/lib/server-guest-loyalty";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, summarizeAlerts } from "@/lib/reservation-alerts";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 
 type HousekeepingStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
 type GuestSummary = {
@@ -104,6 +105,14 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServerSupabaseClient();
+  const { data: hotelSettings } = await supabase
+    .from("hotel_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+  const transportAlertLeadMin = normalizeTransportAlertLeadMinutes(
+    hotelSettings?.transport_alert_lead_min ?? DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES
+  );
   const date = await getBusinessDate(supabase, requestedDate);
   const currentBusinessDate = await getBusinessDate(supabase);
   const isHistoricalPastDate = date < currentBusinessDate;
@@ -943,6 +952,7 @@ export async function GET(request: NextRequest) {
       transfer_id: transferByRoomId.get(room.id)?.transfer_id ?? null,
       transfer_guest_note: transferByRoomId.get(room.id)?.guest_note ?? null,
       transfer_alert_enabled: transferByRoomId.get(room.id)?.alert_enabled ?? true,
+      transfer_alert_lead_min: transportAlertLeadMin,
     };
   });
 

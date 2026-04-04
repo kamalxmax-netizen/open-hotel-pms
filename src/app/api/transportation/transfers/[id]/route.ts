@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -125,6 +126,19 @@ function formatDateTimeInBangkok(pickupIso: string): string {
     minute: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+async function fetchTransportAlertLeadMinutes(
+  supabase: ReturnType<typeof createServerSupabaseClient>
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("hotel_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) return DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES;
+  return normalizeTransportAlertLeadMinutes(data?.transport_alert_lead_min);
 }
 
 function isBoatAlertType(transferType: string): boolean {
@@ -609,12 +623,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (Number.isNaN(pickupMs)) {
         return NextResponse.json({ success: false, error: "pickup_datetime is invalid." }, { status: 400 });
       }
-      const earliestToggleMs = pickupMs - 30 * 60 * 1000;
+      const transportAlertLeadMinutes = await fetchTransportAlertLeadMinutes(supabase);
+      const earliestToggleMs = pickupMs - transportAlertLeadMinutes * 60 * 1000;
       if (Date.now() < earliestToggleMs) {
         return NextResponse.json(
           {
             success: false,
-            error: `Alert switch is allowed only within 30 minutes before pickup (earliest ${formatDateTimeInBangkok(
+            error: `Alert switch is allowed only within ${transportAlertLeadMinutes} minutes before pickup (earliest ${formatDateTimeInBangkok(
               new Date(earliestToggleMs).toISOString()
             )} Asia/Bangkok).`,
           },
