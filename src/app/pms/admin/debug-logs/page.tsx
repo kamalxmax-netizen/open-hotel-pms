@@ -84,9 +84,9 @@ function formatMetadata(metadata: Record<string, unknown> | null): string {
 }
 
 function severityBadge(severity: string): string {
-  if (severity === "error") return "bg-rose-950/30 text-rose-200 border border-rose-800/50";
-  if (severity === "warning") return "bg-amber-950/30 text-amber-200 border border-amber-800/50";
-  return "bg-slate-800/50 text-slate-200 border border-slate-700/50";
+  if (severity === "error") return "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-800/50";
+  if (severity === "warning") return "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-800/50";
+  return "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/50 dark:text-slate-200 dark:border-slate-700/50";
 }
 
 export default function AdminDebugLogsPage() {
@@ -303,9 +303,9 @@ export default function AdminDebugLogsPage() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-sky-900/50 bg-sky-950/20 px-4 py-3 text-sm text-sky-200">
-        <p className="font-semibold text-sky-100">How this differs from Audit Explorer</p>
-        <p className="mt-1 opacity-90">
+      <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:bg-sky-950/30 dark:border-sky-900/50 dark:text-sky-200">
+        <p className="font-semibold dark:text-sky-100">How this differs from Audit Explorer</p>
+        <p className="mt-1 dark:opacity-90">
           Audit Explorer shows confirmed data changes. Debug Logs show staff actions and client-side failures between those changes, so bug trails are easier to reconstruct.
         </p>
       </div>
@@ -332,7 +332,7 @@ export default function AdminDebugLogsPage() {
       </div>
 
       {(error || message) && (
-        <div className={`rounded-lg border px-3 py-2 text-sm ${error ? "bg-rose-950/20 border-rose-900/50 text-rose-200" : "bg-emerald-950/20 border-emerald-900/50 text-emerald-200"}`}>
+        <div className={`rounded-lg border px-3 py-2 text-sm ${error ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200" : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"}`}>
           {error || message}
         </div>
       )}

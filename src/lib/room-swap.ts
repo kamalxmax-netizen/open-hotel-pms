@@ -746,16 +746,20 @@ export async function executeWholeStayRoomSwap(
   // NOTE:
   // reservation_nights has unique index (room_id, stay_date, dayuse_session) for active rows.
   // A direct two-step room update can collide on overlapping dates.
-  // We temporarily shift source dayuse_session to avoid transient key collisions during swap.
-  const SESSION_SHIFT = 100;
+  // We temporarily shift both sides' dayuse_session to avoid transient key collisions during swap.
+  const SOURCE_SESSION_SHIFT = 100;
+  const TARGET_SESSION_SHIFT = 200;
   const sourceShiftNights = sourceMovePairs.map((pair) => pair.source_night);
   const targetShiftNights = swapPairs.map((pair) => pair.target_night);
   let sourceSessionShifted = false;
+  let targetSessionShifted = false;
   const updatedSourceNightIds = new Set<string>();
   const updatedTargetNightIds = new Set<string>();
 
-  await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT, "Failed to prepare reservation for swap.");
+  await shiftNightSessions(supabase, sourceShiftNights, SOURCE_SESSION_SHIFT, "Failed to prepare source reservation for swap.");
   sourceSessionShifted = true;
+  await shiftNightSessions(supabase, targetShiftNights, TARGET_SESSION_SHIFT, "Failed to prepare target reservation for swap.");
+  targetSessionShifted = true;
 
   try {
     for (const pair of sourceMovePairs) {
@@ -778,7 +782,19 @@ export async function executeWholeStayRoomSwap(
       updatedTargetNightIds.add(pair.target_night.id);
     }
 
-    await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT * -1, "Swap succeeded but session cleanup failed.");
+    await shiftNightSessions(
+      supabase,
+      targetShiftNights,
+      TARGET_SESSION_SHIFT * -1,
+      "Swap succeeded but target session cleanup failed."
+    );
+    targetSessionShifted = false;
+    await shiftNightSessions(
+      supabase,
+      sourceShiftNights,
+      SOURCE_SESSION_SHIFT * -1,
+      "Swap succeeded but source session cleanup failed."
+    );
     sourceSessionShifted = false;
   } catch (error) {
     for (const pair of swapPairs) {
@@ -798,9 +814,28 @@ export async function executeWholeStayRoomSwap(
       }
     }
 
+    if (targetSessionShifted) {
+      try {
+        await shiftNightSessions(
+          supabase,
+          targetShiftNights,
+          TARGET_SESSION_SHIFT * -1,
+          "Rollback target session cleanup failed."
+        );
+      } catch {
+        // swallow rollback cleanup error; original swap error remains primary
+      }
+      targetSessionShifted = false;
+    }
+
     if (sourceSessionShifted) {
       try {
-        await shiftNightSessions(supabase, sourceShiftNights, SESSION_SHIFT * -1, "Rollback session cleanup failed.");
+        await shiftNightSessions(
+          supabase,
+          sourceShiftNights,
+          SOURCE_SESSION_SHIFT * -1,
+          "Rollback source session cleanup failed."
+        );
       } catch {
         // swallow rollback cleanup error; original swap error remains primary
       }
