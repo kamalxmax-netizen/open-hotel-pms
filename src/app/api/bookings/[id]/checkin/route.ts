@@ -4,6 +4,7 @@ import {
     normalizeOperatorPaymentMethod,
     resolveBusinessDate,
 } from "@/lib/folio-fees";
+import { extractBookedNameFromProfileNotes } from "@/lib/guest-name-match";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
@@ -482,10 +483,11 @@ export async function POST(
             return NextResponse.json({ error: (error as Error).message }, { status: 500 });
         }
 
+        const bookingNameForAlias = extractBookedNameFromProfileNotes(profile.notes) || reservation.guest_name;
         await syncReservationBookingNameAlias({
             supabase: supabase as any,
             guestProfileId: String(reservation.guest_profile_id),
-            bookingName: reservation.guest_name,
+            bookingName: bookingNameForAlias,
             actualName: `${String(profile.first_name ?? "").trim()} ${String(profile.last_name ?? "").trim()}`.trim(),
             sourceReservationId: reservationId,
             seenAt: checkedInAtIso,

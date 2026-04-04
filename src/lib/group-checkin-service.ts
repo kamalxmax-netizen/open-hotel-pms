@@ -1,6 +1,7 @@
 import { fromSatang, toSatang } from "@/lib/money";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { extractBookedNameFromProfileNotes } from "@/lib/guest-name-match";
 import { assertPrimaryGuestAvailableForCheckin } from "@/lib/guest-primary-checkin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -576,14 +577,16 @@ export async function runGroupMassCheckin(params: {
       try {
         const profileName = await supabase
           .from("guest_profiles")
-          .select("first_name, last_name")
+          .select("first_name, last_name, notes")
           .eq("id", guestProfileId)
           .maybeSingle();
         if (!profileName.error && profileName.data) {
+          const profileNotes = String((profileName.data as any).notes ?? "").trim();
+          const bookingNameForAlias = extractBookedNameFromProfileNotes(profileNotes) || reservation.guest_name;
           await syncReservationBookingNameAlias({
             supabase: supabase as any,
             guestProfileId,
-            bookingName: reservation.guest_name,
+            bookingName: bookingNameForAlias,
             actualName: `${String((profileName.data as any).first_name ?? "").trim()} ${String((profileName.data as any).last_name ?? "").trim()}`.trim(),
             sourceReservationId: item.reservationId,
             seenAt: checkedInAtIso,

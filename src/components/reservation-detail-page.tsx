@@ -929,6 +929,7 @@ export default function ReservationDetailPage({
 
     // Guest Info
     const [guestName, setGuestName] = useState("");
+    const [initialBookedGuestName, setInitialBookedGuestName] = useState("");
     const [phone, setPhone] = useState("");
     const [identityText, setIdentityText] = useState("");
     const [guestProfileId, setGuestProfileId] = useState<string | null>(null);
@@ -2034,6 +2035,7 @@ export default function ReservationDetailPage({
                     setUseSelectedRoomTypeForCharge(true);
                     setRoomId(res.room_id || "");
                     setGuestName(res.guest_name || "");
+                    setInitialBookedGuestName(res.guest_name || "");
                     setPhone(res.phone || "");
                     setGuestProfileId(res.guest_profile_id || null);
                     setPrefetchedPossibleReturnMatches(Array.isArray(res.possible_return_matches) ? res.possible_return_matches : []);
@@ -3021,6 +3023,17 @@ export default function ReservationDetailPage({
         const rawIdentity = profileIdNumber.trim() || identityText.trim();
         const identity = sanitizeIdentityForSubmit(rawIdentity, isProfileMasked);
         const normalizedProfileStatus = String(profileStatus || "").trim();
+        const nextProfileNotes = (() => {
+            const currentNotes = profileNotes.trim();
+            const bookedName = initialBookedGuestName.trim();
+            const actualName = guestName.trim();
+            if (!bookedName || !actualName) return currentNotes || undefined;
+            if (classifyGuestNameMatch(bookedName, actualName) !== "mismatch") {
+                return currentNotes || undefined;
+            }
+            const merged = upsertBookedMainGuestNameNote(currentNotes, bookedName);
+            return merged || undefined;
+        })();
 
             const payload: Record<string, unknown> = {
                 first_name: hasSingleNameToken ? undefined : normalizedFirstName || undefined,
@@ -3041,7 +3054,7 @@ export default function ReservationDetailPage({
             address: profileAddress.trim() || undefined,
             vip_tier: profileVipTier.trim() || undefined,
             preferences: profilePreferences.trim() || undefined,
-                notes: profileNotes.trim() || undefined,
+                notes: nextProfileNotes,
                 profile_status: normalizedProfileStatus || (mode === "checkin" ? "draft" : undefined),
                 blacklisted: profileBlacklisted,
                 reservation_id: reservationId || undefined,
@@ -3120,6 +3133,7 @@ export default function ReservationDetailPage({
         profileVipTier,
         profilePreferences,
         profileNotes,
+        initialBookedGuestName,
         profileStatus,
         profileBlacklisted,
         isProfileMasked,
