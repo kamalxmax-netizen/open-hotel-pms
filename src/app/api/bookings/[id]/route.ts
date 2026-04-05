@@ -721,6 +721,9 @@ export async function PUT(
   const previousStayDateSet = new Set(Array.from(previousNightlyByDate.keys()));
   const overlappingStayDates = nights.filter((stayDate) => previousStayDateSet.has(stayDate));
   const addedStayDates = nights.filter((stayDate) => !previousStayDateSet.has(stayDate));
+  const currentSource = String(currentReservation.source ?? "").trim();
+  const sourceChangedForPricing = currentSource !== payload.source;
+  const convertingFromOtaToNonOta = currentSource === "ota" && payload.source !== "ota";
   const previousPrimaryRoomTypeId =
     normalizedNightSnapshots.find((night) => Number.isFinite(Number(night.room_type_id ?? 0)) && Number(night.room_type_id ?? 0) > 0)
       ?.room_type_id ?? null;
@@ -748,6 +751,7 @@ export async function PUT(
   const preserveOverlappingRates =
     payload.source !== "ota" &&
     overlappingStayDates.length > 0 &&
+    !convertingFromOtaToNonOta &&
     !roomTypeChangedForPricing &&
     !(ratePlanChanged && requestedPriceChoice === "apply_rate_grid");
   const shouldWarnOtaRoomTypeChange = payload.source === "ota" && roomTypeChangedForPricing;
@@ -1154,6 +1158,7 @@ export async function PUT(
       const businessDate = toLocalDate(new Date());
       const nowIso = new Date().toISOString();
       const traceTags = [
+        sourceChangedForPricing ? `${currentSource || "unknown"}_to_${payload.source}` : null,
         roomTypeChangedForPricing ? "room_type_changed" : null,
         ratePlanChanged ? "rate_plan_changed" : null,
         addedStayDates.length > 0 ? "extended" : null,

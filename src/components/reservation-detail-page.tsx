@@ -1007,6 +1007,7 @@ export default function ReservationDetailPage({
     const [paymentMethod, setPaymentMethod] = useState("cash");
     const [paymentAmount, setPaymentAmount] = useState("");
     const [paymentNote, setPaymentNote] = useState("");
+    const [initialCheckedInAt, setInitialCheckedInAt] = useState("");
     const [dayUseExtendMinutes, setDayUseExtendMinutes] = useState<number | null>(null);
     const [dayUseExtendSettingsLoading, setDayUseExtendSettingsLoading] = useState(false);
     const [pendingCheckinPayments, setPendingCheckinPayments] = useState<PendingCheckinPayment[]>([]);
@@ -2014,6 +2015,7 @@ export default function ReservationDetailPage({
             setRoomMoveHistory([]);
             setLinkedStay(null);
             setReservationStatus("");
+            setInitialCheckedInAt("");
             setAssignedRoomLockActive(false);
             setAssignedRoomLockReason("");
             setAssignedRoomLockRoomNumber("");
@@ -2101,15 +2103,16 @@ export default function ReservationDetailPage({
                     const checkinDateBase = typeof res.checkin_date === "string" && res.checkin_date
                         ? res.checkin_date
                         : today;
-                    setCheckedInAt(
+                    const loadedCheckedInAt =
                         res.checked_in_at
                             ? formatBangkokDateTimeLocal(res.checked_in_at)
                             : mode === "checkin"
                                 ? (checkinTimeFromDraft
                                     ? `${checkinDateBase}T${checkinTimeFromDraft}`
                                     : formatBangkokDateTimeLocal(new Date()))
-                                : ""
-                    );
+                                : "";
+                    setCheckedInAt(loadedCheckedInAt);
+                    setInitialCheckedInAt(loadedCheckedInAt);
                     setOtaRef(res.ota_ref || "");
                     setNote(res.note || "");
                     setSpecials(res.specials || "");
@@ -3528,6 +3531,7 @@ export default function ReservationDetailPage({
 
             } else if (mode === "inhouse" && reservationId) {
                 const shouldUseShortenSettlement = shouldApplyShortenPolicy && checkoutDate < originalCheckoutDate;
+                const checkinTimestampChanged = checkedInAt !== initialCheckedInAt;
 
                 const payload: any = {
                     guest_name: guestName.trim(),
@@ -3536,8 +3540,6 @@ export default function ReservationDetailPage({
                     source,
                     room_id: roomId || null,
                     phone: phone.trim() || undefined,
-                    checkin_time: extractHHmmFromLocalDateTime(checkedInAt),
-                    checked_in_at: checkedInAt ? bangkokLocalToIso(checkedInAt) : null,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
                     discount_percent: discountPercent || undefined,
@@ -3552,6 +3554,10 @@ export default function ReservationDetailPage({
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (source === "ota") payload.ota_prices = nightlyRates.map(r => r.rate);
+                if (checkinTimestampChanged) {
+                    payload.checkin_time = extractHHmmFromLocalDateTime(checkedInAt);
+                    payload.checked_in_at = checkedInAt ? bangkokLocalToIso(checkedInAt) : null;
+                }
 
                 if (shouldUseShortenSettlement) {
                     const shortenRes = await fetch(`/api/bookings/${reservationId}/shorten`, {

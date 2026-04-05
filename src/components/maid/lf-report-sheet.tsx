@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X, Camera, ImagePlus, Loader2, Info } from "lucide-react";
+import { compressImageForUpload } from "@/lib/client-image-compression";
 
 interface ReportRoom {
     id: string;
@@ -64,36 +65,6 @@ export default function LfReportSheet({ isOpen, onClose, onSuccess }: LfReportSh
         setPhotoPreview(URL.createObjectURL(file));
     };
 
-    const resizeImage = (file: File): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                const maxWidth = 1200;
-                let width = img.width;
-                let height = img.height;
-
-                if (width > maxWidth) {
-                    height = Math.round((height * maxWidth) / width);
-                    width = maxWidth;
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext("2d");
-                if (!ctx) return reject(new Error("Canvas failure"));
-                
-                ctx.drawImage(img, 0, 0, width, height);
-                canvas.toBlob((blob) => {
-                    if (blob) resolve(blob);
-                    else reject(new Error("Blob conversion failed"));
-                }, "image/webp", 0.7);
-            };
-            img.onerror = reject;
-            img.src = URL.createObjectURL(file);
-        });
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -129,9 +100,9 @@ export default function LfReportSheet({ isOpen, onClose, onSuccess }: LfReportSh
 
             // 2. Resize & Upload (only if photo provided)
             if (photo) {
-                const resizedBlob = await resizeImage(photo);
+                const resizedFile = await compressImageForUpload(photo, { maxBytes: 5 * 1024 * 1024 });
                 const formData = new FormData();
-                formData.append("image", resizedBlob, "photo.webp");
+                formData.append("image", resizedFile, resizedFile.name);
                 formData.append("item_id", itemId);
 
                 const uploadRes = await fetch("/api/lost-found/upload", {
@@ -139,7 +110,10 @@ export default function LfReportSheet({ isOpen, onClose, onSuccess }: LfReportSh
                     body: formData
                 });
 
-                if (!uploadRes.ok) throw new Error("Photo upload failed");
+                if (!uploadRes.ok) {
+                    const uploadJson = await uploadRes.json().catch(() => null);
+                    throw new Error(uploadJson?.error || "Photo upload failed");
+                }
             }
 
             onSuccess();

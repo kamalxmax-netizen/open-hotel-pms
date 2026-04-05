@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Uploaded image is empty." }, { status: 400 });
     }
     if (buffer.length > getLostFoundMaxUploadBytes()) {
-      return NextResponse.json({ success: false, error: "Image is too large. Maximum file size is 2MB." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Image is too large. Maximum file size is 5MB." }, { status: 400 });
     }
 
     const current = await getLostFoundItemById(supabase, itemId);

@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 
 const LOST_FOUND_BUCKET = "lost-found-photos";
 const LOST_FOUND_ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const LOST_FOUND_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const LOST_FOUND_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
 
