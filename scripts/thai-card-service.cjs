@@ -1,3 +1,4 @@
+const http = require("http");
 const path = require("path");
 
 function safeRequire(moduleName) {
@@ -22,7 +23,174 @@ const WebSocket = safeRequire("ws");
 const PORT = Number(process.env.THAI_CARD_WS_PORT || 3001);
 const HOST = String(process.env.THAI_CARD_WS_HOST || "0.0.0.0");
 
-const wss = new WebSocket.Server({ host: HOST, port: PORT });
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderHelperPage() {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thai ID Reader Helper</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #111827; color: #f9fafb; margin: 0; padding: 20px; }
+      .card { max-width: 720px; margin: 0 auto; background: #1f2937; border: 1px solid #374151; border-radius: 16px; padding: 20px; }
+      .status { color: #cbd5e1; font-size: 14px; margin-bottom: 8px; }
+      .hint { color: #94a3b8; font-size: 12px; margin-top: 8px; }
+      .progress { height: 8px; background: #374151; border-radius: 999px; overflow: hidden; margin: 12px 0 16px; }
+      .bar { height: 100%; width: 0%; background: #4f46e5; transition: width .2s ease; }
+      .panel { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 14px; margin-top: 14px; }
+      button { border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+      button.primary { background: #4f46e5; color: white; }
+      button.secondary { background: #374151; color: #f9fafb; margin-right: 8px; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+      .ok { color: #34d399; }
+      .warn { color: #fbbf24; }
+      .err { color: #f87171; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Thai ID Reader</h1>
+      <div id="status" class="status">Connecting to local Thai Card Service...</div>
+      <div class="hint">Endpoint: <span id="endpoint"></span></div>
+      <div class="progress"><div id="bar" class="bar"></div></div>
+      <div id="details" class="panel" style="display:none"></div>
+      <div class="actions">
+        <button type="button" class="secondary" onclick="window.close()">Close</button>
+        <button id="confirm" type="button" class="primary" disabled>Confirm Import</button>
+      </div>
+    </main>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const parentOrigin = params.get("parentOrigin") || "*";
+      const target = params.get("target") === "accompany" ? "accompany" : "main";
+      const explicitWs = (params.get("ws") || "").trim();
+      const wsUrl = explicitWs || ("ws://" + window.location.host);
+      const endpointEl = document.getElementById("endpoint");
+      const statusEl = document.getElementById("status");
+      const detailsEl = document.getElementById("details");
+      const barEl = document.getElementById("bar");
+      const confirmBtn = document.getElementById("confirm");
+      let cardData = null;
+      endpointEl.textContent = wsUrl;
+
+      function setStatus(text, cls) {
+        statusEl.textContent = text;
+        statusEl.className = "status " + (cls || "");
+      }
+
+      function setProgress(value) {
+        barEl.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + "%";
+      }
+
+      function postToParent(message) {
+        if (!window.opener) return;
+        window.opener.postMessage(message, parentOrigin);
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      const socket = new WebSocket(wsUrl);
+      socket.onopen = () => {
+        setStatus("Connected. Waiting for reader/card...", "ok");
+        postToParent({ type: "PMS_THAI_CARD_WS_ENDPOINT", endpoint: wsUrl });
+      };
+      socket.onmessage = (event) => {
+        let payload = null;
+        try { payload = JSON.parse(String(event.data)); } catch {}
+        if (!payload || !payload.event) return;
+        if (payload.event === "service_status" && payload.status === "pcsc_unavailable") {
+          setStatus("Service connected, but card daemon/reader is unavailable.", "warn");
+          return;
+        }
+        if (payload.event === "reader_ready") {
+          setStatus("Reader ready. Insert card.", "ok");
+          return;
+        }
+        if (payload.event === "card_inserted") {
+          cardData = null;
+          confirmBtn.disabled = true;
+          detailsEl.style.display = "none";
+          setProgress(0);
+          setStatus("Card inserted. Reading...", "ok");
+          return;
+        }
+        if (payload.event === "progress") {
+          const step = Number(payload.step || 0);
+          const total = Number(payload.total || 0);
+          const pct = total > 0 ? Math.round((step / total) * 100) : 0;
+          setProgress(pct);
+          setStatus("Reading... " + pct + "%", "ok");
+          return;
+        }
+        if (payload.event === "card_data") {
+          cardData = payload;
+          confirmBtn.disabled = false;
+          setProgress(100);
+          setStatus("Read complete. Confirm to import.", "ok");
+          detailsEl.style.display = "block";
+          detailsEl.innerHTML =
+            "<div><strong>Citizen ID:</strong> " + escapeHtml(payload.citizenId || "-") + "</div>" +
+            "<div><strong>Thai Name:</strong> " + escapeHtml([payload.titleTH, payload.firstNameTH, payload.lastNameTH].filter(Boolean).join(" ") || "-") + "</div>" +
+            "<div><strong>English Name:</strong> " + escapeHtml([payload.titleEN, payload.firstNameEN, payload.lastNameEN].filter(Boolean).join(" ") || "-") + "</div>";
+          return;
+        }
+        if (payload.event === "card_removed") {
+          cardData = null;
+          confirmBtn.disabled = true;
+          detailsEl.style.display = "none";
+          setProgress(0);
+          setStatus("Card removed. Insert card.", "warn");
+        }
+      };
+      socket.onerror = () => setStatus("Unable to connect to local Thai Card Service.", "err");
+      socket.onclose = () => {
+        if (!cardData) setStatus("Local Thai Card Service disconnected.", "err");
+      };
+
+      confirmBtn.addEventListener("click", () => {
+        if (!cardData) return;
+        postToParent({ type: "PMS_THAI_CARD_CONFIRMED", target, payload: cardData });
+        window.close();
+      });
+    </script>
+  </body>
+</html>`;
+}
+
+const server = http.createServer((req, res) => {
+  const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `127.0.0.1:${PORT}`}`);
+  if (requestUrl.pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+  if (requestUrl.pathname === "/smart-card-helper") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(renderHelperPage());
+    return;
+  }
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Not found");
+});
+
+const wss = new WebSocket.Server({ server });
 let reader = null;
 let retryTimer = null;
 
@@ -69,8 +237,11 @@ function extractThaiProvince(rawAddress, explicitProvince) {
   return extractLastProvinceToken(explicitProvince);
 }
 
-console.log("[thai-card-service] waiting for reader...");
-console.log(`[thai-card-service] websocket at ws://${HOST}:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log("[thai-card-service] waiting for reader...");
+  console.log(`[thai-card-service] websocket at ws://${HOST}:${PORT}`);
+  console.log(`[thai-card-service] helper page at http://${HOST === "0.0.0.0" ? "127.0.0.1" : HOST}:${PORT}/smart-card-helper`);
+});
 
 wss.on("connection", (_socket, req) => {
   const remote = req && req.socket ? req.socket.remoteAddress : "unknown";

@@ -1211,8 +1211,22 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     const savedWs = window.localStorage.getItem("pms.smartcard.wsEndpoint");
     const params = new URLSearchParams({ popup: "1", target: "main", t: String(Date.now()) });
     if (savedWs) params.set("ws", savedWs);
+    let popupUrl = `${window.location.origin}/smart-card?${params.toString()}`;
+    if (window.location.protocol === "https:") {
+      let helperOrigin = "http://127.0.0.1:3001";
+      if (savedWs) {
+        try {
+          const wsUrl = new URL(savedWs);
+          helperOrigin = `${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`;
+        } catch {
+          helperOrigin = "http://127.0.0.1:3001";
+        }
+      }
+      params.set("parentOrigin", window.location.origin);
+      popupUrl = `${helperOrigin}/smart-card-helper?${params.toString()}`;
+    }
     const popup = window.open(
-      `${window.location.origin}/smart-card?${params.toString()}`,
+      popupUrl,
       "pms-group-thai-card-reader",
       "popup=yes,width=820,height=760,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
     );
@@ -1240,7 +1254,17 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      const savedWs = typeof window !== "undefined" ? window.localStorage.getItem("pms.smartcard.wsEndpoint") : "";
+      const allowedOrigins = new Set([window.location.origin, "http://127.0.0.1:3001", "http://localhost:3001"]);
+      if (savedWs) {
+        try {
+          const wsUrl = new URL(savedWs);
+          allowedOrigins.add(`${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`);
+        } catch {
+          // ignore invalid saved endpoint
+        }
+      }
+      if (!allowedOrigins.has(event.origin)) return;
       const data = event.data as {
         type?: string;
         payload?: ThaiCardImportPayload | PassportOcrImportPayload;

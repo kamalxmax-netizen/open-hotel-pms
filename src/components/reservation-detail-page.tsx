@@ -1817,7 +1817,22 @@ export default function ReservationDetailPage({
             t: String(Date.now())
         });
         if (savedWs) params.set("ws", savedWs);
-        const url = `${window.location.origin}/smart-card?${params.toString()}`;
+        const buildHelperUrl = () => {
+            if (window.location.protocol !== "https:") return `${window.location.origin}/smart-card?${params.toString()}`;
+            let helperOrigin = "http://127.0.0.1:3001";
+            if (savedWs) {
+                try {
+                    const wsUrl = new URL(savedWs);
+                    helperOrigin = `${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`;
+                } catch {
+                    helperOrigin = "http://127.0.0.1:3001";
+                }
+            }
+            const helperParams = new URLSearchParams(params);
+            helperParams.set("parentOrigin", window.location.origin);
+            return `${helperOrigin}/smart-card-helper?${helperParams.toString()}`;
+        };
+        const url = buildHelperUrl();
         const popup = window.open(
             url,
             "pms-thai-card-reader",
@@ -1859,7 +1874,17 @@ export default function ReservationDetailPage({
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
-            if (event.origin !== window.location.origin) return;
+            const savedWs = typeof window !== "undefined" ? window.localStorage.getItem("pms.smartcard.wsEndpoint") : "";
+            const allowedOrigins = new Set([window.location.origin, "http://127.0.0.1:3001", "http://localhost:3001"]);
+            if (savedWs) {
+                try {
+                    const wsUrl = new URL(savedWs);
+                    allowedOrigins.add(`${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`);
+                } catch {
+                    // ignore invalid stored endpoint
+                }
+            }
+            if (!allowedOrigins.has(event.origin)) return;
             const data = event.data as {
                 type?: string;
                 payload?: ThaiCardImportPayload | PassportOcrImportPayload;
