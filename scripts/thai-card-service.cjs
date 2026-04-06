@@ -97,6 +97,13 @@ function renderHelperPage() {
         window.opener.postMessage(message, parentOrigin);
       }
 
+      function completeAndClose(payload) {
+        if (!payload || !window.opener) return;
+        postToParent({ type: "PMS_THAI_CARD_CONFIRMED", target, payload });
+        setStatus("Read complete. Sending data...", "ok");
+        setTimeout(() => window.close(), 120);
+      }
+
       function escapeHtml(value) {
         return String(value || "")
           .replace(/&/g, "&amp;")
@@ -149,6 +156,7 @@ function renderHelperPage() {
             "<div><strong>Citizen ID:</strong> " + escapeHtml(payload.citizenId || "-") + "</div>" +
             "<div><strong>Thai Name:</strong> " + escapeHtml([payload.titleTH, payload.firstNameTH, payload.lastNameTH].filter(Boolean).join(" ") || "-") + "</div>" +
             "<div><strong>English Name:</strong> " + escapeHtml([payload.titleEN, payload.firstNameEN, payload.lastNameEN].filter(Boolean).join(" ") || "-") + "</div>";
+          completeAndClose(payload);
           return;
         }
         if (payload.event === "card_removed") {
@@ -166,8 +174,7 @@ function renderHelperPage() {
 
       confirmBtn.addEventListener("click", () => {
         if (!cardData) return;
-        postToParent({ type: "PMS_THAI_CARD_CONFIRMED", target, payload: cardData });
-        window.close();
+        completeAndClose(cardData);
       });
     </script>
   </body>

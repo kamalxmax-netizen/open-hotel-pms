@@ -101,6 +101,7 @@ export default function SmartCardPopup() {
   const [isHttpsPage, setIsHttpsPage] = useState(false);
   const [endpointInput, setEndpointInput] = useState("");
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoConfirmedRef = useRef(false);
 
   const saveEndpoint = (value: string) => {
     const next = String(value || "").trim();
@@ -219,7 +220,19 @@ export default function SmartCardPopup() {
           setCardData(nextData);
           setReaderState("done");
           setProgress(100);
-          setStatusText("Read complete. Confirm to import.");
+          setStatusText("Read complete. Sending data...");
+          if (!autoConfirmedRef.current && window.opener) {
+            autoConfirmedRef.current = true;
+            window.opener.postMessage(
+              {
+                type: "PMS_THAI_CARD_CONFIRMED",
+                target: importTarget,
+                payload: nextData,
+              },
+              window.location.origin
+            );
+            window.setTimeout(() => window.close(), 120);
+          }
           return;
         }
 
@@ -273,6 +286,7 @@ export default function SmartCardPopup() {
 
   const handleConfirm = () => {
     if (!cardData || !window.opener) return;
+    autoConfirmedRef.current = true;
     window.opener.postMessage(
       {
         type: "PMS_THAI_CARD_CONFIRMED",
