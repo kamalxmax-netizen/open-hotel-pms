@@ -670,6 +670,15 @@ function closeChildPopup(popup: Window | null) {
     window.setTimeout(attemptClose, 500);
 }
 
+function notifyPopupToClose(source: MessageEventSource | null, origin: string) {
+    if (!source || typeof (source as WindowProxy).postMessage !== "function") return;
+    try {
+        (source as WindowProxy).postMessage({ type: "PMS_THAI_CARD_IMPORTED" }, origin);
+    } catch {
+        // ignore cross-window failures
+    }
+}
+
 function normalizePassportNumber(value: unknown): string {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -1918,6 +1927,7 @@ export default function ReservationDetailPage({
             }
             if (!data.payload) return;
             if (data.type === "PMS_THAI_CARD_CONFIRMED") {
+                notifyPopupToClose(event.source, event.origin);
                 closeChildPopup(thaiCardPopupRef.current);
                 thaiCardPopupRef.current = null;
                 if (data.target === "accompany") {

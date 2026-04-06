@@ -50,6 +50,15 @@ function closeChildPopup(popup: Window | null) {
   window.setTimeout(attemptClose, 500);
 }
 
+function notifyPopupToClose(source: MessageEventSource | null, origin: string) {
+  if (!source || typeof (source as WindowProxy).postMessage !== "function") return;
+  try {
+    (source as WindowProxy).postMessage({ type: "PMS_THAI_CARD_IMPORTED" }, origin);
+  } catch {
+    // ignore cross-window failures
+  }
+}
+
 type WizardPartyGuest = {
   guest_profile_id: string;
   display_name: string;
@@ -1295,6 +1304,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       void (async () => {
         try {
           if (data.type === "PMS_THAI_CARD_CONFIRMED") {
+            notifyPopupToClose(event.source, event.origin);
             closeChildPopup(thaiCardPopupRef.current);
             thaiCardPopupRef.current = null;
             const item = await ingestIdentityToPool({

@@ -100,6 +100,12 @@ function closePopupWindow() {
   window.setTimeout(attemptClose, 500);
 }
 
+function shouldCloseFromMessage(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const type = "type" in data ? String((data as { type?: unknown }).type || "") : "";
+  return type === "PMS_THAI_CARD_IMPORTED" || type === "PMS_THAI_CARD_CLOSE";
+}
+
 export default function SmartCardPopup() {
   const importTarget =
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("target") === "accompany"
@@ -167,6 +173,17 @@ export default function SmartCardPopup() {
     setWsEndpoints(nextEndpoints);
     if (nextEndpoints.length > 0) setEndpoint(nextEndpoints[0]);
     if (savedWs) setEndpointInput(savedWs);
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (!shouldCloseFromMessage(event.data)) return;
+      closePopupWindow();
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   useEffect(() => {
