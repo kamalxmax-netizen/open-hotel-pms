@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { logUiEvent } from "@/lib/ui-event-log-client";
 
 type ReaderState = "connecting" | "waiting" | "reading" | "done" | "error";
 
@@ -100,17 +101,32 @@ function closePopupWindow() {
   window.setTimeout(attemptClose, 500);
 }
 
-function shouldCloseFromMessage(data: unknown): boolean {
+function shouldCloseFromMessage(data: unknown, requestId?: string): boolean {
   if (!data || typeof data !== "object") return false;
   const type = "type" in data ? String((data as { type?: unknown }).type || "") : "";
+  const messageRequestId =
+    "requestId" in (data as Record<string, unknown>)
+      ? String((data as { requestId?: unknown }).requestId || "")
+      : "";
+  if (requestId && messageRequestId && messageRequestId !== requestId) return false;
   return type === "PMS_THAI_CARD_IMPORTED" || type === "PMS_THAI_CARD_CLOSE";
 }
 
+function publishSmartCardChannelMessage(message: Record<string, unknown>) {
+  if (typeof window === "undefined" || typeof window.BroadcastChannel === "undefined") return;
+  try {
+    const channel = new window.BroadcastChannel("pms-smart-card");
+    channel.postMessage(message);
+    channel.close();
+  } catch {
+    // ignore broadcast failures
+  }
+}
+
 export default function SmartCardPopup() {
-  const importTarget =
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("target") === "accompany"
-      ? "accompany"
-      : "main";
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const importTarget = searchParams?.get("target") === "accompany" ? "accompany" : "main";
+  const requestId = searchParams?.get("request_id") || searchParams?.get("t") || "";
   const [wsEndpoints, setWsEndpoints] = useState<string[]>(["ws://127.0.0.1:3001", "ws://localhost:3001"]);
   const [readerState, setReaderState] = useState<ReaderState>("connecting");
   const [statusText, setStatusText] = useState("Connecting to Thai Card Service...");
@@ -123,6 +139,24 @@ export default function SmartCardPopup() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoConfirmedRef = useRef(false);
   const readingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const trace = (eventName: string, message?: string, metadata?: Record<string, unknown>, severity: "info" | "warning" | "error" = "info") => {
+    logUiEvent({
+      pathname: window.location.pathname,
+      event_type: "smart_card",
+      event_name: eventName,
+      severity,
+      request_id: requestId || null,
+      entity_type: "smart_card_popup",
+      entity_id: importTarget,
+      message: message ? `${message}${requestId ? ` [${requestId}]` : ""}` : (requestId ? `[${requestId}]` : null),
+      metadata: {
+        target: importTarget,
+        request_id: requestId || null,
+        ...metadata,
+      },
+    });
+  };
 
   const clearReadingTimeout = () => {
     if (readingTimeoutRef.current) {
@@ -158,6 +192,7 @@ export default function SmartCardPopup() {
   };
 
   useEffect(() => {
+    trace("popup_loaded", "Smart card popup loaded");
     setIsHttpsPage(window.location.protocol === "https:");
     const queryWs = new URLSearchParams(window.location.search).get("ws");
     let savedWs = "";
@@ -178,13 +213,27 @@ export default function SmartCardPopup() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      if (!shouldCloseFromMessage(event.data)) return;
+      if (!shouldCloseFromMessage(event.data, requestId)) return;
+      trace("popup_close_message_received", "Popup received close message", { source: "postMessage" });
       closePopupWindow();
     };
 
+    let channel: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && typeof window.BroadcastChannel !== "undefined") {
+      channel = new window.BroadcastChannel("pms-smart-card");
+      channel.onmessage = (event) => {
+        if (!shouldCloseFromMessage(event.data, requestId)) return;
+        trace("popup_close_message_received", "Popup received close message", { source: "broadcast_channel" });
+        closePopupWindow();
+      };
+    }
+
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      channel?.close();
+    };
+  }, [requestId]);
 
   useEffect(() => {
     if (wsEndpoints.length === 0) return;
@@ -205,6 +254,7 @@ export default function SmartCardPopup() {
         setReaderState("waiting");
         setStatusText("Connected. Waiting for reader/card...");
         saveEndpoint(selectedEndpoint);
+        trace("popup_ws_connected", "Popup websocket connected", { endpoint: selectedEndpoint });
       };
 
       ws.onmessage = (event) => {
@@ -215,6 +265,7 @@ export default function SmartCardPopup() {
           payload = null;
         }
         if (!payload?.event) return;
+        if (autoConfirmedRef.current && payload.event !== "service_status") return;
 
         if (payload.event === "service_status") {
           const serviceStatus = String(payload.status || "");
@@ -238,6 +289,7 @@ export default function SmartCardPopup() {
           setStatusText("Card inserted. Reading...");
           autoConfirmedRef.current = false;
           armReadingTimeout();
+          trace("popup_card_inserted", "Card inserted");
           return;
         }
 
@@ -249,6 +301,9 @@ export default function SmartCardPopup() {
           setProgress(pct);
           setStatusText(`Reading... ${pct}%`);
           armReadingTimeout();
+          if (pct >= 100) {
+            trace("popup_progress_100", "Popup reached 100% progress", { step, total });
+          }
           return;
         }
 
@@ -274,28 +329,36 @@ export default function SmartCardPopup() {
           setReaderState("done");
           setProgress(100);
           setStatusText("Read complete. Sending data...");
-          if (!autoConfirmedRef.current && window.opener) {
+          trace("popup_card_data_received", "Popup received complete card data", {
+            citizen_id_suffix: nextData.citizenId.slice(-4),
+          });
+          if (!autoConfirmedRef.current) {
             autoConfirmedRef.current = true;
-            window.opener.postMessage(
-              {
-                type: "PMS_THAI_CARD_CONFIRMED",
-                target: importTarget,
-                payload: nextData,
-              },
-              window.location.origin
-            );
+            const message = {
+              type: "PMS_THAI_CARD_CONFIRMED",
+              target: importTarget,
+              requestId,
+              payload: nextData,
+            };
+            if (window.opener) {
+              window.opener.postMessage(message, window.location.origin);
+              trace("popup_confirm_sent", "Popup sent confirm to opener", { channel: "postMessage" });
+            }
+            publishSmartCardChannelMessage(message);
+            trace("popup_confirm_sent", "Popup sent confirm to opener", { channel: "broadcast_channel" });
             closePopupWindow();
           }
           return;
         }
 
-        if (payload.event === "reading_fail" || payload.event === "device_error") {
+        if (payload.event === "reading_fail" || payload.event === "device_error" || payload.event === "error") {
           clearReadingTimeout();
           setReaderState("error");
           setProgress(0);
           setCardData(null);
           setStatusText(String(payload.message || "Unable to read card. Please try again."));
           autoConfirmedRef.current = false;
+          trace("popup_reader_error", String(payload.message || "Unable to read card."), { event: payload.event }, "error");
           return;
         }
 
@@ -317,6 +380,9 @@ export default function SmartCardPopup() {
         setSocketConnected(false);
         setReaderState("error");
         setStatusText(`Disconnected from ${selectedEndpoint}. Retrying...`);
+        if (!autoConfirmedRef.current) {
+          trace("popup_ws_closed", "Popup websocket closed before completion", { endpoint: selectedEndpoint }, "warning");
+        }
         if (closed) return;
         reconnectTimerRef.current = setTimeout(() => connect(nextIndex + 1), 1500);
       };

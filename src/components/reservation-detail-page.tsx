@@ -31,6 +31,7 @@ import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
+import { logUiEvent } from "@/lib/ui-event-log-client";
 import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -679,6 +680,62 @@ function notifyPopupToClose(source: MessageEventSource | null, origin: string) {
     }
 }
 
+function broadcastSmartCardClose(requestId?: string | null) {
+    if (typeof window === "undefined" || typeof window.BroadcastChannel === "undefined") return;
+    try {
+        const channel = new window.BroadcastChannel("pms-smart-card");
+        channel.postMessage({ type: "PMS_THAI_CARD_CLOSE", requestId: requestId || undefined });
+        channel.close();
+    } catch {
+        // ignore broadcast failures
+    }
+}
+
+function forceClosePopup(popup: Window | null, requestId?: string | null) {
+    broadcastSmartCardClose(requestId);
+    if (!popup || popup.closed) return;
+    const attemptClose = () => {
+        try {
+            popup.close();
+        } catch {
+            // ignore close failures
+        }
+    };
+    attemptClose();
+    window.setTimeout(attemptClose, 150);
+    window.setTimeout(attemptClose, 500);
+}
+
+function runAfterPopupCloseSettle(callback: () => void, delayMs = 250) {
+    if (typeof window === "undefined") {
+        callback();
+        return;
+    }
+    window.setTimeout(callback, delayMs);
+}
+
+function traceSmartCardUiEvent(params: {
+    requestId?: string | null;
+    reservationId?: string | null;
+    eventName: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    severity?: "info" | "warning" | "error";
+}) {
+    if (typeof window === "undefined") return;
+    logUiEvent({
+        pathname: window.location.pathname,
+        event_type: "smart_card",
+        event_name: params.eventName,
+        severity: params.severity ?? "info",
+        entity_type: "reservation",
+        entity_id: params.reservationId ?? null,
+        request_id: params.requestId ?? null,
+        message: params.requestId ? `${params.message} [${params.requestId}]` : params.message,
+        metadata: params.metadata,
+    });
+}
+
 function normalizePassportNumber(value: unknown): string {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -918,6 +975,8 @@ export default function ReservationDetailPage({
     const [showAssignRoomModal, setShowAssignRoomModal] = useState(false);
     const rateRefreshSeqRef = useRef(0);
     const thaiCardPopupRef = useRef<Window | null>(null);
+    const thaiCardRequestIdRef = useRef<string | null>(null);
+    const processedSmartCardRequestIdsRef = useRef<Set<string>>(new Set());
 
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -1835,10 +1894,12 @@ export default function ReservationDetailPage({
     const openThaiCardReader = useCallback((target: IdentityImportTarget = "main") => {
         if (typeof window === "undefined") return;
         const savedWs = window.localStorage.getItem("pms.smartcard.wsEndpoint");
+        const requestId = `thai-card-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const params = new URLSearchParams({
             popup: "1",
             target,
-            t: String(Date.now())
+            t: String(Date.now()),
+            request_id: requestId,
         });
         if (savedWs) params.set("ws", savedWs);
         const buildHelperUrl = () => {
@@ -1866,7 +1927,20 @@ export default function ReservationDetailPage({
             setError("Popup blocked. Please allow popups and try again.");
             return;
         }
+        processedSmartCardRequestIdsRef.current.delete(requestId);
+        thaiCardRequestIdRef.current = requestId;
         thaiCardPopupRef.current = popup;
+        traceSmartCardUiEvent({
+            requestId,
+            reservationId: reservationId ?? null,
+            eventName: "parent_popup_opened",
+            message: `Opened smart card popup for ${target}`,
+            metadata: {
+                target,
+                flow: window.location.protocol === "https:" ? "helper" : "local_popup",
+                popup_url: url,
+            },
+        });
         popup.focus();
     }, []);
 
@@ -1898,6 +1972,153 @@ export default function ReservationDetailPage({
     }, [reservationId]);
 
     useEffect(() => {
+        const handleSmartCardConfirmed = (data: {
+            type?: string;
+            payload?: ThaiCardImportPayload | PassportOcrImportPayload;
+            endpoint?: string;
+            target?: IdentityImportTarget;
+            requestId?: string;
+        } | null, eventSource?: MessageEventSource | null, eventOrigin?: string) => {
+            if (!data) return;
+            if (data.type === "PMS_THAI_CARD_WS_ENDPOINT" && data.endpoint) {
+                traceSmartCardUiEvent({
+                    requestId: data.requestId ?? thaiCardRequestIdRef.current,
+                    reservationId: reservationId ?? null,
+                    eventName: "parent_ws_endpoint_received",
+                    message: "Parent received smart card websocket endpoint",
+                    metadata: { endpoint: data.endpoint },
+                });
+                try {
+                    window.localStorage.setItem("pms.smartcard.wsEndpoint", data.endpoint);
+                } catch {
+                    // ignore storage failures
+                }
+                return;
+            }
+            if (!data.payload) return;
+            if (data.type !== "PMS_THAI_CARD_CONFIRMED" && data.type !== "PMS_PASSPORT_OCR_CONFIRMED") return;
+            if (data.requestId && thaiCardRequestIdRef.current && data.requestId !== thaiCardRequestIdRef.current) {
+                return;
+            }
+            if (data.requestId && processedSmartCardRequestIdsRef.current.has(data.requestId)) {
+                traceSmartCardUiEvent({
+                    requestId: data.requestId,
+                    reservationId: reservationId ?? null,
+                    eventName: "parent_confirm_ignored_duplicate",
+                    message: `Ignored duplicate ${data.type}`,
+                    metadata: {
+                        source: eventOrigin ? "postMessage" : "broadcast_channel",
+                        target: data.target ?? "main",
+                    },
+                    severity: "warning",
+                });
+                return;
+            }
+            if (data.requestId) {
+                processedSmartCardRequestIdsRef.current.add(data.requestId);
+            }
+            traceSmartCardUiEvent({
+                requestId: data.requestId ?? thaiCardRequestIdRef.current,
+                reservationId: reservationId ?? null,
+                eventName: "parent_confirm_received",
+                message: `Parent received ${data.type}`,
+                metadata: {
+                    source: eventOrigin ? "postMessage" : "broadcast_channel",
+                    target: data.target ?? "main",
+                },
+            });
+            if (data.type === "PMS_THAI_CARD_CONFIRMED" && eventOrigin) {
+                notifyPopupToClose(eventSource ?? null, eventOrigin);
+            }
+            traceSmartCardUiEvent({
+                requestId: data.requestId ?? thaiCardRequestIdRef.current,
+                reservationId: reservationId ?? null,
+                eventName: "parent_force_close_sent",
+                message: "Parent requested popup close",
+                metadata: { target: data.target ?? "main" },
+            });
+            forceClosePopup(thaiCardPopupRef.current, data.requestId || thaiCardRequestIdRef.current);
+            thaiCardPopupRef.current = null;
+            thaiCardRequestIdRef.current = null;
+            if (data.type === "PMS_THAI_CARD_CONFIRMED") {
+                if (data.target === "accompany") {
+                    traceSmartCardUiEvent({
+                        requestId: data.requestId ?? null,
+                        reservationId: reservationId ?? null,
+                        eventName: "parent_ingest_deferred",
+                        message: "Delaying accompany Thai card ingest until popup close settles",
+                        metadata: { target: "accompany" },
+                    });
+                    runAfterPopupCloseSettle(() => {
+                        traceSmartCardUiEvent({
+                            requestId: data.requestId ?? null,
+                            reservationId: reservationId ?? null,
+                            eventName: "parent_ingest_started",
+                            message: "Starting accompany Thai card ingest",
+                            metadata: { target: "accompany" },
+                        });
+                        void handlePartyThaiCardConfirmed(data.payload as ThaiCardImportPayload);
+                    });
+                    return;
+                }
+                traceSmartCardUiEvent({
+                    requestId: data.requestId ?? null,
+                    reservationId: reservationId ?? null,
+                    eventName: "parent_ingest_deferred",
+                    message: "Delaying main Thai card ingest until popup close settles",
+                    metadata: { target: "main" },
+                });
+                runAfterPopupCloseSettle(() => {
+                    traceSmartCardUiEvent({
+                        requestId: data.requestId ?? null,
+                        reservationId: reservationId ?? null,
+                        eventName: "parent_ingest_started",
+                        message: "Starting main Thai card ingest",
+                        metadata: { target: "main" },
+                    });
+                    void handleThaiCardConfirmed(data.payload as ThaiCardImportPayload);
+                });
+                return;
+            }
+            if (data.target === "accompany") {
+                traceSmartCardUiEvent({
+                    requestId: data.requestId ?? null,
+                    reservationId: reservationId ?? null,
+                    eventName: "parent_ingest_deferred",
+                    message: "Delaying accompany passport ingest until popup close settles",
+                    metadata: { target: "accompany" },
+                });
+                runAfterPopupCloseSettle(() => {
+                    traceSmartCardUiEvent({
+                        requestId: data.requestId ?? null,
+                        reservationId: reservationId ?? null,
+                        eventName: "parent_ingest_started",
+                        message: "Starting accompany passport ingest",
+                        metadata: { target: "accompany" },
+                    });
+                    void handlePartyPassportOcrConfirmed(data.payload as PassportOcrImportPayload);
+                });
+                return;
+            }
+            traceSmartCardUiEvent({
+                requestId: data.requestId ?? null,
+                reservationId: reservationId ?? null,
+                eventName: "parent_ingest_deferred",
+                message: "Delaying main passport ingest until popup close settles",
+                metadata: { target: "main" },
+            });
+            runAfterPopupCloseSettle(() => {
+                traceSmartCardUiEvent({
+                    requestId: data.requestId ?? null,
+                    reservationId: reservationId ?? null,
+                    eventName: "parent_ingest_started",
+                    message: "Starting main passport ingest",
+                    metadata: { target: "main" },
+                });
+                void handlePassportOcrConfirmed(data.payload as PassportOcrImportPayload);
+            });
+        };
+
         const handleMessage = (event: MessageEvent) => {
             const savedWs = typeof window !== "undefined" ? window.localStorage.getItem("pms.smartcard.wsEndpoint") : "";
             const allowedOrigins = new Set([window.location.origin, "http://127.0.0.1:3001", "http://localhost:3001"]);
@@ -1910,43 +2131,33 @@ export default function ReservationDetailPage({
                 }
             }
             if (!allowedOrigins.has(event.origin)) return;
-            const data = event.data as {
+            handleSmartCardConfirmed(event.data as {
                 type?: string;
                 payload?: ThaiCardImportPayload | PassportOcrImportPayload;
                 endpoint?: string;
                 target?: IdentityImportTarget;
-            } | null;
-            if (!data) return;
-            if (data.type === "PMS_THAI_CARD_WS_ENDPOINT" && data.endpoint) {
-                try {
-                    window.localStorage.setItem("pms.smartcard.wsEndpoint", data.endpoint);
-                } catch {
-                    // ignore storage failures
-                }
-                return;
-            }
-            if (!data.payload) return;
-            if (data.type === "PMS_THAI_CARD_CONFIRMED") {
-                notifyPopupToClose(event.source, event.origin);
-                closeChildPopup(thaiCardPopupRef.current);
-                thaiCardPopupRef.current = null;
-                if (data.target === "accompany") {
-                    void handlePartyThaiCardConfirmed(data.payload as ThaiCardImportPayload);
-                    return;
-                }
-                void handleThaiCardConfirmed(data.payload as ThaiCardImportPayload);
-                return;
-            }
-            if (data.type === "PMS_PASSPORT_OCR_CONFIRMED") {
-                if (data.target === "accompany") {
-                    void handlePartyPassportOcrConfirmed(data.payload as PassportOcrImportPayload);
-                    return;
-                }
-                void handlePassportOcrConfirmed(data.payload as PassportOcrImportPayload);
-            }
+                requestId?: string;
+            } | null, event.source, event.origin);
         };
+
+        let smartCardChannel: BroadcastChannel | null = null;
+        if (typeof window !== "undefined" && typeof window.BroadcastChannel !== "undefined") {
+            smartCardChannel = new window.BroadcastChannel("pms-smart-card");
+            smartCardChannel.onmessage = (event) => {
+                handleSmartCardConfirmed(event.data as {
+                    type?: string;
+                    payload?: ThaiCardImportPayload | PassportOcrImportPayload;
+                    endpoint?: string;
+                    target?: IdentityImportTarget;
+                    requestId?: string;
+                } | null);
+            };
+        }
         window.addEventListener("message", handleMessage);
-        return () => window.removeEventListener("message", handleMessage);
+        return () => {
+            window.removeEventListener("message", handleMessage);
+            smartCardChannel?.close();
+        };
     }, [handlePartyPassportOcrConfirmed, handlePartyThaiCardConfirmed, handlePassportOcrConfirmed, handleThaiCardConfirmed]);
 
     useEffect(() => {

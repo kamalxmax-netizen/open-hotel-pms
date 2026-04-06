@@ -95,11 +95,31 @@ function renderHelperPage() {
         window.opener.postMessage(message, parentOrigin);
       }
 
+      function closePopupWindow() {
+        const attemptClose = () => {
+          try {
+            window.close();
+          } catch {
+            // ignore close failures
+          }
+        };
+
+        attemptClose();
+        window.setTimeout(attemptClose, 150);
+        window.setTimeout(attemptClose, 500);
+      }
+
+      function shouldCloseFromMessage(data) {
+        if (!data || typeof data !== "object") return false;
+        const type = "type" in data ? String((data && data.type) || "") : "";
+        return type === "PMS_THAI_CARD_IMPORTED" || type === "PMS_THAI_CARD_CLOSE";
+      }
+
       function completeAndClose(payload) {
         if (!payload || !window.opener) return;
         postToParent({ type: "PMS_THAI_CARD_CONFIRMED", target, payload });
         setStatus("Read complete. Sending data...", "ok");
-        setTimeout(() => window.close(), 120);
+        window.setTimeout(closePopupWindow, 120);
       }
 
       function escapeHtml(value) {
@@ -110,6 +130,13 @@ function renderHelperPage() {
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
       }
+
+      window.addEventListener("message", (event) => {
+        const sameParent = parentOrigin === "*" || event.origin === parentOrigin;
+        if (!sameParent) return;
+        if (!shouldCloseFromMessage(event.data)) return;
+        closePopupWindow();
+      });
 
       const socket = new WebSocket(wsUrl);
       socket.onopen = () => {
@@ -160,6 +187,13 @@ function renderHelperPage() {
           detailsEl.style.display = "none";
           setProgress(0);
           setStatus("Card removed. Insert card.", "warn");
+          return;
+        }
+        if (payload.event === "reading_fail" || payload.event === "device_error" || payload.event === "error") {
+          cardData = null;
+          detailsEl.style.display = "none";
+          setProgress(0);
+          setStatus(String(payload.message || "Unable to read card. Please try again."), "err");
         }
       };
       socket.onerror = () => setStatus("Unable to connect to local Thai Card Service.", "err");
@@ -294,12 +328,16 @@ function wireReaderEvents(nextReader) {
 
   nextReader.on(EVENTS.READING_FAIL, (err) => {
     console.error("[thai-card-service] reading failed", err);
-    broadcast("error", { message: "Reading failed" });
+    const message = err && err.message ? String(err.message) : "Reading failed";
+    broadcast("reading_fail", { message });
+    broadcast("error", { message });
   });
 
   nextReader.on(EVENTS.ERROR, (err) => {
     console.error("[thai-card-service] error", err);
-    broadcast("error", { message: "Reader error" });
+    const message = err && err.message ? String(err.message) : "Reader error";
+    broadcast("device_error", { message });
+    broadcast("error", { message });
   });
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import { formatDateDisplay } from "@/lib/date-display";
+import { logUiEvent } from "@/lib/ui-event-log-client";
 
 type PaymentMethod = "cash" | "transfer" | "credit_card";
 type HkStatus = "approved" | "cleaned" | "dirty" | "in_progress" | "paused" | string | null;
@@ -57,6 +58,54 @@ function notifyPopupToClose(source: MessageEventSource | null, origin: string) {
   } catch {
     // ignore cross-window failures
   }
+}
+
+function broadcastSmartCardClose(requestId?: string | null) {
+  if (typeof window === "undefined" || typeof window.BroadcastChannel === "undefined") return;
+  try {
+    const channel = new window.BroadcastChannel("pms-smart-card");
+    channel.postMessage({ type: "PMS_THAI_CARD_CLOSE", requestId: requestId || undefined });
+    channel.close();
+  } catch {
+    // ignore broadcast failures
+  }
+}
+
+function forceClosePopup(popup: Window | null, requestId?: string | null) {
+  broadcastSmartCardClose(requestId);
+  if (!popup || popup.closed) return;
+  const attemptClose = () => {
+    try {
+      popup.close();
+    } catch {
+      // ignore close failures
+    }
+  };
+  attemptClose();
+  window.setTimeout(attemptClose, 150);
+  window.setTimeout(attemptClose, 500);
+}
+
+function traceSmartCardUiEvent(params: {
+  requestId?: string | null;
+  groupId?: string | null;
+  eventName: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+  severity?: "info" | "warning" | "error";
+}) {
+  if (typeof window === "undefined") return;
+  logUiEvent({
+    pathname: window.location.pathname,
+    event_type: "smart_card",
+    event_name: params.eventName,
+    severity: params.severity ?? "info",
+    entity_type: "booking_group",
+    entity_id: params.groupId ?? null,
+    request_id: params.requestId ?? null,
+    message: params.requestId ? `${params.message} [${params.requestId}]` : params.message,
+    metadata: params.metadata,
+  });
 }
 
 type WizardPartyGuest = {
@@ -357,6 +406,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   const [isImportingAll, setIsImportingAll] = useState(false);
   const [showFailedModal, setShowFailedModal] = useState<{ scanId: string; imagePath: string } | null>(null);
   const thaiCardPopupRef = useRef<Window | null>(null);
+  const thaiCardRequestIdRef = useRef<string | null>(null);
+  const processedSmartCardRequestIdsRef = useRef<Set<string>>(new Set());
 
   const [loadingPaymentPreview, setLoadingPaymentPreview] = useState(false);
   const [paymentPreview, setPaymentPreview] = useState<PaymentPreviewData | null>(null);
@@ -1233,7 +1284,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   function openThaiCardReader() {
     if (typeof window === "undefined") return;
     const savedWs = window.localStorage.getItem("pms.smartcard.wsEndpoint");
-    const params = new URLSearchParams({ popup: "1", target: "main", t: String(Date.now()) });
+    const requestId = `thai-card-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const params = new URLSearchParams({ popup: "1", target: "main", t: String(Date.now()), request_id: requestId });
     if (savedWs) params.set("ws", savedWs);
     let popupUrl = `${window.location.origin}/smart-card?${params.toString()}`;
     if (window.location.protocol === "https:") {
@@ -1258,7 +1310,19 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       setError("Popup blocked. Please allow popups and try again.");
       return;
     }
+    processedSmartCardRequestIdsRef.current.delete(requestId);
+    thaiCardRequestIdRef.current = requestId;
     thaiCardPopupRef.current = popup;
+    traceSmartCardUiEvent({
+      requestId,
+      groupId,
+      eventName: "parent_popup_opened",
+      message: "Opened smart card popup for group wizard",
+      metadata: {
+        flow: window.location.protocol === "https:" ? "helper" : "local_popup",
+        popup_url: popupUrl,
+      },
+    });
     popup.focus();
   }
 
@@ -1278,25 +1342,58 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   }
 
   useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const savedWs = typeof window !== "undefined" ? window.localStorage.getItem("pms.smartcard.wsEndpoint") : "";
-      const allowedOrigins = new Set([window.location.origin, "http://127.0.0.1:3001", "http://localhost:3001"]);
-      if (savedWs) {
+    const handleSmartCardResult = (data: {
+      type?: string;
+      payload?: ThaiCardImportPayload | PassportOcrImportPayload;
+      endpoint?: string;
+      requestId?: string;
+    } | null, eventSource?: MessageEventSource | null, eventOrigin?: string) => {
+      if (!data?.type) return;
+      if (data.type === "PMS_THAI_CARD_WS_ENDPOINT" && data.endpoint) {
+        traceSmartCardUiEvent({
+          requestId: data.requestId ?? thaiCardRequestIdRef.current,
+          groupId,
+          eventName: "parent_ws_endpoint_received",
+          message: "Group wizard received smart card websocket endpoint",
+          metadata: { endpoint: data.endpoint },
+        });
         try {
-          const wsUrl = new URL(savedWs);
-          allowedOrigins.add(`${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`);
+          window.localStorage.setItem("pms.smartcard.wsEndpoint", data.endpoint);
         } catch {
-          // ignore invalid saved endpoint
+          // ignore storage failures
         }
+        return;
       }
-      if (!allowedOrigins.has(event.origin)) return;
-      const data = event.data as {
-        type?: string;
-        payload?: ThaiCardImportPayload | PassportOcrImportPayload;
-      } | null;
-      if (!data?.type || !data.payload) return;
-
+      if (!data.payload) return;
       if (data.type !== "PMS_THAI_CARD_CONFIRMED" && data.type !== "PMS_PASSPORT_OCR_CONFIRMED") return;
+      if (data.requestId && thaiCardRequestIdRef.current && data.requestId !== thaiCardRequestIdRef.current) {
+        return;
+      }
+      if (data.requestId && processedSmartCardRequestIdsRef.current.has(data.requestId)) {
+        traceSmartCardUiEvent({
+          requestId: data.requestId,
+          groupId,
+          eventName: "parent_confirm_ignored_duplicate",
+          message: `Ignored duplicate ${data.type}`,
+          metadata: {
+            source: eventOrigin ? "postMessage" : "broadcast_channel",
+          },
+          severity: "warning",
+        });
+        return;
+      }
+      if (data.requestId) {
+        processedSmartCardRequestIdsRef.current.add(data.requestId);
+      }
+      traceSmartCardUiEvent({
+        requestId: data.requestId ?? thaiCardRequestIdRef.current,
+        groupId,
+        eventName: "parent_confirm_received",
+        message: `Group wizard received ${data.type}`,
+        metadata: {
+          source: eventOrigin ? "postMessage" : "broadcast_channel",
+        },
+      });
 
       setStep2Busy(true);
       setError("");
@@ -1304,9 +1401,24 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       void (async () => {
         try {
           if (data.type === "PMS_THAI_CARD_CONFIRMED") {
-            notifyPopupToClose(event.source, event.origin);
-            closeChildPopup(thaiCardPopupRef.current);
+            if (eventOrigin) {
+              notifyPopupToClose(eventSource ?? null, eventOrigin);
+            }
+            traceSmartCardUiEvent({
+              requestId: data.requestId ?? thaiCardRequestIdRef.current,
+              groupId,
+              eventName: "parent_force_close_sent",
+              message: "Group wizard requested popup close",
+            });
+            forceClosePopup(thaiCardPopupRef.current, data.requestId || thaiCardRequestIdRef.current);
             thaiCardPopupRef.current = null;
+            thaiCardRequestIdRef.current = null;
+            traceSmartCardUiEvent({
+              requestId: data.requestId ?? null,
+              groupId,
+              eventName: "parent_ingest_started",
+              message: "Group wizard starting Thai card ingest",
+            });
             const item = await ingestIdentityToPool({
               source: "thai_id",
               payload: data.payload as Record<string, unknown>,
@@ -1327,8 +1439,44 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       })();
     };
 
+    const onMessage = (event: MessageEvent) => {
+      const savedWs = typeof window !== "undefined" ? window.localStorage.getItem("pms.smartcard.wsEndpoint") : "";
+      const allowedOrigins = new Set([window.location.origin, "http://127.0.0.1:3001", "http://localhost:3001"]);
+      if (savedWs) {
+        try {
+          const wsUrl = new URL(savedWs);
+          allowedOrigins.add(`${wsUrl.protocol === "wss:" ? "https:" : "http:"}//${wsUrl.host}`);
+        } catch {
+          // ignore invalid saved endpoint
+        }
+      }
+      if (!allowedOrigins.has(event.origin)) return;
+      handleSmartCardResult(event.data as {
+        type?: string;
+        payload?: ThaiCardImportPayload | PassportOcrImportPayload;
+        endpoint?: string;
+        requestId?: string;
+      } | null, event.source, event.origin);
+    };
+
+    let smartCardChannel: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && typeof window.BroadcastChannel !== "undefined") {
+      smartCardChannel = new window.BroadcastChannel("pms-smart-card");
+      smartCardChannel.onmessage = (event) => {
+        handleSmartCardResult(event.data as {
+          type?: string;
+          payload?: ThaiCardImportPayload | PassportOcrImportPayload;
+          endpoint?: string;
+          requestId?: string;
+        } | null);
+      };
+    }
+
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      smartCardChannel?.close();
+    };
   }, [groupId]);
 
   async function searchGuestProfiles() {
