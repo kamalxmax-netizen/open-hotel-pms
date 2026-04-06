@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import { formatDateDisplay } from "@/lib/date-display";
 
@@ -35,6 +35,20 @@ type MasterDepositPlan = {
   method: PaymentMethod;
   note: string;
 };
+
+function closeChildPopup(popup: Window | null) {
+  if (!popup || popup.closed) return;
+  const attemptClose = () => {
+    try {
+      popup.close();
+    } catch {
+      // ignore close failures
+    }
+  };
+  attemptClose();
+  window.setTimeout(attemptClose, 150);
+  window.setTimeout(attemptClose, 500);
+}
 
 type WizardPartyGuest = {
   guest_profile_id: string;
@@ -333,6 +347,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
   const [mobileScans, setMobileScans] = useState<any[]>([]);
   const [isImportingAll, setIsImportingAll] = useState(false);
   const [showFailedModal, setShowFailedModal] = useState<{ scanId: string; imagePath: string } | null>(null);
+  const thaiCardPopupRef = useRef<Window | null>(null);
 
   const [loadingPaymentPreview, setLoadingPaymentPreview] = useState(false);
   const [paymentPreview, setPaymentPreview] = useState<PaymentPreviewData | null>(null);
@@ -1234,6 +1249,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       setError("Popup blocked. Please allow popups and try again.");
       return;
     }
+    thaiCardPopupRef.current = popup;
     popup.focus();
   }
 
@@ -1279,6 +1295,8 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       void (async () => {
         try {
           if (data.type === "PMS_THAI_CARD_CONFIRMED") {
+            closeChildPopup(thaiCardPopupRef.current);
+            thaiCardPopupRef.current = null;
             const item = await ingestIdentityToPool({
               source: "thai_id",
               payload: data.payload as Record<string, unknown>,

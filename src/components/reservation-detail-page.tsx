@@ -656,6 +656,20 @@ function extractThaiProvince(rawAddress: unknown, explicitProvince?: unknown): s
     return extractLastProvinceToken(explicitProvince);
 }
 
+function closeChildPopup(popup: Window | null) {
+    if (!popup || popup.closed) return;
+    const attemptClose = () => {
+        try {
+            popup.close();
+        } catch {
+            // ignore close failures
+        }
+    };
+    attemptClose();
+    window.setTimeout(attemptClose, 150);
+    window.setTimeout(attemptClose, 500);
+}
+
 function normalizePassportNumber(value: unknown): string {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -894,6 +908,7 @@ export default function ReservationDetailPage({
     const [error, setError] = useState("");
     const [showAssignRoomModal, setShowAssignRoomModal] = useState(false);
     const rateRefreshSeqRef = useRef(0);
+    const thaiCardPopupRef = useRef<Window | null>(null);
 
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -1842,6 +1857,7 @@ export default function ReservationDetailPage({
             setError("Popup blocked. Please allow popups and try again.");
             return;
         }
+        thaiCardPopupRef.current = popup;
         popup.focus();
     }, []);
 
@@ -1902,6 +1918,8 @@ export default function ReservationDetailPage({
             }
             if (!data.payload) return;
             if (data.type === "PMS_THAI_CARD_CONFIRMED") {
+                closeChildPopup(thaiCardPopupRef.current);
+                thaiCardPopupRef.current = null;
                 if (data.target === "accompany") {
                     void handlePartyThaiCardConfirmed(data.payload as ThaiCardImportPayload);
                     return;

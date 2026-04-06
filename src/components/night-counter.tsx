@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, MouseEvent, useEffect, useState } from "react";
+import React, { KeyboardEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import { addDays, compareDateStrings } from "@/lib/dates";
 import { formatDateDisplay } from "@/lib/date-display";
 
@@ -25,6 +25,8 @@ export default function NightCounter({
 }: NightCounterProps) {
     const [checkinInput, setCheckinInput] = useState(() => formatDateDisplay(checkinDate));
     const [checkoutInput, setCheckoutInput] = useState(() => formatDateDisplay(checkoutDate));
+    const checkinNativeRef = useRef<HTMLInputElement | null>(null);
+    const checkoutNativeRef = useRef<HTMLInputElement | null>(null);
 
     const openNativePicker = (event: MouseEvent<HTMLInputElement>) => {
         const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
@@ -84,6 +86,36 @@ export default function NightCounter({
         }
 
         return null;
+    };
+
+    const formatCompactDate = (value: string): string => {
+        const trimmed = String(value || "").trim();
+        const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+            const [, year, month, day] = match;
+            return `${day}/${month}/${year.slice(-2)}`;
+        }
+        const asDisplay = formatDateDisplay(trimmed);
+        const dmyMatch = asDisplay.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (dmyMatch) {
+            const [, day, month, year] = dmyMatch;
+            return `${day}/${month}/${year.slice(-2)}`;
+        }
+        return asDisplay;
+    };
+
+    const triggerHiddenPicker = (ref: React.RefObject<HTMLInputElement | null>) => {
+        const input = ref.current;
+        if (!input) return;
+        if (typeof input.showPicker === "function") {
+            try {
+                input.showPicker();
+                return;
+            } catch {
+                // fall through to click
+            }
+        }
+        input.click();
     };
 
     const handleCheckinChange = (newCheckin: string) => {
@@ -156,7 +188,7 @@ export default function NightCounter({
     };
 
     const wrapperClass = compact
-        ? "flex items-center gap-2 bg-[var(--bg-body)] p-2 rounded-xl border border-[var(--border-default)] shadow-sm w-full"
+        ? "flex items-stretch gap-2 bg-[var(--bg-body)] p-2 rounded-xl border border-[var(--border-default)] shadow-sm w-full"
         : "flex items-center gap-4 bg-[var(--bg-body)] p-3 rounded-xl border border-[var(--border-default)] shadow-sm w-full";
     const inputClass = compact
         ? "form-input w-full text-xs font-semibold bg-[var(--bg-surface)]"
@@ -171,11 +203,35 @@ export default function NightCounter({
     return (
         <div className={wrapperClass}>
             {/* Check-in */}
-            <div className="flex-1">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+            <div className={compact ? "min-w-0 flex-[1.2]" : "flex-1"}>
+                <label className={`block font-bold uppercase text-[var(--text-secondary)] mb-1 ${compact ? "text-[9px] tracking-[0.22em]" : "text-[10px] tracking-widest"}`}>
                     Check-in
                 </label>
-                {useNativeDatePicker ? (
+                {useNativeDatePicker && compact ? (
+                    <div className="relative">
+                        <button
+                            type="button"
+                            disabled={disabled || lockCheckin}
+                            onClick={() => triggerHiddenPicker(checkinNativeRef)}
+                            className={`${inputClass} flex h-11 items-center justify-center rounded-2xl border border-[var(--border-input)] px-2.5 text-center text-[clamp(13px,3.7vw,15px)] font-semibold tracking-[0.02em] ${lockCheckin ? "cursor-not-allowed" : "cursor-pointer"} disabled:bg-[var(--bg-muted)] disabled:text-[var(--text-muted)] disabled:cursor-not-allowed`}
+                        >
+                            {formatCompactDate(checkinDate)}
+                        </button>
+                        <input
+                            ref={checkinNativeRef}
+                            type="date"
+                            required
+                            disabled={disabled || lockCheckin}
+                            readOnly={lockCheckin}
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                            value={checkinDate}
+                            onChange={(e) => handleCheckinChange(e.target.value)}
+                            onClick={openNativePicker}
+                            aria-label="Check-in date"
+                            tabIndex={-1}
+                        />
+                    </div>
+                ) : useNativeDatePicker ? (
                     <input
                         type="date"
                         required
@@ -204,8 +260,8 @@ export default function NightCounter({
             </div>
 
             {/* Nights Counter (Center) */}
-            <div className="flex flex-col items-center justify-center pt-2">
-                <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1 flex items-center gap-1 tracking-wider">
+            <div className={compact ? "flex w-[108px] flex-col items-center justify-center pt-1" : "flex flex-col items-center justify-center pt-2"}>
+                <div className={`uppercase font-bold text-[var(--text-muted)] mb-1 flex items-center gap-1 ${compact ? "text-[9px] tracking-[0.18em]" : "text-[10px] tracking-wider"}`}>
                     {compact ? (
                         <span>Night</span>
                     ) : (
@@ -238,11 +294,34 @@ export default function NightCounter({
             </div>
 
             {/* Check-out */}
-            <div className="flex-1">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+            <div className={compact ? "min-w-0 flex-[1.2]" : "flex-1"}>
+                <label className={`block font-bold uppercase text-[var(--text-secondary)] mb-1 ${compact ? "text-[9px] tracking-[0.22em]" : "text-[10px] tracking-widest"}`}>
                     Check-out
                 </label>
-                {useNativeDatePicker ? (
+                {useNativeDatePicker && compact ? (
+                    <div className="relative">
+                        <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => triggerHiddenPicker(checkoutNativeRef)}
+                            className={`${inputClass} flex h-11 items-center justify-center rounded-2xl border border-[var(--border-input)] px-2.5 text-center text-[clamp(13px,3.7vw,15px)] font-semibold tracking-[0.02em] cursor-pointer disabled:bg-[var(--bg-muted)] disabled:text-[var(--text-muted)] disabled:cursor-not-allowed`}
+                        >
+                            {formatCompactDate(checkoutDate)}
+                        </button>
+                        <input
+                            ref={checkoutNativeRef}
+                            type="date"
+                            required
+                            disabled={disabled}
+                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                            value={checkoutDate}
+                            onChange={(e) => handleCheckoutChange(e.target.value)}
+                            onClick={openNativePicker}
+                            aria-label="Check-out date"
+                            tabIndex={-1}
+                        />
+                    </div>
+                ) : useNativeDatePicker ? (
                     <input
                         type="date"
                         required

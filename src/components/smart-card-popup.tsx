@@ -86,6 +86,20 @@ function extractThaiProvince(rawAddress: string, explicitProvince?: string): str
   return extractLastProvinceToken(explicitProvince);
 }
 
+function closePopupWindow() {
+  const attemptClose = () => {
+    try {
+      window.close();
+    } catch {
+      // ignore close failures
+    }
+  };
+
+  attemptClose();
+  window.setTimeout(attemptClose, 150);
+  window.setTimeout(attemptClose, 500);
+}
+
 export default function SmartCardPopup() {
   const importTarget =
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("target") === "accompany"
@@ -102,6 +116,24 @@ export default function SmartCardPopup() {
   const [endpointInput, setEndpointInput] = useState("");
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoConfirmedRef = useRef(false);
+  const readingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearReadingTimeout = () => {
+    if (readingTimeoutRef.current) {
+      clearTimeout(readingTimeoutRef.current);
+      readingTimeoutRef.current = null;
+    }
+  };
+
+  const armReadingTimeout = () => {
+    clearReadingTimeout();
+    readingTimeoutRef.current = setTimeout(() => {
+      setReaderState("error");
+      setProgress(0);
+      setStatusText("Read timed out. Please remove and reinsert the card.");
+      autoConfirmedRef.current = false;
+    }, 15000);
+  };
 
   const saveEndpoint = (value: string) => {
     const next = String(value || "").trim();
@@ -187,6 +219,8 @@ export default function SmartCardPopup() {
           setProgress(0);
           setCardData(null);
           setStatusText("Card inserted. Reading...");
+          autoConfirmedRef.current = false;
+          armReadingTimeout();
           return;
         }
 
@@ -197,10 +231,12 @@ export default function SmartCardPopup() {
           setReaderState("reading");
           setProgress(pct);
           setStatusText(`Reading... ${pct}%`);
+          armReadingTimeout();
           return;
         }
 
         if (payload.event === "card_data") {
+          clearReadingTimeout();
           const normalizedAddress = String(payload.address || "").replace(/#/g, " ").trim();
           const nextData: ThaiCardPayload = {
             citizenId: String(payload.citizenId || "").trim(),
@@ -231,16 +267,28 @@ export default function SmartCardPopup() {
               },
               window.location.origin
             );
-            window.setTimeout(() => window.close(), 120);
+            window.setTimeout(closePopupWindow, 120);
           }
           return;
         }
 
+        if (payload.event === "reading_fail" || payload.event === "device_error") {
+          clearReadingTimeout();
+          setReaderState("error");
+          setProgress(0);
+          setCardData(null);
+          setStatusText(String(payload.message || "Unable to read card. Please try again."));
+          autoConfirmedRef.current = false;
+          return;
+        }
+
         if (payload.event === "card_removed") {
+          clearReadingTimeout();
           setReaderState("waiting");
           setProgress(0);
           setCardData(null);
           setStatusText("Card removed. Insert card.");
+          autoConfirmedRef.current = false;
         }
       };
 
@@ -261,6 +309,7 @@ export default function SmartCardPopup() {
     return () => {
       closed = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      clearReadingTimeout();
       ws?.close();
     };
   }, [wsEndpoints]);
