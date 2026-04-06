@@ -15,6 +15,11 @@ import type {
   AdminCorrectionRecord,
   PaymentMethod,
 } from "@/lib/types";
+import {
+  buildDepositSnapshotNote,
+  computeHeldDepositFromRows,
+  extractDepositGeneralNote,
+} from "@/lib/deposit-ledger";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { fromSatang, toSatang } from "@/lib/money";
 import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
@@ -25,6 +30,87 @@ import { assertRoomTypeCapacityForDateRange } from "@/lib/room-type-capacity";
 
 function nowISO(): string {
   return new Date().toISOString();
+}
+
+function affectsDepositLedger(payment: Pick<FolioPaymentRow, "tx_type" | "revenue_category" | "note">): boolean {
+  const category = String(payment.revenue_category ?? "").toLowerCase();
+  const note = String(payment.note ?? "").toLowerCase();
+  return (
+    payment.tx_type === "deposit"
+    || category === "deposit"
+    || note.includes("deposit refund")
+    || note.includes("paid by deposit")
+    || note.includes("void return to deposit")
+  );
+}
+
+async function syncReservationDepositLedger(
+  supabase: SupabaseClient,
+  reservationId: string
+): Promise<void> {
+  const reservation = await loadReservationWithFolioFlag(supabase, reservationId, [
+    "deposit_note",
+    "deposit_amount",
+    "deposit_paid_at",
+  ]);
+
+  const { data: allDepositRows, error: allDepositRowsError } = await supabase
+    .from("folio_payments")
+    .select("method, amount, note, paid_at, tx_type, revenue_category")
+    .eq("reservation_id", reservationId)
+    .in("tx_type", ["payment", "refund", "deposit"])
+    .order("paid_at", { ascending: true });
+
+  if (allDepositRowsError) {
+    throw new AdminCorrectionError(`Failed to refresh deposit ledger: ${allDepositRowsError.message}`, 500);
+  }
+
+  const depositCategoryRows = (allDepositRows ?? []).filter(
+    (row: any) => String(row.revenue_category ?? "").toLowerCase() === "deposit"
+  );
+  const generalNote = extractDepositGeneralNote(reservation.deposit_note);
+  const netByMethod = new Map<string, { method: string; amount: number; note: string | null }>();
+
+  for (const row of depositCategoryRows) {
+    const method = String(row.method ?? "cash");
+    const current = netByMethod.get(method) ?? { method, amount: 0, note: null };
+    const amount = fromSatang(toSatang(row.amount ?? 0));
+    if (row.tx_type === "deposit") current.amount += amount;
+    else if (row.tx_type === "refund") current.amount -= amount;
+    if (!current.note && typeof row.note === "string" && row.note.trim()) {
+      current.note = row.note.trim();
+    }
+    netByMethod.set(method, current);
+  }
+
+  const activeLines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
+  const nextDepositAmount = computeHeldDepositFromRows(allDepositRows ?? []);
+  const nextPaidAt =
+    depositCategoryRows.some((row: any) => row.tx_type === "deposit")
+      ? String(
+        [...depositCategoryRows]
+          .filter((row: any) => row.tx_type === "deposit")
+          .slice(-1)[0]?.paid_at ?? ""
+      ) || null
+      : null;
+  const nextDepositNote = buildDepositSnapshotNote(
+    activeLines,
+    nextDepositAmount > 0 ? null : generalNote
+  );
+
+  const { error: updateError } = await supabase
+    .from("reservations")
+    .update({
+      deposit_amount: nextDepositAmount,
+      deposit_paid_at: nextPaidAt,
+      deposit_note: nextDepositNote,
+      updated_at: nowISO(),
+    })
+    .eq("id", reservationId);
+
+  if (updateError) {
+    throw new AdminCorrectionError(`Failed to sync deposit ledger: ${updateError.message}`, 500);
+  }
 }
 
 async function resolveCorrectionBusinessDate(supabase: SupabaseClient): Promise<string> {
@@ -465,6 +551,10 @@ export async function voidPayment(
       source: "manual",
     });
   } catch { /* non-blocking */ }
+
+  if (affectsDepositLedger(payment)) {
+    await syncReservationDepositLedger(supabase, payment.reservation_id);
+  }
 
   return {
     success: true,
