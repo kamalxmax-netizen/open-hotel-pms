@@ -399,6 +399,8 @@ type CreatedReservationSummary = {
     checkoutDate: string;
     nights: number;
     totalPrice: number;
+    createdReservationId?: string | null;
+    canContinueToCheckin?: boolean;
 };
 
 const DEFAULT_CHECKIN_DEPOSIT_INPUT = "200.00";
@@ -902,6 +904,7 @@ interface ReservationDetailPageProps {
     initialCheckoutDate?: string;
     onClose: () => void;
     onSuccess: () => void;
+    onOpenCheckin?: (reservationId: string) => void;
 }
 
 export default function ReservationDetailPage({
@@ -914,7 +917,8 @@ export default function ReservationDetailPage({
     initialCheckinDate,
     initialCheckoutDate,
     onClose,
-    onSuccess
+    onSuccess,
+    onOpenCheckin
 }: ReservationDetailPageProps) {
 
     const router = useRouter();
@@ -1149,6 +1153,7 @@ export default function ReservationDetailPage({
     const [submitIntentState, setSubmitIntentState] = useState<"draft" | "confirm">("confirm");
     const [showCheckinFieldValidation, setShowCheckinFieldValidation] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
+    const [walkInFastCheckinOfferToken, setWalkInFastCheckinOfferToken] = useState(0);
 
     const closePolicyModalOnly = useCallback(() => {
         setShowEarlyCheckinModal(false);
@@ -1161,6 +1166,13 @@ export default function ReservationDetailPage({
         setShowCheckinFieldValidation(false);
         setLoading(false);
     }, []);
+
+    const markWalkInFastCheckinReady = useCallback(() => {
+        if (mode !== "create") return;
+        if (source !== "walkin") return;
+        if (checkinDate !== businessDate) return;
+        setWalkInFastCheckinOfferToken((current) => current + 1);
+    }, [businessDate, checkinDate, mode, source]);
 
     const continueWithPolicyDecision = useCallback((payload: PolicyFeePayload | null) => {
         policyFeePayloadRef.current = payload;
@@ -1732,11 +1744,13 @@ export default function ReservationDetailPage({
             bookedMainGuestName,
             forceDraftStatus,
         });
+        markWalkInFastCheckinReady();
     }, [
         applyThaiCardPayload,
         findProfileByThaiId,
         guestName,
         guestProfileId,
+        markWalkInFastCheckinReady,
         profileStatus,
         selectProfileById,
         buildIdentityScanNotices,
@@ -1832,7 +1846,8 @@ export default function ReservationDetailPage({
         }
 
         applyPassportOcrPayload(payload);
-    }, [applyPassportOcrPayload, buildIdentityScanNotices, findProfileByPassport, guestProfileId, selectProfileById, showIdentityNoticesPopup]);
+        markWalkInFastCheckinReady();
+    }, [applyPassportOcrPayload, buildIdentityScanNotices, findProfileByPassport, guestProfileId, markWalkInFastCheckinReady, selectProfileById, showIdentityNoticesPopup]);
 
     const handlePartyPassportOcrConfirmed = useCallback(async (payload: PassportOcrImportPayload) => {
         setError("");
@@ -2229,6 +2244,11 @@ export default function ReservationDetailPage({
             cancelled = true;
         };
     }, [mode, roomId, businessDate]);
+
+    const showCreateWalkInIdentityImport =
+        mode === "create" &&
+        source === "walkin" &&
+        checkinDate === businessDate;
 
     // Load Metadata
     useEffect(() => {
@@ -3638,6 +3658,13 @@ export default function ReservationDetailPage({
             }
 
             if (mode === "create") {
+                const canContinueToCheckinAfterCreate = Boolean(
+                    onOpenCheckin &&
+                    source === "walkin" &&
+                    checkinDate === businessDate &&
+                    roomTypeId &&
+                    roomId
+                );
                 if (source === "ota") {
                     const hasInvalidOtaRates =
                         nightlyRates.length === 0 ||
@@ -3686,8 +3713,13 @@ export default function ReservationDetailPage({
                     body: JSON.stringify(payload)
                 });
                 const d = await res.json();
-                if (!res.ok) { setError(d.error || "Failed to create."); setLoading(false); return; }
+                if (!res.ok) {
+                    setError(d.error || "Failed to create.");
+                    setLoading(false);
+                    return;
+                }
                 const created = d?.reservation ?? {};
+                const createdReservationId = String(created?.id || "");
                 const selectedRoom = roomId
                     ? rooms.find((r: any) => String(r.id) === String(roomId))
                     : null;
@@ -3696,6 +3728,20 @@ export default function ReservationDetailPage({
                     : null;
                 const createdTotal = Number(created?.total_price);
 
+                if (syncedGuestProfileId) {
+                    try {
+                        const lfRes = await fetch(`/api/lost-found/check-guest?guest_profile_id=${syncedGuestProfileId}`);
+                        if (lfRes.ok) {
+                            const lfData = await lfRes.json();
+                            if (lfData.alert) showPopup(lfData.alert);
+                            else if (lfData.items) showPopup(lfData);
+                        }
+                    } catch (e) {
+                        console.error("L&F check failed", e);
+                    }
+                }
+
+                setLoading(false);
                 setCreatedSummary({
                     bookingCode: String(created?.booking_code || created?.id || "N/A"),
                     guestName: guestName.trim() || String(created?.guest_name || "Guest"),
@@ -3705,21 +3751,10 @@ export default function ReservationDetailPage({
                     checkinDate,
                     checkoutDate,
                     nights,
-                    totalPrice: Number.isFinite(createdTotal) ? fromSatang(toSatang(createdTotal)) : effectiveTotal
+                    totalPrice: Number.isFinite(createdTotal) ? fromSatang(toSatang(createdTotal)) : effectiveTotal,
+                    createdReservationId: createdReservationId || null,
+                    canContinueToCheckin: Boolean(canContinueToCheckinAfterCreate && createdReservationId),
                 });
-                
-                // L&F Alert
-                if (syncedGuestProfileId) {
-                    try {
-                        const lfRes = await fetch(`/api/lost-found/check-guest?guest_profile_id=${syncedGuestProfileId}`);
-                        if (lfRes.ok) {
-                            const lfData = await lfRes.json();
-                            // Handle if backend wraps it in { alert: ... } or returns directly
-                            if (lfData.alert) showPopup(lfData.alert);
-                            else if (lfData.items) showPopup(lfData);
-                        }
-                    } catch(e) { console.error("L&F check failed", e); }
-                }
                 return;
 
             } else if (mode === "edit" && reservationId) {
@@ -4216,6 +4251,21 @@ export default function ReservationDetailPage({
         onSuccess();
     };
 
+    const continueCreatedSummaryToCheckin = () => {
+        const nextReservationId = String(createdSummary?.createdReservationId || "").trim();
+        if (!createdSummary?.canContinueToCheckin || !nextReservationId || !onOpenCheckin) {
+            closeCreatedSummary();
+            return;
+        }
+        setLoading(false);
+        setError("");
+        setSuccessMessage("");
+        setSubmitIntentState("confirm");
+        setShowCheckinFieldValidation(false);
+        setCreatedSummary(null);
+        onOpenCheckin(nextReservationId);
+    };
+
     if (createdSummary) {
         return (
             <PmsModal
@@ -4224,9 +4274,14 @@ export default function ReservationDetailPage({
                 onClose={closeCreatedSummary}
                 footer={
                     <div className="flex w-full justify-end gap-2">
-                        <button type="button" className="btn btn-primary" onClick={closeCreatedSummary}>
+                        <button type="button" className="btn btn-secondary" onClick={closeCreatedSummary}>
                             Done
                         </button>
+                        {createdSummary.canContinueToCheckin && (
+                            <button type="button" className="btn btn-primary" onClick={continueCreatedSummaryToCheckin}>
+                                Continue to Check-in
+                            </button>
+                        )}
                     </div>
                 }
             >
@@ -4934,17 +4989,19 @@ export default function ReservationDetailPage({
                                             id="guest-identity"
                                             title="Identity"
                                             icon="🪪"
-                                            defaultOpen={mode === "checkin" || mode === "inhouse"}
+                                            defaultOpen={mode === "checkin" || mode === "inhouse" || showCreateWalkInIdentityImport}
                                         >
                                             <div className="space-y-3">
-                                                {(mode === "checkin" || mode === "inhouse") && (
+                                                {(mode === "checkin" || mode === "inhouse" || showCreateWalkInIdentityImport) && (
                                                     <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 px-3 py-2">
                                                         <div>
                                                             <p className="text-xs font-semibold text-indigo-800 dark:text-indigo-300">
                                                                 Thai ID / Passport OCR
                                                             </p>
                                                             <p className="text-[11px] text-indigo-700 dark:text-indigo-400">
-                                                                Please check again before filling the check-in form.
+                                                                {showCreateWalkInIdentityImport
+                                                                    ? "Walk-in today: scan ID first, then create booking and continue to check-in."
+                                                                    : "Please check again before filling the check-in form."}
                                                             </p>
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-2">

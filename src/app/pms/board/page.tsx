@@ -823,7 +823,7 @@ export default function BoardPage() {
     const [activeFilters, setActiveFilters] = useState<FilterKey[]>(["all"]);
     const [selectedRoom, setSelectedRoom] = useState<ApiRoom | null>(null);
     const [drawerRoom, setDrawerRoom] = useState<RoomDrawerRoom | null>(null);
-    const [detailMode, setDetailMode] = useState<"create" | "edit" | null>(null);
+    const [detailMode, setDetailMode] = useState<"create" | "edit" | "checkin" | null>(null);
     const [detailResId, setDetailResId] = useState<string | undefined>();
     const [detailRoomNumber, setDetailRoomNumber] = useState<string | undefined>();
     const [viewMode, setViewMode] = useState<"compact" | "detail">("compact");
@@ -1567,9 +1567,16 @@ export default function BoardPage() {
             {/* Reservation Detail Page */}
             {detailMode && (
                 <ReservationDetailPage
+                    key={`${detailMode}:${detailResId ?? "new"}:${detailRoomNumber ?? "noroom"}`}
                     mode={detailMode}
                     reservationId={detailResId}
                     roomNumber={detailRoomNumber}
+                    onOpenCheckin={(newReservationId) => {
+                        setDetailMode("checkin");
+                        setDetailResId(newReservationId);
+                        setDetailRoomNumber(undefined);
+                        refresh();
+                    }}
                     onClose={() => { setDetailMode(null); setDetailResId(undefined); setDetailRoomNumber(undefined); }}
                     onSuccess={() => { setDetailMode(null); setDetailResId(undefined); setDetailRoomNumber(undefined); refresh(); }}
                 />

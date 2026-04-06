@@ -129,7 +129,7 @@ export default function ReservationsPage() {
     const [error, setError] = useState("");
 
     // Modals
-    const [detailMode, setDetailMode] = useState<"create" | "edit" | null>(null);
+    const [detailMode, setDetailMode] = useState<"create" | "edit" | "checkin" | null>(null);
     const [detailResId, setDetailResId] = useState<string | undefined>();
     const [detailPrefill, setDetailPrefill] = useState<{
         roomTypeId?: string;
@@ -592,11 +592,18 @@ export default function ReservationsPage() {
             {/* Reservation Detail Page */}
             {detailMode && (
                 <ReservationDetailPage
+                    key={`${detailMode}:${detailResId ?? "new"}:${detailPrefill.roomTypeId ?? "noroomtype"}:${detailPrefill.checkinDate ?? "nocheckin"}`}
                     mode={detailMode}
                     reservationId={detailResId}
                     initialRoomTypeId={detailMode === "create" ? detailPrefill.roomTypeId : undefined}
                     initialCheckinDate={detailMode === "create" ? detailPrefill.checkinDate : undefined}
                     initialCheckoutDate={detailMode === "create" ? detailPrefill.checkoutDate : undefined}
+                    onOpenCheckin={(newReservationId) => {
+                        setDetailMode("checkin");
+                        setDetailResId(newReservationId);
+                        setDetailPrefill({});
+                        void load(page);
+                    }}
                     onClose={() => {
                         setDetailMode(null);
                         setDetailResId(undefined);
@@ -606,7 +613,7 @@ export default function ReservationsPage() {
                         setDetailMode(null);
                         setDetailResId(undefined);
                         setDetailPrefill({});
-                        showToast(detailMode === "create" ? "✓ Booking created!" : "✓ Booking updated!");
+                        showToast(detailMode === "create" ? "✓ Booking created!" : detailMode === "checkin" ? "✓ Check-in saved!" : "✓ Booking updated!");
                         load(page);
                     }}
                 />

@@ -1623,10 +1623,16 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
             {/* Reservation Detail Page (stacked on top of drawer) */}
             {detailMode && (
                 <ReservationDetailPage
+                    key={`${detailMode}:${activeDetailResId ?? (detailMode === "create" ? "new" : res?.id ?? "none")}`}
                     mode={detailMode}
                     reservationId={activeDetailResId ?? (detailMode === "create" ? undefined : res?.id)}
                     roomNumber={room.room_number}
                     isDayUse={Boolean(room.is_dayuse)}
+                    onOpenCheckin={(newReservationId) => {
+                        setDetailMode("checkin");
+                        setActiveDetailResId(newReservationId);
+                        onRefresh();
+                    }}
                     onClose={() => {
                         setDetailMode(null);
                         setActiveDetailResId(null);

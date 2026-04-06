@@ -301,7 +301,7 @@ function CalendarPageInner() {
     const [focusReservationId, setFocusReservationId] = useState<string | null>(searchParams.get("focus_reservation_id"));
 
     const [selectedRes, setSelectedRes] = useState<{ res: Reservation; roomNumber: string } | null>(null);
-    const [detailMode, setDetailMode] = useState<"create" | "edit" | null>(null);
+    const [detailMode, setDetailMode] = useState<"create" | "edit" | "checkin" | null>(null);
     const [detailResId, setDetailResId] = useState<string | undefined>();
     const [detailRoomNumber, setDetailRoomNumber] = useState<string | undefined>();
     const [detailInitialRoomTypeId, setDetailInitialRoomTypeId] = useState<string | undefined>();
@@ -755,12 +755,22 @@ function CalendarPageInner() {
     {
         detailMode && (
             <ReservationDetailPage
+                key={`${detailMode}:${detailResId ?? "new"}:${detailRoomNumber ?? "noroom"}:${detailInitialRoomTypeId ?? "noroomtype"}:${detailInitialCheckinDate ?? "nocheckin"}`}
                 mode={detailMode}
                 reservationId={detailResId}
                 roomNumber={detailRoomNumber}
                 initialRoomTypeId={detailInitialRoomTypeId}
                 initialCheckinDate={detailInitialCheckinDate}
                 initialCheckoutDate={detailInitialCheckoutDate}
+                onOpenCheckin={(newReservationId) => {
+                    setDetailMode("checkin");
+                    setDetailResId(newReservationId);
+                    setDetailRoomNumber(undefined);
+                    setDetailInitialRoomTypeId(undefined);
+                    setDetailInitialCheckinDate(undefined);
+                    setDetailInitialCheckoutDate(undefined);
+                    load();
+                }}
                 onClose={() => {
                     setDetailMode(null);
                     setDetailResId(undefined);
