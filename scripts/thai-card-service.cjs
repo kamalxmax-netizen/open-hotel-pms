@@ -66,7 +66,6 @@ function renderHelperPage() {
       <div id="details" class="panel" style="display:none"></div>
       <div class="actions">
         <button type="button" class="secondary" onclick="window.close()">Close</button>
-        <button id="confirm" type="button" class="primary" disabled>Confirm Import</button>
       </div>
     </main>
     <script>
@@ -79,7 +78,6 @@ function renderHelperPage() {
       const statusEl = document.getElementById("status");
       const detailsEl = document.getElementById("details");
       const barEl = document.getElementById("bar");
-      const confirmBtn = document.getElementById("confirm");
       let cardData = null;
       endpointEl.textContent = wsUrl;
 
@@ -132,7 +130,6 @@ function renderHelperPage() {
         }
         if (payload.event === "card_inserted") {
           cardData = null;
-          confirmBtn.disabled = true;
           detailsEl.style.display = "none";
           setProgress(0);
           setStatus("Card inserted. Reading...", "ok");
@@ -148,7 +145,6 @@ function renderHelperPage() {
         }
         if (payload.event === "card_data") {
           cardData = payload;
-          confirmBtn.disabled = false;
           setProgress(100);
           setStatus("Read complete. Confirm to import.", "ok");
           detailsEl.style.display = "block";
@@ -161,7 +157,6 @@ function renderHelperPage() {
         }
         if (payload.event === "card_removed") {
           cardData = null;
-          confirmBtn.disabled = true;
           detailsEl.style.display = "none";
           setProgress(0);
           setStatus("Card removed. Insert card.", "warn");
@@ -171,11 +166,6 @@ function renderHelperPage() {
       socket.onclose = () => {
         if (!cardData) setStatus("Local Thai Card Service disconnected.", "err");
       };
-
-      confirmBtn.addEventListener("click", () => {
-        if (!cardData) return;
-        completeAndClose(cardData);
-      });
     </script>
   </body>
 </html>`;

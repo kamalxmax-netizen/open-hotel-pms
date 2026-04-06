@@ -274,28 +274,12 @@ export default function SmartCardPopup() {
     [cardData]
   );
 
-  const canConfirm = Boolean(cardData?.citizenId);
-
   const handleApplyEndpoint = () => {
     const next = String(endpointInput || "").trim();
     if (!next) return;
     saveEndpoint(next);
     setWsEndpoints((prev) => Array.from(new Set([next, ...prev])));
     setStatusText(`Saved endpoint ${next}. Reconnecting...`);
-  };
-
-  const handleConfirm = () => {
-    if (!cardData || !window.opener) return;
-    autoConfirmedRef.current = true;
-    window.opener.postMessage(
-      {
-        type: "PMS_THAI_CARD_CONFIRMED",
-        target: importTarget,
-        payload: cardData,
-      },
-      window.location.origin
-    );
-    window.close();
   };
 
   return (
@@ -384,16 +368,6 @@ export default function SmartCardPopup() {
             onClick={() => window.close()}
           >
             Close
-          </button>
-          <button
-            type="button"
-            className={`rounded-lg px-3 py-2 text-sm font-semibold text-white ${
-              canConfirm ? "bg-indigo-600 hover:bg-indigo-500" : "cursor-not-allowed bg-[var(--bg-muted)]"
-            }`}
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-          >
-            Confirm Import
           </button>
         </div>
       </div>
