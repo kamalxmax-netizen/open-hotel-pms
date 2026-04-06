@@ -284,7 +284,7 @@ export default function SmartCardPopup() {
               },
               window.location.origin
             );
-            window.setTimeout(closePopupWindow, 120);
+            closePopupWindow();
           }
           return;
         }
