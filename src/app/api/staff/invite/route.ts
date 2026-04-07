@@ -11,14 +11,14 @@ const bodySchema = z.object({
   email: z.string().trim().email().max(254),
   display_name: z.string().trim().min(1).max(120),
   nickname: z.string().trim().max(120).nullable().optional(),
-  role: z.enum(["admin", "frontdesk", "maid", "supervisor"]).optional().default("frontdesk"),
+  role: z.enum(["admin", "frontdesk", "maid", "supervisor", "mobile"]).optional().default("frontdesk"),
   department_code: z.enum(["FO", "HK", "MNT", "FB", "SEC"]).optional(),
   is_active: z.boolean().optional().default(true),
   hk_lane_enabled: z.boolean().optional().default(false),
   hk_lane_order: z.coerce.number().int().min(1).max(999).optional().default(100),
 });
 
-function roleToDepartmentCode(role: "admin" | "frontdesk" | "maid" | "supervisor") {
+function roleToDepartmentCode(role: "admin" | "frontdesk" | "maid" | "supervisor" | "mobile") {
   if (role === "maid") return "HK";
   return "FO";
 }

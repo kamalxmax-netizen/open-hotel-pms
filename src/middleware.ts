@@ -7,6 +7,11 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth"];
 
 // Routes that should redirect authenticated users away
 const AUTH_ONLY_PATHS = ["/login"];
+const MOBILE_HOME_PATH = "/pms/mobile-checkin";
+
+function resolvePostLoginPath(role: string | null | undefined): string {
+  return String(role ?? "").trim().toLowerCase() === "mobile" ? MOBILE_HOME_PATH : "/pms/board";
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,7 +24,12 @@ export async function middleware(request: NextRequest) {
       const supabase = createMiddlewareSupabaseClient(request, response);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        return NextResponse.redirect(new URL("/pms/board", request.url));
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        return NextResponse.redirect(new URL(resolvePostLoginPath(profile?.role), request.url));
       }
     }
     return NextResponse.next();
@@ -39,17 +49,26 @@ export async function middleware(request: NextRequest) {
       return redirectResponse;
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, allowed_pages")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const role = String(profile?.role ?? "").trim().toLowerCase();
+
+    if (role === "mobile") {
+      const isMobilePath = pathname === MOBILE_HOME_PATH || pathname.startsWith(`${MOBILE_HOME_PATH}/`);
+      if (!isMobilePath) {
+        return NextResponse.redirect(new URL(MOBILE_HOME_PATH, request.url));
+      }
+      return response;
+    }
+
     // Skip permission check for the unauthorized page itself (avoid redirect loop)
     if (pathname === "/pms/unauthorized") return response;
 
     let allowedPages = await readPermissionCache(request, user.id);
     if (!allowedPages) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("allowed_pages")
-        .eq("user_id", user.id)
-        .single();
-
       allowedPages = Array.isArray(profile?.allowed_pages) ? profile.allowed_pages : ["*"];
       await writePermissionCache(response, user.id, allowedPages);
     }

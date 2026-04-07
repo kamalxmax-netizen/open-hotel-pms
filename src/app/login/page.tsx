@@ -65,7 +65,7 @@ function LoginForm() {
     setLoading(true);
     try {
       const supabase = createBrowserSupabaseClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -73,7 +73,21 @@ function LoginForm() {
         setError("Email หรือ Password ไม่ถูกต้อง");
         return;
       }
-      const destination = next === "/pms" ? "/pms/board" : next;
+      let destination = next === "/pms" ? "/pms/board" : next;
+      const userId = signInData.user?.id ?? null;
+      if (userId) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const role = String(profileData?.role ?? "").trim().toLowerCase();
+        if (role === "mobile") {
+          destination = destination.startsWith("/pms/mobile-checkin")
+            ? destination
+            : "/pms/mobile-checkin";
+        }
+      }
       router.push(destination.startsWith("/pms") || destination === "/" ? destination : "/pms/board");
       router.refresh();
     } catch {

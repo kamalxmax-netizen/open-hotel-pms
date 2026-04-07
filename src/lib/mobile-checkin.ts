@@ -12,9 +12,9 @@ import { normalizeAuditSource } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
 
-const ALLOWED_ROLES = new Set(["admin", "frontdesk", "supervisor"]);
+const ALLOWED_ROLES = new Set(["admin", "frontdesk", "supervisor", "mobile"]);
 
-export type MobileCheckinRole = "admin" | "frontdesk" | "supervisor";
+export type MobileCheckinRole = "admin" | "frontdesk" | "supervisor" | "mobile";
 
 export type MobileGuestInfoInput = {
   full_name: string;

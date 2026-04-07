@@ -14,6 +14,9 @@ type UserProfile = {
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   supervisor: "Supervisor",
+  mobile: "Mobile",
+  frontdesk: "Front Desk",
+  maid: "Maid",
   staff: "Staff",
 };
 

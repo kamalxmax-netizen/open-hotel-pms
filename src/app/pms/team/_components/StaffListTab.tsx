@@ -55,7 +55,7 @@ type InviteStaffDraft = {
     email: string
     display_name: string
     nickname: string
-    role: "admin" | "frontdesk" | "maid" | "supervisor"
+    role: "admin" | "frontdesk" | "maid" | "supervisor" | "mobile"
     department_code: string
     is_active: boolean
     hk_lane_enabled: boolean
@@ -64,6 +64,7 @@ type InviteStaffDraft = {
 
 const ROLE_OPTIONS: Array<{ value: InviteStaffDraft["role"]; label: string }> = [
     { value: "frontdesk", label: "Front Desk" },
+    { value: "mobile", label: "Mobile App" },
     { value: "maid", label: "Maid" },
     { value: "supervisor", label: "Supervisor" },
     { value: "admin", label: "Admin" },
