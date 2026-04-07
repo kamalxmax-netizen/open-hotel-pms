@@ -14,7 +14,10 @@ import type { LinkedStay } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date-display";
 import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 import { LinkedStayBadge } from "./linked-stay-badge";
-import { Link as LinkIcon } from "lucide-react";
+import { Link as LinkIcon, Car } from "lucide-react";
+import { useVehiclesByRoom } from "@/lib/use-vehicle-api";
+import { VehicleDetailPopover } from "./vehicles/vehicle-detail-popover";
+import { VehicleRegisterModal } from "./vehicles/vehicle-register-modal";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
@@ -303,6 +306,8 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
     const [inlineAlerts, setInlineAlerts] = useState<InlineReservationAlert[]>([]);
     const [alertsLoading, setAlertsLoading] = useState(false);
     const [traceCount, setTraceCount] = useState(0);
+    const [showVehicleRegister, setShowVehicleRegister] = useState(false);
+    const { vehicles: roomVehicles, unlinkVehicle, refresh: refreshRoomVehicles } = useVehiclesByRoom(room.room_id);
 
     function resolveRoomDiaryLockMessage(payload: {
         error?: string;
@@ -1028,7 +1033,24 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                 <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-3">
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
-                                            <p className="text-base font-bold text-[var(--text-primary)]">{res.guest_name}</p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <p className="text-base font-bold text-[var(--text-primary)]">{res.guest_name}</p>
+                                                {roomVehicles.length > 0 && (
+                                                    <div className="flex gap-1">
+                                                        {roomVehicles.map(v => (
+                                                            <VehicleDetailPopover 
+                                                                key={v.id} 
+                                                                vehicle={v} 
+                                                                onUnlink={() => {
+                                                                    if (confirm(`Unlink ${v.plate_number || 'this vehicle'}?`)) {
+                                                                        void unlinkVehicle(v.id);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                             {res.phone && <p className="text-xs text-[var(--text-muted)]">{res.phone}</p>}
                                         </div>
                                         <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 shrink-0">
@@ -1311,6 +1333,14 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                                     Unlock Room
                                                                 </button>
                                                             )}
+
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                onClick={() => { setShowMoreMenu(false); setShowVehicleRegister(true); }}
+                                                            >
+                                                                <Car className="h-4 w-4 text-[var(--text-muted)]" />
+                                                                Register Vehicle
+                                                            </button>
                                                             
                                                             {(canLateCheckout || canEarlyCheckout || canCancel) && <hr className="my-1 border-[var(--border-default)]" />}
 
@@ -1337,6 +1367,13 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                                     Early Check-out
                                                                 </button>
                                                             )}
+                                                            <button
+                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
+                                                                onClick={() => { setShowMoreMenu(false); setShowVehicleRegister(true); }}
+                                                            >
+                                                                <Car className="h-4 w-4 text-[var(--text-muted)]" />
+                                                                Register Vehicle
+                                                            </button>
                                                             {canCancel && (
                                                                 <button
                                                                     className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-rose-600"
@@ -1783,6 +1820,19 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                         setFolioRefreshToken((value) => value + 1);
                         onRefresh();
                     }}
+                />
+            )}
+
+            {showVehicleRegister && res && (
+                <VehicleRegisterModal
+                    onClose={() => setShowVehicleRegister(false)}
+                    onSuccess={() => {
+                        void refreshRoomVehicles();
+                        onRefresh();
+                    }}
+                    initialReservationId={res.id}
+                    initialRoomNumber={room.room_number}
+                    initialGuestName={res.guest_name}
                 />
             )}
 

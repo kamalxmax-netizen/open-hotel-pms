@@ -8,6 +8,8 @@ import type {
     CalendarReservation,
     DraftOverride
 } from "@/lib/types";
+import { useVehicleSummaryMap } from "@/lib/use-vehicle-api";
+import { getVehicleColorClasses } from "./vehicles/vehicle-helpers";
 
 /* ─── Constants ───────────────────────────────── */
 export const SOURCE_COLOR: Record<string, { bar: string; text: string }> = {
@@ -184,6 +186,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     dropTargetRoomId = null
 }, scrollRef) {
     const frozenRef = useRef<HTMLDivElement>(null);
+    const { summaryMap: vehicleSummaryMap } = useVehicleSummaryMap();
 
     // Sync frozen column scroll with grid scroll
     const handleGridScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -477,6 +480,22 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                         style={{ height: ROW_H }}
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
+                                        {/* Vehicle Indicators */}
+                                        {vehicleSummaryMap[room.room_id] && (
+                                            <div
+                                                className="flex items-center gap-0.5"
+                                                title={vehicleSummaryMap[room.room_id].map(v => v.title || v.plate_number || 'BICYCLE').join(" · ")}
+                                            >
+                                                {vehicleSummaryMap[room.room_id].slice(0, 3).map(v => (
+                                                    <span key={v.id} className={getVehicleColorClasses(v.vehicle_color, true)} />
+                                                ))}
+                                                {vehicleSummaryMap[room.room_id].length > 3 && (
+                                                    <span className="text-[8px] font-bold text-[var(--text-muted)]">
+                                                        +{vehicleSummaryMap[room.room_id].length - 3}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                         <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
                                         {renderDiaryStateBadge(diaryStateByRoomId.get(room.room_id) ?? null)}
                                         {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]" title="Out of Order / Out of Service">🚧</span>}

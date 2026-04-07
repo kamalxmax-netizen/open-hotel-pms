@@ -29,7 +29,9 @@ const NAV_ITEMS = [
             { href: "/pms/departures", label: "Departures", icon: DeparturesIcon },
             { href: "/pms/reservations", label: "Reservations", icon: ListIcon },
             { href: "/pms/groups", label: "Group Bookings", icon: GuestsIcon },
+            { href: "/pms/logbook", label: "Logbook", icon: ListIcon },
             { href: "/pms/availability", label: "Availability", icon: CalendarIcon },
+            { href: "/pms/vehicles", label: "Vehicle Registry", icon: TransportIcon },
         ]
     },
     {
@@ -115,7 +117,6 @@ const NAV_ITEMS = [
             { href: "/pms/admin/settings", label: "System Settings", icon: SettingsIcon },
             { href: "/pms/inventory/settings", label: "Inventory Settings", icon: PackageIcon },
             { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
-            { href: "/pms/logbook", label: "Logbook", icon: ListIcon },
             { href: "/pms/setup/rooms", label: "Room Setup", icon: GridIcon },
             { href: "/pms/setup/rates", label: "Rate Setup", icon: RatesIcon },
             { href: "/pms/setup/guests", label: "Guest Setup", icon: GuestsIcon },

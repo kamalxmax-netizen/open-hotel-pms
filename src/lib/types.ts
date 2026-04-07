@@ -1405,3 +1405,70 @@ export interface LostFoundGuestAlert {
     category: LostFoundCategory;
   }>;
 }
+
+// ── Phase 57: Vehicle Registry ────────────────────────────────
+
+export type VehicleType = 'car' | 'motorcycle' | 'bicycle';
+
+export type VehicleColor = 'white' | 'black' | 'silver' | 'red' | 'blue' | 'yellow' | 'other';
+
+export interface GuestVehicle {
+  id: string;
+  reservation_id: string;
+  guest_profile_id: string | null;
+  room_id: string | null;
+  room_number: string | null;
+  current_room_id?: string | null;
+  current_room_number?: string | null;
+  effective_room_id?: string | null;
+  effective_room_number?: string | null;
+  booking_code: string | null;
+  guest_name: string | null;
+  reservation_status?: string | null;
+  checkin_date?: string | null;
+  checkout_date?: string | null;
+  checked_in_at?: string | null;
+  reservation_checked_out_at?: string | null;
+  
+  vehicle_type: VehicleType;
+  plate_number: string | null;
+  plate_province: string | null;
+  plate_country: 'TH' | 'MY';
+  vehicle_brand: string | null;
+  vehicle_model: string | null;
+  vehicle_color: VehicleColor;
+  description: string | null;
+  
+  registered_at: string;
+  registered_by: string | null;
+  checked_out_at: string | null;
+  is_active?: boolean;
+  vehicle_status?: "active" | "checked_out_today" | "historical";
+  short_label?: string;
+  title?: string;
+  subtitle?: string | null;
+  country_flag?: string;
+  plate_display?: string | null;
+  plate_suffix?: string | null;
+  
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VehicleSummary {
+  id: string;
+  reservation_id?: string;
+  effective_room_id?: string | null;
+  effective_room_number?: string | null;
+  guest_name?: string | null;
+  booking_code?: string | null;
+  vehicle_type: VehicleType;
+  vehicle_color: VehicleColor;
+  plate_number: string | null;
+  plate_province?: string | null;
+  plate_country?: 'TH' | 'MY';
+  country_flag?: string;
+  short_label?: string;
+  title?: string;
+  description?: string | null;
+}

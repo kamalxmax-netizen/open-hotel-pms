@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-type ModalSize = "sm" | "md" | "lg" | "xl" | "wide" | "folio";
+export type ModalSize = "sm" | "md" | "lg" | "xl" | "wide" | "folio";
 
 interface PmsModalProps {
     title: string;

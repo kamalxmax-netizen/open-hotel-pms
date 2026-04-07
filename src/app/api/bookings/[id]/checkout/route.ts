@@ -11,6 +11,7 @@ import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { markReservationVehiclesCheckedOut } from "@/lib/vehicles";
 import { NextRequest, NextResponse } from "next/server";
 
 function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
@@ -505,6 +506,12 @@ export async function POST(
             } catch (syncError) {
                 console.error("group status sync after checkout failed:", reservation.booking_group_id, syncError);
             }
+        }
+
+        try {
+            await markReservationVehiclesCheckedOut(supabase, reservationId, now);
+        } catch (vehicleError) {
+            console.error("vehicle checkout sync failed:", reservationId, vehicleError);
         }
 
         return NextResponse.json({
