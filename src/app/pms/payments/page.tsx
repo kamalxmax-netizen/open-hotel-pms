@@ -50,10 +50,24 @@ type DepositMismatch = {
 type SummaryResponse = {
   success: boolean;
   business_date?: string;
+  calendar_date?: string;
   start_date?: string;
   end_date?: string;
+  spillover_included?: boolean;
   error?: string;
   summary: {
+    grand_total: number;
+    grand_refunds: number;
+    net_total: number;
+    tx_count: number;
+  };
+  summary_counted: {
+    grand_total: number;
+    grand_refunds: number;
+    net_total: number;
+    tx_count: number;
+  };
+  summary_all_posted: {
     grand_total: number;
     grand_refunds: number;
     net_total: number;
@@ -62,21 +76,38 @@ type SummaryResponse = {
   by_method: MethodRow[];
   by_category: CategoryRow[];
   by_day: DayRow[];
+  excluded_breakdown: Array<{
+    reason: string;
+    label: string;
+    count: number;
+    amount: number;
+  }>;
   deposit_method_mismatches: DepositMismatch[];
 };
 
 type DetailEntry = {
   id: string;
+  source_type: "folio_payment" | "pos_order";
+  counted_in_totals: boolean;
+  excluded_reason: string | null;
+  excluded_reason_label: string | null;
   paid_date: string;
-  paid_at: string;
+  counted_date: string;
+  paid_at: string | null;
   tx_type: "payment" | "refund" | "deposit";
+  display_tx_type: "payment" | "refund" | "deposit";
   method: "cash" | "transfer" | "credit_card" | "other";
+  display_method: "cash" | "transfer" | "credit_card" | "other";
   revenue_category: "room_revenue" | "pos_revenue" | "extra_charge" | "deposit" | "no_show_fee" | "dayuse_revenue";
   amount: number;
   signed_amount: number;
+  counted_signed_amount: number;
   cashier_name: string | null;
   note: string | null;
   room_number: string | null;
+  is_record_only: boolean;
+  is_correction: boolean;
+  is_void_reversal: boolean;
 };
 
 type DetailReservation = {
@@ -86,6 +117,7 @@ type DetailReservation = {
   guest_profile_id: string | null;
   room_number: string | null;
   totals: { inflow: number; refunds: number; net: number };
+  audit_totals: { inflow: number; refunds: number; net: number };
   entries: DetailEntry[];
 };
 
@@ -149,6 +181,31 @@ function fmtDateTime(value: string | null | undefined): string {
     minute: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+function statusBadge(entry: DetailEntry) {
+  if (!entry.counted_in_totals) {
+    return {
+      label: entry.excluded_reason_label ?? "Excluded",
+      className: "bg-amber-50 text-amber-700 border border-amber-200",
+    };
+  }
+  if (entry.source_type === "pos_order") {
+    return {
+      label: "POS Walk-in",
+      className: "bg-sky-50 text-sky-700 border border-sky-200",
+    };
+  }
+  if (entry.is_correction) {
+    return {
+      label: "Correction",
+      className: "bg-violet-50 text-violet-700 border border-violet-200",
+    };
+  }
+  return {
+    label: "Counted",
+    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  };
 }
 
 const PRESETS = [
@@ -319,26 +376,59 @@ export default function PaymentsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="card p-4">
-              <p className="text-xs text-[var(--text-secondary)]">Total Inflow</p>
-              <p className="text-2xl font-bold text-[var(--text-primary)]">{fmtMoney(summaryData?.summary.grand_total ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Counted Inflow</p>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{fmtMoney(summaryData?.summary_counted.grand_total ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-[var(--text-secondary)]">Refunds</p>
-              <p className="text-2xl font-bold text-rose-600">{fmtMoney(summaryData?.summary.grand_refunds ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Counted Refunds</p>
+              <p className="text-2xl font-bold text-rose-600">{fmtMoney(summaryData?.summary_counted.grand_refunds ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-[var(--text-secondary)]">Net</p>
-              <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summaryData?.summary.net_total ?? 0)}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Counted Net</p>
+              <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summaryData?.summary_counted.net_total ?? 0)}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-[var(--text-secondary)]">Transactions</p>
-              <p className="text-2xl font-bold text-[var(--text-primary)]">{summaryData?.summary.tx_count ?? 0}</p>
+              <p className="text-xs text-[var(--text-secondary)]">Counted Transactions</p>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{summaryData?.summary_counted.tx_count ?? 0}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="card p-4">
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-2">Audit Snapshot</h2>
+              <div className="space-y-1 text-sm">
+                <p className="flex justify-between gap-4"><span className="text-[var(--text-secondary)]">All Posted Inflow</span><span>{fmtMoney(summaryData?.summary_all_posted.grand_total ?? 0)}</span></p>
+                <p className="flex justify-between gap-4"><span className="text-[var(--text-secondary)]">All Posted Refunds</span><span>{fmtMoney(summaryData?.summary_all_posted.grand_refunds ?? 0)}</span></p>
+                <p className="flex justify-between gap-4 font-semibold"><span>All Posted Net</span><span>{fmtMoney(summaryData?.summary_all_posted.net_total ?? 0)}</span></p>
+                <p className="flex justify-between gap-4"><span className="text-[var(--text-secondary)]">All Posted Rows</span><span>{summaryData?.summary_all_posted.tx_count ?? 0}</span></p>
+              </div>
+            </div>
+
+            <div className="card p-4 lg:col-span-2">
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-2">Reconciliation</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(summaryData?.excluded_breakdown ?? []).map((row) => (
+                  <div key={row.reason} className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm">
+                    <p className="font-semibold text-[var(--text-primary)]">{row.label}</p>
+                    <p className="text-[var(--text-secondary)]">{row.count} rows excluded</p>
+                    <p className="mt-1 font-medium">{fmtMoney(row.amount)}</p>
+                  </div>
+                ))}
+                {(summaryData?.excluded_breakdown ?? []).length === 0 && (
+                  <div className="text-sm text-[var(--text-secondary)]">No excluded rows in selected dates.</div>
+                )}
+              </div>
+              {summaryData?.spillover_included && (
+                <p className="mt-3 text-xs text-amber-700">
+                  Open business-day spillover included for current business date.
+                </p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="card p-4 overflow-x-auto">
-              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">By Payment Method</h2>
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Counted By Payment Method</h2>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border-subtle)]">
@@ -364,7 +454,7 @@ export default function PaymentsPage() {
             </div>
 
             <div className="card p-4 overflow-x-auto">
-              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">By Revenue Category</h2>
+              <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Counted By Revenue Category</h2>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border-subtle)]">
@@ -389,7 +479,7 @@ export default function PaymentsPage() {
           </div>
 
           <div className="card p-4 overflow-x-auto">
-            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Daily Summary</h2>
+            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Counted Daily Summary</h2>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-subtle)]">
@@ -453,16 +543,15 @@ export default function PaymentsPage() {
               >
                 <div>
                   <p className="text-sm font-bold text-[var(--text-primary)]">
-                    Room {reservation.room_number ?? "-"} · {reservation.guest_name ?? "Unknown Guest"}
+                    {reservation.room_number ? `Room ${reservation.room_number}` : "No Room"} · {reservation.guest_name ?? "Unknown Guest"}
                   </p>
                   <p className="text-xs text-[var(--text-secondary)]">
                     Booking: {reservation.booking_code ?? "-"} · Reservation: {reservation.reservation_id}
                   </p>
                 </div>
                 <div className="text-right text-xs">
-                  <p className="text-[var(--text-secondary)]">Inflow: {fmtMoney(reservation.totals.inflow)}</p>
-                  <p className="text-[var(--text-secondary)]">Refund: {fmtMoney(reservation.totals.refunds)}</p>
-                  <p className="font-semibold text-[var(--text-primary)]">Net: {fmtMoney(reservation.totals.net)}</p>
+                  <p className="text-[var(--text-secondary)]">Counted Net: {fmtMoney(reservation.totals.net)}</p>
+                  <p className="text-[var(--text-secondary)]">All Posted Net: {fmtMoney(reservation.audit_totals.net)}</p>
                 </div>
               </div>
 
@@ -471,30 +560,41 @@ export default function PaymentsPage() {
                   <thead>
                     <tr className="border-b border-[var(--border-subtle)]">
                       <th className="text-left py-2">Time</th>
+                      <th className="text-left py-2">Status</th>
                       <th className="text-left py-2">Category</th>
                       <th className="text-left py-2">Method</th>
                       <th className="text-left py-2">Type</th>
                       <th className="text-right py-2">Amount</th>
+                      <th className="text-right py-2">Counted</th>
                       <th className="text-left py-2">Cashier</th>
                       <th className="text-left py-2">Note</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reservation.entries.map((entry) => (
+                    {reservation.entries.map((entry) => {
+                      const badge = statusBadge(entry);
+                      return (
                       <tr
                         key={entry.id}
                         className={`border-b border-[var(--border-subtle)] ${reservation.reservation_id ? "cursor-pointer hover:bg-[var(--bg-body)]/70" : ""}`}
                         onClick={() => openReservation(reservation.reservation_id)}
                       >
-                        <td className="py-2">{fmtDateTime(entry.paid_at)}</td>
+                        <td className="py-2">{fmtDateTime(entry.paid_at ?? entry.paid_date)}</td>
+                        <td className="py-2">
+                          <span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </td>
                         <td className="py-2">{CATEGORY_LABEL[entry.revenue_category]}</td>
-                        <td className="py-2">{METHOD_LABEL[entry.method]}</td>
-                        <td className="py-2 capitalize">{entry.tx_type}</td>
+                        <td className="py-2">{METHOD_LABEL[entry.display_method]}</td>
+                        <td className="py-2 capitalize">{entry.display_tx_type}</td>
                         <td className="py-2 text-right">{fmtMoney(entry.signed_amount)}</td>
+                        <td className="py-2 text-right font-semibold">{fmtMoney(entry.counted_signed_amount)}</td>
                         <td className="py-2">{entry.cashier_name ?? "-"}</td>
                         <td className="py-2">{entry.note ?? "-"}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

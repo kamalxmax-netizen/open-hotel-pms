@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users, MessageSquareText } from "lucide-react";
+import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users, MessageSquareText, Camera } from "lucide-react";
 
 interface Room {
   reservation_id: string;
@@ -125,6 +125,27 @@ export default function MobileCheckinLanding() {
                 </p>
                 <p className="text-indigo-300 text-xs font-semibold mt-0.5">
                   ไม่บันทึกรูป — เก็บแค่ข้อมูลตัวอักษร
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        <div>
+          <Link href="/pms/mobile-checkin/passport-practice" className="block">
+            <div className="relative overflow-hidden rounded-2xl bg-emerald-600 p-6 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all flex items-center gap-5">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white shrink-0">
+                <Camera className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-white tracking-widest uppercase">
+                  OCR Practice
+                </h2>
+                <p className="mt-1 text-emerald-100 font-medium text-sm">
+                  Practice taking passport photos with live OCR feedback
+                </p>
+                <p className="text-emerald-200 text-xs font-semibold mt-0.5">
+                  Camera only · no booking link · no data saved
                 </p>
               </div>
             </div>

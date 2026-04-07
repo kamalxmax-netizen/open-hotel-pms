@@ -1,46 +1,54 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { resolveBusinessDate } from "@/lib/folio-fees";
+import {
+  PAYMENT_REPORT_CATEGORIES,
+  PAYMENT_REPORT_METHOD_KEYS,
+  PaymentReportCategory,
+  PaymentReportExcludedReason,
+  PaymentReportMethodKey,
+  PaymentReportRow,
+  PaymentReportTxType,
+  applyPaymentReportMovement,
+  buildPaymentReportPolicyFeeDedupKey,
+  buildPaymentReportVoidedIdSet,
+  createPaymentReportMethodsMap,
+  finalizePaymentReportMethods,
+  isPaymentReportDepositRefundEntry,
+  isPaymentReportPosDepositRecord,
+  normalizePaymentReportCategory,
+  normalizePaymentReportMethod,
+  normalizePaymentReportTxType,
+  resolvePaymentReportBusinessDates,
+  round2,
+} from "@/lib/payment-reporting";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
-function toLocalDate(date: Date, tz = "Asia/Bangkok"): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(date);
+type SummaryBreakdown = {
+  grand_total: number;
+  grand_refunds: number;
+  net_total: number;
+  tx_count: number;
+};
+
+type ExcludedBreakdownRow = {
+  reason: PaymentReportExcludedReason;
+  label: string;
+  count: number;
+  amount: number;
+};
+
+function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
+  if (reason === "void_pair") return "Void Pair";
+  if (reason === "record_only") return "Record-only";
+  if (reason === "deposit_refund_separate") return "Deposit Refund";
+  if (reason === "paid_by_deposit_trace") return "Paid by Deposit Trace";
+  return "Policy Fee Duplicate";
 }
 
-const METHODS = ["cash", "transfer", "credit_card", "other"] as const;
-const CATEGORIES = [
-  "room_revenue",
-  "pos_revenue",
-  "extra_charge",
-  "deposit",
-  "no_show_fee",
-  "dayuse_revenue",
-] as const;
-
-type Method = (typeof METHODS)[number];
-type Category = (typeof CATEGORIES)[number];
-
-function normalizeMethod(raw: unknown): Method {
-  const value = String(raw ?? "").trim().toLowerCase();
-  if (!value) return "other";
-  if (value === "cash") return "cash";
-  if (value === "transfer") return "transfer";
-  if (value === "credit_card") return "credit_card";
-  if (value === "other") return "other";
-  if (value.includes("promptpay")) return "transfer";
-  if (value.includes("bank transfer")) return "transfer";
-  if (value.includes("transfer")) return "transfer";
-  if (value.includes("credit")) return "credit_card";
-  if (value.includes("card")) return "credit_card";
-  if (value.includes("cash")) return "cash";
-  return "other";
-}
-
-function isDepositRefundNote(rawNote: unknown): boolean {
-  const note = String(rawNote ?? "").toLowerCase();
-  return note.includes("deposit") && note.includes("refund");
+function emptySummary(): SummaryBreakdown {
+  return { grand_total: 0, grand_refunds: 0, net_total: 0, tx_count: 0 };
 }
 
 export async function GET(request: NextRequest) {
@@ -49,51 +57,67 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const { searchParams } = new URL(request.url);
 
-    const { data: settings } = await supabase
-      .from("hotel_settings")
-      .select("hotel_timezone")
-      .eq("id", 1)
-      .maybeSingle();
+    const startDate = (searchParams.get("start") ?? "").trim();
+    const endDate = (searchParams.get("end") ?? "").trim();
 
-    const tz = (settings?.hotel_timezone as string) ?? "Asia/Bangkok";
-    const fallbackDate = toLocalDate(new Date(), tz);
+    const { resolveBusinessDate } = await import("@/lib/folio-fees");
+    const fallbackDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
     const businessDate = await resolveBusinessDate(supabase, fallbackDate);
+    const effectiveStart = startDate || businessDate;
+    const effectiveEnd = endDate || businessDate;
 
-    const startDate = (searchParams.get("start") ?? "").trim() || businessDate;
-    const endDate = (searchParams.get("end") ?? "").trim() || businessDate;
+    const {
+      calendarDate,
+      currentBusinessDate,
+      scopedDates,
+      countedDateAlias,
+    } = await resolvePaymentReportBusinessDates(supabase, effectiveStart, effectiveEnd);
+    const spilloverIncluded = countedDateAlias.size > 0;
 
-    const { data: rows, error } = await supabase
-      .from("folio_payments")
-      .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name")
-      .gte("paid_date", startDate)
-      .lte("paid_date", endDate)
-      .order("paid_date", { ascending: true })
-      .order("paid_at", { ascending: true });
+    const [paymentsRes, posOrdersRes] = await Promise.all([
+      supabase
+        .from("folio_payments")
+        .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name, is_record_only, is_correction, is_void_reversal, void_of")
+        .in("paid_date", scopedDates)
+        .order("paid_date", { ascending: true })
+        .order("paid_at", { ascending: true }),
+      supabase
+        .from("pos_orders")
+        .select("id, order_date, total, payment_method")
+        .eq("status", "completed")
+        .eq("order_type", "walkin")
+        .in("order_date", scopedDates)
+        .order("order_date", { ascending: true }),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (paymentsRes.error) {
+      return NextResponse.json({ success: false, error: paymentsRes.error.message }, { status: 500 });
+    }
+    if (posOrdersRes.error) {
+      return NextResponse.json({ success: false, error: posOrdersRes.error.message }, { status: 500 });
     }
 
-    const byMethod: Record<
-      Method,
-      { method: Method; total: number; deposits: number; refunds: number; net: number; count: number }
-    > = {
-      cash: { method: "cash", total: 0, deposits: 0, refunds: 0, net: 0, count: 0 },
-      transfer: { method: "transfer", total: 0, deposits: 0, refunds: 0, net: 0, count: 0 },
-      credit_card: { method: "credit_card", total: 0, deposits: 0, refunds: 0, net: 0, count: 0 },
-      other: { method: "other", total: 0, deposits: 0, refunds: 0, net: 0, count: 0 },
-    };
+    const rows = (paymentsRes.data ?? []) as PaymentReportRow[];
+    const voidedIds = buildPaymentReportVoidedIdSet(rows);
 
-    const byCategory: Record<Category, { category: Category; inflow: number; refunds: number; net: number }> = {
-      room_revenue: { category: "room_revenue", inflow: 0, refunds: 0, net: 0 },
-      pos_revenue: { category: "pos_revenue", inflow: 0, refunds: 0, net: 0 },
-      extra_charge: { category: "extra_charge", inflow: 0, refunds: 0, net: 0 },
-      deposit: { category: "deposit", inflow: 0, refunds: 0, net: 0 },
-      no_show_fee: { category: "no_show_fee", inflow: 0, refunds: 0, net: 0 },
-      dayuse_revenue: { category: "dayuse_revenue", inflow: 0, refunds: 0, net: 0 },
-    };
+    const policyExtraChargeKeys = new Set<string>();
+    for (const row of rows) {
+      const txType = normalizePaymentReportTxType(row.tx_type);
+      const category = String(row.revenue_category ?? "").trim().toLowerCase();
+      const note = String(row.note ?? "").trim().toLowerCase();
+      if (txType === "payment" && category === "extra_charge" && note.includes("fee")) {
+        policyExtraChargeKeys.add(buildPaymentReportPolicyFeeDedupKey(row));
+      }
+    }
 
-    const byDayMap: Record<
+    const countedMethods = createPaymentReportMethodsMap();
+    const countedCategoryMap = Object.fromEntries(
+      PAYMENT_REPORT_CATEGORIES.map((category) => [
+        category,
+        { category, inflow: 0, refunds: 0, net: 0 },
+      ])
+    ) as Record<PaymentReportCategory, { category: PaymentReportCategory; inflow: number; refunds: number; net: number }>;
+    const countedByDayMap: Record<
       string,
       {
         date: string;
@@ -107,17 +131,18 @@ export async function GET(request: NextRequest) {
         tx_count: number;
       }
     > = {};
-
-    let grandTotal = 0;
-    let grandRefunds = 0;
+    const countedSummary = emptySummary();
+    const allPostedSummary = emptySummary();
+    const excludedMap = new Map<PaymentReportExcludedReason, { count: number; amount: number }>();
 
     const depositRowsByReservation = new Map<
       string,
-      Array<{ method: Method; amount: number; tx_type: string; paid_date: string }>
+      Array<{ method: PaymentReportMethodKey; amount: number; tx_type: string; paid_date: string }>
     >();
+
     function ensureDay(date: string) {
-      if (!byDayMap[date]) {
-        byDayMap[date] = {
+      if (!countedByDayMap[date]) {
+        countedByDayMap[date] = {
           date,
           cash: 0,
           transfer: 0,
@@ -129,124 +154,163 @@ export async function GET(request: NextRequest) {
           tx_count: 0,
         };
       }
-      return byDayMap[date];
+      return countedByDayMap[date];
     }
 
-    function applyMovement(params: {
-      method: Method;
-      category: Category;
-      txType: string;
-      amount: number;
-      date: string;
-      reservationId?: string | null;
-    }) {
-      const { method, category, txType, amount, date, reservationId } = params;
-      const day = ensureDay(date);
+    function addExcluded(reason: PaymentReportExcludedReason, amount: number) {
+      const current = excludedMap.get(reason) ?? { count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += amount;
+      excludedMap.set(reason, current);
+    }
 
-      byMethod[method].count += 1;
-      day.tx_count += 1;
+    for (const row of rows) {
+      const paidDate = String(row.paid_date ?? effectiveStart);
+      const countedDate = countedDateAlias.get(paidDate) ?? paidDate;
+      const rawMethod = normalizePaymentReportMethod(row.method);
+      const rawTxType = normalizePaymentReportTxType(row.tx_type);
+      const amount = Number(row.amount ?? 0);
+      const note = String(row.note ?? "").trim();
+      const category = normalizePaymentReportCategory(row.revenue_category, rawTxType, row.note);
 
-      if (txType === "refund") {
-        byMethod[method].refunds += amount;
-        byCategory[category].refunds += amount;
-        day.refunds += amount;
-        day.net -= amount;
-        grandRefunds += amount;
-      } else if (txType === "deposit") {
-        byMethod[method].deposits += amount;
-        byCategory[category].inflow += amount;
-        day[method] += amount;
-        day.total_inflow += amount;
-        day.net += amount;
-        grandTotal += amount;
-      } else {
-        byMethod[method].total += amount;
-        byCategory[category].inflow += amount;
-        day[method] += amount;
-        day.total_inflow += amount;
-        day.net += amount;
-        grandTotal += amount;
-      }
+      if (rawTxType === "refund") allPostedSummary.grand_refunds += amount;
+      else allPostedSummary.grand_total += amount;
+      allPostedSummary.tx_count += 1;
 
+      const reservationId = String(row.reservation_id ?? "").trim();
       if (category === "deposit" && reservationId) {
         const current = depositRowsByReservation.get(reservationId) ?? [];
         current.push({
-          method,
+          method: rawMethod,
           amount,
-          tx_type: txType,
-          paid_date: date,
+          tx_type: rawTxType,
+          paid_date: paidDate,
         });
         depositRowsByReservation.set(reservationId, current);
       }
-    }
 
-    for (const row of rows ?? []) {
-      const method = normalizeMethod(row.method);
-      const txType = String(row.tx_type ?? "payment");
-      const amount = Number(row.amount ?? 0);
-      const date = String(row.paid_date ?? startDate);
-      const reservationId = row.reservation_id ? String(row.reservation_id) : null;
+      const isPosDeposit = isPaymentReportPosDepositRecord(rawTxType, String(category), note);
+      const isPosRemainder =
+        rawTxType === "payment" &&
+        String(category) === "pos_revenue" &&
+        note.toLowerCase().includes("pos remainder");
+      const isRecordOnly = row.is_record_only === true && !isPosDeposit && !isPosRemainder;
+      const paymentId = String(row.id ?? "").trim();
 
-      let category: Category = CATEGORIES.includes(row.revenue_category as Category)
-        ? (row.revenue_category as Category)
-        : "room_revenue";
-      if (txType === "refund" && category !== "deposit" && isDepositRefundNote(row.note)) {
-        category = "deposit";
+      let excludedReason: PaymentReportExcludedReason | null = null;
+      if (paymentId && voidedIds.has(paymentId)) {
+        excludedReason = "void_pair";
+      } else if (isRecordOnly) {
+        excludedReason = "record_only";
+      } else if (
+        String(category) === "deposit" &&
+        (note.toLowerCase().includes("paid by deposit") || note.toLowerCase().includes("void return to deposit"))
+      ) {
+        excludedReason = "paid_by_deposit_trace";
+      } else if (isPaymentReportDepositRefundEntry(rawTxType, String(category), note)) {
+        excludedReason = "deposit_refund_separate";
+      } else if (
+        rawTxType === "payment" &&
+        String(category) === "room_revenue" &&
+        policyExtraChargeKeys.has(buildPaymentReportPolicyFeeDedupKey(row))
+      ) {
+        excludedReason = "policy_fee_duplicate";
       }
 
-      applyMovement({
-        method,
+      if (excludedReason) {
+        addExcluded(excludedReason, amount);
+        continue;
+      }
+
+      const method = isPosDeposit ? "cash" : rawMethod;
+      const txType: PaymentReportTxType = isPosDeposit ? "payment" : rawTxType;
+      applyPaymentReportMovement(countedMethods, method, txType, amount);
+
+      const day = ensureDay(countedDate);
+      if (txType === "refund") {
+        countedSummary.grand_refunds += amount;
+        countedCategoryMap[category].refunds += amount;
+        day.refunds += amount;
+        day.net -= amount;
+      } else {
+        countedSummary.grand_total += amount;
+        countedCategoryMap[category].inflow += amount;
+        day[method] += amount;
+        day.total_inflow += amount;
+        day.net += amount;
+      }
+      countedSummary.tx_count += 1;
+      countedCategoryMap[category].net = round2(
+        countedCategoryMap[category].inflow - countedCategoryMap[category].refunds
+      );
+      day.tx_count += 1;
+    }
+
+    for (const posOrder of (posOrdersRes.data ?? []) as Array<{ id: string; order_date: string | null; total: number | null; payment_method: string | null }>) {
+      const paidDate = String(posOrder.order_date ?? effectiveStart);
+      const countedDate = countedDateAlias.get(paidDate) ?? paidDate;
+      const method = normalizePaymentReportMethod(posOrder.payment_method);
+      const amount = Number(posOrder.total ?? 0);
+      applyPaymentReportMovement(countedMethods, method, "payment", amount);
+      countedSummary.grand_total += amount;
+      countedSummary.tx_count += 1;
+      countedCategoryMap.pos_revenue.inflow += amount;
+      countedCategoryMap.pos_revenue.net = round2(
+        countedCategoryMap.pos_revenue.inflow - countedCategoryMap.pos_revenue.refunds
+      );
+      const day = ensureDay(countedDate);
+      day[method] += amount;
+      day.total_inflow += amount;
+      day.net += amount;
+      day.tx_count += 1;
+
+      allPostedSummary.grand_total += amount;
+      allPostedSummary.tx_count += 1;
+    }
+
+    countedSummary.net_total = round2(countedSummary.grand_total - countedSummary.grand_refunds);
+    allPostedSummary.net_total = round2(allPostedSummary.grand_total - allPostedSummary.grand_refunds);
+
+    const byMethodSummary = PAYMENT_REPORT_METHOD_KEYS.map((method) => {
+      const row = finalizePaymentReportMethods(countedMethods)[method];
+      const gross = row.payment + row.deposit;
+      const sharePct = countedSummary.grand_total > 0
+        ? Number(((gross / countedSummary.grand_total) * 100).toFixed(1))
+        : 0;
+      return { method, ...row, total: row.payment, share_pct: sharePct };
+    });
+
+    const byCategorySummary = PAYMENT_REPORT_CATEGORIES.map((category) => {
+      const row = countedCategoryMap[category];
+      return {
         category,
-        txType,
-        amount,
-        date,
-        reservationId,
-      });
-    }
+        inflow: round2(row.inflow),
+        refunds: round2(row.refunds),
+        net: round2(row.net),
+      };
+    });
 
-    for (const method of METHODS) {
-      byMethod[method].net = Number((byMethod[method].total + byMethod[method].deposits - byMethod[method].refunds).toFixed(2));
-    }
-    for (const category of CATEGORIES) {
-      byCategory[category].net = Number((byCategory[category].inflow - byCategory[category].refunds).toFixed(2));
-    }
-
-    const byDay = Object.values(byDayMap)
+    const byDay = Object.values(countedByDayMap)
       .map((row) => ({
         ...row,
-        cash: Number(row.cash.toFixed(2)),
-        transfer: Number(row.transfer.toFixed(2)),
-        credit_card: Number(row.credit_card.toFixed(2)),
-        other: Number(row.other.toFixed(2)),
-        total_inflow: Number(row.total_inflow.toFixed(2)),
-        refunds: Number(row.refunds.toFixed(2)),
-        net: Number(row.net.toFixed(2)),
+        cash: round2(row.cash),
+        transfer: round2(row.transfer),
+        credit_card: round2(row.credit_card),
+        other: round2(row.other),
+        total_inflow: round2(row.total_inflow),
+        refunds: round2(row.refunds),
+        net: round2(row.net),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const byMethodSummary = METHODS.map((method) => {
-      const row = byMethod[method];
-      const gross = row.total + row.deposits;
-      const sharePct = grandTotal > 0 ? Number(((gross / grandTotal) * 100).toFixed(1)) : 0;
-      return {
-        ...row,
-        total: Number(row.total.toFixed(2)),
-        deposits: Number(row.deposits.toFixed(2)),
-        refunds: Number(row.refunds.toFixed(2)),
-        net: Number(row.net.toFixed(2)),
-        share_pct: sharePct,
-      };
-    });
-
-    const byCategorySummary = CATEGORIES.map((category) => {
-      const row = byCategory[category];
-      return {
-        category,
-        inflow: Number(row.inflow.toFixed(2)),
-        refunds: Number(row.refunds.toFixed(2)),
-        net: Number(row.net.toFixed(2)),
-      };
-    });
+    const excludedBreakdown: ExcludedBreakdownRow[] = Array.from(excludedMap.entries())
+      .map(([reason, value]) => ({
+        reason,
+        label: excludedReasonLabel(reason),
+        count: value.count,
+        amount: round2(value.amount),
+      }))
+      .sort((a, b) => b.amount - a.amount);
 
     const depositMethodMismatches: Array<{
       reservation_id: string;
@@ -269,8 +333,8 @@ export async function GET(request: NextRequest) {
             reservation_id: reservationId,
             deposit_method: deposit.method,
             refund_method: refund.method,
-            deposit_amount: Number(deposit.amount.toFixed(2)),
-            refund_amount: Number(refund.amount.toFixed(2)),
+            deposit_amount: round2(deposit.amount),
+            refund_amount: round2(refund.amount),
             deposit_date: deposit.paid_date,
             refund_date: refund.paid_date,
             note: `Deposit via ${deposit.method} but refunded via ${refund.method}`,
@@ -282,18 +346,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        business_date: businessDate,
-        start_date: startDate,
-        end_date: endDate,
-        summary: {
-          grand_total: Number(grandTotal.toFixed(2)),
-          grand_refunds: Number(grandRefunds.toFixed(2)),
-          net_total: Number((grandTotal - grandRefunds).toFixed(2)),
-          tx_count: (rows ?? []).length,
-        },
+        business_date: currentBusinessDate,
+        calendar_date: calendarDate,
+        spillover_included: spilloverIncluded,
+        start_date: effectiveStart,
+        end_date: effectiveEnd,
+        summary: countedSummary,
+        summary_counted: countedSummary,
+        summary_all_posted: allPostedSummary,
         by_method: byMethodSummary,
+        by_method_counted: byMethodSummary,
         by_category: byCategorySummary,
+        by_category_counted: byCategorySummary,
         by_day: byDay,
+        by_day_counted: byDay,
+        excluded_breakdown: excludedBreakdown,
         deposit_method_mismatches: depositMethodMismatches,
       },
       { headers: { "Cache-Control": "no-store" } }

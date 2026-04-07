@@ -277,6 +277,21 @@ function defaultSplitPlanByDeposit(row: Pick<WizardReservation, "id" | "deposit_
   };
 }
 
+function splitPlanMatchesDefault(
+  plan: SplitRoomPlan | undefined,
+  row: Pick<WizardReservation, "deposit_amount" | "remaining_balance">
+): boolean {
+  if (!plan) return true;
+  if (plan.deposit_method !== "cash") return false;
+  if (String(plan.deposit_note ?? "").trim()) return false;
+  if (toMoney(plan.deposit_amount) !== toMoney(defaultDepositAmount(row.deposit_amount))) return false;
+  if (!Array.isArray(plan.payments) || plan.payments.length !== 1) return false;
+  const [payment] = plan.payments;
+  if (!payment || payment.method !== "cash") return false;
+  if (String(payment.note ?? "").trim()) return false;
+  return toMoney(payment.amount) === toMoney(row.remaining_balance);
+}
+
 function computeSplitCardTotals(row: WizardReservation, plan: SplitRoomPlan) {
   const roomRemaining = toMoney(row.remaining_balance);
   const depositTarget = Math.max(0, toMoney(plan.deposit_amount));
@@ -638,6 +653,66 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     const rows = buildReservationRows(data);
     setReservations(rows);
     hydrateScannedPoolFromDraft(rows, draftJson);
+  }
+
+  async function refreshPricingSnapshot(options?: { syncDefaultPlans?: boolean }) {
+    const response = await fetch(
+      `/api/booking-groups/${groupId}/checkin-wizard?business_date=${encodeURIComponent(businessDate || "")}`,
+      { cache: "no-store" }
+    );
+    const data = await response.json();
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.error || "Failed to refresh current booking prices.");
+    }
+
+    const rows = buildReservationRows(data);
+    const currentById = new Map(reservations.map((row) => [row.id, row] as const));
+    const selectedIds = new Set(selectedReservationIds);
+    const pricingChanged = rows.some((row) => {
+      if (!selectedIds.has(row.id)) return false;
+      const current = currentById.get(row.id);
+      if (!current) return false;
+      return (
+        Math.abs(toMoney(current.total_price) - toMoney(row.total_price)) >= 0.01
+        || Math.abs(toMoney(current.remaining_balance) - toMoney(row.remaining_balance)) >= 0.01
+      );
+    });
+
+    setBusinessDate(String(data.business_date ?? ""));
+    setGroupData(data.group ?? null);
+    const draftJson =
+      data?.draft?.draft_json && typeof data.draft.draft_json === "object"
+        ? data.draft.draft_json
+        : {};
+    setWizardDraftJson(draftJson);
+    setReservations(rows);
+    hydrateScannedPoolFromDraft(rows, draftJson);
+
+    if (options?.syncDefaultPlans) {
+      setSplitPlans((prev) => {
+        const next: Record<string, SplitRoomPlan> = { ...prev };
+        rows.forEach((row) => {
+          const existing = prev[row.id];
+          const previousRow = currentById.get(row.id);
+          if (!existing) {
+            next[row.id] = defaultSplitPlanByDeposit(row);
+            return;
+          }
+          if (previousRow && splitPlanMatchesDefault(existing, previousRow)) {
+            next[row.id] = defaultSplitPlanByDeposit(row);
+            return;
+          }
+          next[row.id] = existing;
+        });
+        return next;
+      });
+    }
+
+    if (pricingChanged) {
+      setPaymentPreview(null);
+    }
+
+    return { pricingChanged };
   }
 
   const step4Buckets = useMemo(() => {
@@ -1804,6 +1879,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setLoadingPaymentPreview(true);
     setError("");
     try {
+      const { pricingChanged } = await refreshPricingSnapshot({ syncDefaultPlans: true });
+      if (pricingChanged) {
+        throw new Error("Booking price changed while Group Check-in was open. Step 3 has been refreshed. Please review payment amounts and preview again.");
+      }
+
       const response = await fetch(`/api/booking-groups/${groupId}/checkin-wizard/preview-payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1903,6 +1983,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setConfirmResults(null);
 
     try {
+      const { pricingChanged } = await refreshPricingSnapshot({ syncDefaultPlans: true });
+      if (pricingChanged) {
+        throw new Error("Booking price changed while Group Check-in was open. Step 3 has been refreshed. Please review all payment lines before confirming.");
+      }
+
       const splitPaymentPlan = selectedReservations.map((row) => {
         const plan = splitPlans[row.id] ?? {
           ...defaultSplitPlanByDeposit(row),

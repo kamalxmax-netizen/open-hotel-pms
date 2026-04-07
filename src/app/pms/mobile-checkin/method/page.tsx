@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, Search, ArrowLeft } from "lucide-react";
+import { Camera, Search, ArrowLeft, ScanText } from "lucide-react";
 
 export default function MethodSelection() {
   return (
@@ -28,6 +28,23 @@ export default function MethodSelection() {
               <h2 className="text-xl font-bold text-[var(--text-primary)]">Scan Passport</h2>
               <p className="text-sm font-medium text-[var(--text-secondary)] mt-1 line-clamp-2">
                 Auto-fill details via OCR and match booking smart search.
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link 
+          href="/pms/mobile-checkin/passport-practice"
+          className="group block border-2 border-emerald-500 rounded-2xl p-6 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-colors shadow-sm active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <ScanText className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">Passport Practice</h2>
+              <p className="text-sm font-medium text-[var(--text-secondary)] mt-1 line-clamp-2">
+                Camera-only OCR practice with preview feedback. No booking or guest data is saved.
               </p>
             </div>
           </div>

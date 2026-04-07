@@ -1,5 +1,18 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { resolveBusinessDate } from "@/lib/folio-fees";
+import {
+  PaymentReportExcludedReason,
+  PaymentReportRow,
+  buildPaymentReportPolicyFeeDedupKey,
+  buildPaymentReportVoidedIdSet,
+  isPaymentReportDepositRefundEntry,
+  isPaymentReportPosDepositRecord,
+  normalizePaymentReportCategory,
+  normalizePaymentReportMethod,
+  normalizePaymentReportTxType,
+  resolvePaymentReportBusinessDates,
+  round2,
+  toBangkokDateString,
+} from "@/lib/payment-reporting";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -19,41 +32,12 @@ type ReservationNightRoom = {
   room_number: string | null;
 };
 
-const CATEGORIES = [
-  "room_revenue",
-  "pos_revenue",
-  "extra_charge",
-  "deposit",
-  "no_show_fee",
-  "dayuse_revenue",
-] as const;
-type RevenueCategory = (typeof CATEGORIES)[number];
-
-function resolveRevenueCategory(rawCategory: unknown, txType: string, rawNote: unknown): RevenueCategory {
-  const category = CATEGORIES.includes(rawCategory as RevenueCategory)
-    ? (rawCategory as RevenueCategory)
-    : "room_revenue";
-  if (txType === "refund" && category !== "deposit") {
-    const note = String(rawNote ?? "").toLowerCase();
-    if (note.includes("deposit") && note.includes("refund")) {
-      return "deposit";
-    }
-  }
-  return category;
-}
-
-function toBangkokDateString(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-  if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
-  return `${year}-${month}-${day}`;
+function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
+  if (reason === "void_pair") return "Voided";
+  if (reason === "record_only") return "Record-only";
+  if (reason === "deposit_refund_separate") return "Deposit Refund";
+  if (reason === "paid_by_deposit_trace") return "Paid by Deposit Trace";
+  return "Policy Fee Duplicate";
 }
 
 function resolveRoomNumberForDate(nights: ReservationNightRoom[] | undefined, targetDate: string): string | null {
@@ -86,37 +70,58 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
+    const { resolveBusinessDate } = await import("@/lib/folio-fees");
     const fallbackDate = toBangkokDateString();
     const businessDate = await resolveBusinessDate(supabase, fallbackDate);
     const startDate = parsed.data.start ?? businessDate;
     const endDate = parsed.data.end ?? businessDate;
+    const {
+      calendarDate,
+      currentBusinessDate,
+      scopedDates,
+      countedDateAlias,
+    } = await resolvePaymentReportBusinessDates(supabase, startDate, endDate);
 
-    let query = supabase
+    let paymentsQuery = supabase
       .from("folio_payments")
-      .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name")
-      .gte("paid_date", startDate)
-      .lte("paid_date", endDate)
+      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name, is_record_only, is_correction, is_void_reversal, void_of")
+      .in("paid_date", scopedDates)
       .order("paid_date", { ascending: true })
       .order("paid_at", { ascending: true });
 
     if (parsed.data.reservation_id) {
-      query = query.eq("reservation_id", parsed.data.reservation_id);
+      paymentsQuery = paymentsQuery.eq("reservation_id", parsed.data.reservation_id);
     }
 
-    const { data: rows, error } = await query;
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const [paymentsRes, posOrdersRes] = await Promise.all([
+      paymentsQuery,
+      supabase
+        .from("pos_orders")
+        .select("id, order_date, total, payment_method")
+        .eq("status", "completed")
+        .eq("order_type", "walkin")
+        .in("order_date", scopedDates)
+        .order("order_date", { ascending: true }),
+    ]);
+
+    if (paymentsRes.error) {
+      return NextResponse.json({ success: false, error: paymentsRes.error.message }, { status: 500 });
+    }
+    if (posOrdersRes.error) {
+      return NextResponse.json({ success: false, error: posOrdersRes.error.message }, { status: 500 });
     }
 
-    const paymentRows = (rows ?? []) as Array<Record<string, unknown>>;
-    if (paymentRows.length === 0) {
-      return NextResponse.json({
-        success: true,
-        business_date: businessDate,
-        start_date: startDate,
-        end_date: endDate,
-        reservations: [],
-      });
+    const paymentRows = (paymentsRes.data ?? []) as PaymentReportRow[];
+    const voidedIds = buildPaymentReportVoidedIdSet(paymentRows);
+
+    const policyExtraChargeKeys = new Set<string>();
+    for (const row of paymentRows) {
+      const txType = normalizePaymentReportTxType(row.tx_type);
+      const category = String(row.revenue_category ?? "").trim().toLowerCase();
+      const note = String(row.note ?? "").trim().toLowerCase();
+      if (txType === "payment" && category === "extra_charge" && note.includes("fee")) {
+        policyExtraChargeKeys.add(buildPaymentReportPolicyFeeDedupKey(row));
+      }
     }
 
     const reservationIds = Array.from(
@@ -127,36 +132,38 @@ export async function GET(request: NextRequest) {
       string,
       { booking_code: string | null; guest_name: string | null; guest_profile_id: string | null }
     >();
+    const nightsByReservation = new Map<string, ReservationNightRoom[]>();
+
     if (reservationIds.length > 0) {
-      const { data: reservations, error: reservationError } = await supabase
-        .from("reservations")
-        .select("id, booking_code, guest_name, guest_profile_id")
-        .in("id", reservationIds);
-      if (reservationError) {
-        return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
+      const [reservationsRes, nightsRes] = await Promise.all([
+        supabase
+          .from("reservations")
+          .select("id, booking_code, guest_name, guest_profile_id")
+          .in("id", reservationIds),
+        supabase
+          .from("reservation_nights")
+          .select("reservation_id, stay_date, rooms:room_id(room_number)")
+          .in("reservation_id", reservationIds)
+          .lte("stay_date", endDate)
+          .is("cancelled_at", null),
+      ]);
+
+      if (reservationsRes.error) {
+        return NextResponse.json({ success: false, error: reservationsRes.error.message }, { status: 500 });
       }
-      for (const row of reservations ?? []) {
+      if (nightsRes.error) {
+        return NextResponse.json({ success: false, error: nightsRes.error.message }, { status: 500 });
+      }
+
+      for (const row of reservationsRes.data ?? []) {
         reservationMap.set(String(row.id), {
           booking_code: row.booking_code ? String(row.booking_code) : null,
           guest_name: row.guest_name ? String(row.guest_name) : null,
           guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
         });
       }
-    }
 
-    const nightsByReservation = new Map<string, ReservationNightRoom[]>();
-    if (reservationIds.length > 0) {
-      const { data: nights, error: nightsError } = await supabase
-        .from("reservation_nights")
-        .select("reservation_id, stay_date, rooms:room_id(room_number)")
-        .in("reservation_id", reservationIds)
-        .lte("stay_date", endDate)
-        .is("cancelled_at", null);
-      if (nightsError) {
-        return NextResponse.json({ success: false, error: nightsError.message }, { status: 500 });
-      }
-
-      for (const row of (nights ?? []) as any[]) {
+      for (const row of (nightsRes.data ?? []) as any[]) {
         const reservationId = String(row.reservation_id ?? "");
         if (!reservationId) continue;
         const roomRef = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
@@ -179,52 +186,167 @@ export async function GET(request: NextRequest) {
         guest_profile_id: string | null;
         room_number: string | null;
         totals: { inflow: number; refunds: number; net: number };
+        audit_totals: { inflow: number; refunds: number; net: number };
         entries: Array<Record<string, unknown>>;
       }
     >();
 
-    for (const row of paymentRows) {
-      const reservationId = String(row.reservation_id ?? "");
-      if (!reservationId) continue;
-      const reservation = reservationMap.get(reservationId);
-      const paidDate = String(row.paid_date ?? startDate);
-      const roomNumber = resolveRoomNumberForDate(nightsByReservation.get(reservationId), paidDate);
-      const amount = Number(row.amount ?? 0);
-      const txType = String(row.tx_type ?? "payment");
-      const category = resolveRevenueCategory(row.revenue_category, txType, row.note);
-      const signed = txType === "refund" ? -amount : amount;
-
-      if (!grouped.has(reservationId)) {
-        grouped.set(reservationId, {
-          reservation_id: reservationId,
-          booking_code: reservation?.booking_code ?? null,
-          guest_name: reservation?.guest_name ?? null,
-          guest_profile_id: reservation?.guest_profile_id ?? null,
-          room_number: roomNumber,
+    function ensureGroup(input: {
+      reservationId: string;
+      bookingCode: string | null;
+      guestName: string | null;
+      guestProfileId: string | null;
+      roomNumber: string | null;
+    }) {
+      const key = input.reservationId || `walkin:${input.roomNumber ?? "NA"}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          reservation_id: input.reservationId,
+          booking_code: input.bookingCode,
+          guest_name: input.guestName,
+          guest_profile_id: input.guestProfileId,
+          room_number: input.roomNumber,
           totals: { inflow: 0, refunds: 0, net: 0 },
+          audit_totals: { inflow: 0, refunds: 0, net: 0 },
           entries: [],
         });
       }
+      return grouped.get(key)!;
+    }
 
-      const target = grouped.get(reservationId);
-      if (!target) continue;
+    for (const row of paymentRows) {
+      const reservationId = String(row.reservation_id ?? "");
+      const reservation = reservationMap.get(reservationId);
+      const actualPaidDate = String(row.paid_date ?? startDate);
+      const countedPaidDate = countedDateAlias.get(actualPaidDate) ?? actualPaidDate;
+      const rawAmount = Number(row.amount ?? 0);
+      const rawTxType = normalizePaymentReportTxType(row.tx_type);
+      const rawCategory = normalizePaymentReportCategory(row.revenue_category, rawTxType, row.note);
+      const note = String(row.note ?? "").trim();
+      const roomNumber = reservationId
+        ? resolveRoomNumberForDate(nightsByReservation.get(reservationId), countedPaidDate)
+        : null;
+      const rawSignedAmount = rawTxType === "refund" ? -rawAmount : rawAmount;
+
+      const target = ensureGroup({
+        reservationId,
+        bookingCode: reservation?.booking_code ?? null,
+        guestName: reservation?.guest_name ?? null,
+        guestProfileId: reservation?.guest_profile_id ?? null,
+        roomNumber,
+      });
       if (!target.room_number && roomNumber) target.room_number = roomNumber;
-      if (txType === "refund") target.totals.refunds += amount;
-      else target.totals.inflow += amount;
-      target.totals.net += signed;
+
+      if (rawTxType === "refund") target.audit_totals.refunds += rawAmount;
+      else target.audit_totals.inflow += rawAmount;
+      target.audit_totals.net += rawSignedAmount;
+
+      const isPosDeposit = isPaymentReportPosDepositRecord(rawTxType, String(rawCategory), note);
+      const isPosRemainder =
+        rawTxType === "payment" &&
+        String(rawCategory) === "pos_revenue" &&
+        note.toLowerCase().includes("pos remainder");
+      const isRecordOnly = row.is_record_only === true && !isPosDeposit && !isPosRemainder;
+
+      let excludedReason: PaymentReportExcludedReason | null = null;
+      const paymentId = String(row.id ?? "").trim();
+      if (paymentId && voidedIds.has(paymentId)) {
+        excludedReason = "void_pair";
+      } else if (isRecordOnly) {
+        excludedReason = "record_only";
+      } else if (
+        String(rawCategory) === "deposit" &&
+        (note.toLowerCase().includes("paid by deposit") || note.toLowerCase().includes("void return to deposit"))
+      ) {
+        excludedReason = "paid_by_deposit_trace";
+      } else if (isPaymentReportDepositRefundEntry(rawTxType, String(rawCategory), note)) {
+        excludedReason = "deposit_refund_separate";
+      } else if (
+        rawTxType === "payment" &&
+        String(rawCategory) === "room_revenue" &&
+        policyExtraChargeKeys.has(buildPaymentReportPolicyFeeDedupKey(row))
+      ) {
+        excludedReason = "policy_fee_duplicate";
+      }
+
+      const countedMethod = isPosDeposit ? "cash" : normalizePaymentReportMethod(row.method);
+      const countedTxType = isPosDeposit ? "payment" : rawTxType;
+      const countedSignedAmount = countedTxType === "refund" ? -rawAmount : rawAmount;
+      const countedInTotals = excludedReason === null;
+
+      if (countedInTotals) {
+        if (countedTxType === "refund") target.totals.refunds += rawAmount;
+        else target.totals.inflow += rawAmount;
+        target.totals.net += countedSignedAmount;
+      }
 
       target.entries.push({
         id: row.id,
-        paid_date: paidDate,
+        source_type: "folio_payment",
+        counted_in_totals: countedInTotals,
+        excluded_reason: excludedReason,
+        excluded_reason_label: excludedReason ? excludedReasonLabel(excludedReason) : null,
+        paid_date: actualPaidDate,
+        counted_date: countedPaidDate,
         paid_at: row.paid_at,
-        tx_type: txType,
-        method: row.method,
-        revenue_category: category,
-        amount: Number(amount.toFixed(2)),
-        signed_amount: Number(signed.toFixed(2)),
+        tx_type: rawTxType,
+        display_tx_type: countedTxType,
+        method: normalizePaymentReportMethod(row.method),
+        display_method: countedMethod,
+        revenue_category: rawCategory,
+        amount: round2(rawAmount),
+        signed_amount: round2(rawSignedAmount),
+        counted_signed_amount: round2(countedSignedAmount),
         cashier_name: row.cashier_name ?? null,
         note: row.note ?? null,
         room_number: roomNumber,
+        is_record_only: row.is_record_only === true,
+        is_correction: row.is_correction === true,
+        is_void_reversal: row.is_void_reversal === true,
+      });
+    }
+
+    for (const posOrder of (posOrdersRes.data ?? []) as Array<{ id: string; order_date: string | null; total: number | null; payment_method: string | null }>) {
+      const paidDate = String(posOrder.order_date ?? startDate);
+      const countedPaidDate = countedDateAlias.get(paidDate) ?? paidDate;
+      const amount = Number(posOrder.total ?? 0);
+      const method = normalizePaymentReportMethod(posOrder.payment_method);
+      const target = ensureGroup({
+        reservationId: "",
+        bookingCode: "WALK-IN POS",
+        guestName: "Walk-in POS",
+        guestProfileId: null,
+        roomNumber: null,
+      });
+
+      target.audit_totals.inflow += amount;
+      target.audit_totals.net += amount;
+      target.totals.inflow += amount;
+      target.totals.net += amount;
+
+      target.entries.push({
+        id: `walkin-pos-${posOrder.id}`,
+        source_type: "pos_order",
+        counted_in_totals: true,
+        excluded_reason: null,
+        excluded_reason_label: null,
+        paid_date: paidDate,
+        counted_date: countedPaidDate,
+        paid_at: null,
+        tx_type: "payment",
+        display_tx_type: "payment",
+        method,
+        display_method: method,
+        revenue_category: "pos_revenue",
+        amount: round2(amount),
+        signed_amount: round2(amount),
+        counted_signed_amount: round2(amount),
+        cashier_name: null,
+        note: "Walk-in POS settlement",
+        room_number: null,
+        is_record_only: false,
+        is_correction: false,
+        is_void_reversal: false,
       });
     }
 
@@ -232,21 +354,32 @@ export async function GET(request: NextRequest) {
       .map((group) => ({
         ...group,
         totals: {
-          inflow: Number(group.totals.inflow.toFixed(2)),
-          refunds: Number(group.totals.refunds.toFixed(2)),
-          net: Number(group.totals.net.toFixed(2)),
+          inflow: round2(group.totals.inflow),
+          refunds: round2(group.totals.refunds),
+          net: round2(group.totals.net),
         },
+        audit_totals: {
+          inflow: round2(group.audit_totals.inflow),
+          refunds: round2(group.audit_totals.refunds),
+          net: round2(group.audit_totals.net),
+        },
+        entries: group.entries.sort((a, b) => {
+          const left = String(a.paid_at ?? a.paid_date ?? "");
+          const right = String(b.paid_at ?? b.paid_date ?? "");
+          return left.localeCompare(right);
+        }),
       }))
       .sort((a, b) => {
-        const roomA = a.room_number ?? "";
-        const roomB = b.room_number ?? "";
+        const roomA = a.room_number ?? "ZZZ";
+        const roomB = b.room_number ?? "ZZZ";
         if (roomA !== roomB) return roomA.localeCompare(roomB, undefined, { numeric: true, sensitivity: "base" });
         return (a.booking_code ?? "").localeCompare(b.booking_code ?? "", undefined, { sensitivity: "base" });
       });
 
     return NextResponse.json({
       success: true,
-      business_date: businessDate,
+      business_date: currentBusinessDate,
+      calendar_date: calendarDate,
       start_date: startDate,
       end_date: endDate,
       reservations,
