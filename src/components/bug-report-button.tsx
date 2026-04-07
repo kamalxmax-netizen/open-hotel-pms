@@ -1,18 +1,24 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { createPortal } from "react-dom";
 
 type CaptureState = "idle" | "capturing" | "previewing" | "submitting" | "done" | "error";
 
 export default function BugReportButton() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<CaptureState>("idle");
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const capture = useCallback(async () => {
     setState("capturing");
@@ -95,24 +101,27 @@ export default function BugReportButton() {
     }
   }
 
+  if (!mounted) return null;
+
   if (!open) {
-    return (
+    return createPortal(
       <button
         id="bug-report-btn"
         onClick={handleOpen}
         title="Report a bug"
-        className="fixed bottom-5 right-5 z-50 w-10 h-10 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        className="fixed bottom-5 right-5 z-[10020] w-10 h-10 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
         aria-label="Report a bug"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
           <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
         </svg>
-      </button>
+      </button>,
+      document.body
     );
   }
 
-  return (
-    <div id="bug-report-overlay" className="fixed inset-0 z-50 flex items-end justify-end p-4 pointer-events-none">
+  return createPortal(
+    <div id="bug-report-overlay" className="fixed inset-0 z-[10020] flex items-end justify-end p-4 pointer-events-none">
       <div className="pointer-events-auto w-full max-w-md bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
@@ -202,6 +211,7 @@ export default function BugReportButton() {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
