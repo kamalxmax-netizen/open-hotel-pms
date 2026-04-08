@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useVehicleRegistry } from "@/lib/use-vehicle-api";
 import { VehicleCard } from "@/components/vehicles/vehicle-card";
 import { VehicleRegisterModal } from "@/components/vehicles/vehicle-register-modal";
+import type { GuestVehicle } from "@/lib/types";
 import { Search, Plus } from "lucide-react";
 
 export default function VehicleRegistryPage() {
   const { activeVehicles, checkedOutToday, activeCount, unlinkVehicle, refresh, loading, error } = useVehicleRegistry();
   const [showRegister, setShowRegister] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<GuestVehicle | null>(null);
   const [search, setSearch] = useState("");
 
   const loweredSearch = search.toLowerCase();
@@ -82,13 +84,13 @@ export default function VehicleRegistryPage() {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {loading ? (
               <div className="col-span-full p-8 text-center bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
                 Loading vehicles...
               </div>
             ) : activeCars.length > 0 ? activeCars.map(v => (
-              <VehicleCard key={v.id} vehicle={v} onUnlink={unlinkVehicle} />
+              <VehicleCard key={v.id} vehicle={v} onUnlink={unlinkVehicle} onEdit={setEditingVehicle} />
             )) : (
               <div className="col-span-full p-8 text-center bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
                 No active cars
@@ -99,9 +101,9 @@ export default function VehicleRegistryPage() {
           {coCars.length > 0 && (
             <div className="pt-6 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Checked Out Today</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {coCars.map(v => (
-                  <VehicleCard key={v.id} vehicle={v} />
+                  <VehicleCard key={v.id} vehicle={v} onEdit={setEditingVehicle} />
                 ))}
               </div>
             </div>
@@ -116,13 +118,13 @@ export default function VehicleRegistryPage() {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {loading ? (
               <div className="col-span-full p-8 text-center bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
                 Loading vehicles...
               </div>
             ) : activeOthers.length > 0 ? activeOthers.map(v => (
-              <VehicleCard key={v.id} vehicle={v} onUnlink={unlinkVehicle} />
+              <VehicleCard key={v.id} vehicle={v} onUnlink={unlinkVehicle} onEdit={setEditingVehicle} />
             )) : (
               <div className="col-span-full p-8 text-center bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
                 No active motorcycles or bicycles
@@ -133,9 +135,9 @@ export default function VehicleRegistryPage() {
           {coOthers.length > 0 && (
             <div className="pt-6 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Checked Out Today</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {coOthers.map(v => (
-                  <VehicleCard key={v.id} vehicle={v} />
+                  <VehicleCard key={v.id} vehicle={v} onEdit={setEditingVehicle} />
                 ))}
               </div>
             </div>
@@ -146,6 +148,17 @@ export default function VehicleRegistryPage() {
 
       {showRegister && (
         <VehicleRegisterModal onClose={() => setShowRegister(false)} onSuccess={refresh} />
+      )}
+
+      {editingVehicle && (
+        <VehicleRegisterModal
+          vehicle={editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+          onSuccess={() => {
+            setEditingVehicle(null);
+            void refresh();
+          }}
+        />
       )}
     </div>
   );

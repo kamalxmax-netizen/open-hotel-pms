@@ -43,10 +43,11 @@ export function VehicleDetailPopover({ vehicle, onUnlink }: VehicleDetailPopover
       {isOpen && (
         <div 
           ref={popoverRef}
-          className="absolute z-[100] bottom-full left-0 mb-2 min-w-[280px]"
+          className="absolute z-[100] top-full left-0 mt-2 min-w-[280px]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute bottom-full left-4 -mb-[1px] h-0 w-0 border-b-[6px] border-b-white border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent dark:border-b-slate-800" />
             <VehicleCard 
               vehicle={vehicle} 
               variant="compact" 
@@ -55,8 +56,6 @@ export function VehicleDetailPopover({ vehicle, onUnlink }: VehicleDetailPopover
                 setIsOpen(false);
               }} 
             />
-            {/* Triangle arrow */}
-            <div className="absolute top-full left-4 -mt-[1px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white dark:border-t-slate-800" />
           </div>
         </div>
       )}

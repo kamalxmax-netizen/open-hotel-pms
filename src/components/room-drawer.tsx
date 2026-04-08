@@ -1040,12 +1040,7 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                         {roomVehicles.map(v => (
                                                             <VehicleDetailPopover 
                                                                 key={v.id} 
-                                                                vehicle={v} 
-                                                                onUnlink={() => {
-                                                                    if (confirm(`Unlink ${v.plate_number || 'this vehicle'}?`)) {
-                                                                        void unlinkVehicle(v.id);
-                                                                    }
-                                                                }}
+                                                                vehicle={v}
                                                             />
                                                         ))}
                                                     </div>
@@ -1367,13 +1362,6 @@ export default function RoomDrawer({ room, onClose, onRefresh, onDayUseCheckin }
                                                                     Early Check-out
                                                                 </button>
                                                             )}
-                                                            <button
-                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2"
-                                                                onClick={() => { setShowMoreMenu(false); setShowVehicleRegister(true); }}
-                                                            >
-                                                                <Car className="h-4 w-4 text-[var(--text-muted)]" />
-                                                                Register Vehicle
-                                                            </button>
                                                             {canCancel && (
                                                                 <button
                                                                     className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-body)] flex items-center gap-2 text-rose-600"

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import PmsModal from "../pms-modal";
-import { VehicleType, VehicleColor } from "@/lib/types";
+import { VehicleType, VehicleColor, GuestVehicle } from "@/lib/types";
 import { THAI_PROVINCES, MALAYSIAN_STATES } from "./province-data";
-import { registerVehicle, useInHouseReservationOptions } from "@/lib/use-vehicle-api";
+import { registerVehicle, updateVehicle, useInHouseReservationOptions } from "@/lib/use-vehicle-api";
 
 interface VehicleRegisterModalProps {
   onClose: () => void;
@@ -12,6 +12,7 @@ interface VehicleRegisterModalProps {
   initialReservationId?: string;
   initialRoomNumber?: string;
   initialGuestName?: string;
+  vehicle?: GuestVehicle | null;
 }
 
 export function VehicleRegisterModal({ 
@@ -19,28 +20,55 @@ export function VehicleRegisterModal({
   onSuccess,
   initialReservationId, 
   initialRoomNumber,
-  initialGuestName 
+  initialGuestName,
+  vehicle,
 }: VehicleRegisterModalProps) {
-  const { reservations, loading: reservationsLoading, error: reservationsError } = useInHouseReservationOptions(!initialReservationId);
+  const isEditMode = Boolean(vehicle?.id);
+  const { reservations, loading: reservationsLoading, error: reservationsError } = useInHouseReservationOptions(!initialReservationId && !isEditMode);
   
-  const [reservationId, setReservationId] = useState(initialReservationId || "");
-  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
-  const [country, setCountry] = useState<"TH" | "MY">("TH");
-  const [plateNumber, setPlateNumber] = useState("");
-  const [province, setProvince] = useState(THAI_PROVINCES[0]);
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [color, setColor] = useState<VehicleColor>("white");
-  const [description, setDescription] = useState("");
+  const [reservationId, setReservationId] = useState(vehicle?.reservation_id || initialReservationId || "");
+  const [vehicleType, setVehicleType] = useState<VehicleType>(vehicle?.vehicle_type || "car");
+  const [country, setCountry] = useState<"TH" | "MY">(vehicle?.plate_country || "TH");
+  const [plateNumber, setPlateNumber] = useState(vehicle?.plate_number || "");
+  const [province, setProvince] = useState(vehicle?.plate_province || THAI_PROVINCES[0]);
+  const [brand, setBrand] = useState(vehicle?.vehicle_brand || "");
+  const [model, setModel] = useState(vehicle?.vehicle_model || "");
+  const [color, setColor] = useState<VehicleColor>(vehicle?.vehicle_color || "white");
+  const [description, setDescription] = useState(vehicle?.description || "");
   
-  const [searchTerm, setSearchTerm] = useState(initialRoomNumber ? `Room ${initialRoomNumber}` : "");
+  const [searchTerm, setSearchTerm] = useState(
+    vehicle
+      ? `Room ${vehicle.effective_room_number ?? vehicle.current_room_number ?? vehicle.room_number ?? initialRoomNumber ?? "—"} · ${vehicle.guest_name ?? initialGuestName ?? ""}`.trim()
+      : initialRoomNumber
+        ? `Room ${initialRoomNumber}`
+        : ""
+  );
   const [showSearch, setShowSearch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!vehicle) return;
+    setReservationId(vehicle.reservation_id);
+    setVehicleType(vehicle.vehicle_type);
+    setCountry(vehicle.plate_country);
+    setPlateNumber(vehicle.plate_number || "");
+    setProvince(vehicle.plate_province || (vehicle.plate_country === "TH" ? THAI_PROVINCES[0] : MALAYSIAN_STATES[0]));
+    setBrand(vehicle.vehicle_brand || "");
+    setModel(vehicle.vehicle_model || "");
+    setColor(vehicle.vehicle_color);
+    setDescription(vehicle.description || "");
+    setSearchTerm(`Room ${vehicle.effective_room_number ?? vehicle.current_room_number ?? vehicle.room_number ?? initialRoomNumber ?? "—"} · ${vehicle.guest_name ?? initialGuestName ?? ""}`.trim());
+  }, [vehicle, initialGuestName, initialRoomNumber]);
+
   // Sync province default when country changes
   useEffect(() => {
-    setProvince(country === "TH" ? THAI_PROVINCES[0] : MALAYSIAN_STATES[0]);
+    setProvince((current) => {
+      if (country === "TH") {
+        return THAI_PROVINCES.includes(current) ? current : THAI_PROVINCES[0];
+      }
+      return MALAYSIAN_STATES.includes(current) ? current : MALAYSIAN_STATES[0];
+    });
   }, [country]);
 
   // Handle Bicycle special rules (D3)
@@ -66,8 +94,7 @@ export function VehicleRegisterModal({
 
     try {
       setSubmitting(true);
-      await registerVehicle({
-        reservation_id: reservationId,
+      const payload = {
         vehicle_type: vehicleType,
         plate_number: plateNumber || null,
         plate_province: vehicleType === "bicycle" ? null : province,
@@ -76,12 +103,21 @@ export function VehicleRegisterModal({
         vehicle_model: model || null,
         vehicle_color: color,
         description: description || null,
-      });
+      };
+
+      if (isEditMode && vehicle?.id) {
+        await updateVehicle(vehicle.id, payload);
+      } else {
+        await registerVehicle({
+          reservation_id: reservationId,
+          ...payload,
+        });
+      }
 
       onSuccess?.();
       onClose();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Failed to register vehicle.");
+      setError(submitError instanceof Error ? submitError.message : `Failed to ${isEditMode ? "update" : "register"} vehicle.`);
     } finally {
       setSubmitting(false);
     }
@@ -94,7 +130,7 @@ export function VehicleRegisterModal({
   );
 
   return (
-    <PmsModal title="Register Vehicle" onClose={onClose} size="md">
+    <PmsModal title={isEditMode ? "Edit Vehicle" : "Register Vehicle"} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Reservation Search */}
         <div className="relative">
@@ -110,9 +146,9 @@ export function VehicleRegisterModal({
             }}
             onFocus={() => setShowSearch(true)}
             required
-            readOnly={!!initialReservationId}
+            readOnly={!!initialReservationId || isEditMode}
           />
-          {showSearch && !initialReservationId && (
+          {showSearch && !initialReservationId && !isEditMode && (
             <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
               {reservationsLoading ? (
                 <div className="p-4 text-center text-sm text-slate-400">Loading in-house guests...</div>
@@ -277,7 +313,7 @@ export function VehicleRegisterModal({
           disabled={submitting}
           className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20"
         >
-          {submitting ? "Registering..." : "Register Vehicle"}
+          {submitting ? (isEditMode ? "Saving..." : "Registering...") : (isEditMode ? "Save Changes" : "Register Vehicle")}
         </button>
       </form>
     </PmsModal>

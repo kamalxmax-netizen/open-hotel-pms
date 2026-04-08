@@ -26,7 +26,7 @@ export const SOURCE_LABEL: Record<string, string> = {
 
 const COL_W = 44;   // px per day column
 const ROW_H = 40;   // px per room row
-const ROOM_COL_W = 120; // px for room label
+const ROOM_COL_W = 130; // px for room label + badges
 
 /* ─── Helpers ─────────────────────────────────── */
 function addDays(date: string, n: number): string {
@@ -480,10 +480,12 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                         style={{ height: ROW_H }}
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)]">{room.room_number}</span>
+                                        <span className="text-[9px] text-[var(--text-muted)] shrink-0">{room.room_type_code || room.room_type.slice(0, 2)}</span>
+                                        {renderDiaryStateBadge(diaryStateByRoomId.get(room.room_id) ?? null)}
                                         {/* Vehicle Indicators */}
                                         {vehicleSummaryMap[room.room_id] && (
                                             <div
-                                                className="flex items-center gap-0.5"
+                                                className="flex items-center gap-0.5 shrink-0"
                                                 title={vehicleSummaryMap[room.room_id].map(v => v.title || v.plate_number || 'BICYCLE').join(" · ")}
                                             >
                                                 {vehicleSummaryMap[room.room_id].slice(0, 3).map(v => (
@@ -496,8 +498,6 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 )}
                                             </div>
                                         )}
-                                        <span className="text-[9px] text-[var(--text-muted)] truncate">{room.room_type_code || room.room_type.slice(0, 2)}</span>
-                                        {renderDiaryStateBadge(diaryStateByRoomId.get(room.room_id) ?? null)}
                                         {!room.is_sellable && <span className="text-[9px] text-[var(--text-muted)]" title="Out of Order / Out of Service">🚧</span>}
                                         {renderHKBadge(room.hk_status)}
                                     </div>

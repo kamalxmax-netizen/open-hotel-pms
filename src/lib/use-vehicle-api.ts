@@ -61,6 +61,21 @@ export async function unlinkVehicle(vehicleId: string): Promise<GuestVehicle | n
   return json.vehicle ?? null;
 }
 
+export async function updateVehicle(
+  vehicleId: string,
+  payload: Omit<VehicleRegisterPayload, "reservation_id" | "group_link">,
+): Promise<GuestVehicle | null> {
+  const json = await readJson<{ vehicle?: GuestVehicle | null }>(
+    `/api/vehicles/${vehicleId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  return json.vehicle ?? null;
+}
+
 export function useVehicleRegistry(refreshMs = 30_000) {
   const [data, setData] = useState<VehicleRegistryData>({
     activeVehicles: [],

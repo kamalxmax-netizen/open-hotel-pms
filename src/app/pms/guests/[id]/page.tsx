@@ -21,10 +21,37 @@ import type {
   GuestStaySummary,
   GuestStaySummaryResponse,
 } from "@/lib/types";
+import { getPlateDisplay } from "@/components/vehicles/vehicle-helpers";
 
 type GuestProfileResponse = {
   success: boolean;
   profile: GuestProfile;
+};
+
+type ProfileVehicle = {
+  vehicle_key: string;
+  vehicle_type: "car" | "motorcycle" | "bicycle";
+  plate_number: string | null;
+  plate_province: string | null;
+  plate_country: "TH" | "MY";
+  vehicle_brand: string | null;
+  vehicle_model: string | null;
+  vehicle_color: "white" | "black" | "silver" | "red" | "blue" | "yellow" | "other";
+  description: string | null;
+  short_label: string;
+  title: string;
+  subtitle: string | null;
+  latest_registered_at: string;
+  last_reservation_id: string | null;
+  last_room_number: string | null;
+  last_guest_name: string | null;
+};
+
+type ProfileVehicleResponse = {
+  success: boolean;
+  vehicles?: ProfileVehicle[];
+  count?: number;
+  error?: string;
 };
 
 type EditForm = {
@@ -476,6 +503,8 @@ export default function GuestProfileDetailPage() {
   const [showEditValidation, setShowEditValidation] = useState(false);
   const [actionError, setActionError] = useState("");
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [profileVehicles, setProfileVehicles] = useState<ProfileVehicle[]>([]);
+  const [profileVehiclesError, setProfileVehiclesError] = useState("");
   const [selectedStay, setSelectedStay] = useState<GuestHistoryStay | null>(null);
   const [staySummary, setStaySummary] = useState<GuestStaySummary | null>(null);
   const [stayLoading, setStayLoading] = useState(false);
@@ -513,6 +542,19 @@ export default function GuestProfileDetailPage() {
         setProfile(profileJson.profile);
         setEditForm(toEditForm(profileJson.profile));
         setHistory(historyJson);
+
+        const vehiclesRes = await fetch(`/api/vehicles/profile-vehicles?guest_profile_id=${encodeURIComponent(profileId)}&t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const vehiclesJson = (await vehiclesRes.json().catch(() => null)) as ProfileVehicleResponse | null;
+        if (!mounted) return;
+        if (!vehiclesRes.ok || vehiclesJson?.success === false) {
+          setProfileVehicles([]);
+          setProfileVehiclesError(vehiclesJson?.error || "Failed to load vehicle history.");
+        } else {
+          setProfileVehicles(Array.isArray(vehiclesJson?.vehicles) ? vehiclesJson!.vehicles! : []);
+          setProfileVehiclesError("");
+        }
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "Failed to load guest profile.");
@@ -874,6 +916,40 @@ export default function GuestProfileDetailPage() {
               </div>
             ) : (
               <div className="text-lg text-[var(--text-muted)]">—</div>
+            )}
+          </InfoBox>
+
+          <InfoBox title="Vehicles">
+            {profileVehiclesError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {profileVehiclesError}
+              </div>
+            ) : profileVehicles.length > 0 ? (
+              <div className="space-y-3 text-lg text-[var(--text-table-cell)]">
+                {profileVehicles.map((vehicle) => {
+                  return (
+                    <div key={vehicle.vehicle_key} className="border-b border-[var(--border-subtle)] pb-3 last:border-b-0 last:pb-0">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {vehicle.short_label || getPlateDisplay(vehicle.plate_number, vehicle.vehicle_type)}
+                        </span>
+                        <span>
+                          Plate: {valueOrDash(vehicle.plate_number)}
+                          {vehicle.plate_province ? ` · ${vehicle.plate_province}` : ""}
+                        </span>
+                        <span>Type: {vehicle.vehicle_type}</span>
+                        <span>Brand/Model: {valueOrDash([vehicle.vehicle_brand, vehicle.vehicle_model].filter(Boolean).join(" "))}</span>
+                        <span>Color: {valueOrDash(vehicle.vehicle_color)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid gap-3 text-lg text-[var(--text-table-cell)] md:grid-cols-[1.2fr_1fr]">
+                <div>No vehicle history linked to this profile yet.</div>
+                <div>Legacy Car Registration: {valueOrDash(profile.car_registration)}</div>
+              </div>
             )}
           </InfoBox>
 

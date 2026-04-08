@@ -277,7 +277,7 @@ function ReservationDetail({
 /* ─── Cell width ──────────────────────────────── */
 const COL_W = 44;   // px per day column
 const ROW_H = 40;   // px per room row
-const ROOM_COL_W = 120; // px for room label
+const ROOM_COL_W = 130; // px for room label + badges
 
 /* ─── Main Calendar Page ──────────────────────── */
 function CalendarPageInner() {

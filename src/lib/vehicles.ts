@@ -1,4 +1,5 @@
 import { toBangkokDateString } from "@/lib/audit-utils";
+import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { toBangkokWindow } from "@/lib/night-audit";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -49,6 +50,7 @@ type GuestVehicleDbRow = {
 
 type ReservationRow = {
   id: string;
+  parent_reservation_id?: string | null;
   booking_code: string | null;
   guest_name: string | null;
   guest_profile_id: string | null;
@@ -321,13 +323,29 @@ async function loadReservationsByIds(
   const ids = Array.from(new Set(reservationIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
 
-  const { data, error } = await supabase
+  const selectWithCheckedOutAt = "id, parent_reservation_id, booking_code, guest_name, guest_profile_id, booking_group_id, status, checkin_date, checkout_date, checked_in_at, checked_out_at";
+  const selectFallback = "id, parent_reservation_id, booking_code, guest_name, guest_profile_id, booking_group_id, status, checkin_date, checkout_date, checked_in_at";
+
+  let data: any[] | null = null;
+  const withCheckedOutAt = await supabase
     .from("reservations")
-    .select("id, booking_code, guest_name, guest_profile_id, booking_group_id, status, checkin_date, checkout_date, checked_in_at, checked_out_at")
+    .select(selectWithCheckedOutAt)
     .in("id", ids);
 
-  if (error) {
-    throw makeVehicleError(error.message, 500);
+  if (withCheckedOutAt.error && /checked_out_at/i.test(withCheckedOutAt.error.message)) {
+    const fallback = await supabase
+      .from("reservations")
+      .select(selectFallback)
+      .in("id", ids);
+
+    if (fallback.error) {
+      throw makeVehicleError(fallback.error.message, 500);
+    }
+    data = fallback.data ?? [];
+  } else if (withCheckedOutAt.error) {
+    throw makeVehicleError(withCheckedOutAt.error.message, 500);
+  } else {
+    data = withCheckedOutAt.data ?? [];
   }
 
   return new Map(
@@ -335,6 +353,7 @@ async function loadReservationsByIds(
       String(row.id),
       {
         id: String(row.id),
+        parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
         booking_code: normalizeText(row.booking_code),
         guest_name: normalizeText(row.guest_name),
         guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
@@ -355,6 +374,7 @@ async function loadLatestRoomByReservationIds(
 ): Promise<Map<string, { room_id: string | null; room_number: string | null }>> {
   const ids = Array.from(new Set(reservationIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
+  const businessDate = await resolveBusinessDate(supabase as any, toLocalDate(new Date(), "Asia/Bangkok"));
 
   const { data: nights, error: nightsError } = await supabase
     .from("reservation_nights")
@@ -375,7 +395,16 @@ async function loadLatestRoomByReservationIds(
     const roomId = row.room_id ? String(row.room_id) : null;
     if (!reservationId || !stayDate) continue;
     const current = latestNightByReservation.get(reservationId);
-    if (!current || stayDate > current.stay_date) {
+    const currentIsOnOrBeforeBusinessDate = current ? current.stay_date <= businessDate : false;
+    const nextIsOnOrBeforeBusinessDate = stayDate <= businessDate;
+
+    // Prefer the latest stay_date on or before the current business date so vehicle badge
+    // follows the room the guest is physically in now, not a future planned-move room.
+    if (
+      !current ||
+      (nextIsOnOrBeforeBusinessDate && (!currentIsOnOrBeforeBusinessDate || stayDate > current.stay_date)) ||
+      (!currentIsOnOrBeforeBusinessDate && !nextIsOnOrBeforeBusinessDate && stayDate > current.stay_date)
+    ) {
       latestNightByReservation.set(reservationId, {
         reservation_id: reservationId,
         room_id: roomId,
@@ -431,6 +460,63 @@ async function loadReservationVehicleContextByIds(
       },
     ]),
   );
+}
+
+async function findContinuationReservationContext(
+  supabase: SupabaseServerClient,
+  reservationId: string,
+): Promise<ReservationVehicleContext | null> {
+  const reservationMap = await loadReservationsByIds(supabase, [reservationId]);
+  const current = reservationMap.get(reservationId) ?? null;
+  if (!current) return null;
+
+  const rootReservationId = String(current.parent_reservation_id ?? current.id).trim() || reservationId;
+  const today = toBangkokDateString();
+  const query = current.parent_reservation_id
+    ? supabase
+        .from("reservations")
+        .select("id")
+        .eq("parent_reservation_id", rootReservationId)
+    : supabase
+        .from("reservations")
+        .select("id, parent_reservation_id")
+        .or(`id.eq.${rootReservationId},parent_reservation_id.eq.${rootReservationId}`);
+
+  const { data, error } = await query;
+  if (error) {
+    throw makeVehicleError(error.message, 500);
+  }
+
+  const candidateIds = Array.from(
+    new Set(
+      (data ?? [])
+        .map((row: any) => String(row?.id ?? "").trim())
+        .filter((id: string) => Boolean(id) && id !== reservationId),
+    ),
+  );
+
+  if (candidateIds.length === 0) return null;
+
+  const candidateMap = await loadReservationVehicleContextByIds(supabase, candidateIds);
+  const candidates = candidateIds
+    .map((id) => candidateMap.get(id) ?? null)
+    .filter((row): row is ReservationVehicleContext => Boolean(row))
+    .filter((row) => row.status === "active" && Boolean(row.checked_in_at))
+    .filter((row) => {
+      const checkinDate = String(row.checkin_date ?? "");
+      const checkoutDate = String(row.checkout_date ?? "");
+      if (!checkinDate || !checkoutDate) return false;
+      return checkinDate <= today && checkoutDate > today;
+    })
+    .sort((left, right) => {
+      const leftCheckin = String(left.checkin_date ?? "");
+      const rightCheckin = String(right.checkin_date ?? "");
+      const dateCompare = leftCheckin.localeCompare(rightCheckin);
+      if (dateCompare !== 0) return dateCompare;
+      return String(left.id).localeCompare(String(right.id));
+    });
+
+  return candidates[0] ?? null;
 }
 
 function mapVehicleRow(
@@ -794,6 +880,7 @@ export async function createVehicleLinks(
 ): Promise<{
   vehicles: VehicleRecord[];
   created_count: number;
+  reactivated_count: number;
   skipped_count: number;
   skipped_reservation_ids: string[];
 }> {
@@ -826,6 +913,17 @@ export async function createVehicleLinks(
     targetReservations.map((reservation) => reservation.id),
   );
 
+  const { data: inactiveRowsData, error: inactiveRowsError } = await supabase
+    .from("guest_vehicles")
+    .select("*")
+    .in("reservation_id", targetReservations.map((reservation) => reservation.id))
+    .not("checked_out_at", "is", null)
+    .order("checked_out_at", { ascending: false });
+
+  if (inactiveRowsError) {
+    throw makeVehicleError(inactiveRowsError.message, 500);
+  }
+
   const existingKeysByReservation = new Map<string, Set<string>>();
   for (const row of existingRows) {
     if (!existingKeysByReservation.has(row.reservation_id)) {
@@ -843,13 +941,41 @@ export async function createVehicleLinks(
     );
   }
 
+  const inactiveRowsByReservation = new Map<string, GuestVehicleDbRow[]>();
+  for (const row of ((inactiveRowsData ?? []) as any[]).map(mapRawVehicleRow)) {
+    if (!inactiveRowsByReservation.has(row.reservation_id)) {
+      inactiveRowsByReservation.set(row.reservation_id, []);
+    }
+    inactiveRowsByReservation.get(row.reservation_id)?.push(row);
+  }
+
   const rowsToInsert: VehicleInsertRow[] = [];
+  const rowsToReactivate: Array<{ id: string; reservation: ReservationVehicleContext }> = [];
   const skippedReservationIds: string[] = [];
 
   for (const reservation of targetReservations) {
     const existingKeys = existingKeysByReservation.get(reservation.id) ?? new Set<string>();
     if (existingKeys.has(newVehicleKey)) {
       skippedReservationIds.push(reservation.id);
+      continue;
+    }
+
+    const previouslyUnlinkedRow = (inactiveRowsByReservation.get(reservation.id) ?? []).find((row) =>
+      buildDistinctVehicleKey({
+        vehicle_type: row.vehicle_type,
+        plate_number: row.plate_number,
+        plate_country: row.plate_country,
+        description: row.description,
+        vehicle_brand: row.vehicle_brand,
+        vehicle_model: row.vehicle_model,
+      }) === newVehicleKey,
+    );
+
+    if (previouslyUnlinkedRow) {
+      rowsToReactivate.push({
+        id: previouslyUnlinkedRow.id,
+        reservation,
+      });
       continue;
     }
 
@@ -875,9 +1001,57 @@ export async function createVehicleLinks(
   }
 
   if (rowsToInsert.length === 0) {
-    return {
-      vehicles: [],
+    if (rowsToReactivate.length === 0) {
+      return {
+        vehicles: [],
+        created_count: 0,
+        reactivated_count: 0,
+        skipped_count: skippedReservationIds.length,
+        skipped_reservation_ids: skippedReservationIds,
+      };
+    }
+  }
+
+  const touchedRows: GuestVehicleDbRow[] = [];
+
+  for (const item of rowsToReactivate) {
+    const { data, error } = await supabase
+      .from("guest_vehicles")
+      .update({
+        reservation_id: item.reservation.id,
+        guest_profile_id: item.reservation.guest_profile_id ?? null,
+        room_id: item.reservation.current_room_id ?? null,
+        room_number: item.reservation.current_room_number ?? null,
+        booking_code: item.reservation.booking_code ?? null,
+        guest_name: item.reservation.guest_name ?? null,
+        vehicle_type: input.vehicleType,
+        plate_number: normalizePlateNumber(input.plateNumber) ?? null,
+        plate_province: normalizeText(input.plateProvince) ?? null,
+        plate_country: input.plateCountry ?? "TH",
+        vehicle_brand: normalizeText(input.vehicleBrand) ?? null,
+        vehicle_model: normalizeText(input.vehicleModel) ?? null,
+        vehicle_color: input.vehicleColor ?? "white",
+        description: normalizeText(input.description) ?? null,
+        checked_out_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", item.id)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      throw makeVehicleError(error.message, 500);
+    }
+    if (data) {
+      touchedRows.push(mapRawVehicleRow(data));
+    }
+  }
+
+  if (rowsToInsert.length === 0) {
+      return {
+      vehicles: await enrichVehicleRows(supabase, touchedRows),
       created_count: 0,
+      reactivated_count: rowsToReactivate.length,
       skipped_count: skippedReservationIds.length,
       skipped_reservation_ids: skippedReservationIds,
     };
@@ -892,9 +1066,12 @@ export async function createVehicleLinks(
     throw makeVehicleError(error.message, 500);
   }
 
+  const insertedRows = ((data ?? []) as any[]).map(mapRawVehicleRow);
+
   return {
-    vehicles: await enrichVehicleRows(supabase, ((data ?? []) as any[]).map(mapRawVehicleRow)),
+    vehicles: await enrichVehicleRows(supabase, [...touchedRows, ...insertedRows]),
     created_count: rowsToInsert.length,
+    reactivated_count: rowsToReactivate.length,
     skipped_count: skippedReservationIds.length,
     skipped_reservation_ids: skippedReservationIds,
   };
@@ -982,6 +1159,30 @@ export async function markReservationVehiclesCheckedOut(
   reservationId: string,
   checkedOutAt = new Date().toISOString(),
 ): Promise<number> {
+  const continuation = await findContinuationReservationContext(supabase, reservationId);
+  if (continuation) {
+    const { data, error } = await supabase
+      .from("guest_vehicles")
+      .update({
+        reservation_id: continuation.id,
+        guest_profile_id: continuation.guest_profile_id ?? null,
+        room_id: continuation.current_room_id ?? null,
+        room_number: continuation.current_room_number ?? null,
+        booking_code: continuation.booking_code ?? null,
+        guest_name: continuation.guest_name ?? null,
+        updated_at: checkedOutAt,
+      })
+      .eq("reservation_id", reservationId)
+      .is("checked_out_at", null)
+      .select("id");
+
+    if (error) {
+      throw makeVehicleError(error.message, 500);
+    }
+
+    return (data ?? []).length;
+  }
+
   const { data, error } = await supabase
     .from("guest_vehicles")
     .update({
