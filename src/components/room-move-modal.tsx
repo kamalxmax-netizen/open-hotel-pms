@@ -317,8 +317,8 @@ export default function RoomMoveModal({
                 const res = await fetch(`/api/bookings/${reservationId}`, { cache: "no-store" });
                 const payload = await res.json().catch(() => ({}));
                 if (!active || !res.ok || !payload?.success) return;
-                const sourceList = Array.isArray(payload?.reservation?.reservation_nights)
-                    ? payload.reservation.reservation_nights
+                const sourceList = Array.isArray(payload?.reservation?.nights)
+                    ? payload.reservation.nights
                     : [];
                 setReservationNightRates(
                     sourceList
