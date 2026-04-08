@@ -13,6 +13,7 @@ const ALL_PAGES = [
   { path: "/pms/mobile-checkin", label: "Mobile Check-in", section: "Front Desk" },
   { path: "/pms/groups", label: "Group Bookings", section: "Front Desk" },
   { path: "/pms/availability", label: "Availability", section: "Front Desk" },
+  { path: "/pms/vehicles", label: "Vehicle Registry", section: "Front Desk" },
   { path: "/pms/guests", label: "Guest Profiles", section: "Client Relations" },
   { path: "/pms/rates", label: "Rate Grid", section: "Revenue" },
   { path: "/pms/revenue", label: "Revenue Report", section: "Revenue" },

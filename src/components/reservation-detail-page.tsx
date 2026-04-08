@@ -1125,6 +1125,7 @@ export default function ReservationDetailPage({
     const [reverseNoShowLoading, setReverseNoShowLoading] = useState(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [successMessage, setSuccessMessage] = useState("");
+    const [documentProfileHint, setDocumentProfileHint] = useState("");
     const [identityAlertSettings, setIdentityAlertSettings] = useState<IdentityAlertSettings>(DEFAULT_IDENTITY_ALERT_SETTINGS);
     const [businessDate, setBusinessDate] = useState(today);
     const [checkinAssignedRoomStatus, setCheckinAssignedRoomStatus] = useState<CheckinAssignedRoomStatus | null>(null);
@@ -1243,6 +1244,7 @@ export default function ReservationDetailPage({
         setProfileBookingNames([]);
         setLinkedProfileName("");
         setLinkedProfileActiveReservationCount(0);
+        setDocumentProfileHint("");
     }, []);
 
     const resetPartyDraft = useCallback(() => {
@@ -1432,6 +1434,7 @@ export default function ReservationDetailPage({
         try {
             const normalizedProfileId = String(profileId);
             setGuestProfileId(normalizedProfileId);
+            setDocumentProfileHint("");
             if (fallback) {
                 const fullName = joinGuestName(String(fallback.first_name || ""), String(fallback.last_name || ""));
                 if (fullName) setGuestName(fullName);
@@ -1529,6 +1532,44 @@ export default function ReservationDetailPage({
         }
         return data.profile ?? null;
     }, [mode, reservationId]);
+
+    const autoResolveMainGuestThaiId = useCallback(async (citizenId: string) => {
+        const normalized = normalizeThaiCardCitizenId(citizenId);
+        if (!normalized || hasInvalidThaiId(normalized, false)) {
+            setDocumentProfileHint("");
+            return false;
+        }
+
+        try {
+            const foundProfile = await findProfileByThaiId(normalized);
+            if (!foundProfile?.id) {
+                setDocumentProfileHint("");
+                return false;
+            }
+
+            const foundId = String(foundProfile.id);
+            const profileName = joinGuestName(foundProfile.first_name || "", foundProfile.last_name || "").trim() || "Unknown";
+
+            if (foundId === String(guestProfileId || "")) {
+                setDocumentProfileHint(`Thai ID matched linked profile: ${profileName}`);
+                return false;
+            }
+
+            await selectProfileById(foundId, {
+                first_name: foundProfile.first_name,
+                last_name: foundProfile.last_name,
+                phone: foundProfile.phone
+            });
+            const nextMessage = `พบ guest profile เดิมจากเลขบัตรประชาชนแล้ว: ${profileName} ระบบลิงก์โปรไฟล์นี้ให้อัตโนมัติ`;
+            setDocumentProfileHint(nextMessage);
+            setSuccessMessage(nextMessage);
+            return true;
+        } catch (lookupError) {
+            const message = lookupError instanceof Error ? lookupError.message : "Failed to lookup profile by Thai ID.";
+            setError(message);
+            return false;
+        }
+    }, [findProfileByThaiId, guestProfileId, selectProfileById]);
 
     const buildIdentityScanNotices = useCallback((
         dobYmd: string,
@@ -3402,6 +3443,12 @@ export default function ReservationDetailPage({
             profileId = String(createData.profile.id);
             setGuestProfileId(profileId);
             applyProfileDraft(createData.profile, { overwriteGuest: false });
+            if (createData?.rerouted) {
+                const profileName = joinGuestName(createData.profile.first_name || "", createData.profile.last_name || "").trim() || "Unknown";
+                const nextMessage = `เลขเอกสารนี้มี guest profile อยู่แล้ว ระบบจึงใช้โปรไฟล์เดิมแทน: ${profileName}`;
+                setDocumentProfileHint(nextMessage);
+                setSuccessMessage(nextMessage);
+            }
         } else {
             const patchRes = await fetch(`/api/guests/${profileId}`, {
                 method: "PATCH",
@@ -3415,6 +3462,12 @@ export default function ReservationDetailPage({
             profileId = String(patchData?.profile?.id ?? profileId);
             setGuestProfileId(profileId);
             applyProfileDraft(patchData.profile, { overwriteGuest: false });
+            if (patchData?.rerouted) {
+                const profileName = joinGuestName(patchData.profile.first_name || "", patchData.profile.last_name || "").trim() || "Unknown";
+                const nextMessage = `เลขเอกสารนี้มี guest profile อยู่แล้ว ระบบจึงใช้โปรไฟล์เดิมแทน: ${profileName}`;
+                setDocumentProfileHint(nextMessage);
+                setSuccessMessage(nextMessage);
+            }
         }
 
         if (profileId && reservationId) {
@@ -4774,6 +4827,7 @@ export default function ReservationDetailPage({
                                                                 onCreate={() => {
                                                                     setGuestProfileId(null);
                                                                     resetProfileDraft();
+                                                                    setDocumentProfileHint("");
                                                                     setLiveGuestMatches([]);
                                                                     setPrefetchedPossibleReturnMatches([]);
                                                                     setShowManualGuestSearch(false);
@@ -4870,6 +4924,7 @@ export default function ReservationDetailPage({
                                                                     if (!reservationId) {
                                                                     setGuestProfileId(null);
                                                                     resetProfileDraft();
+                                                                    setDocumentProfileHint("");
                                                                     setPrefetchedPossibleReturnMatches([]);
                                                                     setReservationParty([]);
                                                                     return;
@@ -4882,6 +4937,7 @@ export default function ReservationDetailPage({
                                                                     }
                                                                     setGuestProfileId(null);
                                                                     resetProfileDraft();
+                                                                    setDocumentProfileHint("");
                                                                     setPrefetchedPossibleReturnMatches([]);
                                                                     await loadReservationParty();
                                                                 }}
@@ -5096,6 +5152,7 @@ export default function ReservationDetailPage({
                                                                 const normalized = normalizeIdentityNumberByType(profileIdNumber, nextType);
                                                                 setProfileIdNumber(normalized);
                                                                 setIdentityText(normalized);
+                                                                setDocumentProfileHint("");
                                                             }}
                                                             disabled={isReadonly}
                                                         >
@@ -5122,6 +5179,13 @@ export default function ReservationDetailPage({
                                                                 const normalized = normalizeIdentityNumberByType(e.target.value, profileIdType);
                                                                 setProfileIdNumber(normalized);
                                                                 setIdentityText(normalized);
+                                                                setDocumentProfileHint("");
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (isReadonly || isProfileMasked) return;
+                                                                if (profileIdType !== "thai_id") return;
+                                                                if (hasInvalidThaiId(profileIdNumber, false)) return;
+                                                                void autoResolveMainGuestThaiId(profileIdNumber);
                                                             }}
                                                             disabled={isReadonly || isProfileMasked}
                                                             placeholder={isProfileMasked ? "ข้อมูลถูกซ่อน — Admin เท่านั้นที่แก้ไขได้" : (profileIdType === "thai_id" ? "Thai ID (13 digits)" : "ID / Passport Number")}
@@ -5129,6 +5193,11 @@ export default function ReservationDetailPage({
                                                         {profileIdType === "thai_id" && !isProfileMasked && (
                                                             <p className={`mt-1 text-[11px] ${hasInvalidThaiId(profileIdNumber, false) ? "text-rose-600" : "text-emerald-700"}`}>
                                                                 Thai ID must be exactly 13 digits.
+                                                            </p>
+                                                        )}
+                                                        {documentProfileHint && (
+                                                            <p className="mt-1 text-[11px] text-sky-700 dark:text-sky-300">
+                                                                {documentProfileHint}
                                                             </p>
                                                         )}
                                                     </div>

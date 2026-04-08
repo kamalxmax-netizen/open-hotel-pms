@@ -1,7 +1,8 @@
 "use client";
 
 import { GuestVehicle } from "@/lib/types";
-import { getVehicleColorClasses, getPlateDisplay } from "./vehicle-helpers";
+import { getVehicleColorClasses, getVehicleColorStyle, getPlateDisplay } from "./vehicle-helpers";
+import { VehicleCountryFlag } from "./vehicle-country-flag";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
@@ -17,7 +18,8 @@ export function VehicleCard({ vehicle, variant = "default", onUnlink, onEdit }: 
   const isCompact = variant === "compact";
   const isActive = vehicle.is_active ?? !vehicle.checked_out_at;
   const dotClasses = getVehicleColorClasses(vehicle.vehicle_color, true);
-  const countryFlag = vehicle.plate_country === "TH" ? "🇹🇭" : "🇲🇾";
+  const swatchStyle = getVehicleColorStyle(vehicle.vehicle_color);
+  const countryCode = vehicle.plate_country === "MY" ? "MY" : "TH";
   const roomLabel = vehicle.effective_room_number ?? vehicle.current_room_number ?? vehicle.room_number;
   const primaryTitle = vehicle.title ?? getPlateDisplay(vehicle.plate_number, vehicle.vehicle_type);
   const fullPlateLabel = vehicle.plate_display ?? vehicle.plate_number ?? primaryTitle;
@@ -54,7 +56,10 @@ export function VehicleCard({ vehicle, variant = "default", onUnlink, onEdit }: 
           <p className="font-medium text-slate-700 dark:text-slate-200">
             {subtitle || primaryTitle}
           </p>
-          <p>{vehicle.plate_province} {countryFlag}</p>
+          <p className="flex items-center gap-1.5">
+            <span>{vehicle.plate_province}</span>
+            <VehicleCountryFlag country={countryCode} />
+          </p>
         </div>
       </div>
     );
@@ -69,7 +74,11 @@ export function VehicleCard({ vehicle, variant = "default", onUnlink, onEdit }: 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex shrink-0 flex-col items-center gap-2">
-            <div className="h-10 w-10 rounded-lg border border-slate-300 bg-white dark:border-slate-400 dark:bg-slate-200" />
+            <div
+              className="h-10 w-10 rounded-lg border shadow-sm ring-1 ring-white/10"
+              style={swatchStyle}
+              title={`Vehicle color: ${vehicle.vehicle_color}`}
+            />
             {isActive && onUnlink ? (
               <button 
                 onClick={handleUnlinkClick}
@@ -89,9 +98,7 @@ export function VehicleCard({ vehicle, variant = "default", onUnlink, onEdit }: 
               <h3 className="truncate font-bold text-lg leading-tight uppercase tracking-tight">
                 {fullPlateLabel}
               </h3>
-              <span className="shrink-0 text-xl leading-none" title={vehicle.plate_country}>
-                {countryFlag}
-              </span>
+              <VehicleCountryFlag country={countryCode} className="shrink-0" />
             </div>
             <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
               {plateLine || primaryTitle}

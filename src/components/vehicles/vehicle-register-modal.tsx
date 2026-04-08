@@ -5,6 +5,7 @@ import PmsModal from "../pms-modal";
 import { VehicleType, VehicleColor, GuestVehicle } from "@/lib/types";
 import { THAI_PROVINCES, MALAYSIAN_STATES } from "./province-data";
 import { registerVehicle, updateVehicle, useInHouseReservationOptions } from "@/lib/use-vehicle-api";
+import { VehicleCountryFlag } from "./vehicle-country-flag";
 
 interface VehicleRegisterModalProps {
   onClose: () => void;
@@ -210,7 +211,10 @@ export function VehicleRegisterModal({
                   }`}
                   onClick={() => setCountry(c)}
                 >
-                  {c === 'TH' ? '🇹🇭 Thailand' : '🇲🇾 Malaysia'}
+                  <span className="inline-flex items-center gap-2">
+                    <VehicleCountryFlag country={c} />
+                    <span>{c === "TH" ? "Thailand" : "Malaysia"}</span>
+                  </span>
                 </button>
               ))}
             </div>
