@@ -43,6 +43,12 @@ type RateInfo = {
     total_for_stay: number;
 };
 
+type ReservationNightRate = {
+    stay_date: string;
+    nightly_price: number;
+    cancelled_at?: string | null;
+};
+
 type PricingPolicy = "keep_rtc" | "reprice_grid" | "reprice_grid_discount";
 type DiscountType = "percent" | "fixed";
 type MoveTab = "move_now" | "plan_move";
@@ -192,6 +198,7 @@ export default function RoomMoveModal({
 
     const [ratesByType, setRatesByType] = useState<Record<string, RateInfo>>({});
     const [planRatesByType, setPlanRatesByType] = useState<Record<string, RateInfo>>({});
+    const [reservationNightRates, setReservationNightRates] = useState<ReservationNightRate[]>([]);
 
     const [loadingMeta, setLoadingMeta] = useState(true);
     const [loadingNowRooms, setLoadingNowRooms] = useState(true);
@@ -226,6 +233,23 @@ export default function RoomMoveModal({
         const end = new Date(`${checkoutDate}T00:00:00`);
         return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000));
     }, [today, checkoutDate]);
+
+    const summarizeBookedPricing = useMemo(() => {
+        return (startDate: string, endDate: string): RateInfo | null => {
+            const nights = reservationNightRates.filter((row) =>
+                !row.cancelled_at &&
+                row.stay_date >= startDate &&
+                row.stay_date < endDate
+            );
+            if (nights.length === 0) return null;
+            const total = round2(nights.reduce((sum, row) => sum + toNumber(row.nightly_price), 0));
+            return {
+                name: "Booked",
+                rate_per_night: round2(total / nights.length),
+                total_for_stay: total,
+            };
+        };
+    }, [reservationNightRates]);
 
     const clampedPlanStartDate = useMemo(() => {
         if (!planStartDate) return earliestPlanStart;
@@ -285,6 +309,37 @@ export default function RoomMoveModal({
             active = false;
         };
     }, [today, checkoutDate]);
+
+    useEffect(() => {
+        let active = true;
+        async function loadReservationNightRates() {
+            try {
+                const res = await fetch(`/api/bookings/${reservationId}`, { cache: "no-store" });
+                const payload = await res.json().catch(() => ({}));
+                if (!active || !res.ok || !payload?.success) return;
+                const sourceList = Array.isArray(payload?.reservation?.reservation_nights)
+                    ? payload.reservation.reservation_nights
+                    : [];
+                setReservationNightRates(
+                    sourceList
+                        .map((row: any) => ({
+                            stay_date: String(row?.stay_date ?? ""),
+                            nightly_price: toNumber(row?.nightly_price),
+                            cancelled_at: row?.cancelled_at ?? null,
+                        }))
+                        .filter((row: ReservationNightRate) => row.stay_date)
+                        .sort((a: ReservationNightRate, b: ReservationNightRate) => a.stay_date.localeCompare(b.stay_date))
+                );
+            } catch {
+                if (active) setReservationNightRates([]);
+            }
+        }
+
+        void loadReservationNightRates();
+        return () => {
+            active = false;
+        };
+    }, [reservationId]);
 
     useEffect(() => {
         if (activeTab !== "plan_move" || planEditingId) return;
@@ -491,7 +546,7 @@ export default function RoomMoveModal({
     }, [planStartDate, planEndDate, planRoomTypeId, reservationId, planEditingId, plannedMoves, planRoomId]);
 
     const moveNowDiff = useMemo(() => {
-        const currentRate = ratesByType[currentRoomTypeId];
+        const currentRate = summarizeBookedPricing(today, checkoutDate) ?? ratesByType[currentRoomTypeId];
         const nextRate = ratesByType[nowRoomTypeId];
         if (!currentRate || !nextRate) return null;
         return {
@@ -500,10 +555,13 @@ export default function RoomMoveModal({
             current_per_night: currentRate.rate_per_night,
             next_per_night: nextRate.rate_per_night,
         };
-    }, [ratesByType, currentRoomTypeId, nowRoomTypeId]);
+    }, [summarizeBookedPricing, today, checkoutDate, ratesByType, currentRoomTypeId, nowRoomTypeId]);
 
     const planDiff = useMemo(() => {
-        const currentRate = planRatesByType[currentRoomTypeId] ?? ratesByType[currentRoomTypeId];
+        const currentRate =
+            summarizeBookedPricing(clampedPlanStartDate, clampedPlanEndDate) ??
+            planRatesByType[currentRoomTypeId] ??
+            ratesByType[currentRoomTypeId];
         const nextRate = planRatesByType[planRoomTypeId] ?? ratesByType[planRoomTypeId];
         if (!currentRate || !nextRate) return null;
         return {
@@ -512,7 +570,7 @@ export default function RoomMoveModal({
             current_per_night: currentRate.rate_per_night,
             next_per_night: nextRate.rate_per_night,
         };
-    }, [planRatesByType, ratesByType, currentRoomTypeId, planRoomTypeId]);
+    }, [summarizeBookedPricing, clampedPlanStartDate, clampedPlanEndDate, planRatesByType, ratesByType, currentRoomTypeId, planRoomTypeId]);
 
     const moveNowPreview = useMemo(() => {
         if (!moveNowDiff) return null;
