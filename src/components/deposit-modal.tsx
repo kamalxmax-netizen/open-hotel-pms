@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     buildDepositSnapshotNote,
     formatDepositMethodLabel,
@@ -37,11 +37,17 @@ export default function DepositModal({
     onClose,
     onSuccess
 }: DepositModalProps) {
-    const hasPaid = Number(existingDeposit ?? 0) > 0;
+    const [currentDeposit, setCurrentDeposit] = useState(Number(existingDeposit ?? 0));
+    const [currentDepositNote, setCurrentDepositNote] = useState<string | null>(existingDepositNote ?? null);
+    const [currentDepositPaidAt, setCurrentDepositPaidAt] = useState<string | null>(existingDepositPaidAt ?? null);
+    const [currentDepositPaidDate, setCurrentDepositPaidDate] = useState<string | null>(existingDepositPaidDate ?? null);
+    const [hydrating, setHydrating] = useState(true);
+
+    const hasPaid = Number(currentDeposit ?? 0) > 0;
     const modalTitle = hasPaid ? "💰 Top Up Deposit" : "💰 Collect Deposit";
     const parsedExistingDeposit = useMemo(
-        () => parseDepositSnapshotNote(existingDepositNote),
-        [existingDepositNote]
+        () => parseDepositSnapshotNote(currentDepositNote),
+        [currentDepositNote]
     );
     const existingMethodLabel = useMemo(() => {
         const firstLine = parsedExistingDeposit.lines[0];
@@ -49,13 +55,47 @@ export default function DepositModal({
     }, [parsedExistingDeposit]);
     const existingGeneralNote = parsedExistingDeposit.generalNote ?? "";
 
-    const [amount, setAmount] = useState(hasPaid ? "" : (existingDeposit ? String(existingDeposit) : ""));
+    const [amount, setAmount] = useState(hasPaid ? "" : (currentDeposit ? String(currentDeposit) : ""));
     const [method, setMethod] = useState(existingMethodLabel);
     const [loading, setLoading] = useState(false);
     const [refunding, setRefunding] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const refundMethodLockedToCash = method === "Cash";
+
+    useEffect(() => {
+        let ignore = false;
+
+        async function loadLatestDeposit() {
+            setHydrating(true);
+            try {
+                const res = await fetch(`/api/bookings/${reservationId}/deposit`, { cache: "no-store" });
+                const payload = await res.json().catch(() => null);
+                if (!res.ok || !payload?.success || !payload?.deposit) return;
+                if (ignore) return;
+                const latest = payload.deposit;
+                setCurrentDeposit(Number(latest.deposit_amount ?? 0));
+                setCurrentDepositNote(latest.deposit_note ?? null);
+                setCurrentDepositPaidAt(latest.deposit_paid_at ?? null);
+                setCurrentDepositPaidDate(latest.deposit_paid_date ?? null);
+            } finally {
+                if (!ignore) setHydrating(false);
+            }
+        }
+
+        void loadLatestDeposit();
+        return () => {
+            ignore = true;
+        };
+    }, [reservationId]);
+
+    useEffect(() => {
+        setMethod(existingMethodLabel);
+    }, [existingMethodLabel]);
+
+    useEffect(() => {
+        setAmount(hasPaid ? "" : (currentDeposit ? String(currentDeposit) : ""));
+    }, [hasPaid, currentDeposit]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -101,7 +141,7 @@ export default function DepositModal({
             return;
         }
 
-        const currentDepositSatang = toSatang(existingDeposit ?? 0);
+        const currentDepositSatang = toSatang(currentDeposit ?? 0);
         if (currentDepositSatang <= 0) {
             setError("No deposit to refund.");
             return;
@@ -204,7 +244,7 @@ export default function DepositModal({
                             {refunding ? "…" : "Refund Deposit"}
                         </button>
                     )}
-                    <button form="deposit-form" type="submit" className="btn btn-primary flex-1" disabled={loading}>
+                    <button form="deposit-form" type="submit" className="btn btn-primary flex-1" disabled={loading || hydrating}>
                         {loading ? "Saving…" : hasPaid ? "Top Up Deposit" : "Collect Deposit"}
                     </button>
                 </div>
@@ -222,17 +262,23 @@ export default function DepositModal({
                     <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
                         <span className="text-lg">✓</span>
                         <div>
-                            <div className="font-bold">Deposit collected: ฿{existingDeposit?.toLocaleString()}</div>
+                            <div className="font-bold">Deposit collected: ฿{currentDeposit.toLocaleString()}</div>
                             <div className="text-xs text-amber-600">
                                 {existingMethodLabel}
                                 {existingGeneralNote ? ` · ${existingGeneralNote}` : ""}
-                                {existingDepositPaidDate
-                                    ? ` · ${formatDateDisplay(existingDepositPaidDate)}`
-                                    : existingDepositPaidAt
-                                        ? ` · ${formatDateDisplay(existingDepositPaidAt)}`
+                                {currentDepositPaidDate
+                                    ? ` · ${formatDateDisplay(currentDepositPaidDate)}`
+                                    : currentDepositPaidAt
+                                        ? ` · ${formatDateDisplay(currentDepositPaidAt)}`
                                         : ""}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {hydrating && (
+                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                        Refreshing latest deposit balance...
                     </div>
                 )}
 

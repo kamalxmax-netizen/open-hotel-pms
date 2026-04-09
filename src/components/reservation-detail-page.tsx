@@ -994,11 +994,13 @@ export default function ReservationDetailPage({
     const [originalRoomTypeId, setOriginalRoomTypeId] = useState("");
     const [useSelectedRoomTypeForCharge, setUseSelectedRoomTypeForCharge] = useState(true);
     const [roomId, setRoomId] = useState("");
+    const [initialAssignedRoomId, setInitialAssignedRoomId] = useState("");
     const [checkedInAt, setCheckedInAt] = useState("");
     const [otaRef, setOtaRef] = useState("");
 
     useEffect(() => {
         if (mode !== "create") return;
+        setHasMainGuestIdentityImport(false);
         const nextCheckin = initialCheckinDate || today;
         const nextCheckout = initialCheckoutDate || tomorrow;
         const nextNights = Math.max(
@@ -1154,7 +1156,7 @@ export default function ReservationDetailPage({
     const [submitIntentState, setSubmitIntentState] = useState<"draft" | "confirm">("confirm");
     const [showCheckinFieldValidation, setShowCheckinFieldValidation] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
-    const [walkInFastCheckinOfferToken, setWalkInFastCheckinOfferToken] = useState(0);
+    const [hasMainGuestIdentityImport, setHasMainGuestIdentityImport] = useState(false);
 
     const closePolicyModalOnly = useCallback(() => {
         setShowEarlyCheckinModal(false);
@@ -1172,7 +1174,7 @@ export default function ReservationDetailPage({
         if (mode !== "create") return;
         if (source !== "walkin") return;
         if (checkinDate !== businessDate) return;
-        setWalkInFastCheckinOfferToken((current) => current + 1);
+        setHasMainGuestIdentityImport(true);
     }, [businessDate, checkinDate, mode, source]);
 
     const continueWithPolicyDecision = useCallback((payload: PolicyFeePayload | null) => {
@@ -1245,6 +1247,7 @@ export default function ReservationDetailPage({
         setLinkedProfileName("");
         setLinkedProfileActiveReservationCount(0);
         setDocumentProfileHint("");
+        setHasMainGuestIdentityImport(false);
     }, []);
 
     const resetPartyDraft = useCallback(() => {
@@ -2346,6 +2349,7 @@ export default function ReservationDetailPage({
             setAssignedRoomLockRoomNumber("");
             setAssignedRoomLockDraftReason("");
             setOriginalRoomTypeId("");
+            setInitialAssignedRoomId("");
             setOriginalRatePlanId("");
             setGuestProfileId(null);
             setIdentityText("");
@@ -2389,6 +2393,7 @@ export default function ReservationDetailPage({
                     setOriginalRoomTypeId(res.room_type_id || "");
                     setUseSelectedRoomTypeForCharge(true);
                     setRoomId(res.room_id || "");
+                    setInitialAssignedRoomId(res.room_id || "");
                     setGuestName(res.guest_name || "");
                     setInitialBookedGuestName(res.guest_name || "");
                     setPhone(res.phone || "");
@@ -3711,13 +3716,6 @@ export default function ReservationDetailPage({
             }
 
             if (mode === "create") {
-                const canContinueToCheckinAfterCreate = Boolean(
-                    onOpenCheckin &&
-                    source === "walkin" &&
-                    checkinDate === businessDate &&
-                    roomTypeId &&
-                    roomId
-                );
                 if (source === "ota") {
                     const hasInvalidOtaRates =
                         nightlyRates.length === 0 ||
@@ -3773,6 +3771,15 @@ export default function ReservationDetailPage({
                 }
                 const created = d?.reservation ?? {};
                 const createdReservationId = String(created?.id || "");
+                const canContinueToCheckinAfterCreate = Boolean(
+                    onOpenCheckin &&
+                    source === "walkin" &&
+                    checkinDate === businessDate &&
+                    roomTypeId &&
+                    roomId &&
+                    hasMainGuestIdentityImport &&
+                    canOfferContinueToCheckin(syncedGuestProfileId)
+                );
                 const selectedRoom = roomId
                     ? rooms.find((r: any) => String(r.id) === String(roomId))
                     : null;
@@ -3890,7 +3897,6 @@ export default function ReservationDetailPage({
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
-                    room_id: roomId || null,
                     phone: phone.trim() || undefined,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
@@ -3899,6 +3905,10 @@ export default function ReservationDetailPage({
                     discount_value: discountValue || 0,
                     discount_reason: discountReason.trim() || undefined,
                 };
+                const roomAssignmentChanged = String(roomId || "") !== String(initialAssignedRoomId || "");
+                if (roomAssignmentChanged) {
+                    payload.room_id = roomId || null;
+                }
                 if (roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
                 else if (originalRatePlanId) payload.rate_plan_id = null;
@@ -4184,6 +4194,10 @@ export default function ReservationDetailPage({
         [isThaiNationality, profileProvince]
     );
     const formattedNationality = formatNationality(normalizedNationalityCode);
+    const normalizedCheckinIdentity = useMemo(
+        () => sanitizeIdentityForSubmit(profileIdNumber.trim() || identityText.trim(), isProfileMasked),
+        [profileIdNumber, identityText, isProfileMasked]
+    );
     const checkinProfileCompleteness = useMemo(
         () =>
             checkProfileCompleteness({
@@ -4211,6 +4225,30 @@ export default function ReservationDetailPage({
             phone,
         ]
     );
+    const canOfferContinueToCheckin = useCallback((profileIdOverride?: string | null) => {
+        const effectiveProfileId = String(profileIdOverride || guestProfileId || "").trim();
+        if (!effectiveProfileId) return false;
+        if (!phone.trim()) return false;
+        if (!checkinProfileCompleteness.is_complete) return false;
+
+        if (normalizedNationalityCode === "THA") {
+            if (profileIdType !== "thai_id") return false;
+            if (!/^\d{13}$/.test(normalizedCheckinIdentity)) return false;
+            if (!normalizeDobYmd(profileDob)) return false;
+        } else if (profileIdType === "passport" && !normalizedCheckinIdentity) {
+            return false;
+        }
+
+        return true;
+    }, [
+        guestProfileId,
+        phone,
+        checkinProfileCompleteness.is_complete,
+        normalizedNationalityCode,
+        profileIdType,
+        normalizedCheckinIdentity,
+        profileDob,
+    ]);
     const checkinMissingFields = useMemo(() => {
         if (mode !== "checkin" || !showCheckinFieldValidation) return new Set<string>();
         return new Set(checkinProfileCompleteness.missing_fields);

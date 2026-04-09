@@ -350,6 +350,57 @@ function mapHkBadge(status: HkStatus) {
   return { label: normalized, className: "bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]" };
 }
 
+function paymentMethodTone(method: PaymentMethod, active: boolean) {
+  if (!active) {
+    return "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-input)] hover:bg-[var(--bg-surface-hover)]";
+  }
+  if (method === "cash") {
+    return "border-emerald-500 bg-emerald-600 text-white shadow-md shadow-emerald-500/20";
+  }
+  if (method === "transfer") {
+    return "border-sky-500 bg-sky-600 text-white shadow-md shadow-sky-500/20";
+  }
+  return "border-violet-500 bg-violet-600 text-white shadow-md shadow-violet-500/20";
+}
+
+function paymentStatusTone(value: number) {
+  if (value < 0) return "refund";
+  if (Math.abs(value) < 0.01) return "paid";
+  return "due";
+}
+
+function PaymentMethodButtons({
+  value,
+  onChange,
+}: {
+  value: PaymentMethod;
+  onChange: (value: PaymentMethod) => void;
+}) {
+  const options: Array<{ value: PaymentMethod; label: string }> = [
+    { value: "cash", label: "Cash" },
+    { value: "transfer", label: "Transfer" },
+    { value: "credit_card", label: "Card" },
+  ];
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`h-10 rounded-xl border text-sm font-black tracking-wide transition ${paymentMethodTone(option.value, active)}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function guestDisplayName(guest: GuestSearchResult): string {
   const explicit = "display_name" in guest ? String((guest as any).display_name ?? "").trim() : "";
   if (explicit) return explicit;
@@ -2119,7 +2170,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       </header>
 
       <main className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-6xl mx-auto bg-[var(--bg-surface)] dark:bg-[#151921] rounded-xl border border-[var(--border-default)] dark:border-[#2D333D] shadow-sm p-6">
+        <div className="mx-auto max-w-[1760px] bg-[var(--bg-surface)] dark:bg-[#151921] rounded-xl border border-[var(--border-default)] dark:border-[#2D333D] shadow-sm p-6">
           {error ? <div className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
           {info ? <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</div> : null}
 
@@ -2662,217 +2713,310 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
               </div>
 
               {paymentMode === "split" ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3 xl:grid-cols-2">
                   {selectedReservations.map((row) => {
                     const plan = splitPlans[row.id] ?? {
                       ...defaultSplitPlanByDeposit(row),
                     };
                     const cardTotals = computeSplitCardTotals(row, plan);
+                    const statusTone = paymentStatusTone(cardTotals.projectedRemaining);
+                    const cardClass =
+                      statusTone === "paid"
+                        ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                        : statusTone === "refund"
+                          ? "border-amber-300 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-500/10"
+                          : "border-rose-300 bg-rose-50/70 dark:border-rose-500/20 dark:bg-rose-500/10";
                     return (
-                      <div key={row.id} className="border border-[var(--border-default)] rounded-xl px-4 py-3 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-semibold text-[var(--text-primary)]">{row.booking_code} · Room {row.room_number}</div>
+                      <div key={row.id} className={`rounded-xl border px-3 py-3 space-y-3 ${cardClass}`}>
+                        <div className="flex items-start justify-between gap-3 border-b border-[var(--border-default)] pb-3">
+                          <div className="min-w-0">
+                            <div className="text-[2rem] font-black tracking-tight text-[var(--text-primary)]">Room {row.room_number}</div>
+                            <div className="truncate text-[15px] font-black text-[var(--text-primary)]">{row.guest_name || "—"}</div>
+                            <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-[var(--text-secondary)]">{row.booking_code}</div>
+                          </div>
                           <div className="text-right">
-                            <div className="text-xs text-[var(--text-secondary)]">Current Due: ฿ {cardTotals.currentDue.toFixed(2)}</div>
-                            <div className="text-sm font-semibold text-indigo-700">Remain: ฿ {cardTotals.projectedRemaining.toFixed(2)}</div>
+                            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Total Due</div>
+                            <div className="mt-1 text-[1.35rem] font-black tracking-tight text-[var(--text-primary)]">
+                              ฿ {cardTotals.currentDue.toFixed(2)}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-sky-300 bg-sky-100/90 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+                            <div className="flex items-center justify-between gap-4">
                           <div>
-                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Room Payment</div>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                {plan.payments.map((payment) => (
-                                  <div key={payment.id} className="contents">
-                                    <div>
-                                      <label className="form-label text-xs">Amount</label>
-                                      <input
-                                        type="number"
-                                        className="form-input"
-                                        value={payment.amount}
-                                        onChange={(e) => updateSplitPayment(row.id, payment.id, { amount: e.target.value })}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="form-label text-xs">Method</label>
-                                      <select
-                                        className="form-select"
-                                        value={payment.method}
-                                        onChange={(e) => updateSplitPayment(row.id, payment.id, { method: e.target.value as PaymentMethod })}
+                            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-700 dark:text-sky-300">Room Charge</div>
+                            <div className="mt-1 text-[1.35rem] font-black tracking-tight text-sky-950 dark:text-sky-100">
+                                  ฿ {toMoney(row.total_price).toFixed(2)}
+                            </div>
+                          </div>
+                              <div className="text-right">
+                                <div className="text-[11px] uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">After Save</div>
+                                <div className={`mt-1 text-lg font-black ${cardTotals.projectedRoomRemaining <= 0.009 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
+                                  ฿ {cardTotals.projectedRoomRemaining.toFixed(2)}
+                                </div>
+                            </div>
+                          </div>
+
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              <div className="rounded-xl border border-sky-200/80 bg-white/70 px-3 py-2 dark:border-sky-500/20 dark:bg-slate-950/30">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Prepayment</div>
+                                <div className="mt-1 text-base font-black tracking-tight text-[var(--text-primary)]">
+                                  ฿ {toMoney(row.total_price - row.remaining_balance).toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-sky-200/80 bg-white/70 px-3 py-2 dark:border-sky-500/20 dark:bg-slate-950/30">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Due Now</div>
+                                <div className="mt-1 text-base font-black tracking-tight text-[var(--text-primary)]">
+                                  ฿ {cardTotals.roomRemaining.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-3">
+                              {plan.payments.map((payment, idx) => (
+                                <div key={payment.id} className="space-y-2 rounded-xl border border-sky-200/80 bg-white/70 p-2.5 dark:border-sky-500/20 dark:bg-slate-950/30">
+                                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                    <input
+                                      type="number"
+                                      className="h-10 rounded-xl border border-sky-300 bg-white px-3.5 text-base font-black text-[var(--text-primary)] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 dark:border-sky-500/30 dark:bg-slate-950"
+                                      value={payment.amount}
+                                      onChange={(e) => updateSplitPayment(row.id, payment.id, { amount: e.target.value })}
+                                      placeholder="Amount"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        className="h-10 min-w-[116px] rounded-xl bg-brand-600 px-3.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-700"
                                       >
-                                        <option value="cash">Cash</option>
-                                        <option value="transfer">Transfer</option>
-                                        <option value="credit_card">Card</option>
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="form-label text-xs">Note</label>
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          className="form-input"
-                                          value={payment.note}
-                                          onChange={(e) => updateSplitPayment(row.id, payment.id, { note: e.target.value })}
-                                        />
-                                        {plan.payments.length > 1 ? (
-                                          <button
-                                            type="button"
-                                            className="btn btn-ghost min-w-[42px]"
-                                            onClick={() => removeSplitPayment(row.id, payment.id)}
-                                          >
-                                            ×
-                                          </button>
-                                        ) : null}
-                                      </div>
+                                        Add Payment
+                                      </button>
+                                      {plan.payments.length > 1 ? (
+                                        <button
+                                          type="button"
+                                          className="h-10 min-w-[40px] rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-lg font-black text-rose-600"
+                                          onClick={() => removeSplitPayment(row.id, payment.id)}
+                                        >
+                                          ×
+                                        </button>
+                                      ) : null}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                              <div className="text-[11px] text-[var(--text-secondary)]">
-                                Room Due: ฿ {cardTotals.roomRemaining.toFixed(2)} · Planned: ฿ {cardTotals.roomPlanned.toFixed(2)} · Remaining Room: ฿ {cardTotals.projectedRoomRemaining.toFixed(2)}
-                              </div>
-                              <button type="button" className="btn btn-secondary text-xs" onClick={() => addSplitPayment(row.id)}>
-                                Add Room Payment
+                                  <PaymentMethodButtons
+                                    value={payment.method}
+                                    onChange={(value) => updateSplitPayment(row.id, payment.id, { method: value })}
+                                  />
+                                  <input
+                                    className="h-10 w-full rounded-xl border border-sky-300 bg-white px-3.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 dark:border-sky-500/30 dark:bg-slate-950"
+                                    value={payment.note}
+                                    onChange={(e) => updateSplitPayment(row.id, payment.id, { note: e.target.value })}
+                                    placeholder={idx === 0 ? "Payment note / Ref ID (optional)" : "Additional payment note"}
+                                  />
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                className="w-full rounded-xl border border-dashed border-sky-300 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-sky-700 transition hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300 dark:hover:bg-sky-500/10"
+                                onClick={() => addSplitPayment(row.id)}
+                              >
+                                Add Another Room Line
                               </button>
                             </div>
                           </div>
-                          <div>
-                            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Deposit</div>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <div>
-                                  <label className="form-label text-xs">Amount</label>
-                                  <input
-                                    className="form-input"
-                                    type="number"
-                                    value={plan.deposit_amount}
-                                    onChange={(e) => updateSplitPlan(row.id, { deposit_amount: e.target.value })}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="form-label text-xs">Method</label>
-                                  <select
-                                    className="form-select"
-                                    value={plan.deposit_method}
-                                    onChange={(e) => updateSplitPlan(row.id, { deposit_method: e.target.value as PaymentMethod })}
-                                  >
-                                    <option value="cash">Cash</option>
-                                    <option value="transfer">Transfer</option>
-                                    <option value="credit_card">Card</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="form-label text-xs">Note</label>
-                                  <input
-                                    className="form-input"
-                                    value={plan.deposit_note}
-                                    onChange={(e) => updateSplitPlan(row.id, { deposit_note: e.target.value })}
-                                  />
+
+                          <div className="rounded-xl border border-amber-300 bg-amber-100/90 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-700 dark:text-amber-300">Deposit</div>
+                                <div className="mt-1 text-[1.35rem] font-black tracking-tight text-amber-950 dark:text-amber-100">
+                                  ฿ {cardTotals.depositTarget.toFixed(2)}
                                 </div>
                               </div>
-                              <div className="text-[11px] text-[var(--text-secondary)]">
-                                Default deposit posts separately and will not reduce room outstanding.
+                              <div className="text-right">
+                                <div className="text-[11px] uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Separate</div>
+                                <div className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-200">Does not reduce room due</div>
                               </div>
                             </div>
+
+                            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                              <input
+                                className="h-10 rounded-xl border border-amber-300 bg-white px-3.5 text-base font-black text-[var(--text-primary)] outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-amber-500/30 dark:bg-slate-950"
+                                type="number"
+                                value={plan.deposit_amount}
+                                onChange={(e) => updateSplitPlan(row.id, { deposit_amount: e.target.value })}
+                                placeholder="Amount"
+                              />
+                              <button
+                                type="button"
+                                className="h-10 min-w-[116px] rounded-xl bg-brand-600 px-3.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-700"
+                              >
+                                Add Deposit
+                              </button>
+                            </div>
+                            <div className="mt-2">
+                              <PaymentMethodButtons
+                                value={plan.deposit_method}
+                                onChange={(value) => updateSplitPlan(row.id, { deposit_method: value })}
+                              />
+                            </div>
+                            <input
+                              className="mt-2 h-10 w-full rounded-xl border border-amber-300 bg-white px-3.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-amber-500/30 dark:bg-slate-950"
+                              value={plan.deposit_note}
+                              onChange={(e) => updateSplitPlan(row.id, { deposit_note: e.target.value })}
+                              placeholder="Deposit note / reason if no deposit"
+                            />
                           </div>
                         </div>
+
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-3 border border-[var(--border-default)] rounded-xl px-4 py-3">
-                  <p className="text-sm text-[var(--text-secondary)]">Master room payment is allocated by outstanding balance. Deposit is split evenly across all selected rooms.</p>
-                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Master Room Payment</div>
-                    {masterPayments.map((line) => (
-                      <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                        <div className="md:col-span-3">
-                          <label className="form-label text-xs">Amount</label>
-                          <input
-                            type="number"
-                            className="form-input"
-                            value={line.amount}
-                            onChange={(e) => updateMasterLine(line.id, { amount: e.target.value })}
-                          />
-                        </div>
-                        <div className="md:col-span-3">
-                          <label className="form-label text-xs">Method</label>
-                          <select
-                            className="form-select"
-                            value={line.method}
-                            onChange={(e) => updateMasterLine(line.id, { method: e.target.value as PaymentMethod })}
-                          >
-                            <option value="cash">Cash</option>
-                            <option value="transfer">Transfer</option>
-                            <option value="credit_card">Card</option>
-                          </select>
-                        </div>
-                        <div className="md:col-span-5">
-                          <label className="form-label text-xs">Note</label>
-                          <input
-                            className="form-input"
-                            value={line.note}
-                            onChange={(e) => updateMasterLine(line.id, { note: e.target.value })}
-                          />
-                        </div>
-                        <div className="md:col-span-1">
-                          <button type="button" className="btn btn-ghost w-full" onClick={() => removeMasterLine(line.id)}>
-                            ×
-                          </button>
+                <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border-default)] pb-3">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--text-secondary)]">Master Payment</div>
+                      <div className="mt-1 text-2xl font-black tracking-tight text-[var(--text-primary)]">One payment workspace for the whole group</div>
+                      <div className="mt-1 text-sm text-[var(--text-secondary)]">
+                        Room charges allocate by outstanding balance. Deposit splits evenly across selected rooms.
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-right">
+                      <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Room Due</div>
+                        <div className="mt-1 text-lg font-black tracking-tight text-[var(--text-primary)]">฿ {selectedReservations.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0).toFixed(2)}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Deposit</div>
+                        <div className="mt-1 text-lg font-black tracking-tight text-[var(--text-primary)]">฿ {Math.max(0, toMoney(masterDeposit.amount)).toFixed(2)}</div>
+                      </div>
+                      <div className={`rounded-xl border px-3 py-2 ${projectedRemainingTotal <= 0.009 ? "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300" : "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/15 dark:text-rose-300"}`}>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em]">Result</div>
+                        <div className="mt-1 text-lg font-black tracking-tight">
+                          {projectedRemainingTotal <= 0.009 ? "Paid" : `Remain ฿ ${projectedRemainingTotal.toFixed(2)}`}
                         </div>
                       </div>
-                    ))}
-                    <button type="button" className="btn btn-secondary text-xs" onClick={addMasterLine}>
-                      Add Room Payment Line
-                    </button>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 space-y-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Master Deposit</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <div className="md:col-span-3">
-                        <label className="form-label text-xs">Amount</label>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={masterDeposit.amount}
-                          onChange={(e) => {
-                            setMasterDepositEdited(true);
-                            setMasterDeposit((prev) => ({ ...prev, amount: e.target.value }));
-                          }}
-                        />
-                      </div>
+                  <div className="rounded-xl border border-sky-300 bg-sky-100/90 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+                    <div className="flex items-center justify-between gap-4">
                       <div>
-                        <label className="form-label text-xs">Method</label>
-                        <select
-                          className="form-select"
-                          value={masterDeposit.method}
-                          onChange={(e) => {
-                            setMasterDepositEdited(true);
-                            setMasterDeposit((prev) => ({ ...prev, method: e.target.value as PaymentMethod }));
-                          }}
-                        >
-                          <option value="cash">Cash</option>
-                          <option value="transfer">Transfer</option>
-                          <option value="credit_card">Card</option>
-                        </select>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-700 dark:text-sky-300">Master Room Payment</div>
+                        <div className="mt-1 text-[1.35rem] font-black tracking-tight text-sky-950 dark:text-sky-100">
+                          ฿ {selectedReservations.reduce((sum, row) => sum + toMoney(row.remaining_balance), 0).toFixed(2)}
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        className="h-10 rounded-xl border border-dashed border-sky-300 px-3.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 transition hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300 dark:hover:bg-sky-500/10"
+                        onClick={addMasterLine}
+                      >
+                        Add Line
+                      </button>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      {masterPayments.map((line, idx) => (
+                        <div key={line.id} className="space-y-2 rounded-xl border border-sky-200/80 bg-white/70 p-2.5 dark:border-sky-500/20 dark:bg-slate-950/30">
+                          <div className="flex items-center justify-between">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                              Line {idx + 1}
+                            </div>
+                            {masterPayments.length > 1 ? (
+                              <button
+                                type="button"
+                                className="h-8 min-w-[34px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-base font-black text-rose-600"
+                                onClick={() => removeMasterLine(line.id)}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                            <input
+                              type="number"
+                              className="h-10 rounded-xl border border-sky-300 bg-white px-3.5 text-base font-black text-[var(--text-primary)] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 dark:border-sky-500/30 dark:bg-slate-950"
+                              value={line.amount}
+                              onChange={(e) => updateMasterLine(line.id, { amount: e.target.value })}
+                              placeholder="Amount"
+                            />
+                            <button
+                              type="button"
+                              className="h-10 min-w-[116px] rounded-xl bg-brand-600 px-3.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-700"
+                            >
+                              Add Payment
+                            </button>
+                          </div>
+                          <PaymentMethodButtons
+                            value={line.method}
+                            onChange={(value) => updateMasterLine(line.id, { method: value })}
+                          />
+                          <input
+                            className="h-10 w-full rounded-xl border border-sky-300 bg-white px-3.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 dark:border-sky-500/30 dark:bg-slate-950"
+                            value={line.note}
+                            onChange={(e) => updateMasterLine(line.id, { note: e.target.value })}
+                            placeholder="Payment note / Ref ID (optional)"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-300 bg-amber-100/90 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                    <div className="flex items-center justify-between gap-4">
                       <div>
-                        <label className="form-label text-xs">Note</label>
-                        <input
-                          className="form-input"
-                          value={masterDeposit.note}
-                          onChange={(e) => {
-                            setMasterDepositEdited(true);
-                            setMasterDeposit((prev) => ({ ...prev, note: e.target.value }));
-                          }}
-                        />
+                        <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-700 dark:text-amber-300">Master Deposit</div>
+                        <div className="mt-1 text-[1.35rem] font-black tracking-tight text-amber-950 dark:text-amber-100">
+                          ฿ {Math.max(0, toMoney(masterDeposit.amount)).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Split Evenly</div>
+                        <div className="mt-1 text-sm font-bold text-amber-800 dark:text-amber-200">
+                          {selectedReservations.length || 0} room(s)
+                        </div>
                       </div>
                     </div>
-                    <div className="text-[11px] text-[var(--text-secondary)]">
-                      Default deposit is split evenly across {selectedReservations.length || 0} room(s). If deposit collected is below default, please add a note.
+
+                    <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <input
+                        type="number"
+                        className="h-10 rounded-xl border border-amber-300 bg-white px-3.5 text-base font-black text-[var(--text-primary)] outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-amber-500/30 dark:bg-slate-950"
+                        value={masterDeposit.amount}
+                        onChange={(e) => {
+                          setMasterDepositEdited(true);
+                          setMasterDeposit((prev) => ({ ...prev, amount: e.target.value }));
+                        }}
+                        placeholder="Amount"
+                      />
+                      <button
+                        type="button"
+                        className="h-10 min-w-[116px] rounded-xl bg-brand-600 px-3.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-700"
+                      >
+                        Add Deposit
+                      </button>
                     </div>
+                    <div className="mt-2">
+                      <PaymentMethodButtons
+                        value={masterDeposit.method}
+                        onChange={(value) => {
+                          setMasterDepositEdited(true);
+                          setMasterDeposit((prev) => ({ ...prev, method: value }));
+                        }}
+                      />
+                    </div>
+                    <input
+                      className="mt-2 h-10 w-full rounded-xl border border-amber-300 bg-white px-3.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-amber-500/30 dark:bg-slate-950"
+                      value={masterDeposit.note}
+                      onChange={(e) => {
+                        setMasterDepositEdited(true);
+                        setMasterDeposit((prev) => ({ ...prev, note: e.target.value }));
+                      }}
+                      placeholder="Deposit note / reason if no deposit"
+                    />
                   </div>
                 </div>
               )}
