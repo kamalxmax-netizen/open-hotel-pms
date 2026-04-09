@@ -444,7 +444,7 @@ export async function GET(request: NextRequest) {
     if (guest.checkin_date === date) {
       arrivalGuestByRoomId.set(roomId, guest);
     }
-    if (isPendingDraftCheckin) {
+    if (isPendingDraftCheckin && !guest.is_checked_in) {
       pendingDraftGuestByRoomId.set(roomId, guest);
     }
   });

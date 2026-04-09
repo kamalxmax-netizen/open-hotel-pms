@@ -378,6 +378,7 @@ export async function POST(
         const updateWithCheckedInAt = await supabase
             .from("reservations")
             .update({
+                status: "active",
                 checked_in_at: checkedInAtIso,
                 checkin_time: checkedInTime
             })
@@ -387,6 +388,7 @@ export async function POST(
             const fallback = await supabase
                 .from("reservations")
                 .update({
+                    status: "active",
                     checkin_time: checkedInTime
                 })
                 .eq("id", reservationId);
