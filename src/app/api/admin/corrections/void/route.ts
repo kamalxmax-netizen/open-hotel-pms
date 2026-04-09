@@ -25,7 +25,25 @@ export async function POST(request: NextRequest) {
     await assertAdminOrSupervisor(supabase, user.id);
 
     const body = await request.json().catch(() => null);
-    const parsed = bodySchema.safeParse(body);
+    const normalizedBody = {
+      payment_id:
+        typeof body?.payment_id === "string"
+          ? body.payment_id
+          : typeof body?.paymentId === "string"
+            ? body.paymentId
+            : typeof body?.id === "string"
+              ? body.id
+              : "",
+      reason:
+        typeof body?.reason === "string"
+          ? body.reason
+          : typeof body?.correction_reason === "string"
+            ? body.correction_reason
+            : typeof body?.note === "string"
+              ? body.note
+              : "",
+    };
+    const parsed = bodySchema.safeParse(normalizedBody);
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, error: "Invalid payload.", details: parsed.error.flatten() },
