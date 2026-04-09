@@ -33,6 +33,7 @@ type ApiRoom = {
     closure_reason?: string | null;
     status: RoomStatus;
     reservation_id?: string | null;
+    reservation_status?: string | null;
     wing?: string | null;
     guest_name?: string | null;
     booking_code?: string | null;
@@ -326,7 +327,9 @@ function RoomCard({
     const [hoverAnchor, setHoverAnchor] = useState<{ top: number; left: number; placement: "below" | "above" } | null>(null);
 
     const diaryState = room.diary_state ?? (
-        room.status === "reserved"
+        room.reservation_status === "draft_checkin"
+            ? "due_in"
+            : room.status === "reserved"
             ? "inhouse"
             : room.status === "available"
                 ? "available"

@@ -245,7 +245,11 @@ export async function GET(request: NextRequest) {
     const reservationRef = Array.isArray(night?.reservations) ? night.reservations[0] : night?.reservations;
     if (!reservationRef) return;
     const reservationStatus = String(reservationRef.status ?? "");
-    if (reservationStatus !== "active" && !(isHistoricalPastDate && reservationStatus === "checked_out")) return;
+    const canAppearOnBoard =
+      reservationStatus === "active" ||
+      reservationStatus === "draft_checkin" ||
+      (isHistoricalPastDate && reservationStatus === "checked_out");
+    if (!canAppearOnBoard) return;
     if (reservationRef?.id) reservationIdsForCheckin.add(String(reservationRef.id));
   });
   (departuresToday ?? []).forEach((reservation: any) => {
@@ -382,6 +386,7 @@ export async function GET(request: NextRequest) {
 
   const occupiedGuestByRoomId = new Map<string, GuestSummary>();
   const arrivalGuestByRoomId = new Map<string, GuestSummary>();
+  const pendingDraftGuestByRoomId = new Map<string, GuestSummary>();
 
   (reservationNights ?? []).forEach((night: any) => {
     const roomId = night?.room_id ? String(night.room_id) : "";
@@ -392,9 +397,14 @@ export async function GET(request: NextRequest) {
       : night.reservations;
     if (!reservationRef) return;
     const reservationStatus = String(reservationRef.status ?? "");
-    const canAppearInHistoricalOccupancy =
+    const isPendingDraftCheckin = reservationStatus === "draft_checkin";
+    const canAppearOnBoard =
+      reservationStatus === "active" ||
+      isPendingDraftCheckin ||
+      (isHistoricalPastDate && reservationStatus === "checked_out");
+    if (!canAppearOnBoard) return;
+    const countsAsOccupiedStay =
       reservationStatus === "active" || (isHistoricalPastDate && reservationStatus === "checked_out");
-    if (!canAppearInHistoricalOccupancy) return;
     const reservationId = reservationRef.id ? String(reservationRef.id) : null;
     const parentReservationId = reservationRef.parent_reservation_id ? String(reservationRef.parent_reservation_id) : null;
     const linkedRootId = parentReservationId ?? (reservationId && linkedRootReservationIds.has(reservationId) ? reservationId : null);
@@ -425,12 +435,17 @@ export async function GET(request: NextRequest) {
       group_name: groupMeta?.group_name ?? null,
     };
 
-    const existingGuest = occupiedGuestByRoomId.get(roomId);
-    if (!isHistoricalPastDate || shouldReplaceHistoricalOccupant(existingGuest, guest)) {
-      occupiedGuestByRoomId.set(roomId, guest);
+    if (countsAsOccupiedStay) {
+      const existingGuest = occupiedGuestByRoomId.get(roomId);
+      if (!isHistoricalPastDate || shouldReplaceHistoricalOccupant(existingGuest, guest)) {
+        occupiedGuestByRoomId.set(roomId, guest);
+      }
     }
     if (guest.checkin_date === date) {
       arrivalGuestByRoomId.set(roomId, guest);
+    }
+    if (isPendingDraftCheckin) {
+      pendingDraftGuestByRoomId.set(roomId, guest);
     }
   });
 
@@ -701,6 +716,7 @@ export async function GET(request: NextRequest) {
   const reservedRoomIds = new Set<string>();
   occupiedGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
   departureGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
+  pendingDraftGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
   plannedMoveSourceGuestByRoomId.forEach((_v, roomId) => reservedRoomIds.add(roomId));
 
   const housekeepingByRoomId = new Map<string, HousekeepingTaskSummary>();
@@ -823,14 +839,16 @@ export async function GET(request: NextRequest) {
     const arrivalGuest = arrivalGuestByRoomId.get(room.id) ?? null;
     const plannedSourceGuest = plannedMoveSourceGuestByRoomId.get(room.id) ?? null;
     const plannedTargetGuest = plannedMoveTargetGuestByRoomId.get(room.id) ?? null;
+    const pendingDraftGuest = pendingDraftGuestByRoomId.get(room.id) ?? null;
     const hasArrivalTodayPending = Boolean(arrivalGuest && !arrivalGuest.is_checked_in);
+    const hasDraftCheckinPending = Boolean(pendingDraftGuest);
     const hasPlannedSourceToday = Boolean(plannedSourceGuest);
     const hasPlannedTargetToday = Boolean(plannedTargetGuest);
     const hasDepartureToday = departureGuestByRoomId.has(room.id);
     const hasOccupiedStay = occupiedGuestByRoomId.has(room.id);
     const hasHistoricalOccupiedStay = isHistoricalPastDate && hasOccupiedStay;
     const isDueOut = hasDepartureToday || hasPlannedSourceToday;
-    const isDueIn = hasArrivalTodayPending || hasPlannedTargetToday;
+    const isDueIn = hasArrivalTodayPending || hasPlannedTargetToday || hasDraftCheckinPending;
 
     if (block) {
       status = block.type.toLowerCase(); // 'ooo' or 'oos'
@@ -864,6 +882,7 @@ export async function GET(request: NextRequest) {
     const departureGuest = plannedSourceGuest ?? departureGuestByRoomId.get(room.id) ?? null;
     const occupiedGuest = occupiedGuestByRoomId.get(room.id) ?? null;
     const dueInGuest =
+      pendingDraftGuest ??
       (arrivalGuest && !arrivalGuest.is_checked_in ? arrivalGuest : null) ??
       (hasPlannedTargetToday ? plannedTargetGuest : null);
     const guest =
@@ -914,6 +933,7 @@ export async function GET(request: NextRequest) {
       linked_active_segment_id: linkedStay?.active_segment_id ?? null,
       source: guest?.source ?? null,
       reservation_id: guest?.reservation_id ?? null,
+      reservation_status: guest?.reservation_status ?? null,
       guest_profile_id: guest?.guest_profile_id ?? null,
       vip_tier: loyalty?.vip_tier ?? null,
       stay_count: loyalty?.stay_count ?? 0,

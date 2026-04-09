@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
                 .order("sort_order", { ascending: true, nullsFirst: false }),
 
             // All reservation_nights in the date range (not cancelled)
-            // Include both 'active' AND 'checked_out' so Opera-style CO bars appear
+            // Include active stays, checked-out stays for Opera-style CO bars,
+            // and draft_checkin so mobile draft check-ins remain visible on the assigned room.
             supabase
                 .from("reservation_nights")
                 .select(`
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
                 .gte("stay_date", startDate)
                 .lte("stay_date", endDate)
                 .is("cancelled_at", null)
-                .in("reservations.status", ["active", "checked_out"]),
+                .in("reservations.status", ["active", "checked_out", "draft_checkin"]),
 
             // Fetch Room Blocks
             supabase

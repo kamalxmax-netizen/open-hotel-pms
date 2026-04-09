@@ -85,7 +85,9 @@ function getRoomDiaryStateForToday(
 ): RoomDiaryState | null {
     if (!room.is_sellable || room.is_dayuse) return null;
 
-    const activeReservations = room.reservations.filter((res) => res.status === "active");
+    const pendingReservations = room.reservations.filter(
+        (res) => res.status === "active" || res.status === "draft_checkin"
+    );
     const hasPlannedSourceToday = plannedMoves.some(
         (move) =>
             move.status === "planned" &&
@@ -101,11 +103,11 @@ function getRoomDiaryStateForToday(
             move.end_date > today
     );
 
-    const hasDueOut = hasPlannedSourceToday || activeReservations.some((res) => res.checkout_date === today);
+    const hasDueOut = hasPlannedSourceToday || pendingReservations.some((res) => res.checkout_date === today);
     const hasDueIn =
         hasPlannedTargetToday ||
-        activeReservations.some((res) => res.checkin_date === today && !res.checked_in_at);
-    const hasInHouse = activeReservations.some(
+        pendingReservations.some((res) => res.checkin_date === today && !res.checked_in_at);
+    const hasInHouse = pendingReservations.some(
         (res) => Boolean(res.checked_in_at) && res.checkin_date <= today && res.checkout_date > today
     );
 
