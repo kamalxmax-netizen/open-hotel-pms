@@ -992,6 +992,7 @@ export default function ReservationDetailPage({
     const [source, setSource] = useState("walkin");
     const [roomTypeId, setRoomTypeId] = useState("");
     const [originalRoomTypeId, setOriginalRoomTypeId] = useState("");
+    const [initialAssignedRoomTypeId, setInitialAssignedRoomTypeId] = useState("");
     const [useSelectedRoomTypeForCharge, setUseSelectedRoomTypeForCharge] = useState(true);
     const [roomId, setRoomId] = useState("");
     const [initialAssignedRoomId, setInitialAssignedRoomId] = useState("");
@@ -2349,6 +2350,7 @@ export default function ReservationDetailPage({
             setAssignedRoomLockRoomNumber("");
             setAssignedRoomLockDraftReason("");
             setOriginalRoomTypeId("");
+            setInitialAssignedRoomTypeId("");
             setInitialAssignedRoomId("");
             setOriginalRatePlanId("");
             setGuestProfileId(null);
@@ -2391,6 +2393,7 @@ export default function ReservationDetailPage({
                     setAssignedRoomLockDraftReason("");
                     setRoomTypeId(res.room_type_id || "");
                     setOriginalRoomTypeId(res.room_type_id || "");
+                    setInitialAssignedRoomTypeId(res.room_type_id || "");
                     setUseSelectedRoomTypeForCharge(true);
                     setRoomId(res.room_id || "");
                     setInitialAssignedRoomId(res.room_id || "");
@@ -3906,10 +3909,11 @@ export default function ReservationDetailPage({
                     discount_reason: discountReason.trim() || undefined,
                 };
                 const roomAssignmentChanged = String(roomId || "") !== String(initialAssignedRoomId || "");
+                const roomTypeAssignmentChanged = String(roomTypeId || "") !== String(initialAssignedRoomTypeId || "");
                 if (roomAssignmentChanged) {
                     payload.room_id = roomId || null;
                 }
-                if (roomTypeId) payload.room_type_id = roomTypeId;
+                if (roomTypeAssignmentChanged && roomTypeId) payload.room_type_id = roomTypeId;
                 if (ratePlanId) payload.rate_plan_id = ratePlanId;
                 else if (originalRatePlanId) payload.rate_plan_id = null;
                 if (priceChangeChoice) payload.price_change_choice = priceChangeChoice;
