@@ -210,8 +210,6 @@ const updateBookingSchema = z.object({
   rate_plan_id: z.string().uuid().optional().nullable(),
   override_assigned_note: z.string().optional(),
   price_change_choice: z.enum(["keep_existing", "apply_rate_grid"]).optional().nullable(),
-}).refine(data => data.room_id || data.room_type_id, {
-  message: "Either room_id or room_type_id must be provided"
 });
 
 export async function GET(
@@ -525,6 +523,8 @@ export async function PUT(
   const responseWarnings: string[] = [];
   const hasSpecialsField = Object.prototype.hasOwnProperty.call(json ?? {}, "specials");
   const hasExpectedArrivalField = Object.prototype.hasOwnProperty.call(json ?? {}, "expected_arrival_time");
+  const hasRoomIdField = Object.prototype.hasOwnProperty.call(json ?? {}, "room_id");
+  const hasRoomTypeField = Object.prototype.hasOwnProperty.call(json ?? {}, "room_type_id");
   const normalizedSpecials = hasSpecialsField
     ? (typeof payload.specials === "string" ? payload.specials.trim() : "")
     : null;
@@ -692,27 +692,40 @@ export async function PUT(
     room_type_id: row?.room_type_id != null ? Number(row.room_type_id) : null,
     nightly_price: round2(Number(row?.nightly_price ?? 0)),
   })).filter((row) => row.stay_date);
-  const incomingRoomId = payload.room_id ? String(payload.room_id) : null;
-  const incomingRoomTypeId = normalizedRoomTypeId;
+  const currentAssignedRoomId =
+    normalizedNightSnapshots.find((night) => String(night.room_id ?? "").trim())?.room_id ?? null;
+  const currentAssignedRoomTypeId =
+    normalizedNightSnapshots.find((night) => Number.isFinite(Number(night.room_type_id ?? 0)) && Number(night.room_type_id ?? 0) > 0)
+      ?.room_type_id ?? null;
+  const effectiveRoomId = hasRoomIdField
+    ? (payload.room_id ? String(payload.room_id) : null)
+    : currentAssignedRoomId;
+  const effectiveRoomTypeId = hasRoomTypeField
+    ? normalizedRoomTypeId
+    : currentAssignedRoomTypeId;
+  const incomingRoomId = effectiveRoomId;
+  const incomingRoomTypeId = effectiveRoomTypeId;
   const unchangedDateScope =
     String(currentReservation.checkin_date ?? "") === payload.checkin_date &&
     String(currentReservation.checkout_date ?? "") === payload.checkout_date;
   const unchangedSource = checkedOutMetadataOnlyUpdate || String(currentReservation.source ?? "") === payload.source;
+  const assignmentFieldsOmitted = !hasRoomIdField && !hasRoomTypeField;
   const unchangedAssignment =
-    normalizedNightSnapshots.length > 0 &&
-    normalizedNightSnapshots.every((night) => {
-      if (incomingRoomId !== null) {
+    assignmentFieldsOmitted ||
+    (normalizedNightSnapshots.length > 0 &&
+      normalizedNightSnapshots.every((night) => {
+        if (incomingRoomId !== null) {
+          return (
+            String(night.room_id ?? "") === incomingRoomId &&
+            (incomingRoomTypeId === null || Number(night.room_type_id ?? 0) === incomingRoomTypeId)
+          );
+        }
         return (
-          String(night.room_id ?? "") === incomingRoomId &&
-          (incomingRoomTypeId === null || Number(night.room_type_id ?? 0) === incomingRoomTypeId)
+          night.room_id === null &&
+          incomingRoomTypeId !== null &&
+          Number(night.room_type_id ?? 0) === incomingRoomTypeId
         );
-      }
-      return (
-        night.room_id === null &&
-        incomingRoomTypeId !== null &&
-        Number(night.room_type_id ?? 0) === incomingRoomTypeId
-      );
-    });
+      }));
   const shouldForceNightRebuild = payload.source === "ota";
   const skipNightRebuild = checkedOutMetadataOnlyUpdate || (!shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment);
   const previousNightlyByDate = new Map(
@@ -738,8 +751,8 @@ export async function PUT(
     capacityRoomTypeId = await resolveRoomTypeIdForPricing(
       supabase,
       reservationId,
-      payload.room_id ? null : normalizedRoomTypeId,
-      payload.room_id
+      effectiveRoomId ? null : effectiveRoomTypeId,
+      effectiveRoomId
     );
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
@@ -773,10 +786,10 @@ export async function PUT(
       return NextResponse.json({ error: (error as Error).message }, { status: 500 });
     }
   }
-  if (!skipNightRebuild && payload.room_id) {
+  if (!skipNightRebuild && effectiveRoomId) {
     try {
       await assertRoomAvailableForDateRange(supabase as any, {
-        roomId: payload.room_id,
+        roomId: effectiveRoomId,
         checkinDate: payload.checkin_date,
         checkoutDate: payload.checkout_date,
         excludeReservationId: reservationId,
@@ -848,8 +861,8 @@ export async function PUT(
       pricingRoomTypeId = await resolveRoomTypeIdForPricing(
         supabase,
         reservationId,
-        payload.room_type_id,
-        payload.room_id
+        effectiveRoomTypeId,
+        effectiveRoomId
       );
     } catch (error) {
       return NextResponse.json({ error: (error as Error).message }, { status: 400 });
@@ -921,8 +934,8 @@ export async function PUT(
     let { data, error } = await supabase.rpc("booking_update_reservation", {
       p_reservation_id: reservationId,
       p_guest_name: payload.guest_name.trim(),
-      p_room_id: payload.room_id || null,
-      p_room_type_id: normalizedRoomTypeId,
+      p_room_id: effectiveRoomId || null,
+      p_room_type_id: capacityRoomTypeId,
       p_checkin_date: payload.checkin_date,
       p_checkout_date: payload.checkout_date,
       p_source: payload.source,
@@ -936,7 +949,7 @@ export async function PUT(
     if (error && isLegacyUpdateRpcMismatch(error.message)) {
       let roomNumber: string | null = null;
       try {
-        roomNumber = await resolveRoomNumberById(supabase, payload.room_id);
+        roomNumber = await resolveRoomNumberById(supabase, effectiveRoomId);
       } catch (resolveError) {
         return NextResponse.json({ error: (resolveError as Error).message }, { status: 400 });
       }
@@ -952,7 +965,7 @@ export async function PUT(
         p_phone: payload.phone?.trim() || null,
         p_reservation_id: reservationId,
         p_room_number: roomNumber,
-        p_room_type_id: normalizedRoomTypeId,
+        p_room_type_id: capacityRoomTypeId,
         p_source: payload.source
       });
 
@@ -1359,7 +1372,7 @@ export async function PUT(
   });
 
   try {
-    const nextRoomCode = payload.room_id ? await resolveRoomNumberById(supabase, payload.room_id) : null;
+    const nextRoomCode = effectiveRoomId ? await resolveRoomNumberById(supabase, effectiveRoomId) : null;
     const roomChanged = String(previousRoomCode ?? "") !== String(nextRoomCode ?? "");
     const becameFloating = !nextRoomCode && previousRoomCode !== null;
     if (roomChanged || becameFloating) {
