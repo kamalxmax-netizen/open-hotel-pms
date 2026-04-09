@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       .from("reservations")
       .select("id, guest_name, source, checkin_date, checkout_date, total_price, status, guest_profile_id, checked_in_at")
       .eq("checkin_date", businessDate)
-      .eq("status", "active")
+      .in("status", ["active", "draft_checkin"])
       .is("checked_in_at", null)
       .order("id", { ascending: true });
 

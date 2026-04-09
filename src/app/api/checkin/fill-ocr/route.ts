@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!reservation) {
       throw new MobileCheckinError("Reservation not found.", 404, "RESERVATION_NOT_FOUND");
     }
-    if (reservation.status !== "active") {
+    if (reservation.status !== "active" && reservation.status !== "draft_checkin") {
       throw new MobileCheckinError("Reservation is not active.", 409, "RESERVATION_NOT_ACTIVE");
     }
 
