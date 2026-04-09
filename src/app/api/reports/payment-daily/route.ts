@@ -813,11 +813,10 @@ export async function GET(request: NextRequest) {
       const category = String(payment.revenue_category ?? "").trim().toLowerCase();
       const isPosDeposit = isPosDepositRecord(rawTxType, category, note);
       const isPosRemainder = rawTxType === "payment" && category === "pos_revenue" && note.toLowerCase().includes("pos remainder");
-      const isRecordOnly = payment.is_record_only === true && !isPosDeposit && !isPosRemainder;
+      const isRecordOnly = payment.is_record_only === true && !isPosRemainder;
       const isCorrection = payment.is_correction === true;
-      // Locked policy: any "Paid by Deposit" settlement is treated as cash movement in Payment Daily.
-      const method: MethodKey = isPosDeposit ? "cash" : rawMethod;
-      const txType: TxType = isPosDeposit ? "payment" : rawTxType;
+      const method: MethodKey = rawMethod;
+      const txType: TxType = rawTxType;
 
       const reservation = reservationId ? reservationMap.get(reservationId) : undefined;
       if (!reservation && !isPosDeposit) continue;

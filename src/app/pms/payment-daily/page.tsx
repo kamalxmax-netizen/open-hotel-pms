@@ -288,15 +288,7 @@ export default function PaymentDailyPage() {
     const todayRooms = data?.today_rooms ?? [];
     const unassignedTodayRooms = todayRooms.filter((row) => row.room_number === "NO ROOM" && !row.is_dayuse);
     const floors = Array.from(new Set(allRooms.map(r => r.floor_number))).sort((a, b) => b - a);
-    const displayedGrandTotalNet = data
-        ? data.reconciliation.net_cash
-        + data.grand_total.transfer.payment
-        + data.grand_total.transfer.deposit
-        + data.grand_total.credit_card.payment
-        + data.grand_total.credit_card.deposit
-        + data.grand_total.other.payment
-        + data.grand_total.other.deposit
-        : 0;
+    const displayedGrandTotalNet = data?.grand_total.grand_net ?? 0;
     return (
         <div className="flex flex-col gap-6 max-w-[1400px] mx-auto w-full pb-20">
             {/* Header */}
