@@ -292,7 +292,7 @@ export async function POST(
         if (resError || !reservation) {
             return NextResponse.json({ error: "Reservation not found." }, { status: 404 });
         }
-        if (reservation.status !== "active") {
+        if (reservation.status !== "active" && reservation.status !== "draft_checkin") {
             return NextResponse.json({ error: "Reservation is not active." }, { status: 400 });
         }
 
