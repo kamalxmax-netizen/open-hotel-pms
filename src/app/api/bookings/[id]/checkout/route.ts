@@ -8,6 +8,7 @@ import {
 } from "@/lib/folio-fees";
 import { computeCheckoutNetPaidSatang, computeExtraChargeNetSatang } from "@/lib/checkout-balance";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
+import { computeReservationDiscountAmount } from "@/lib/reservation-visible-total";
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { normalizeAuditSource } from "@/lib/audit-utils";
@@ -241,7 +242,7 @@ export async function POST(
         // Verify reservation
         const { data: reservation, error: resError } = await supabase
             .from("reservations")
-            .select("id, booking_group_id, status, guest_name, total_price, checkin_date, checkout_date, deposit_amount, guest_profile_id")
+            .select("id, booking_group_id, status, guest_name, total_price, checkin_date, checkout_date, deposit_amount, guest_profile_id, discount_type, discount_value, discount_percent")
             .eq("id", reservationId)
             .maybeSingle();
 
@@ -253,8 +254,19 @@ export async function POST(
         }
 
         const totalPriceSatang = toSatang(reservation.total_price);
+        const discountSatang = toSatang(
+            computeReservationDiscountAmount({
+                totalPrice: reservation.total_price,
+                discountType: reservation.discount_type,
+                discountValue: reservation.discount_value,
+                discountPercent: reservation.discount_percent,
+                checkinDate: reservation.checkin_date,
+                checkoutDate: reservation.checkout_date,
+            })
+        );
+        const discountedRoomTotalSatang = Math.max(0, totalPriceSatang - discountSatang);
         const depositAmountSatang = toSatang(reservation.deposit_amount);
-        const totalPrice = fromSatang(totalPriceSatang);
+        const totalPrice = fromSatang(discountedRoomTotalSatang);
         const depositAmount = fromSatang(depositAmountSatang);
 
         // Calculate existing payments
@@ -276,7 +288,7 @@ export async function POST(
 
         const creditsBeforeThisPaymentSatang =
             priorPaidSatang + (depositAction === "apply" ? depositAmountSatang : 0);
-        const effectiveTotalSatang = totalPriceSatang + priorExtraChargeSatang + policyFeeAmountSatang;
+        const effectiveTotalSatang = discountedRoomTotalSatang + priorExtraChargeSatang + policyFeeAmountSatang;
         // policy_fee is posted as its own extra_charge payment row in the same request.
         // Count it here to avoid forcing FO to enter the fee amount again in payment_amount.
         const currentActionCreditsSatang = paymentAmountSatang + policyFeeAmountSatang;

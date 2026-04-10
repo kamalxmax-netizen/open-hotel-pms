@@ -18,6 +18,7 @@ import {
 import { executeRoomMove, RoomMoveError } from "@/lib/room-move";
 import { AssignedRoomLockError, assertAssignedRoomUnlockedOrOverride } from "@/lib/assigned-room-lock";
 import { evaluateRoomSwapEligibility, loadReservationSwapContext, RoomSwapError } from "@/lib/room-swap";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -1586,6 +1587,30 @@ export async function commitExtendStay(params: {
           room_number: targetRoom.room_number,
           reservation_total_price: reservationTotalAfterInsert,
         });
+
+        if (ctx.extensionCheckinDate === ctx.today) {
+          try {
+            await markRoomDirtyTask(supabase as any, {
+              roomId: ctx.lockedRoomId,
+              stayDate: ctx.today,
+              assignedMaidName: null,
+              clearDailyPlanWhenUnassigned: true,
+              logNote: "Marked dirty after extend stay move-now to target room",
+            });
+            executedActions.push({
+              action: "mark_old_room_dirty",
+              room_id: ctx.lockedRoomId,
+              room_number: ctx.lockedRoomNumber,
+              stay_date: ctx.today,
+            });
+          } catch (error) {
+            failedActions.push({
+              action: "mark_old_room_dirty",
+              error: error instanceof Error ? error.message : String(error),
+            });
+            warnings.push("Old room move-out was saved, but failed to mark previous room dirty.");
+          }
+        }
       }
     } else {
       const planStartDate = asString(input.planStartDate);
