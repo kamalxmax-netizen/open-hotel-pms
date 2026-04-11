@@ -11,6 +11,7 @@ export type LinkedStaySegment = {
   source: string | null;
   checkin_date: string;
   checkout_date: string;
+  checked_in_at: string | null;
   status: string | null;
   total_price: number;
   is_parent: boolean;
@@ -120,6 +121,13 @@ function resolveActiveSegmentId(
   });
 
   if (boundaryIndex >= 0) {
+    const nextSegment = sorted[boundaryIndex];
+    if (
+      String(nextSegment.status ?? "").toLowerCase() === "active" &&
+      nextSegment.checked_in_at
+    ) {
+      return nextSegment.reservation_id;
+    }
     return nowClock >= cutoffClock ? sorted[boundaryIndex].reservation_id : sorted[boundaryIndex - 1].reservation_id;
   }
 
@@ -260,6 +268,7 @@ export async function resolveLinkedStay(
       source: row.source ? String(row.source) : "walkin",
       checkin_date: String(row.checkin_date),
       checkout_date: String(row.checkout_date),
+      checked_in_at: row.checked_in_at ? String(row.checked_in_at) : null,
       status: row.status ? String(row.status) : "active",
       total_price: toNumber(row.total_price),
       is_parent: String(row.id) === rootReservationId,
@@ -343,6 +352,7 @@ function buildLinkedStayFromRecords(
       source: row.source ? String(row.source) : "walkin",
       checkin_date: String(row.checkin_date),
       checkout_date: String(row.checkout_date),
+      checked_in_at: row.checked_in_at ? String(row.checked_in_at) : null,
       status: row.status ? String(row.status) : "active",
       total_price: toNumber(row.total_price),
       is_parent: String(row.id) === rootReservationId,

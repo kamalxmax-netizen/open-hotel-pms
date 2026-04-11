@@ -42,6 +42,30 @@ function getBangkokMinutes(date = new Date()): number {
 
 type PartyRole = "primary" | "accompanying";
 
+type CheckoutReservationRow = {
+    id: string;
+    parent_reservation_id: string | null;
+    booking_group_id: string | null;
+    status: string;
+    guest_name: string | null;
+    total_price: number | string | null;
+    checkin_date: string | null;
+    checkout_date: string | null;
+    deposit_amount?: number | string | null;
+    guest_profile_id: string | null;
+    discount_type?: string | null;
+    discount_value?: number | string | null;
+    discount_percent?: number | string | null;
+};
+
+type LinkedCheckoutContext = {
+    allReservationIds: string[];
+    activeReservationIds: string[];
+    fullCheckinDate: string;
+    fullCheckoutDate: string;
+    fallbackPrimaryGuestProfileId: string | null;
+};
+
 function diffStayNights(checkinDate: string, checkoutDate: string): number {
     const checkinMs = new Date(`${checkinDate}T00:00:00`).getTime();
     const checkoutMs = new Date(`${checkoutDate}T00:00:00`).getTime();
@@ -56,15 +80,117 @@ function isMissingColumnError(error: unknown): boolean {
     return /column .* does not exist/i.test(message);
 }
 
+function minDate(values: Array<string | null | undefined>, fallback: string): string {
+    return values.filter(Boolean).map(String).sort()[0] ?? fallback;
+}
+
+function maxDate(values: Array<string | null | undefined>, fallback: string): string {
+    const sorted = values.filter(Boolean).map(String).sort();
+    return sorted[sorted.length - 1] ?? fallback;
+}
+
+async function loadLinkedCheckoutContext(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservation: CheckoutReservationRow
+): Promise<LinkedCheckoutContext> {
+    const rootReservationId = reservation.parent_reservation_id ? String(reservation.parent_reservation_id) : String(reservation.id);
+    const { data, error } = await supabase
+        .from("reservations")
+        .select("id, parent_reservation_id, status, guest_profile_id, checkin_date, checkout_date")
+        .or(`id.eq.${rootReservationId},parent_reservation_id.eq.${rootReservationId}`);
+    if (error) throw error;
+
+    const rows = ((data ?? []) as Array<{
+        id?: string | null;
+        parent_reservation_id?: string | null;
+        status?: string | null;
+        guest_profile_id?: string | null;
+        checkin_date?: string | null;
+        checkout_date?: string | null;
+    }>)
+        .filter((row) => row?.id)
+        .map((row) => ({
+            id: String(row.id),
+            parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+            status: String(row.status ?? ""),
+            guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
+            checkin_date: row.checkin_date ?? null,
+            checkout_date: row.checkout_date ?? null,
+        }))
+        .filter((row) => row.status !== "cancelled" && row.status !== "no_show")
+        .sort((left, right) =>
+            String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? "")) ||
+            String(left.id).localeCompare(String(right.id))
+        );
+
+    const scopedRows = rows.length > 0 ? rows : [{
+        id: String(reservation.id),
+        parent_reservation_id: reservation.parent_reservation_id ?? null,
+        status: String(reservation.status ?? ""),
+        guest_profile_id: reservation.guest_profile_id ?? null,
+        checkin_date: reservation.checkin_date ?? null,
+        checkout_date: reservation.checkout_date ?? null,
+    }];
+
+    const activeReservationIds = scopedRows.filter((row) => row.status === "active").map((row) => row.id);
+    return {
+        allReservationIds: scopedRows.map((row) => row.id),
+        activeReservationIds: activeReservationIds.length > 0 ? activeReservationIds : [String(reservation.id)],
+        fullCheckinDate: minDate(scopedRows.map((row) => row.checkin_date), String(reservation.checkin_date ?? "")),
+        fullCheckoutDate: maxDate(scopedRows.map((row) => row.checkout_date), String(reservation.checkout_date ?? "")),
+        fallbackPrimaryGuestProfileId:
+            reservation.guest_profile_id ? String(reservation.guest_profile_id) : scopedRows.find((row) => row.guest_profile_id)?.guest_profile_id ?? null,
+    };
+}
+
+async function hasLinkedCheckoutCounterAudit(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationIds: string[]
+): Promise<boolean> {
+    if (reservationIds.length === 0) return false;
+    const { data, error } = await supabase
+        .from("audit_logs")
+        .select("after_json")
+        .eq("entity_type", "reservation")
+        .eq("action", "checked_out")
+        .in("entity_id", reservationIds);
+    if (error) throw error;
+    return (data ?? []).some((row) => {
+        const afterJson = (row as { after_json?: any }).after_json;
+        return Boolean(afterJson?.guest_counter_update && Number(afterJson.guest_counter_update.updated_profiles ?? 0) > 0);
+    });
+}
+
+async function markReservationsCheckedOut(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationIds: string[],
+    payload: Record<string, unknown>
+): Promise<void> {
+    const ids = Array.from(new Set(reservationIds.filter(Boolean)));
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("reservations").update(payload).in("id", ids);
+    if (!error) return;
+    if (Object.prototype.hasOwnProperty.call(payload, "checked_out_at") && /checked_out_at/i.test(error.message)) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.checked_out_at;
+        const fallback = await supabase.from("reservations").update(fallbackPayload).in("id", ids);
+        if (fallback.error) throw fallback.error;
+        return;
+    }
+    throw error;
+}
+
 async function applyGuestCheckoutCounters(params: {
     supabase: ReturnType<typeof createServerSupabaseClient>;
     reservationId: string;
+    reservationIds?: string[];
     fallbackPrimaryGuestProfileId: string | null;
     checkinDate: string;
     checkoutDate: string;
     stayDate: string;
 }) {
     const { supabase, reservationId, fallbackPrimaryGuestProfileId, checkinDate, checkoutDate, stayDate } = params;
+    const reservationIds = Array.from(new Set((params.reservationIds?.length ? params.reservationIds : [reservationId]).filter(Boolean)));
     const checkoutStayDate = checkoutDate || stayDate;
     const stayNights = diffStayNights(checkinDate, checkoutDate);
 
@@ -72,7 +198,7 @@ async function applyGuestCheckoutCounters(params: {
     const reservationGuestsResult = await supabase
         .from("reservation_guests")
         .select("guest_profile_id, role")
-        .eq("reservation_id", reservationId);
+        .in("reservation_id", reservationIds);
 
     if (reservationGuestsResult.error) {
         throw reservationGuestsResult.error;
@@ -242,7 +368,7 @@ export async function POST(
         // Verify reservation
         const { data: reservation, error: resError } = await supabase
             .from("reservations")
-            .select("id, booking_group_id, status, guest_name, total_price, checkin_date, checkout_date, deposit_amount, guest_profile_id, discount_type, discount_value, discount_percent")
+            .select("id, parent_reservation_id, booking_group_id, status, guest_name, total_price, checkin_date, checkout_date, deposit_amount, guest_profile_id, discount_type, discount_value, discount_percent")
             .eq("id", reservationId)
             .maybeSingle();
 
@@ -252,6 +378,7 @@ export async function POST(
         if (reservation.status !== "active") {
             return NextResponse.json({ error: "Reservation is not active." }, { status: 400 });
         }
+        const linkedCheckoutContext = await loadLinkedCheckoutContext(supabase, reservation as CheckoutReservationRow);
 
         const totalPriceSatang = toSatang(reservation.total_price);
         const discountSatang = toSatang(
@@ -386,44 +513,42 @@ export async function POST(
             }
         }
 
-        // 3. Update reservation status to checked_out
-        const updatePayload: Record<string, unknown> = {
+        // 3. Update reservation status to checked_out. Linked stays close as one real checkout.
+        const checkoutStatusPayload: Record<string, unknown> = {
             status: "checked_out",
             updated_at: now,
             checked_out_at: now,
         };
-        if (depositAction === "refund" && depositRefundedSatang > 0) {
-            updatePayload.deposit_amount = 0;
-            updatePayload.deposit_paid_at = null;
-            updatePayload.deposit_note = null;
-        }
-        const { error: updateError } = await supabase
-            .from("reservations")
-            .update(updatePayload)
-            .eq("id", reservationId);
+        await markReservationsCheckedOut(supabase, linkedCheckoutContext.activeReservationIds, checkoutStatusPayload);
 
-        if (updateError && /checked_out_at/i.test(updateError.message)) {
-            const fallback = await supabase
+        if (depositAction === "refund" && depositRefundedSatang > 0) {
+            const { error: depositResetError } = await supabase
                 .from("reservations")
-                .update({ status: "checked_out", updated_at: now })
+                .update({
+                    deposit_amount: 0,
+                    deposit_paid_at: null,
+                    deposit_note: null,
+                })
                 .eq("id", reservationId);
-            if (fallback.error) {
-                return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+            if (depositResetError) {
+                return NextResponse.json({ error: depositResetError.message }, { status: 500 });
             }
-        } else if (updateError) {
-            return NextResponse.json({ error: updateError.message }, { status: 500 });
         }
 
         let checkoutCounterResult: { mode: "v2" | "legacy" | "none"; updated_profiles: number } | null = null;
         try {
-            checkoutCounterResult = await applyGuestCheckoutCounters({
-                supabase,
-                reservationId,
-                fallbackPrimaryGuestProfileId: reservation.guest_profile_id ? String(reservation.guest_profile_id) : null,
-                checkinDate: String(reservation.checkin_date ?? businessDate),
-                checkoutDate: String(reservation.checkout_date ?? businessDate),
-                stayDate: businessDate,
-            });
+            const counterAlreadyApplied = await hasLinkedCheckoutCounterAudit(supabase, linkedCheckoutContext.allReservationIds);
+            checkoutCounterResult = counterAlreadyApplied
+                ? { mode: "none", updated_profiles: 0 }
+                : await applyGuestCheckoutCounters({
+                    supabase,
+                    reservationId,
+                    reservationIds: linkedCheckoutContext.allReservationIds,
+                    fallbackPrimaryGuestProfileId: linkedCheckoutContext.fallbackPrimaryGuestProfileId,
+                    checkinDate: linkedCheckoutContext.fullCheckinDate || String(reservation.checkin_date ?? businessDate),
+                    checkoutDate: linkedCheckoutContext.fullCheckoutDate || String(reservation.checkout_date ?? businessDate),
+                    stayDate: businessDate,
+                });
         } catch (counterError) {
             console.error("guest checkout counters update failed:", counterError);
         }
@@ -506,7 +631,12 @@ export async function POST(
                     note: policyFee.note,
                 } : null,
                 guest_counter_update: checkoutCounterResult,
-                checked_out_at: now
+                checked_out_at: now,
+                linked_checkout: {
+                    reservation_ids: linkedCheckoutContext.activeReservationIds,
+                    full_checkin_date: linkedCheckoutContext.fullCheckinDate,
+                    full_checkout_date: linkedCheckoutContext.fullCheckoutDate,
+                },
             },
             business_date: businessDate,
             source: normalizeAuditSource("manual"),
@@ -521,7 +651,9 @@ export async function POST(
         }
 
         try {
-            await markReservationVehiclesCheckedOut(supabase, reservationId, now);
+            for (const linkedReservationId of linkedCheckoutContext.activeReservationIds) {
+                await markReservationVehiclesCheckedOut(supabase, linkedReservationId, now);
+            }
         } catch (vehicleError) {
             console.error("vehicle checkout sync failed:", reservationId, vehicleError);
         }

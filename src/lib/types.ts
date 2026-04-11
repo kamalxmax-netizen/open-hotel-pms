@@ -10,6 +10,7 @@ export type LinkedStaySegment = {
   source: string;          // "ota" | "walkin" | "direct" | "agent"
   checkin_date: string;
   checkout_date: string;
+  checked_in_at?: string | null;
   status: string;          // "active" | "checked_out" | "cancelled"
   total_price: number;
   is_parent: boolean;

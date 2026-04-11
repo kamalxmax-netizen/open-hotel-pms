@@ -201,10 +201,15 @@ function applyUnifiedLaneMove(params: {
 
 function isEditableDirtyRoom(room: HkRoom) {
   if (!room.is_sellable || room.hk_status !== "dirty") return false;
-  const isCheckoutLocked =
+  return !isCheckoutLockedForHk(room);
+}
+
+function isCheckoutLockedForHk(room: HkRoom) {
+  return (
     (room.diary_state === "due_out" || room.diary_state === "back_to_back") &&
-    !room.is_checkout_dirty_today;
-  return !isCheckoutLocked;
+    !room.is_checkout_dirty_today &&
+    !room.is_stayover_service_request
+  );
 }
 
 function getPersistedAssignedMaid(room: HkRoom) {
@@ -784,9 +789,7 @@ export default function HousekeepingPage() {
     const room = roomsById.get(roomId);
     if (!room) return;
     if (!isEditableDirtyRoom(room)) {
-      const isCheckoutLocked =
-        (room.diary_state === "due_out" || room.diary_state === "back_to_back") &&
-        !room.is_checkout_dirty_today;
+      const isCheckoutLocked = isCheckoutLockedForHk(room);
       if (isCheckoutLocked) {
         showToast(`Room ${room.room_number} is locked until checkout is completed.`);
       } else if (room.hk_status !== "dirty") {
@@ -984,10 +987,7 @@ export default function HousekeepingPage() {
   const dirtyRoomPool = boardRooms
     .filter((r) => {
       if (!r.is_sellable || r.hk_status !== "dirty") return false;
-      const isCheckoutLocked =
-        (r.diary_state === "due_out" || r.diary_state === "back_to_back") &&
-        !r.is_checkout_dirty_today;
-      if (isCheckoutLocked) return false;
+      if (isCheckoutLockedForHk(r)) return false;
       const assignedMaid = r.plan_assigned_maid || r.assigned_maid_name;
       return !assignedMaid;
     })

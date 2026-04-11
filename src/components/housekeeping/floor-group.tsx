@@ -43,6 +43,7 @@ export type HkRoom = {
   in_house: boolean;
   in_house_sold_last_night: boolean;
   is_checkout_dirty_today: boolean;
+  is_stayover_service_request?: boolean;
   guest_name: string | null;
   hk_alert_count?: number;
   hk_first_alert_message?: string | null;
@@ -139,6 +140,14 @@ const NEXT_STATUS: Partial<Record<HkStatus, HkStatus[]>> = {
   paused: ["in_progress"],
 };
 
+function isCheckoutLockedForHk(room: HkRoom): boolean {
+  return (
+    (room.diary_state === "due_out" || room.diary_state === "back_to_back") &&
+    !room.is_checkout_dirty_today &&
+    !room.is_stayover_service_request
+  );
+}
+
 export default function FloorGroup({
   floor,
   rooms,
@@ -173,8 +182,7 @@ export default function FloorGroup({
           const cfg = isNoService ? STATUS_CONFIG.no_service : (STATUS_CONFIG[room.hk_status] ?? STATUS_CONFIG.available);
           const nextStatuses = isPrior ? [] : (NEXT_STATUS[room.hk_status] ?? []);
           const isUpdating = updatingRoomId === room.room_id;
-          const isCheckoutLocked =
-            (room.diary_state === "due_out" || room.diary_state === "back_to_back") && !room.is_checkout_dirty_today;
+          const isCheckoutLocked = isCheckoutLockedForHk(room);
           const hkCollectCount = Math.max(Number(room.hk_collect_count ?? 0), 0);
           const hkCollectUnits = Math.max(Number(room.hk_collect_units ?? 0), 0);
           const hkCollectItems = Array.isArray(room.hk_collect_items) ? room.hk_collect_items : [];

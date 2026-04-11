@@ -62,6 +62,59 @@ function formatName(title: string, firstName: string, lastName: string): string 
   return [title, firstName, lastName].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const THAI_NAME_PREFIXES = [
+  "ร้อยตำรวจเอก", "ร้อยตำรวจโท", "ร้อยตำรวจตรี",
+  "พันตำรวจเอก", "พันตำรวจโท", "พันตำรวจตรี",
+  "พลตำรวจเอก", "พลตำรวจโท", "พลตำรวจตรี", "พลตำรวจจัตวา",
+  "ร้อยเอก", "ร้อยโท", "ร้อยตรี",
+  "พันเอก", "พันโท", "พันตรี",
+  "พลเอก", "พลโท", "พลตรี",
+  "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พล.ต.จ.",
+  "พ.ต.อ.", "พ.ต.ท.", "พ.ต.ต.",
+  "ร.ต.อ.", "ร.ต.ท.", "ร.ต.ต.",
+  "จ.ส.ต.", "ส.ต.อ.", "ส.ต.ท.", "ส.ต.ต.", "ด.ต.",
+  "พล.อ.", "พล.ท.", "พล.ต.",
+  "พ.อ.", "พ.ท.", "พ.ต.",
+  "ร.อ.", "ร.ท.", "ร.ต.",
+  "น.อ.", "น.ท.", "น.ต.",
+  "จ.ส.อ.", "จ.ส.ท.", "จ.ส.ต.",
+  "พ.อ.อ.", "พ.อ.ท.", "พ.อ.ต.",
+  "ส.อ.", "ส.ท.", "ส.ต.",
+  "จ.อ.", "จ.ท.", "จ.ต.",
+  "นาย", "นางสาว", "นาง", "เด็กชาย", "เด็กหญิง",
+  "ดร.", "ศ.", "รศ.", "ผศ.", "นพ.", "พญ.",
+];
+
+const THAI_NAME_PREFIX_PATTERN = new RegExp(
+  `^(?:${THAI_NAME_PREFIXES.sort((a, b) => b.length - a.length).map(escapeRegExp).join("|")})(?:\\s*หญิง)?(?:\\s+|$)`,
+  "u"
+);
+
+function stripLeadingThaiNamePrefixes(value: string): string {
+  let next = String(value || "").replace(/\s+/g, " ").trim();
+  let previous = "";
+  while (next && next !== previous) {
+    previous = next;
+    next = next.replace(THAI_NAME_PREFIX_PATTERN, "").trim();
+  }
+  return next;
+}
+
+function buildThaiCardNameParts(title: unknown, firstName: unknown, lastName: unknown): { firstName: string; lastName: string } {
+  const normalized = stripLeadingThaiNamePrefixes(
+    [title, firstName, lastName].map((part) => String(part || "").trim()).filter(Boolean).join(" ")
+  );
+  const parts = normalized.split(/\s+/u).filter(Boolean);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 function extractLastProvinceToken(raw: unknown): string {
   const normalized = String(raw || "").replace(/#/g, " ").replace(/\s+/g, " ").trim();
   if (!normalized) return "";
@@ -310,11 +363,12 @@ export default function SmartCardPopup() {
         if (payload.event === "card_data") {
           clearReadingTimeout();
           const normalizedAddress = String(payload.address || "").replace(/#/g, " ").trim();
+          const thaiName = buildThaiCardNameParts(payload.titleTH, payload.firstNameTH, payload.lastNameTH);
           const nextData: ThaiCardPayload = {
             citizenId: String(payload.citizenId || "").trim(),
             titleTH: String(payload.titleTH || "").trim(),
-            firstNameTH: String(payload.firstNameTH || "").trim(),
-            lastNameTH: String(payload.lastNameTH || "").trim(),
+            firstNameTH: thaiName.firstName || String(payload.firstNameTH || "").trim(),
+            lastNameTH: thaiName.lastName || String(payload.lastNameTH || "").trim(),
             titleEN: String(payload.titleEN || "").trim(),
             firstNameEN: String(payload.firstNameEN || "").trim(),
             lastNameEN: String(payload.lastNameEN || "").trim(),

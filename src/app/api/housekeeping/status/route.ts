@@ -96,6 +96,174 @@ type CarryForwardTask = {
     started_at: string | null;
 };
 
+type ActiveRoomNightReservation = {
+    id: string;
+    status: string | null;
+    checked_in_at?: string | null;
+    parent_reservation_id?: string | null;
+};
+
+type LinkedContinuationReservation = ActiveRoomNightReservation & {
+    source?: string | null;
+    checkin_date?: string | null;
+    checkout_date?: string | null;
+    checkin_time?: string | null;
+    booking_code?: string | null;
+    guest_name?: string | null;
+};
+
+function unwrapReservationRef(value: unknown): LinkedContinuationReservation | null {
+    if (Array.isArray(value)) return (value[0] as LinkedContinuationReservation | undefined) ?? null;
+    return (value as LinkedContinuationReservation | null | undefined) ?? null;
+}
+
+function getBangkokTimeHHmm(date = new Date()): string {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Bangkok",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(date);
+    const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+    const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+    return `${hour}:${minute}`;
+}
+
+async function hasCheckedInAudit(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string
+): Promise<boolean> {
+    const { data, error } = await supabase
+        .from("audit_logs")
+        .select("id")
+        .eq("entity_type", "reservation")
+        .eq("action", "checked_in")
+        .eq("entity_id", reservationId)
+        .limit(1)
+        .maybeSingle();
+    if (error && error.code !== "PGRST116") throw new Error(error.message);
+    return Boolean(data);
+}
+
+async function maybeActivateLinkedWalkInForRoomDiary(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    roomId: string,
+    date: string,
+    markAsNoService: boolean
+): Promise<{ activated: boolean; childReservationId: string | null; parentReservationId: string | null }> {
+    const { data: childNightRows, error: childNightError } = await supabase
+        .from("reservation_nights")
+        .select(`
+            room_id,
+            stay_date,
+            reservations!reservation_nights_reservation_id_fkey(
+                id,
+                parent_reservation_id,
+                status,
+                source,
+                checkin_date,
+                checkout_date,
+                checked_in_at,
+                checkin_time,
+                booking_code,
+                guest_name
+            )
+        `)
+        .eq("stay_date", date)
+        .is("cancelled_at", null)
+        .eq("room_id", roomId);
+    if (childNightError) throw new Error(childNightError.message);
+
+    const childCandidates = ((childNightRows ?? []) as Array<{ reservations?: unknown }>)
+        .map((row) => unwrapReservationRef(row.reservations))
+        .filter((reservation): reservation is LinkedContinuationReservation => {
+            if (!reservation?.id || !reservation.parent_reservation_id) return false;
+            if (String(reservation.status ?? "").toLowerCase() !== "active") return false;
+            if (String(reservation.source ?? "").toLowerCase() !== "walkin") return false;
+            return String(reservation.checkin_date ?? "") === date;
+        })
+        .sort((left, right) =>
+            String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? "")) ||
+            String(left.id).localeCompare(String(right.id))
+        );
+    const child = childCandidates[0] ?? null;
+    if (!child?.parent_reservation_id) {
+        return { activated: false, childReservationId: null, parentReservationId: null };
+    }
+
+    const { data: parentRow, error: parentError } = await supabase
+        .from("reservations")
+        .select("id, parent_reservation_id, status, source, checkin_date, checkout_date, checked_in_at, checkin_time, booking_code, guest_name")
+        .eq("id", child.parent_reservation_id)
+        .maybeSingle();
+    if (parentError) throw new Error(parentError.message);
+
+    const parent = (parentRow as LinkedContinuationReservation | null) ?? null;
+    if (!parent?.id) {
+        return { activated: false, childReservationId: child.id, parentReservationId: child.parent_reservation_id };
+    }
+    if (String(parent.source ?? "").toLowerCase() !== "ota" || String(parent.checkout_date ?? "") !== date) {
+        return { activated: false, childReservationId: child.id, parentReservationId: parent.id };
+    }
+
+    const parentHasCheckedInEvidence = Boolean(parent.checked_in_at) || await hasCheckedInAudit(supabase, parent.id);
+    if (!parentHasCheckedInEvidence) {
+        return { activated: false, childReservationId: child.id, parentReservationId: parent.id };
+    }
+    if (child.checked_in_at) {
+        return { activated: true, childReservationId: child.id, parentReservationId: parent.id };
+    }
+
+    const nowIso = new Date().toISOString();
+    const inheritedCheckinAt = child.checked_in_at ?? parent.checked_in_at ?? nowIso;
+    const inheritedCheckinTime = child.checkin_time ?? parent.checkin_time ?? getBangkokTimeHHmm();
+
+    const childUpdatePayload: Record<string, unknown> = {
+        status: "active",
+        updated_at: nowIso,
+    };
+    if (!child.checked_in_at) childUpdatePayload.checked_in_at = inheritedCheckinAt;
+    if (!child.checkin_time) childUpdatePayload.checkin_time = inheritedCheckinTime;
+    const { error: childUpdateError } = await supabase.from("reservations").update(childUpdatePayload).eq("id", child.id);
+    if (childUpdateError) throw new Error(childUpdateError.message);
+
+    if (!child.checked_in_at && !(await hasCheckedInAudit(supabase, child.id))) {
+        await supabase.from("audit_logs").insert({
+            action: "checked_in",
+            entity_type: "reservation",
+            entity_id: child.id,
+            after_json: {
+                reason: "room_diary_linked_walkin_activation",
+                parent_reservation_id: parent.id,
+                room_id: roomId,
+                business_date: date,
+            },
+            business_date: date,
+        });
+    }
+
+    await supabase.from("audit_logs").insert({
+        action: "linked_walkin_activated_from_room_diary",
+        entity_type: "reservation",
+        entity_id: child.id,
+        before_json: {
+            parent_reservation_id: parent.id,
+            parent_status: parent.status,
+            child_checked_in_at: child.checked_in_at ?? null,
+        },
+        after_json: {
+            parent_status: parent.status,
+            child_status: "active",
+            child_checked_in_at: inheritedCheckinAt,
+            room_id: roomId,
+            hk_action: markAsNoService ? "no_service" : "dirty",
+        },
+        business_date: date,
+    });
+
+    return { activated: true, childReservationId: child.id, parentReservationId: parent.id };
+}
+
 async function autoCarryForwardOpenHousekeepingTasks(
     supabase: ReturnType<typeof createServerSupabaseClient>,
     targetDate: string,
@@ -206,14 +374,16 @@ async function isRoomInHouseOnDate(
             reservations!reservation_nights_reservation_id_fkey(
                 id,
                 status,
-                checked_in_at
+                checked_in_at,
+                parent_reservation_id
             )
             `;
     const nightSelectFallback = `
             reservation_id,
             reservations!reservation_nights_reservation_id_fkey(
                 id,
-                status
+                status,
+                parent_reservation_id
             )
             `;
 
@@ -242,22 +412,23 @@ async function isRoomInHouseOnDate(
         nightRows = (withCheckedInAt.data ?? []) as Array<Record<string, unknown>>;
     }
 
-    const checkedInByColumn = new Set<string>();
-    const activeReservationIds = (nightRows ?? [])
-        .map((row) => {
-            const reservationRef = Array.isArray((row as { reservations?: unknown }).reservations)
-                ? ((row as { reservations?: Array<{ id?: string; status?: string; checked_in_at?: string | null }> }).reservations ?? [])[0]
-                : ((row as { reservations?: { id?: string; status?: string; checked_in_at?: string | null } | null }).reservations ?? null);
-            if (!reservationRef || reservationRef.status !== "active" || !reservationRef.id) return null;
-            if (includesCheckedInAt && reservationRef.checked_in_at) {
-                checkedInByColumn.add(String(reservationRef.id));
-            }
-            return String(reservationRef.id);
-        })
-        .filter((id): id is string => Boolean(id));
+    const activeReservations: ActiveRoomNightReservation[] = [];
+    for (const row of nightRows ?? []) {
+        const reservationRef = Array.isArray((row as { reservations?: unknown }).reservations)
+            ? ((row as { reservations?: Array<ActiveRoomNightReservation> }).reservations ?? [])[0]
+            : ((row as { reservations?: ActiveRoomNightReservation | null }).reservations ?? null);
+        if (!reservationRef || reservationRef.status !== "active" || !reservationRef.id) continue;
+        activeReservations.push({
+            id: String(reservationRef.id),
+            status: reservationRef.status,
+            checked_in_at: includesCheckedInAt ? reservationRef.checked_in_at ?? null : null,
+            parent_reservation_id: reservationRef.parent_reservation_id ? String(reservationRef.parent_reservation_id) : null,
+        });
+    }
 
+    const activeReservationIds = activeReservations.map((row) => row.id);
     if (activeReservationIds.length === 0) return false;
-    if (checkedInByColumn.size > 0) return true;
+    if (activeReservations.some((row) => row.checked_in_at)) return true;
 
     const { data: checkedInRows, error: checkedInError } = await supabase
         .from("audit_logs")
@@ -268,7 +439,43 @@ async function isRoomInHouseOnDate(
     if (checkedInError) throw new Error(checkedInError.message);
 
     const checkedInSet = new Set((checkedInRows ?? []).map((row) => String(row.entity_id)));
-    return activeReservationIds.some((id) => checkedInSet.has(id));
+    if (activeReservationIds.some((id) => checkedInSet.has(id))) return true;
+
+    const linkedRootIds = Array.from(
+        new Set(activeReservations.map((row) => row.parent_reservation_id ?? row.id).filter(Boolean))
+    );
+    if (linkedRootIds.length === 0) return false;
+
+    const { data: linkedRoots, error: linkedRootsError } = await supabase
+        .from("reservations")
+        .select("id, parent_reservation_id, status, checked_in_at")
+        .in("id", linkedRootIds);
+    if (linkedRootsError) throw new Error(linkedRootsError.message);
+
+    const { data: linkedChildren, error: linkedChildrenError } = await supabase
+        .from("reservations")
+        .select("id, parent_reservation_id, status, checked_in_at")
+        .in("parent_reservation_id", linkedRootIds);
+    if (linkedChildrenError) throw new Error(linkedChildrenError.message);
+
+    const linkedReservations = [
+        ...((linkedRoots ?? []) as ActiveRoomNightReservation[]),
+        ...((linkedChildren ?? []) as ActiveRoomNightReservation[]),
+    ].filter((row) => row.status !== "cancelled" && row.status !== "no_show");
+    const linkedReservationIds = Array.from(new Set(linkedReservations.map((row) => row.id).filter(Boolean)));
+    if (linkedReservations.some((row) => row.checked_in_at)) return true;
+    if (linkedReservationIds.length === 0) return false;
+
+    const { data: linkedCheckedInRows, error: linkedCheckedInError } = await supabase
+        .from("audit_logs")
+        .select("entity_id")
+        .eq("entity_type", "reservation")
+        .eq("action", "checked_in")
+        .in("entity_id", linkedReservationIds);
+    if (linkedCheckedInError) throw new Error(linkedCheckedInError.message);
+
+    const linkedCheckedInSet = new Set((linkedCheckedInRows ?? []).map((row) => String(row.entity_id)));
+    return linkedReservationIds.some((id) => linkedCheckedInSet.has(id));
 }
 
 type MaintenanceAssignmentRow = {
@@ -295,6 +502,16 @@ type HkTaskRow = {
     assigned_maid_name: string | null;
     no_service_note?: string | null;
 };
+
+type HkTaskLogRow = {
+    status: string;
+    note: string | null;
+    created_at: string;
+};
+
+function isRoomDiaryServiceRequest(logs: HkTaskLogRow[]): boolean {
+    return logs.some((log) => /^Marked (Dirty|No Service) from Room Diary/.test(String(log.note ?? "")));
+}
 
 type RecentReservationRow = {
     reservation_id: string;
@@ -407,10 +624,7 @@ export async function GET(request: NextRequest) {
         }
 
         const taskIds = Array.from(new Set(hkRows.map((row) => row.id)));
-        const logsByTaskId = new Map<
-            string,
-            Array<{ status: string; note: string | null; created_at: string }>
-        >();
+        const logsByTaskId = new Map<string, HkTaskLogRow[]>();
 
         if (taskIds.length > 0) {
             const { data: hkLogs, error: hkLogsError } = await supabase
@@ -1270,6 +1484,7 @@ export async function GET(request: NextRequest) {
             const hkTraceItems = collectionReservation
                 ? (hkTraceItemsByReservationId.get(collectionReservation.reservation_id) ?? [])
                 : [];
+            const taskLogs = task?.id ? (logsByTaskId.get(String(task.id)) ?? []) : [];
 
             return {
                 room_id: room.id,
@@ -1318,7 +1533,8 @@ export async function GET(request: NextRequest) {
                 hk_collect_items: hkCollectItems,
                 elapsed_ms: elapsedMs,
                 remaining_ms: remainingMs,
-                hk_logs: task?.id ? (logsByTaskId.get(String(task.id)) ?? []) : [],
+                is_stayover_service_request: isRoomDiaryServiceRequest(taskLogs),
+                hk_logs: taskLogs,
                 hk_prior_tasks: (hkPriorByRoomId.get(room.id) ?? []).map((pt) => ({
                     task_id: pt.id,
                     status: pt.status,
@@ -1337,6 +1553,7 @@ export async function GET(request: NextRequest) {
             const mainEntry = data.find((d) => d.room_id === room.id);
             if (!mainEntry) continue;
             for (const pt of priors) {
+                const priorLogs = logsByTaskId.get(String(pt.id)) ?? [];
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (data as any[]).push({
                     ...mainEntry,
@@ -1348,7 +1565,8 @@ export async function GET(request: NextRequest) {
                     accumulated_ms: pt.accumulated_ms ?? 0,
                     is_no_service: pt.is_no_service ?? false,
                     assigned_maid_name: pt.assigned_maid_name ?? null,
-                    hk_logs: logsByTaskId.get(String(pt.id)) ?? [],
+                    is_stayover_service_request: isRoomDiaryServiceRequest(priorLogs),
+                    hk_logs: priorLogs,
                     hk_prior_tasks: [],
                     is_prior_task: true,
                 });
@@ -1453,7 +1671,8 @@ export async function POST(request: NextRequest) {
             const note = (parsedDiaryAction.data.note ?? "").trim() || null;
             const markAsNoService = action === "room_diary_mark_no_service";
 
-            const inHouse = await isRoomInHouseOnDate(supabase, room_id, date);
+            const linkedActivation = await maybeActivateLinkedWalkInForRoomDiary(supabase, room_id, date, markAsNoService);
+            const inHouse = linkedActivation.activated || await isRoomInHouseOnDate(supabase, room_id, date);
             if (!inHouse) {
                 return NextResponse.json(
                     { error: "Only in-house rooms can be marked Dirty / No Service from Room Diary." },
@@ -1578,6 +1797,9 @@ export async function POST(request: NextRequest) {
                 success: true,
                 room_id,
                 marked_as: markAsNoService ? "no_service" : "dirty",
+                linked_walkin_activated: linkedActivation.activated,
+                linked_walkin_reservation_id: linkedActivation.childReservationId,
+                linked_ota_reservation_id: linkedActivation.parentReservationId,
                 housekeeping: {
                     status: "dirty",
                     is_no_service: markAsNoService,

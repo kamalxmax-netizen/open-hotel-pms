@@ -40,18 +40,95 @@ function nonEmpty(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const THAI_NAME_PREFIXES = [
+  "ร้อยตำรวจเอก", "ร้อยตำรวจโท", "ร้อยตำรวจตรี",
+  "พันตำรวจเอก", "พันตำรวจโท", "พันตำรวจตรี",
+  "พลตำรวจเอก", "พลตำรวจโท", "พลตำรวจตรี", "พลตำรวจจัตวา",
+  "ร้อยเอก", "ร้อยโท", "ร้อยตรี",
+  "พันเอก", "พันโท", "พันตรี",
+  "พลเอก", "พลโท", "พลตรี",
+  "พล.ต.อ.", "พล.ต.ท.", "พล.ต.ต.", "พล.ต.จ.",
+  "พ.ต.อ.", "พ.ต.ท.", "พ.ต.ต.",
+  "ร.ต.อ.", "ร.ต.ท.", "ร.ต.ต.",
+  "จ.ส.ต.", "ส.ต.อ.", "ส.ต.ท.", "ส.ต.ต.", "ด.ต.",
+  "พล.อ.", "พล.ท.", "พล.ต.",
+  "พ.อ.", "พ.ท.", "พ.ต.",
+  "ร.อ.", "ร.ท.", "ร.ต.",
+  "น.อ.", "น.ท.", "น.ต.",
+  "จ.ส.อ.", "จ.ส.ท.", "จ.ส.ต.",
+  "พ.อ.อ.", "พ.อ.ท.", "พ.อ.ต.",
+  "ส.อ.", "ส.ท.", "ส.ต.",
+  "จ.อ.", "จ.ท.", "จ.ต.",
+  "นาย", "นางสาว", "นาง", "เด็กชาย", "เด็กหญิง",
+  "ดร.", "ศ.", "รศ.", "ผศ.", "นพ.", "พญ.",
+];
+
+const THAI_NAME_PREFIX_PATTERN = new RegExp(
+  `^(?:${THAI_NAME_PREFIXES.sort((a, b) => b.length - a.length).map(escapeRegExp).join("|")})(?:\\s*หญิง)?(?:\\s+|$)`,
+  "u"
+);
+
+function stripLeadingThaiNamePrefixes(value: string): string {
+  let next = String(value || "").replace(/\s+/g, " ").trim();
+  let previous = "";
+  while (next && next !== previous) {
+    previous = next;
+    next = next.replace(THAI_NAME_PREFIX_PATTERN, "").trim();
+  }
+  return next;
+}
+
+function buildThaiCardNameParts(payload: Record<string, unknown>): { firstName: string | null; lastName: string | null } {
+  const normalized = stripLeadingThaiNamePrefixes(
+    [payload.titleTH, payload.firstNameTH, payload.lastNameTH].map((part) => String(part ?? "").trim()).filter(Boolean).join(" ")
+  );
+  const parts = normalized.split(/\s+/u).filter(Boolean);
+  return {
+    firstName: parts[0] ?? null,
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+  };
+}
+
 function normalizeDob(value: unknown): string | null {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
 
+  const normalizeYear = (year: number) => year >= 2400 ? year - 543 : year;
+  const buildValidYmd = (rawYear: string, rawMonth: string, rawDay: string): string | null => {
+    const year = normalizeYear(Number(rawYear));
+    const month = Number(rawMonth);
+    const day = Number(rawDay);
+    const candidate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const date = new Date(`${candidate}T12:00:00`);
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.getFullYear() !== year ||
+      date.getMonth() + 1 !== month ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+    return candidate;
+  };
+
   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  if (isoMatch) return buildValidYmd(isoMatch[1], isoMatch[2], isoMatch[3]);
 
   const slashMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (slashMatch) return `${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`;
+  if (slashMatch) return buildValidYmd(slashMatch[3], slashMatch[2], slashMatch[1]);
 
   const compactMatch = raw.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (compactMatch) return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+  if (compactMatch) {
+    const ymdCandidate = buildValidYmd(compactMatch[1], compactMatch[2], compactMatch[3]);
+    if (ymdCandidate) return ymdCandidate;
+  }
+
+  const compactDmyMatch = raw.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (compactDmyMatch) return buildValidYmd(compactDmyMatch[3], compactDmyMatch[2], compactDmyMatch[1]);
 
   return null;
 }
@@ -141,8 +218,9 @@ function buildProfileIdentityPatch(source: "thai_id" | "passport_ocr" | "search"
 
   if (source === "thai_id") {
     const thaiId = normalizeThaiId(payload.citizenId);
-    const firstName = nonEmpty(payload.firstNameTH) ?? nonEmpty(payload.firstNameEN);
-    const lastName = nonEmpty(payload.lastNameTH) ?? nonEmpty(payload.lastNameEN);
+    const thaiName = buildThaiCardNameParts(payload);
+    const firstName = thaiName.firstName ?? nonEmpty(payload.firstNameTH) ?? nonEmpty(payload.firstNameEN);
+    const lastName = thaiName.lastName ?? nonEmpty(payload.lastNameTH) ?? nonEmpty(payload.lastNameEN);
     const address = normalizeThaiAddress(payload.address);
     const province = extractThaiProvince(address, payload.province);
 
@@ -214,9 +292,10 @@ export async function POST(
         );
       }
 
+      const thaiName = buildThaiCardNameParts(payload);
       const resolution = await resolveGuestProfile(supabase, {
-        first_name: nonEmpty(payload.firstNameTH) ?? nonEmpty(payload.firstNameEN),
-        last_name: nonEmpty(payload.lastNameTH) ?? nonEmpty(payload.lastNameEN),
+        first_name: thaiName.firstName ?? nonEmpty(payload.firstNameTH) ?? nonEmpty(payload.firstNameEN),
+        last_name: thaiName.lastName ?? nonEmpty(payload.lastNameTH) ?? nonEmpty(payload.lastNameEN),
         nationality_code: "THA",
         id_type: "thai_id",
         id_number: idNumber,
