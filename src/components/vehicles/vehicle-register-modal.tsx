@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import PmsModal from "../pms-modal";
 import { VehicleType, VehicleColor, GuestVehicle } from "@/lib/types";
 import { THAI_PROVINCES, MALAYSIAN_STATES } from "./province-data";
-import { registerVehicle, updateVehicle, useInHouseReservationOptions } from "@/lib/use-vehicle-api";
+import { deleteVehicle, registerVehicle, updateVehicle, useInHouseReservationOptions } from "@/lib/use-vehicle-api";
 import { VehicleCountryFlag } from "./vehicle-country-flag";
 
 interface VehicleRegisterModalProps {
@@ -124,6 +124,26 @@ export function VehicleRegisterModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!vehicle?.id || !isEditMode) return;
+    const confirmed = window.confirm(
+      `Delete ${vehicle.plate_number || vehicle.short_label || "this vehicle"}? This will remove the record permanently.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      await deleteVehicle(vehicle.id);
+      onSuccess?.();
+      onClose();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete vehicle.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filteredReservations = reservations.filter(r => 
     r.guest_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     r.room_number.includes(searchTerm) ||
@@ -213,7 +233,7 @@ export function VehicleRegisterModal({
                 >
                   <span className="inline-flex items-center gap-2">
                     <VehicleCountryFlag country={c} />
-                    <span>{c === "TH" ? "Thailand" : "Malaysia"}</span>
+                    <span>{c === "TH" ? "Thai" : "Malay"}</span>
                   </span>
                 </button>
               ))}
@@ -312,13 +332,25 @@ export function VehicleRegisterModal({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20"
-        >
-          {submitting ? (isEditMode ? "Saving..." : "Registering...") : (isEditMode ? "Save Changes" : "Register Vehicle")}
-        </button>
+        <div className="flex gap-3">
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={submitting}
+              className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-rose-500/20 disabled:opacity-60"
+            >
+              {submitting ? "Deleting..." : "Delete"}
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-60"
+          >
+            {submitting ? (isEditMode ? "Saving..." : "Registering...") : (isEditMode ? "Save Changes" : "Register Vehicle")}
+          </button>
+        </div>
       </form>
     </PmsModal>
   );

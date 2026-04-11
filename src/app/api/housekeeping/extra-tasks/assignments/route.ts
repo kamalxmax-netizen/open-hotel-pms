@@ -7,6 +7,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 const querySchema = z.object({
   date: z.string().regex(dateRegex, "date must be YYYY-MM-DD").optional(),
+  maid_name: z.string().trim().min(1).optional(),
 });
 
 const createAssignmentSchema = z.object({
@@ -34,10 +35,26 @@ function getThailandDateString(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeName(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isMaidMatch(candidate: string | null | undefined, selected: string): boolean {
+  const c = normalizeName(candidate);
+  const s = normalizeName(selected);
+  if (!c || !s) return false;
+  if (c === s) return true;
+  const compactC = c.replace(/[^a-z0-9ก-๙]/g, "");
+  const compactS = s.replace(/[^a-z0-9ก-๙]/g, "");
+  if (compactC && compactC === compactS) return true;
+  return c.includes(s) || s.includes(c);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const parsedQuery = querySchema.safeParse({
       date: request.nextUrl.searchParams.get("date") ?? undefined,
+      maid_name: request.nextUrl.searchParams.get("maid_name") ?? undefined,
     });
 
     if (!parsedQuery.success) {
@@ -48,6 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     const targetDate = parsedQuery.data.date ?? getThailandDateString();
+    const maidName = parsedQuery.data.maid_name?.trim() ?? null;
     const supabase = createServerSupabaseClient();
 
     const { data, error } = await supabase
@@ -64,10 +82,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const assignments = maidName ? (data ?? []).filter((row) => isMaidMatch(row.assigned_maid, maidName)) : data ?? [];
+
     return NextResponse.json({
       success: true,
       date: targetDate,
-      assignments: data ?? [],
+      assignments,
     });
   } catch (err) {
     console.error("extra-tasks/assignments GET unexpected", err);

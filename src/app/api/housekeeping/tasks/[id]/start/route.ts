@@ -29,7 +29,7 @@ export async function POST(
     // 1. Get the task by id
     const { data: task, error: taskError } = await supabase
       .from("housekeeping_tasks")
-      .select("*")
+      .select("id, status, stay_date, accumulated_ms, started_at, is_no_service")
       .eq("id", params.id)
       .single();
 
@@ -91,31 +91,19 @@ export async function POST(
       );
     }
 
-    // 5. Insert housekeeping_logs entry
     const logNote =
       task.status === "paused"
         ? `resumed by ${maid_name}`
         : `started by ${maid_name}`;
 
-    const { error: logError } = await supabase
-      .from("housekeeping_logs")
-      .insert({
+    const auditAction = task.status === "paused" ? "resume" : "start";
+    const [logResult, auditResult] = await Promise.allSettled([
+      supabase.from("housekeeping_logs").insert({
         task_id: params.id,
         status: "in_progress",
         note: logNote,
-      });
-
-    if (logError) {
-      return NextResponse.json(
-        { error: logError.message },
-        { status: 500 }
-      );
-    }
-
-    // 6. Audit log (non-blocking)
-    try {
-      const auditAction = task.status === "paused" ? "resume" : "start";
-      await supabase.from("audit_logs").insert({
+      }),
+      supabase.from("audit_logs").insert({
         action: auditAction,
         entity_type: "housekeeping_task",
         entity_id: params.id,
@@ -123,9 +111,25 @@ export async function POST(
         after_json: { status: "in_progress", assigned_maid_name: maid_name, is_no_service },
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
-      });
-    } catch (auditErr) {
-      console.error("HK start audit log failed:", auditErr);
+      }),
+    ]);
+
+    if (logResult.status === "rejected") {
+      return NextResponse.json(
+        { error: logResult.reason instanceof Error ? logResult.reason.message : "Failed to log start task" },
+        { status: 500 }
+      );
+    }
+    if (logResult.value.error) {
+      return NextResponse.json(
+        { error: logResult.value.error.message },
+        { status: 500 }
+      );
+    }
+    if (auditResult.status === "rejected") {
+      console.error("HK start audit log failed:", auditResult.reason);
+    } else if (auditResult.value.error) {
+      console.error("HK start audit log failed:", auditResult.value.error);
     }
 
     return NextResponse.json({ success: true });

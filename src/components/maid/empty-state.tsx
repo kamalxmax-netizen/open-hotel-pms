@@ -1,14 +1,13 @@
-import React from 'react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList } from "lucide-react";
 
-export default function EmptyState({ message = "No rooms found for this category." }: { message?: string }) {
+export default function EmptyState({ message = "ไม่มีรายการในหมวดนี้" }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center bg-[var(--bg-surface)] rounded-2xl shadow-sm border border-[var(--border-subtle)] min-h-[300px]">
-      <div className="w-16 h-16 bg-[var(--bg-surface-hover)] rounded-full flex items-center justify-center mb-4 text-[var(--text-muted)]">
+    <div className="flex min-h-[300px] flex-col items-center justify-center rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-white/5 dark:bg-slate-900">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500">
         <ClipboardList size={32} />
       </div>
-      <h3 className="text-base font-bold text-[var(--text-primary)] mb-1">All Caught Up!</h3>
-      <p className="text-sm text-[var(--text-muted)]">{message}</p>
+      <h3 className="text-xl font-black text-slate-900 dark:text-white">ไม่มีรายการ</h3>
+      <p className="mt-2 text-sm font-bold text-slate-500 dark:text-slate-400">{message}</p>
     </div>
   );
 }

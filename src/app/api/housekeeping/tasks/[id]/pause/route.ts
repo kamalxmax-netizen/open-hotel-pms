@@ -35,7 +35,7 @@ export async function POST(
     // 1. Fetch the task by ID
     const { data: task, error: fetchError } = await supabase
       .from("housekeeping_tasks")
-      .select("*")
+      .select("id, status, started_at, accumulated_ms")
       .eq("id", id)
       .single();
 
@@ -86,25 +86,16 @@ export async function POST(
       );
     }
 
-    // 5. Insert a housekeeping_logs entry
-    const { error: logError } = await supabase
-      .from("housekeeping_logs")
-      .insert({
+    const [logResult, auditResult] = await Promise.allSettled([
+      supabase.from("housekeeping_logs").insert({
         task_id: id,
         status: "paused" as const,
         note:
           pauseNote && pauseNote.length > 0
             ? pauseNote
             : `paused, accumulated: ${accumulatedMin} min`,
-      });
-
-    if (logError) {
-      console.error("Failed to insert housekeeping log:", logError.message);
-    }
-
-    // 6. Audit log (non-blocking)
-    try {
-      await supabase.from("audit_logs").insert({
+      }),
+      supabase.from("audit_logs").insert({
         action: "pause",
         entity_type: "housekeeping_task",
         entity_id: id,
@@ -113,9 +104,18 @@ export async function POST(
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
         note: pauseNote || null,
-      });
-    } catch (auditErr) {
-      console.error("HK pause audit log failed:", auditErr);
+      }),
+    ]);
+
+    if (logResult.status === "rejected") {
+      console.error("Failed to insert housekeeping log:", logResult.reason);
+    } else if (logResult.value.error) {
+      console.error("Failed to insert housekeeping log:", logResult.value.error.message);
+    }
+    if (auditResult.status === "rejected") {
+      console.error("HK pause audit log failed:", auditResult.reason);
+    } else if (auditResult.value.error) {
+      console.error("HK pause audit log failed:", auditResult.value.error);
     }
 
     // 7. Return success

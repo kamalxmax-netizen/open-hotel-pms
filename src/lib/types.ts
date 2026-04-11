@@ -228,6 +228,14 @@ export interface ChecklistItem {
   product_id?: string | null;
 }
 
+export interface ReturnableStockItem {
+  product_id: string;
+  item: string;
+  available_to_return: number;
+  delivered_total: number;
+  returned_total: number;
+}
+
 export interface MaintenanceChecklistSubmission {
   assignment_id: string;
   items: Array<{
@@ -296,6 +304,8 @@ export interface MaidRoom {
     id: string;
     text: string;
   }>;
+  can_return_stock?: boolean;
+  returnable_stock?: ReturnableStockItem[];
 }
 
 // ── Phase 9: Extra Tasks ──

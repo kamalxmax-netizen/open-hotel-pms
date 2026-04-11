@@ -2,6 +2,7 @@ import {
   VEHICLE_COLORS,
   VEHICLE_COUNTRIES,
   VEHICLE_TYPES,
+  deleteVehicle,
   getVehicleById,
   getVehicleErrorMessage,
   getVehicleErrorStatus,
@@ -77,6 +78,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const supabase = createServerSupabaseClient();
     await requireVehicleActor(supabase, request);
     const vehicle = await updateVehicle(supabase, parsedParams.data.id, parsedBody.data);
+
+    return NextResponse.json({
+      success: true,
+      vehicle,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: getVehicleErrorMessage(error) },
+      { status: getVehicleErrorStatus(error) },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const parsedParams = paramsSchema.safeParse(params);
+    if (!parsedParams.success) {
+      return NextResponse.json({ success: false, error: parsedParams.error.issues[0]?.message ?? "Invalid vehicle id." }, { status: 400 });
+    }
+
+    const supabase = createServerSupabaseClient();
+    await requireVehicleActor(supabase, request);
+    const vehicle = await deleteVehicle(supabase, parsedParams.data.id);
 
     return NextResponse.json({
       success: true,

@@ -138,6 +138,7 @@ export type VehicleSummary = {
 
 export type DistinctProfileVehicle = {
   vehicle_key: string;
+  latest_vehicle: VehicleRecord;
   vehicle_type: VehicleType;
   plate_number: string | null;
   plate_province: string | null;
@@ -275,6 +276,7 @@ function getVehicleStatus(row: GuestVehicleDbRow, today: string): VehicleRecord[
 function buildDistinctVehicleKey(row: {
   vehicle_type: VehicleType;
   plate_number: string | null;
+  plate_province?: string | null;
   plate_country: VehicleCountry;
   description: string | null;
   vehicle_brand: string | null;
@@ -282,7 +284,7 @@ function buildDistinctVehicleKey(row: {
 }): string {
   const plateKey = normalizePlateNumberKey(row.plate_number);
   if (plateKey) {
-    return `${row.vehicle_type}|${row.plate_country}|${plateKey}`;
+    return `${row.vehicle_type}|${row.plate_country}|${normalizeText(row.plate_province)?.toUpperCase() ?? ""}|${plateKey}`;
   }
 
   const fallback = [
@@ -292,6 +294,66 @@ function buildDistinctVehicleKey(row: {
     normalizeText(row.vehicle_model)?.toLowerCase() ?? "",
   ].join("|");
   return fallback;
+}
+
+async function assertNoActiveDuplicateVehicle(
+  supabase: SupabaseServerClient,
+  input: {
+    vehicleType: VehicleType;
+    plateNumber?: string | null;
+    plateProvince?: string | null;
+    plateCountry?: VehicleCountry | null;
+    description?: string | null;
+    vehicleBrand?: string | null;
+    vehicleModel?: string | null;
+    excludeVehicleId?: string | null;
+    excludeReservationIds?: string[];
+  },
+): Promise<void> {
+  const newKey = buildDistinctVehicleKey({
+    vehicle_type: input.vehicleType,
+    plate_number: input.plateNumber ?? null,
+    plate_province: input.plateProvince ?? null,
+    plate_country: input.plateCountry ?? "TH",
+    description: input.description ?? null,
+    vehicle_brand: input.vehicleBrand ?? null,
+    vehicle_model: input.vehicleModel ?? null,
+  });
+
+  const { data, error } = await supabase
+    .from("guest_vehicles")
+    .select("*")
+    .eq("vehicle_type", input.vehicleType)
+    .eq("plate_country", input.plateCountry ?? "TH")
+    .is("checked_out_at", null);
+
+  if (error) {
+    throw makeVehicleError(error.message, 500);
+  }
+
+  const duplicate = ((data ?? []) as any[])
+    .map(mapRawVehicleRow)
+    .find((row) => {
+      if (input.excludeVehicleId && row.id === input.excludeVehicleId) return false;
+      if (input.excludeReservationIds?.includes(row.reservation_id)) return false;
+      return buildDistinctVehicleKey({
+        vehicle_type: row.vehicle_type,
+        plate_number: row.plate_number,
+        plate_province: row.plate_province,
+        plate_country: row.plate_country,
+        description: row.description,
+        vehicle_brand: row.vehicle_brand,
+        vehicle_model: row.vehicle_model,
+      }) === newKey;
+    });
+
+  if (!duplicate) return;
+
+  const label = [
+    normalizePlateNumber(input.plateNumber) ?? normalizeText(input.description) ?? "this vehicle",
+    normalizeText(input.plateProvince),
+  ].filter(Boolean).join(" · ");
+  throw makeVehicleError(`Vehicle ${label} is already registered to ${duplicate.guest_name ?? duplicate.booking_code ?? "another in-house guest"}.`, 409);
 }
 
 function isVehicleActorRole(value: string | null): value is VehicleActorRole {
@@ -748,6 +810,7 @@ export async function getProfileDistinctVehicles(
     const key = buildDistinctVehicleKey({
       vehicle_type: vehicle.vehicle_type,
       plate_number: vehicle.plate_number,
+      plate_province: vehicle.plate_province,
       plate_country: vehicle.plate_country,
       description: vehicle.description,
       vehicle_brand: vehicle.vehicle_brand,
@@ -756,6 +819,7 @@ export async function getProfileDistinctVehicles(
     if (distinct.has(key)) continue;
     distinct.set(key, {
       vehicle_key: key,
+      latest_vehicle: vehicle,
       vehicle_type: vehicle.vehicle_type,
       plate_number: vehicle.plate_number,
       plate_province: vehicle.plate_province,
@@ -902,10 +966,22 @@ export async function createVehicleLinks(
   const newVehicleKey = buildDistinctVehicleKey({
     vehicle_type: input.vehicleType,
     plate_number: input.plateNumber ?? null,
+    plate_province: input.plateProvince ?? null,
     plate_country: input.plateCountry ?? "TH",
     description: input.description ?? null,
     vehicle_brand: input.vehicleBrand ?? null,
     vehicle_model: input.vehicleModel ?? null,
+  });
+
+  await assertNoActiveDuplicateVehicle(supabase, {
+    vehicleType: input.vehicleType,
+    plateNumber: input.plateNumber ?? null,
+    plateProvince: input.plateProvince ?? null,
+    plateCountry: input.plateCountry ?? "TH",
+    description: input.description ?? null,
+    vehicleBrand: input.vehicleBrand ?? null,
+    vehicleModel: input.vehicleModel ?? null,
+    excludeReservationIds: targetReservations.map((reservation) => reservation.id),
   });
 
   const existingRows = await listActiveVehicleRowsForReservations(
@@ -933,6 +1009,7 @@ export async function createVehicleLinks(
       buildDistinctVehicleKey({
         vehicle_type: row.vehicle_type,
         plate_number: row.plate_number,
+        plate_province: row.plate_province,
         plate_country: row.plate_country,
         description: row.description,
         vehicle_brand: row.vehicle_brand,
@@ -964,6 +1041,7 @@ export async function createVehicleLinks(
       buildDistinctVehicleKey({
         vehicle_type: row.vehicle_type,
         plate_number: row.plate_number,
+        plate_province: row.plate_province,
         plate_country: row.plate_country,
         description: row.description,
         vehicle_brand: row.vehicle_brand,
@@ -1091,6 +1169,22 @@ export async function updateVehicle(
     description: string | null;
   }>,
 ): Promise<VehicleRecord> {
+  const existing = await getVehicleById(supabase, vehicleId);
+  if (!existing) {
+    throw makeVehicleError("Vehicle not found.", 404);
+  }
+
+  await assertNoActiveDuplicateVehicle(supabase, {
+    vehicleType: updates.vehicle_type ?? existing.vehicle_type,
+    plateNumber: updates.plate_number !== undefined ? updates.plate_number : existing.plate_number,
+    plateProvince: updates.plate_province !== undefined ? updates.plate_province : existing.plate_province,
+    plateCountry: updates.plate_country ?? existing.plate_country,
+    description: updates.description !== undefined ? updates.description : existing.description,
+    vehicleBrand: updates.vehicle_brand !== undefined ? updates.vehicle_brand : existing.vehicle_brand,
+    vehicleModel: updates.vehicle_model !== undefined ? updates.vehicle_model : existing.vehicle_model,
+    excludeVehicleId: vehicleId,
+  });
+
   const payload: Record<string, unknown> = {};
   if (updates.vehicle_type !== undefined) payload.vehicle_type = updates.vehicle_type;
   if (updates.plate_number !== undefined) payload.plate_number = normalizePlateNumber(updates.plate_number) ?? null;
@@ -1151,6 +1245,35 @@ export async function unlinkVehicle(
   if (!existing) {
     throw makeVehicleError("Vehicle not found.", 404);
   }
+  return existing;
+}
+
+export async function deleteVehicle(
+  supabase: SupabaseServerClient,
+  vehicleId: string,
+): Promise<VehicleRecord> {
+  const existing = await getVehicleById(supabase, vehicleId);
+  if (!existing) {
+    throw makeVehicleError("Vehicle not found.", 404);
+  }
+
+  const { data, error } = await supabase
+    .from("guest_vehicles")
+    .delete()
+    .eq("id", vehicleId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw makeVehicleError(error.message, 500);
+  }
+
+  if (!data) {
+    throw makeVehicleError("Vehicle not found.", 404);
+  }
+
+  const [vehicle] = await enrichVehicleRows(supabase, [mapRawVehicleRow(data)]);
+  if (vehicle) return vehicle;
   return existing;
 }
 

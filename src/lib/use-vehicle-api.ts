@@ -76,6 +76,14 @@ export async function updateVehicle(
   return json.vehicle ?? null;
 }
 
+export async function deleteVehicle(vehicleId: string): Promise<GuestVehicle | null> {
+  const json = await readJson<{ vehicle?: GuestVehicle | null }>(
+    `/api/vehicles/${vehicleId}`,
+    { method: "DELETE" },
+  );
+  return json.vehicle ?? null;
+}
+
 export function useVehicleRegistry(refreshMs = 30_000) {
   const [data, setData] = useState<VehicleRegistryData>({
     activeVehicles: [],
@@ -121,12 +129,18 @@ export function useVehicleRegistry(refreshMs = 30_000) {
     await refresh();
   }, [refresh]);
 
+  const handleDelete = useCallback(async (vehicleId: string) => {
+    await deleteVehicle(vehicleId);
+    await refresh();
+  }, [refresh]);
+
   return {
     ...data,
     loading,
     error,
     refresh,
     unlinkVehicle: handleUnlink,
+    deleteVehicle: handleDelete,
   };
 }
 

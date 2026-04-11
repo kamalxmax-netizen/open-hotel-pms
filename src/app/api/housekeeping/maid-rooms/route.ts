@@ -1,4 +1,9 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  compareReturnableAmenityOrder,
+  getAmenityLabelFromValues,
+  isReturnableAmenity,
+} from "@/lib/maid-amenities";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -180,6 +185,14 @@ async function autoCarryForwardOpenHousekeepingTasks(
 
 function toRoomNumberSortKey(roomNumber: string): string {
   return roomNumber ?? "";
+}
+
+function getStayNightCount(checkinDate: string | null | undefined, checkoutDate: string | null | undefined): number {
+  if (!checkinDate || !checkoutDate) return 0;
+  const checkin = new Date(`${checkinDate}T00:00:00.000Z`);
+  const checkout = new Date(`${checkoutDate}T00:00:00.000Z`);
+  if (Number.isNaN(checkin.getTime()) || Number.isNaN(checkout.getTime())) return 0;
+  return Math.max(Math.round((checkout.getTime() - checkin.getTime()) / 86_400_000), 0);
 }
 
 function normalizeMaidName(value: string | null | undefined): string {
@@ -396,8 +409,13 @@ export async function GET(request: NextRequest) {
       new Set(baseRooms.map((r) => r.room_type_code).filter(Boolean))
     );
 
-    // Hotfix: when maid opens app today, auto carry unresolved tasks from yesterday.
-    await autoCarryForwardOpenHousekeepingTasks(supabase, date, roomIds);
+    const carryForwardTargetRoomIds = carryForwardRoomIds.filter((roomId) => roomIds.includes(roomId));
+    if (carryForwardTargetRoomIds.length > 0) {
+      // Do not block the main room list on carry-forward normalization.
+      void autoCarryForwardOpenHousekeepingTasks(supabase, date, carryForwardTargetRoomIds).catch((error) => {
+        console.error("maid-rooms carry-forward failed", error);
+      });
+    }
 
     const maintenanceByRoomId = new Map<
       string,
@@ -412,10 +430,62 @@ export async function GET(request: NextRequest) {
       }>
     >();
 
-    const { data: maintenanceRows, error: maintenanceError } = await supabase.rpc(
-      "get_todays_maintenance_assignments",
-      { p_target_date: date }
-    );
+    const taskSelectBase =
+      "id, room_id, stay_date, task_seq, status, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
+    const maintenancePromise = supabase.rpc("get_todays_maintenance_assignments", {
+      p_target_date: date,
+    });
+    const taskRowsPromise = supabase
+      .from("housekeeping_tasks")
+      .select(`${taskSelectBase}, no_service_note`)
+      .eq("stay_date", date)
+      .in("room_id", roomIds)
+      .order("task_seq", { ascending: true });
+    const nightRowsPromise = supabase
+      .from("reservation_nights")
+      .select("room_id, reservation_id")
+      .eq("stay_date", date)
+      .is("cancelled_at", null)
+      .in("room_id", roomIds);
+    const checkedOutTodayPromise = supabase
+      .from("reservations")
+      .select("id, status, guest_name, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
+      .eq("status", "checked_out")
+      .eq("checkout_date", date);
+    const { from: bangkokDayFrom, to: bangkokDayTo } = toBangkokWindow(date);
+    const cancelledAuditPromise = supabase
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("entity_type", "reservation")
+      .eq("action", "booking_cancelled")
+      .gte("created_at", bangkokDayFrom)
+      .lt("created_at", bangkokDayTo);
+    const checklistPromise =
+      roomTypeCodes.length > 0
+        ? supabase
+            .from("checklist_templates")
+            .select("room_type_code, item_name, default_quantity, category, sort_order, product_id")
+            .eq("is_active", true)
+            .in("room_type_code", roomTypeCodes)
+            .order("sort_order", { ascending: true })
+        : Promise.resolve({ data: [], error: null });
+
+    const [
+      { data: maintenanceRows, error: maintenanceError },
+      { data: taskRowsRaw, error: taskError },
+      { data: nightRows, error: nightError },
+      { data: checkedOutTodayRows, error: checkedOutTodayError },
+      { data: cancelledAuditRows, error: cancelledAuditError },
+      { data: checklistRows, error: checklistError },
+    ] = await Promise.all([
+      maintenancePromise,
+      taskRowsPromise,
+      nightRowsPromise,
+      checkedOutTodayPromise,
+      cancelledAuditPromise,
+      checklistPromise,
+    ]);
+
     if (maintenanceError) {
       console.error("maid-rooms GET maintenance rpc failed", maintenanceError);
     } else {
@@ -435,15 +505,6 @@ export async function GET(request: NextRequest) {
         });
       }
     }
-
-    const taskSelectBase =
-      "id, room_id, stay_date, task_seq, status, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
-    const { data: taskRowsRaw, error: taskError } = await supabase
-      .from("housekeeping_tasks")
-      .select(`${taskSelectBase}, no_service_note`)
-      .eq("stay_date", date)
-      .in("room_id", roomIds)
-      .order("task_seq", { ascending: true });
 
     if (taskError) {
       const message = String(taskError.message ?? "").toLowerCase();
@@ -490,14 +551,6 @@ export async function GET(request: NextRequest) {
     }
 
     const guestVisibleReservationStatuses = new Set(["active"]);
-
-    const { data: nightRows, error: nightError } = await supabase
-      .from("reservation_nights")
-      .select("room_id, reservation_id")
-      .eq("stay_date", date)
-      .is("cancelled_at", null)
-      .in("room_id", roomIds);
-
     if (nightError) {
       return NextResponse.json({ error: nightError.message }, { status: 500 });
     }
@@ -603,11 +656,6 @@ export async function GET(request: NextRequest) {
         checkout_date: string | null;
       }
     >();
-    const { data: checkedOutTodayRows, error: checkedOutTodayError } = await supabase
-      .from("reservations")
-      .select("id, status, guest_name, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
-      .eq("status", "checked_out")
-      .eq("checkout_date", date);
     if (checkedOutTodayError) {
       return NextResponse.json({ error: checkedOutTodayError.message }, { status: 500 });
     }
@@ -639,15 +687,6 @@ export async function GET(request: NextRequest) {
         collectionReservationByRoomId.set(roomId, reservation);
       }
     });
-
-    const { from: bangkokDayFrom, to: bangkokDayTo } = toBangkokWindow(date);
-    const { data: cancelledAuditRows, error: cancelledAuditError } = await supabase
-      .from("audit_logs")
-      .select("entity_id")
-      .eq("entity_type", "reservation")
-      .eq("action", "booking_cancelled")
-      .gte("created_at", bangkokDayFrom)
-      .lt("created_at", bangkokDayTo);
     if (cancelledAuditError) {
       return NextResponse.json({ error: cancelledAuditError.message }, { status: 500 });
     }
@@ -833,6 +872,16 @@ export async function GET(request: NextRequest) {
         text: string;
       }>
     >();
+    const returnableStockByRoomId = new Map<
+      string,
+      Array<{
+        product_id: string;
+        item: string;
+        available_to_return: number;
+        delivered_total: number;
+        returned_total: number;
+      }>
+    >();
 
     if (runtimeTraceReservationIds.length > 0) {
       const { data: hkTraceRows, error: hkTraceError } = await supabase
@@ -861,6 +910,94 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const checkedOutReturnCandidates = Array.from(collectionReservationByRoomId.entries()).filter(
+      ([, reservation]) =>
+        reservation.status === "checked_out" &&
+        getStayNightCount(reservation.checkin_date, reservation.checkout_date) > 1
+    );
+
+    if (checkedOutReturnCandidates.length > 0) {
+      const candidateReservationIds = Array.from(
+        new Set(checkedOutReturnCandidates.map(([, reservation]) => reservation.reservation_id))
+      );
+      const candidateRoomIds = checkedOutReturnCandidates.map(([roomId]) => roomId);
+
+      const { data: ledgerRows, error: ledgerError } = await supabase
+        .from("housekeeping_amenity_ledger")
+        .select("reservation_id, room_id, product_id, item_name, action, quantity")
+        .in("reservation_id", candidateReservationIds)
+        .in("room_id", candidateRoomIds);
+
+      if (ledgerError) {
+        const message = String(ledgerError.message ?? "").toLowerCase();
+        if (!message.includes("housekeeping_amenity_ledger") && !message.includes("does not exist")) {
+          return NextResponse.json({ error: ledgerError.message }, { status: 500 });
+        }
+      } else {
+        const roomReservationByKey = new Map(
+          checkedOutReturnCandidates.map(([roomId, reservation]) => [
+            `${roomId}:${reservation.reservation_id}`,
+            roomId,
+          ])
+        );
+        const totalsByKey = new Map<
+          string,
+          {
+            roomId: string;
+            productId: string;
+            itemName: string;
+            delivered: number;
+            returned: number;
+          }
+        >();
+
+        for (const row of ledgerRows ?? []) {
+          const reservationId = String((row as any).reservation_id ?? "");
+          const roomId = String((row as any).room_id ?? "");
+          const productId = String((row as any).product_id ?? "");
+          const itemName = String((row as any).item_name ?? "");
+          const quantity = Math.max(Number((row as any).quantity ?? 0), 0);
+          if (!reservationId || !roomId || !productId || quantity <= 0) continue;
+          if (!isReturnableAmenity({ item: itemName, product_id: productId })) continue;
+          const roomKey = roomReservationByKey.get(`${roomId}:${reservationId}`);
+          if (!roomKey) continue;
+          const key = `${roomId}:${productId}`;
+          const current = totalsByKey.get(key) ?? {
+            roomId,
+            productId,
+            itemName,
+            delivered: 0,
+            returned: 0,
+          };
+          if (String((row as any).action ?? "") === "return") {
+            current.returned += quantity;
+          } else {
+            current.delivered += quantity;
+          }
+          totalsByKey.set(key, current);
+        }
+
+        for (const entry of totalsByKey.values()) {
+          const available = Math.max(entry.delivered - entry.returned, 0);
+          if (available <= 0) continue;
+          if (!returnableStockByRoomId.has(entry.roomId)) {
+            returnableStockByRoomId.set(entry.roomId, []);
+          }
+          returnableStockByRoomId.get(entry.roomId)?.push({
+            product_id: entry.productId,
+            item: getAmenityLabelFromValues(entry.itemName, entry.productId),
+            available_to_return: available,
+            delivered_total: entry.delivered,
+            returned_total: entry.returned,
+          });
+        }
+
+        for (const [roomId, items] of returnableStockByRoomId.entries()) {
+          returnableStockByRoomId.set(roomId, [...items].sort(compareReturnableAmenityOrder));
+        }
+      }
+    }
+
     const checklistByRoomType = new Map<
       string,
       Array<{
@@ -875,18 +1012,11 @@ export async function GET(request: NextRequest) {
       }>
     >();
 
+    if (checklistError) {
+      return NextResponse.json({ error: checklistError.message }, { status: 500 });
+    }
+
     if (roomTypeCodes.length > 0) {
-      const { data: checklistRows, error: checklistError } = await supabase
-        .from("checklist_templates")
-        .select("room_type_code, item_name, default_quantity, category, sort_order, product_id")
-        .eq("is_active", true)
-        .in("room_type_code", roomTypeCodes)
-        .order("sort_order", { ascending: true });
-
-      if (checklistError) {
-        return NextResponse.json({ error: checklistError.message }, { status: 500 });
-      }
-
       for (const row of checklistRows ?? []) {
         const normalizedCategory = String(row.category ?? "").trim().toLowerCase();
         const isSupportedAmenityCategory =
@@ -926,6 +1056,10 @@ export async function GET(request: NextRequest) {
       const targetDurationMin = Math.max(cleaningDurationMin + maintenanceMinutesTotal, 1);
       const recentReservation = recentReservationByRoomId.get(baseRoom.room_id);
       const collectionReservation = collectionReservationByRoomId.get(baseRoom.room_id);
+      const stayNightCount = getStayNightCount(
+        collectionReservation?.checkin_date ?? null,
+        collectionReservation?.checkout_date ?? null
+      );
       const taskStatus = task?.status ?? "dirty";
       const isCollectionVisibleStatus =
         taskStatus === "dirty" || taskStatus === "in_progress" || taskStatus === "paused";
@@ -951,6 +1085,11 @@ export async function GET(request: NextRequest) {
       const hkTraces = collectionReservation
         ? (hkTraceItemsByReservationId.get(collectionReservation.reservation_id) ?? [])
         : [];
+      const returnableStock = returnableStockByRoomId.get(baseRoom.room_id) ?? [];
+      const canReturnStock =
+        collectionReservation?.status === "checked_out" &&
+        stayNightCount > 1 &&
+        returnableStock.length > 0;
 
       return {
         task_id: task?.id ?? null,
@@ -975,6 +1114,8 @@ export async function GET(request: NextRequest) {
         maintenance_minutes_total: maintenanceMinutesTotal,
         loan_collections: loanCollections,
         hk_traces: hkTraces,
+        can_return_stock: Boolean(canReturnStock),
+        returnable_stock: returnableStock,
       };
     });
 

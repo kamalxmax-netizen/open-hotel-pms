@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NationalityFlag from "@/components/nationality-flag";
 import DateInput from "@/components/date-input";
 import PmsModal from "@/components/pms-modal";
+import { VehicleRegisterModal } from "@/components/vehicles/vehicle-register-modal";
+import { useAdminRole } from "@/hooks/use-admin-role";
 import {
   formatGuestDisplayName,
   getProfileStatusMeta,
@@ -18,6 +20,7 @@ import type {
   GuestHistoryResponse,
   GuestHistoryStay,
   GuestProfile,
+  GuestVehicle,
   GuestStaySummary,
   GuestStaySummaryResponse,
 } from "@/lib/types";
@@ -30,6 +33,7 @@ type GuestProfileResponse = {
 
 type ProfileVehicle = {
   vehicle_key: string;
+  latest_vehicle: GuestVehicle;
   vehicle_type: "car" | "motorcycle" | "bicycle";
   plate_number: string | null;
   plate_province: string | null;
@@ -490,6 +494,7 @@ function StaySummaryDrawer({
 export default function GuestProfileDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isAdmin } = useAdminRole();
   const profileId = useMemo(() => String(params?.id ?? ""), [params]);
 
   const [loading, setLoading] = useState(true);
@@ -505,6 +510,7 @@ export default function GuestProfileDetailPage() {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [profileVehicles, setProfileVehicles] = useState<ProfileVehicle[]>([]);
   const [profileVehiclesError, setProfileVehiclesError] = useState("");
+  const [editingProfileVehicle, setEditingProfileVehicle] = useState<GuestVehicle | null>(null);
   const [selectedStay, setSelectedStay] = useState<GuestHistoryStay | null>(null);
   const [staySummary, setStaySummary] = useState<GuestStaySummary | null>(null);
   const [stayLoading, setStayLoading] = useState(false);
@@ -512,6 +518,21 @@ export default function GuestProfileDetailPage() {
   const [stayStatusFilter, setStayStatusFilter] = useState<"all" | "checked_out" | "cancelled">("all");
   const [stayDateFrom, setStayDateFrom] = useState("");
   const [stayDateTo, setStayDateTo] = useState("");
+
+  const refreshProfileVehicles = useCallback(async () => {
+    if (!profileId) return;
+    const vehiclesRes = await fetch(`/api/vehicles/profile-vehicles?guest_profile_id=${encodeURIComponent(profileId)}&t=${Date.now()}`, {
+      cache: "no-store",
+    });
+    const vehiclesJson = (await vehiclesRes.json().catch(() => null)) as ProfileVehicleResponse | null;
+    if (!vehiclesRes.ok || vehiclesJson?.success === false) {
+      setProfileVehicles([]);
+      setProfileVehiclesError(vehiclesJson?.error || "Failed to load vehicle history.");
+      return;
+    }
+    setProfileVehicles(Array.isArray(vehiclesJson?.vehicles) ? vehiclesJson!.vehicles! : []);
+    setProfileVehiclesError("");
+  }, [profileId]);
 
   useEffect(() => {
     if (!profileId) return;
@@ -543,18 +564,7 @@ export default function GuestProfileDetailPage() {
         setEditForm(toEditForm(profileJson.profile));
         setHistory(historyJson);
 
-        const vehiclesRes = await fetch(`/api/vehicles/profile-vehicles?guest_profile_id=${encodeURIComponent(profileId)}&t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        const vehiclesJson = (await vehiclesRes.json().catch(() => null)) as ProfileVehicleResponse | null;
-        if (!mounted) return;
-        if (!vehiclesRes.ok || vehiclesJson?.success === false) {
-          setProfileVehicles([]);
-          setProfileVehiclesError(vehiclesJson?.error || "Failed to load vehicle history.");
-        } else {
-          setProfileVehicles(Array.isArray(vehiclesJson?.vehicles) ? vehiclesJson!.vehicles! : []);
-          setProfileVehiclesError("");
-        }
+        await refreshProfileVehicles();
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "Failed to load guest profile.");
@@ -567,7 +577,7 @@ export default function GuestProfileDetailPage() {
     return () => {
       mounted = false;
     };
-  }, [profileId]);
+  }, [profileId, refreshProfileVehicles]);
 
   useEffect(() => {
     if (!profileId || !selectedStay) return;
@@ -929,17 +939,28 @@ export default function GuestProfileDetailPage() {
                 {profileVehicles.map((vehicle) => {
                   return (
                     <div key={vehicle.vehicle_key} className="border-b border-[var(--border-subtle)] pb-3 last:border-b-0 last:pb-0">
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                          {vehicle.short_label || getPlateDisplay(vehicle.plate_number, vehicle.vehicle_type)}
-                        </span>
-                        <span>
-                          Plate: {valueOrDash(vehicle.plate_number)}
-                          {vehicle.plate_province ? ` · ${vehicle.plate_province}` : ""}
-                        </span>
-                        <span>Type: {vehicle.vehicle_type}</span>
-                        <span>Brand/Model: {valueOrDash([vehicle.vehicle_brand, vehicle.vehicle_model].filter(Boolean).join(" "))}</span>
-                        <span>Color: {valueOrDash(vehicle.vehicle_color)}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <span className="font-semibold text-[var(--text-primary)]">
+                            {vehicle.short_label || getPlateDisplay(vehicle.plate_number, vehicle.vehicle_type)}
+                          </span>
+                          <span>
+                            Plate: {valueOrDash(vehicle.plate_number)}
+                            {vehicle.plate_province ? ` · ${vehicle.plate_province}` : ""}
+                          </span>
+                          <span>Type: {vehicle.vehicle_type}</span>
+                          <span>Brand/Model: {valueOrDash([vehicle.vehicle_brand, vehicle.vehicle_model].filter(Boolean).join(" "))}</span>
+                          <span>Color: {valueOrDash(vehicle.vehicle_color)}</span>
+                        </div>
+                        {isAdmin && vehicle.latest_vehicle ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30"
+                            onClick={() => setEditingProfileVehicle(vehicle.latest_vehicle)}
+                          >
+                            Edit Vehicle
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1119,6 +1140,17 @@ export default function GuestProfileDetailPage() {
             setShowEditModal(false);
           }}
           onSave={() => void handleSaveProfile()}
+        />
+      ) : null}
+
+      {editingProfileVehicle ? (
+        <VehicleRegisterModal
+          vehicle={editingProfileVehicle}
+          onClose={() => setEditingProfileVehicle(null)}
+          onSuccess={() => {
+            setEditingProfileVehicle(null);
+            void refreshProfileVehicles();
+          }}
         />
       ) : null}
 
