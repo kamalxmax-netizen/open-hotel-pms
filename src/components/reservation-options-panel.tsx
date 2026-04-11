@@ -1166,7 +1166,7 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
         return {
             name: String(relation?.name ?? charge?.fee_template_code ?? "Extra Charge"),
             icon: relation?.icon ? String(relation.icon) : "",
-            method: String(charge?.method ?? ""),
+            method: charge?.is_record_only === true ? "Post only / unpaid" : String(charge?.method ?? ""),
         };
     }
 
@@ -1248,6 +1248,7 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
                             <option value="transfer">Transfer</option>
                             <option value="credit_card">Card</option>
                             {depositHeld > 0 && <option value="deposit">Deposit Deduct</option>}
+                            <option value="record_only">Post only / unpaid</option>
                         </select>
                     </div>
                 </div>
@@ -1263,6 +1264,12 @@ function ChargesTab({ reservationId }: { reservationId: string }) {
                                 </div>
                             ) : null;
                         })()}
+                    </div>
+                )}
+
+                {form.method === "record_only" && (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+                        Post this charge to the folio without collecting money now. It will remain in the outstanding balance until paid later.
                     </div>
                 )}
 

@@ -27,6 +27,8 @@ interface TransferRow {
     driver_commission?: number | null;
     net_commission: number | null;
     payment_status: string;
+    payment_method?: string | null;
+    is_business_day_closed?: boolean;
     status: string;
     staff_note?: string | null;
 }
@@ -181,7 +183,19 @@ async function updateStatus(transferId: string, newStatus: string): Promise<{ su
 // ─── 5-Step Transfer Booking Modal ───────────────────
 type Step = 1 | 2 | 3 | 4 | 5;
 type TripMode = "car" | "boat";
-const PAYMENT_METHODS = ["cash", "transfer", "credit_card"];
+const PAYMENT_STATUS_OPTIONS = ["unpaid", "paid_to_hotel", "paid_to_driver", "settled"] as const;
+const PAYMENT_METHODS = ["cash", "transfer", "credit_card"] as const;
+const PAYMENT_STATUS_LABELS: Record<(typeof PAYMENT_STATUS_OPTIONS)[number], string> = {
+    unpaid: "Unpaid",
+    paid_to_hotel: "Paid to hotel",
+    paid_to_driver: "Paid to driver",
+    settled: "Settled",
+};
+const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
+    cash: "Cash",
+    transfer: "Transfer",
+    credit_card: "Credit Card",
+};
 
 function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (pickupDate: string | null) => void }) {
     const [step, setStep] = useState<Step>(1);
@@ -856,6 +870,8 @@ function EditTransferModal({
     const [driverCommission, setDriverCommission] = useState(
         transfer.driver_commission != null ? String(transfer.driver_commission) : "0"
     );
+    const [paymentStatus, setPaymentStatus] = useState(transfer.payment_status || "unpaid");
+    const [paymentMethod, setPaymentMethod] = useState(transfer.payment_method ?? "");
     const [staffNote, setStaffNote] = useState(transfer.staff_note ?? "");
     const [error, setError] = useState("");
     const [showValidation, setShowValidation] = useState(false);
@@ -898,6 +914,10 @@ function EditTransferModal({
             setError("Pickup date/time is invalid.");
             return;
         }
+        if (paymentStatus === "paid_to_hotel" && !paymentMethod) {
+            setError("Payment method is required when payment status is Paid to hotel.");
+            return;
+        }
 
         setSaving(true);
         try {
@@ -908,6 +928,8 @@ function EditTransferModal({
                 cost_price: parseMoneyInput("Cost price", costPrice, null),
                 driver_fee: parseMoneyInput("Driver fee", driverFee, null),
                 driver_commission: parseMoneyInput("Driver commission", driverCommission, 0) ?? 0,
+                payment_status: paymentStatus,
+                payment_method: paymentStatus === "paid_to_hotel" ? paymentMethod : null,
                 staff_note: staffNote.trim() || null,
             };
 
@@ -1005,6 +1027,51 @@ function EditTransferModal({
                                 className={fieldCls}
                             />
                         </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Status</label>
+                                <select
+                                    value={paymentStatus}
+                                    onChange={(e) => {
+                                        const next = e.target.value;
+                                        setPaymentStatus(next);
+                                        if (next !== "paid_to_hotel") setPaymentMethod("");
+                                    }}
+                                    className={fieldCls}
+                                >
+                                    {PAYMENT_STATUS_OPTIONS.map((status) => (
+                                        <option key={status} value={status}>
+                                            {PAYMENT_STATUS_LABELS[status]}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Payment Method</label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className={fieldCls}
+                                    disabled={paymentStatus !== "paid_to_hotel"}
+                                >
+                                    <option value="">— Select method —</option>
+                                    {PAYMENT_METHODS.map((method) => (
+                                        <option key={method} value={method}>
+                                            {PAYMENT_METHOD_LABELS[method]}
+                                        </option>
+                                    ))}
+                                </select>
+                                {paymentStatus === "paid_to_hotel" && !paymentMethod && (
+                                    <p className="mt-1 text-xs text-amber-700">Required before saving paid-to-hotel tickets.</p>
+                                )}
+                            </div>
+                        </div>
+                        <p className="mt-2 text-xs text-[var(--text-muted)]">
+                            Mark unpaid tickets as paid here; the transfer ledger will be synced automatically.
+                        </p>
                     </div>
 
                     <div>
@@ -1216,21 +1283,34 @@ export default function TransportationDailyBoard() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center justify-center gap-2">
-                                            <button
-                                                onClick={() => setEditingTransfer(t)}
-                                                disabled={["completed", "cancelled", "no_show"].includes(t.status)}
-                                                className="px-2 py-1 text-xs bg-[var(--bg-body)] border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-lg hover:bg-[var(--bg-surface-hover)] dark:bg-white/5 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title={["completed", "cancelled", "no_show"].includes(t.status) ? "Closed bookings cannot be edited" : "Edit booking"}
-                                            >
-                                                Edit
-                                            </button>
+                                            {(() => {
+                                                const editDisabled = Boolean(t.is_business_day_closed) || ["cancelled", "no_show"].includes(t.status);
+                                                const editTitle = t.is_business_day_closed
+                                                    ? "Night Audit already closed this transfer date"
+                                                    : ["cancelled", "no_show"].includes(t.status)
+                                                        ? "Closed bookings cannot be edited"
+                                                        : "Edit booking";
+                                                return (
+                                                    <button
+                                                        onClick={() => setEditingTransfer(t)}
+                                                        disabled={editDisabled}
+                                                        className="px-2 py-1 text-xs bg-[var(--bg-body)] border border-[var(--border-input)] text-[var(--text-table-cell)] rounded-lg hover:bg-[var(--bg-surface-hover)] dark:bg-white/5 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        title={editTitle}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                );
+                                            })()}
                                             {(() => {
                                                 const nextStatus = NEXT_STATUS[t.status];
                                                 if (!nextStatus) return null;
                                                 const blockedByStartWindow =
                                                     nextStatus === "in_progress" && !canStartInProgressNow(t.pickup_datetime);
-                                                const disabled = updatingId === t.id || blockedByStartWindow;
-                                                const title = blockedByStartWindow
+                                                const blockedByNightAudit = Boolean(t.is_business_day_closed);
+                                                const disabled = updatingId === t.id || blockedByStartWindow || blockedByNightAudit;
+                                                const title = blockedByNightAudit
+                                                    ? "Night Audit already closed this transfer date"
+                                                    : blockedByStartWindow
                                                     ? `Can start from ${earliestInProgressLabel(t.pickup_datetime)} (Asia/Bangkok)`
                                                     : undefined;
                                                 return (

@@ -103,6 +103,24 @@ function pickupDateInBangkok(pickupIso: string): string {
   return toBangkokDateString(date);
 }
 
+async function assertTransferBusinessDayOpen(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  targetDate: string
+) {
+  const { data, error } = await supabase
+    .from("daily_snapshots")
+    .select("business_date")
+    .gte("business_date", targetDate)
+    .order("business_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (data?.business_date) {
+    throw new Error("Business day already closed by Night Audit. Use transfer adjustment/reversal.");
+  }
+}
+
 function pickupTimeInBangkok(pickupIso: string): string {
   const date = new Date(pickupIso);
   if (Number.isNaN(date.getTime())) return pickupIso.slice(11, 16);
@@ -686,6 +704,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ success: false, error: "No updates provided." }, { status: 400 });
+    }
+
+    try {
+      await assertTransferBusinessDayOpen(supabase, pickupDateInBangkok(String(current.pickup_datetime)));
+      await assertTransferBusinessDayOpen(supabase, pickupDateInBangkok(effectivePickupDatetime));
+    } catch (closedError) {
+      const message = closedError instanceof Error ? closedError.message : "Business day already closed by Night Audit.";
+      return NextResponse.json({ success: false, error: message }, { status: 409 });
     }
 
     const { data: updated, error: updateError } = await supabase

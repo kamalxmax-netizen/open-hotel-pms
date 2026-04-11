@@ -81,6 +81,17 @@ export async function GET(request: NextRequest) {
     const date = parsedQuery.data.date ?? toBangkokDateString();
     const nextDate = addDays(date, 1);
     const supabase = createServerSupabaseClient();
+    const { data: closedSnapshot, error: closedSnapshotError } = await supabase
+      .from("daily_snapshots")
+      .select("business_date")
+      .gte("business_date", date)
+      .order("business_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (closedSnapshotError) {
+      return NextResponse.json({ success: false, error: closedSnapshotError.message }, { status: 500 });
+    }
+    const isBusinessDayClosed = Boolean(closedSnapshot?.business_date);
 
     const { data: transfers, error } = await supabase
       .from("transfers")
@@ -210,6 +221,7 @@ export async function GET(request: NextRequest) {
         driver_phone: driver?.phone ?? null,
         boat_company_name: transfer.boat_company_id ? (companyMap.get(String(transfer.boat_company_id)) ?? null) : null,
         booking_code: bookingCodeMap.get(String(transfer.reservation_id)) ?? null,
+        is_business_day_closed: isBusinessDayClosed,
         room_number: resolveRoomNumberForDate(
           reservationNightsByReservation.get(String(transfer.reservation_id)),
           pickupDate

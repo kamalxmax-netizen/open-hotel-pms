@@ -127,6 +127,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const amount = toNumber(body.amount);
     const paymentMethodRaw = String(body.payment_method ?? "").trim().toLowerCase();
     const isDepositMethod = paymentMethodRaw === "deposit";
+    const isRecordOnly = paymentMethodRaw === "record_only" || paymentMethodRaw === "post_only" || paymentMethodRaw === "unpaid";
     const method = normalizeOperatorPaymentMethod(paymentMethodRaw);
     const note = typeof body.note === "string" ? body.note : null;
 
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "amount must be > 0." }, { status: 400 });
     }
-    if (!isDepositMethod && !method) {
+    if (!isDepositMethod && !isRecordOnly && !method) {
       return NextResponse.json({ error: "Invalid payment_method." }, { status: 400 });
     }
 
@@ -196,14 +197,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       depositSettlement = rpcData ?? null;
     } else {
-      const operatorMethod = method as "cash" | "transfer" | "credit_card";
       payment = await insertExtraFeePayment(supabase, {
         reservationId,
         feeTemplateCode: template.code,
         amount,
-        method: operatorMethod,
+        method,
         note,
         paidDate: businessDate,
+        isRecordOnly,
       });
     }
 

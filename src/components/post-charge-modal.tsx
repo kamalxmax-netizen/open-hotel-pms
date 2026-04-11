@@ -183,6 +183,7 @@ export function PostChargeModal({
   const amountNumber = Number(amount);
   const amountValue = Number.isFinite(amountNumber) ? amountNumber : 0;
   const usingDeposit = method === "deposit";
+  const postingUnpaid = method === "record_only";
   const depositApplied = usingDeposit ? Math.min(amountValue, depositHeld) : 0;
   const depositRemaining = usingDeposit ? Math.max(amountValue - depositApplied, 0) : 0;
 
@@ -266,6 +267,7 @@ export function PostChargeModal({
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
                 {depositHeld > 0 ? <option value="deposit">Deposit</option> : null}
+                <option value="record_only">Post only / unpaid</option>
               </select>
             </div>
           </div>
@@ -278,6 +280,12 @@ export function PostChargeModal({
                   Charge ฿{amountValue.toFixed(2)} exceeds deposit. ฿{depositApplied.toFixed(2)} will be applied, ฿{depositRemaining.toFixed(2)} remains outstanding.
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          {postingUnpaid ? (
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+              Post this charge to the folio without collecting money now. It will remain in the outstanding balance until paid later.
             </div>
           ) : null}
 

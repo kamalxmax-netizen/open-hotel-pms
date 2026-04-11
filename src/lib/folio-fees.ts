@@ -19,11 +19,12 @@ export type FeeInsertInput = {
   reservationId: string;
   feeTemplateCode: string;
   amount: number;
-  method: OperatorPaymentMethod;
+  method: OperatorPaymentMethod | null;
   note?: string | null;
   cashierName?: string | null;
   paidAt?: string;
   paidDate?: string;
+  isRecordOnly?: boolean;
 };
 
 export type FeePaymentRow = {
@@ -233,6 +234,7 @@ export async function insertExtraFeePayment(
       note: input.note?.trim() ? input.note.trim() : null,
       revenue_category: "extra_charge",
       fee_template_code: input.feeTemplateCode,
+      is_record_only: input.isRecordOnly === true,
       cashier_name: input.cashierName?.trim() ? input.cashierName.trim() : "FO",
       paid_date: paidDate,
       paid_at: paidAt,
@@ -248,6 +250,7 @@ export async function insertExtraFeePayment(
       created_at,
       revenue_category,
       fee_template_code,
+      is_record_only,
       extra_fee_templates(code, name, icon, category)
     `)
     .maybeSingle();
