@@ -198,17 +198,17 @@ export default function ScanPassport() {
 
                 <div className="mt-6 bg-amber-100 dark:bg-amber-900/50 p-4 rounded-xl border border-amber-200 dark:border-amber-500/20">
                   <p className="text-amber-800 dark:text-amber-300 font-bold text-sm mb-1 uppercase tracking-wider">
-                    Force Draft Mode
+                    Manual Match Required
                   </p>
                   <p className="text-sm font-medium text-amber-700 dark:text-amber-400 line-clamp-3">
-                    ข้อมูลจะบันทึกเป็น Draft
-                    กรุณาตรวจสอบย้อนหลังจากหน้า Booking
-                    ชื่อจะใช้ชื่อจากการจองเดิม
+                    หา booking อัตโนมัติไม่เจอจากชื่อใน passport
+                    แต่ยังเลือกห้องเองแล้ว check-in ต่อได้ตามปกติ
+                    โดยจะยึดชื่อแขกจริงตอน confirm
                   </p>
                 </div>
 
                 <Link
-                  href={`/pms/mobile-checkin/select-room?scan_id=${scanResult?.scan_id}&force_draft=true`}
+                  href={`/pms/mobile-checkin/select-room?scan_id=${scanResult?.scan_id}`}
                   className="mt-8 w-full h-14 bg-amber-500 text-white rounded-xl font-bold tracking-wide uppercase shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   Select Room Manually

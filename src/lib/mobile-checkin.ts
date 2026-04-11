@@ -5,6 +5,7 @@ import {
   createGuestProfileWithConflictHandling,
   updateGuestProfileWithConflictHandling,
 } from "@/lib/guest-profile-persistence";
+import { classifyGuestNameMatch } from "@/lib/guest-name-match";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { assertBusinessDayOpen } from "@/lib/folio-fees";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
@@ -383,6 +384,35 @@ async function updateGuestProfile(
   }
 }
 
+async function shouldReuseLinkedPrimaryProfile(params: {
+  supabase: ReturnType<typeof createServerSupabaseClient>;
+  reservationId: string;
+  profileId: string;
+  fallbackName: string;
+}): Promise<boolean> {
+  const { supabase, reservationId, profileId, fallbackName } = params;
+  if (!profileId) return false;
+
+  const { data: profileRow, error: profileReadError } = await supabase
+    .from("guest_profiles")
+    .select("id, first_name, last_name")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (profileReadError) {
+    throw new MobileCheckinError(profileReadError.message, 500, "PROFILE_READ_FAILED");
+  }
+  if (!profileRow?.id) return false;
+
+  const profileName = `${String(profileRow.first_name ?? "").trim()} ${String(profileRow.last_name ?? "").trim()}`.trim();
+  const nameMatch = classifyGuestNameMatch(profileName, fallbackName);
+  if (nameMatch === "mismatch") return false;
+
+  // Booking name can differ, but when the actual check-in name is empty/partial
+  // we allow the already linked profile to continue.
+  return true;
+}
+
 export async function resolvePrimaryGuestProfile(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   reservationId: string;
@@ -431,6 +461,18 @@ export async function resolvePrimaryGuestProfile(params: {
     }
   }
   const lockToPreferredProfile = Boolean(preferredProfileId);
+
+  if (profileId && !lockToPreferredProfile) {
+    const canReuseLinkedProfile = await shouldReuseLinkedPrimaryProfile({
+      supabase,
+      reservationId,
+      profileId,
+      fallbackName,
+    });
+    if (!canReuseLinkedProfile) {
+      profileId = "";
+    }
+  }
 
   if (profileId) {
     const passportNo = normalizePassportNo(guestInfo.passport_no);

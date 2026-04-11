@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       .from("reservations")
       .select("id, guest_name, checkin_date, checkout_date, source, status")
       .eq("checkin_date", businessDate)
-      .eq("status", "active")
+      .in("status", ["active", "draft_checkin"])
       .is("checked_in_at", null);
 
     if (dueError) {

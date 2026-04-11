@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Room {
   reservation_id: string;
@@ -15,11 +17,14 @@ interface Room {
 }
 
 export default function SelectRoom() {
+  const router = useRouter();
   const [scanId, setScanId] = useState<string | null>(null);
   const [forceDraft, setForceDraft] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [scannedName, setScannedName] = useState("");
+  const [pendingRoom, setPendingRoom] = useState<Room | null>(null);
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -49,7 +54,44 @@ export default function SelectRoom() {
     const params = new URLSearchParams(window.location.search);
     setScanId(params.get("scan_id"));
     setForceDraft(params.get("force_draft") === "true");
+
+    const tempOcrTxt = sessionStorage.getItem("mobile-checkin-temp-ocr");
+    if (!tempOcrTxt) return;
+    try {
+      const tempOcr = JSON.parse(tempOcrTxt);
+      const activeScanId = params.get("scan_id");
+      if (activeScanId && tempOcr?.scan_id === activeScanId) {
+        const nextScannedName = `${String(tempOcr?.parsed?.firstName ?? "").trim()} ${String(tempOcr?.parsed?.familyName ?? "").trim()}`.trim();
+        setScannedName(nextScannedName);
+      }
+    } catch {
+      setScannedName("");
+    }
   }, []);
+
+  const buildRoomHref = (room: Room) => {
+    const nextParams = new URLSearchParams();
+    if (scanId) nextParams.set("scan_id", scanId);
+    if (room.status === "draft_checkin") nextParams.set("draft", "true");
+    if (forceDraft) nextParams.set("force_draft", "true");
+    const qs = nextParams.toString();
+    return `/pms/mobile-checkin/guest-info/${room.reservation_id}${qs ? `?${qs}` : ""}`;
+  };
+
+  const handleSelectRoom = (room: Room) => {
+    if (scanId && scannedName) {
+      setPendingRoom(room);
+      return;
+    }
+    router.push(buildRoomHref(room));
+  };
+
+  const handleConfirmManualMatch = () => {
+    if (!pendingRoom) return;
+    const href = buildRoomHref(pendingRoom);
+    setPendingRoom(null);
+    router.push(href);
+  };
 
   // Sort by room number, treating them as numbers when possible.
   const sortedRooms = [...rooms]
@@ -105,17 +147,13 @@ export default function SelectRoom() {
           <div className="divide-y divide-[var(--border-default)]">
             {sortedRooms.map((room) => {
               const isDraft = room.status === "draft_checkin";
-              const nextParams = new URLSearchParams();
-              if (scanId) nextParams.set("scan_id", scanId);
-              if (forceDraft || isDraft) nextParams.set("draft", "true");
-              if (forceDraft) nextParams.set("force_draft", "true");
-              const qs = nextParams.toString();
               
               return (
-                <Link 
+                <button
                   key={room.reservation_id}
-                  href={`/pms/mobile-checkin/guest-info/${room.reservation_id}${qs ? `?${qs}` : ""}`}
-                  className="block p-4 active:bg-[var(--bg-surface-hover)] transition-colors hover:bg-[var(--bg-surface-hover)]"
+                  type="button"
+                  onClick={() => handleSelectRoom(room)}
+                  className="block w-full p-4 text-left active:bg-[var(--bg-surface-hover)] transition-colors hover:bg-[var(--bg-surface-hover)]"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -141,12 +179,55 @@ export default function SelectRoom() {
                       </p>
                     </div>
                   </div>
-                </Link>
+                </button>
               );
             })}
           </div>
         )}
       </main>
+
+      <Dialog open={Boolean(pendingRoom)} onOpenChange={(open) => { if (!open) setPendingRoom(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Manual Match</DialogTitle>
+            <DialogDescription>
+              ระบบจะใช้ชื่อจาก passport scan แทนชื่อ booking ของห้องนี้เมื่อเข้าหน้า check-in
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-muted)] p-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Booking Name</p>
+              <p className="text-sm font-bold text-[var(--text-primary)]">
+                {pendingRoom?.guest_name || "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Scanned Name</p>
+              <p className="text-sm font-bold text-[var(--text-primary)]">
+                {scannedName || "-"}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setPendingRoom(null)}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[var(--border-input)] px-4 text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmManualMatch}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-amber-500 px-4 text-sm font-bold text-white hover:bg-amber-600"
+            >
+              Continue
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

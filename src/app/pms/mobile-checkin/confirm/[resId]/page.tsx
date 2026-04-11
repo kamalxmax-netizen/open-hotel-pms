@@ -117,7 +117,7 @@ export default function ConfirmStep() {
 
   if (!sessionData) return null; // Avoid flicker
 
-  const isDraft = Boolean(sessionData.force_draft);
+  const isDraft = false;
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-muted)] pb-24">

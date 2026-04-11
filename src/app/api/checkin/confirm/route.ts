@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const isDraft = Boolean(payload.force_draft || scanBelowThreshold || !completeness.is_complete);
+    const isDraft = Boolean(!completeness.is_complete);
     if (!isDraft) {
       await assertPrimaryGuestAvailableForCheckin({
         supabase: supabase as any,
@@ -386,7 +386,7 @@ export async function POST(request: NextRequest) {
       note: [
         isDraft
           ? "Mobile check-in saved as draft (profile requires follow-up)."
-          : "Mobile check-in completed.",
+          : `Mobile check-in completed.${scanBelowThreshold ? " Booking name did not match strongly, but actual guest profile was accepted." : ""}`,
         payload.booking_name_note || "",
       ].filter(Boolean).join(" "),
     });

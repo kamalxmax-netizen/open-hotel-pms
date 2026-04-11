@@ -39,7 +39,6 @@ export default function GuestInfo() {
 
   const resId = params.resId as string;
   const scanId = searchParams.get("scan_id");
-  const forceDraft = searchParams.get("force_draft") === "true";
   const isDraftFromUrl = searchParams.get("draft") === "true";
 
   // State
@@ -119,7 +118,7 @@ export default function GuestInfo() {
         if (tempOcr.scan_id === scanId) {
           setMainGuest(prev => ({
             ...prev,
-            full_name: forceDraft ? _originalName : `${tempOcr.parsed.firstName} ${tempOcr.parsed.familyName}`,
+            full_name: `${tempOcr.parsed.firstName} ${tempOcr.parsed.familyName}`,
             passport_no: tempOcr.parsed.passportNumber || "",
             nationality: tempOcr.parsed.nationality || "",
             date_of_birth: tempOcr.parsed.dateOfBirth || "",
@@ -133,7 +132,7 @@ export default function GuestInfo() {
     };
 
     processHydration();
-  }, [resId, scanId, forceDraft]);
+  }, [resId, scanId]);
 
   useEffect(() => {
     const passportNo = normalizePassportNo(mainGuest.passport_no);
@@ -219,7 +218,6 @@ export default function GuestInfo() {
     // Save to session — key must be "accompanying_guests" to match API schema
     sessionStorage.setItem(`mobile-checkin-${resId}`, JSON.stringify({
       scan_id: mainScanId,
-      force_draft: forceDraft,
       selected_profile_id: selectedProfileId,
       guest_info: mainGuest,
       accompanying_guests: accompanying,
@@ -368,13 +366,13 @@ export default function GuestInfo() {
       ) : (
         <>
           <main className="flex-1 p-6 space-y-6">
-            {(forceDraft || isDraftFromUrl) && (
+            {isDraftFromUrl && (
           <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-500/30 rounded-xl p-4 flex gap-3 shadow-sm">
             <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-500 shrink-0" />
             <div>
                <p className="text-sm font-bold text-amber-800 dark:text-amber-300 uppercase">Draft Mode Active</p>
                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mt-1">
-                 Name fields may be locked to original booking. Missing data will save as DRAFT.
+                 Booking นี้เคยถูกบันทึกเป็น draft มาก่อน แต่ถ้าข้อมูลครบแล้ว confirm รอบนี้จะเปลี่ยนเป็น active ได้
                </p>
             </div>
           </div>
@@ -416,7 +414,6 @@ export default function GuestInfo() {
               <input
                 value={mainGuest.full_name}
                 onChange={(e) => setMainGuest({...mainGuest, full_name: e.target.value})}
-                disabled={forceDraft}
                 className="w-full h-12 px-3 rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                 placeholder="Required"
               />
