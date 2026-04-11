@@ -1,7 +1,7 @@
 "use client";
 
 import { IBM_Plex_Sans_Thai } from "next/font/google";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { ArrowLeft, Check, Package, Wrench, AlertCircle, Sun, Moon, Search } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -32,7 +32,7 @@ interface Loan {
   quantity: number;
 }
 
-export default function ChecklistMockupPage() {
+function ChecklistMockupContent() {
   const searchParams = useSearchParams();
   const roomNumber = searchParams?.get("room") || "304";
   
@@ -203,5 +203,19 @@ export default function ChecklistMockupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChecklistMockupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className={`${thaiUi.className} flex min-h-screen items-center justify-center bg-slate-950 text-white`}>
+          <p className="text-lg font-black">กำลังโหลดเช็กลิสต์...</p>
+        </div>
+      }
+    >
+      <ChecklistMockupContent />
+    </Suspense>
   );
 }
