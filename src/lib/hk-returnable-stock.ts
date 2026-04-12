@@ -1,0 +1,274 @@
+import {
+  compareReturnableAmenityOrder,
+  getAmenityLabelFromValues,
+  isReturnableAmenity,
+} from "@/lib/maid-amenities";
+
+type SupabaseLike = {
+  from: (table: string) => any;
+};
+
+type LedgerRow = {
+  task_id?: string | null;
+  stay_date?: string | null;
+  product_id?: string | null;
+  item_name?: string | null;
+  action?: string | null;
+  quantity?: number | null;
+};
+
+type HistoryTaskRow = {
+  id?: string | null;
+  stay_date?: string | null;
+  checklist_snapshot?: Array<{
+    item?: string | null;
+    used?: number | null;
+    product_id?: string | null;
+  }> | null;
+};
+
+export type ReturnableStockSummaryItem = {
+  product_id: string;
+  item: string;
+  available_to_return: number;
+  delivered_total: number;
+  returned_total: number;
+};
+
+type ReturnableHistoryDelivery = {
+  task_id: string;
+  stay_date: string;
+  product_id: string;
+  item_name: string;
+  quantity: number;
+};
+
+function buildReturnableStockSummary(items: Map<string, {
+  product_id: string;
+  item: string;
+  delivered_total: number;
+  returned_total: number;
+}>): ReturnableStockSummaryItem[] {
+  return Array.from(items.values())
+    .map((item) => ({
+      ...item,
+      available_to_return: Math.max(item.delivered_total - item.returned_total, 0),
+    }))
+    .filter((item) => item.available_to_return > 0)
+    .sort(compareReturnableAmenityOrder);
+}
+
+function aggregateLedgerRows(rows: LedgerRow[]): ReturnableStockSummaryItem[] {
+  const totals = new Map<string, {
+    product_id: string;
+    item: string;
+    delivered_total: number;
+    returned_total: number;
+  }>();
+
+  for (const row of rows) {
+    const productId = String(row.product_id ?? "").trim();
+    const quantity = Math.max(Number(row.quantity ?? 0), 0);
+    if (!productId || quantity <= 0) continue;
+    const current = totals.get(productId) ?? {
+      product_id: productId,
+      item: getAmenityLabelFromValues(String(row.item_name ?? ""), productId),
+      delivered_total: 0,
+      returned_total: 0,
+    };
+    if (String(row.action ?? "") === "return") {
+      current.returned_total += quantity;
+    } else {
+      current.delivered_total += quantity;
+    }
+    totals.set(productId, current);
+  }
+
+  return buildReturnableStockSummary(totals);
+}
+
+function extractHistoryDeliveries(rows: HistoryTaskRow[]): ReturnableHistoryDelivery[] {
+  const deliveries: ReturnableHistoryDelivery[] = [];
+
+  for (const row of rows) {
+    const taskId = String(row.id ?? "").trim();
+    const stayDate = String(row.stay_date ?? "").trim();
+    const snapshot = Array.isArray(row.checklist_snapshot) ? row.checklist_snapshot : [];
+    if (!taskId || !stayDate || snapshot.length === 0) continue;
+
+    for (const item of snapshot) {
+      const productId = String(item?.product_id ?? "").trim();
+      const quantity = Math.max(Number(item?.used ?? 0), 0);
+      const itemName = String(item?.item ?? "").trim();
+      if (!productId || quantity <= 0) continue;
+      if (!isReturnableAmenity({ item: itemName, product_id: productId })) continue;
+      deliveries.push({
+        task_id: taskId,
+        stay_date: stayDate,
+        product_id: productId,
+        item_name: getAmenityLabelFromValues(itemName, productId),
+        quantity,
+      });
+    }
+  }
+
+  return deliveries;
+}
+
+async function loadLedgerRows(
+  supabase: SupabaseLike,
+  reservationId: string,
+  roomId: string
+): Promise<LedgerRow[]> {
+  const { data, error } = await supabase
+    .from("housekeeping_amenity_ledger")
+    .select("task_id, stay_date, product_id, item_name, action, quantity")
+    .eq("reservation_id", reservationId)
+    .eq("room_id", roomId);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load amenity ledger");
+  }
+
+  return (data ?? []) as LedgerRow[];
+}
+
+async function loadHistoryTaskRows(
+  supabase: SupabaseLike,
+  roomId: string,
+  checkinDate: string | null,
+  checkoutDate: string | null
+): Promise<HistoryTaskRow[]> {
+  if (!checkinDate || !checkoutDate) return [];
+
+  const { data, error } = await supabase
+    .from("housekeeping_tasks")
+    .select("id, stay_date, checklist_snapshot")
+    .eq("room_id", roomId)
+    .gte("stay_date", checkinDate)
+    .lt("stay_date", checkoutDate)
+    .in("status", ["cleaned", "approved"]);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load housekeeping history");
+  }
+
+  return (data ?? []) as HistoryTaskRow[];
+}
+
+export async function getReturnableStockForReservationRoom(
+  supabase: SupabaseLike,
+  options: {
+    reservationId: string;
+    roomId: string;
+    checkinDate: string | null;
+    checkoutDate: string | null;
+  }
+): Promise<{
+    items: ReturnableStockSummaryItem[];
+    source: "ledger" | "history" | "none";
+    ledgerRowCount: number;
+    historyDeliveries: ReturnableHistoryDelivery[];
+  }> {
+  const ledgerRows = await loadLedgerRows(supabase, options.reservationId, options.roomId);
+  if (ledgerRows.length > 0) {
+    return {
+      items: aggregateLedgerRows(ledgerRows),
+      source: "ledger",
+      ledgerRowCount: ledgerRows.length,
+      historyDeliveries: [],
+    };
+  }
+
+  const historyRows = await loadHistoryTaskRows(
+    supabase,
+    options.roomId,
+    options.checkinDate,
+    options.checkoutDate
+  );
+  const historyDeliveries = extractHistoryDeliveries(historyRows);
+  if (historyDeliveries.length === 0) {
+    return {
+      items: [],
+      source: "none",
+      ledgerRowCount: 0,
+      historyDeliveries: [],
+    };
+  }
+
+  const totals = new Map<string, {
+    product_id: string;
+    item: string;
+    delivered_total: number;
+    returned_total: number;
+  }>();
+
+  for (const delivery of historyDeliveries) {
+    const current = totals.get(delivery.product_id) ?? {
+      product_id: delivery.product_id,
+      item: delivery.item_name,
+      delivered_total: 0,
+      returned_total: 0,
+    };
+    current.delivered_total += delivery.quantity;
+    totals.set(delivery.product_id, current);
+  }
+
+  return {
+    items: buildReturnableStockSummary(totals),
+    source: "history",
+    ledgerRowCount: 0,
+    historyDeliveries,
+  };
+}
+
+export async function backfillReturnableAmenityLedgerIfMissing(
+  supabase: SupabaseLike,
+  options: {
+    reservationId: string;
+    roomId: string;
+    roomNumber: string;
+    floorNumber: number;
+    checkinDate: string | null;
+    checkoutDate: string | null;
+  }
+): Promise<{ inserted: number; source: "ledger" | "history" | "none" }> {
+  const stock = await getReturnableStockForReservationRoom(supabase, {
+    reservationId: options.reservationId,
+    roomId: options.roomId,
+    checkinDate: options.checkinDate,
+    checkoutDate: options.checkoutDate,
+  });
+
+  if (stock.source !== "history" || stock.historyDeliveries.length === 0) {
+    return {
+      inserted: 0,
+      source: stock.source,
+    };
+  }
+
+  const { error } = await supabase.from("housekeeping_amenity_ledger").insert(
+    stock.historyDeliveries.map((delivery) => ({
+      reservation_id: options.reservationId,
+      room_id: options.roomId,
+      task_id: delivery.task_id,
+      stay_date: delivery.stay_date,
+      room_number: options.roomNumber,
+      floor_number: options.floorNumber,
+      product_id: delivery.product_id,
+      item_name: delivery.item_name,
+      action: "deliver",
+      quantity: delivery.quantity,
+      performed_by: null,
+    }))
+  );
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to backfill amenity ledger");
+  }
+
+  return {
+    inserted: stock.historyDeliveries.length,
+    source: "history",
+  };
+}

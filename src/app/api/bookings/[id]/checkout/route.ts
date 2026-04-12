@@ -12,6 +12,7 @@ import { computeReservationDiscountAmount } from "@/lib/reservation-visible-tota
 import { syncDynamicRoomLinksForReservation } from "@/lib/logbook-api";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 import { markReservationVehiclesCheckedOut } from "@/lib/vehicles";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -556,9 +557,10 @@ export async function POST(
         // 4. Get room and mark as dirty
         const { data: night } = await supabase
             .from("reservation_nights")
-            .select("room_id")
+            .select("room_id, stay_date")
             .eq("reservation_id", reservationId)
             .is("cancelled_at", null)
+            .order("stay_date", { ascending: false })
             .limit(1)
             .maybeSingle();
 
@@ -571,23 +573,13 @@ export async function POST(
                 .maybeSingle();
             checkedOutRoomNumber = roomRow?.room_number ? String(roomRow.room_number) : null;
 
-            await supabase.from("housekeeping_tasks").upsert(
-                {
-                    room_id: night.room_id,
-                    stay_date: businessDate,
-                    task_seq: 1,
-                    status: "dirty",
-                    is_no_service: false,
-                    no_service_note: null,
-                    no_service_marked_at: null,
-                    no_service_marked_by: null,
-                    started_at: null,
-                    finished_at: null,
-                    approved_at: null,
-                    accumulated_ms: 0,
-                },
-                { onConflict: "room_id,stay_date,task_seq" }
-            );
+            await markRoomDirtyTask(supabase, {
+                roomId: night.room_id,
+                stayDate: businessDate,
+                assignedMaidName: null,
+                clearDailyPlanWhenUnassigned: true,
+                logNote: "Marked dirty from checkout",
+            });
         }
 
         if (checkedOutRoomNumber) {

@@ -1,9 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import {
-  compareReturnableAmenityOrder,
-  getAmenityLabelFromValues,
-  isReturnableAmenity,
-} from "@/lib/maid-amenities";
+import { getReturnableStockForReservationRoom } from "@/lib/hk-returnable-stock";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -917,83 +913,15 @@ export async function GET(request: NextRequest) {
     );
 
     if (checkedOutReturnCandidates.length > 0) {
-      const candidateReservationIds = Array.from(
-        new Set(checkedOutReturnCandidates.map(([, reservation]) => reservation.reservation_id))
-      );
-      const candidateRoomIds = checkedOutReturnCandidates.map(([roomId]) => roomId);
-
-      const { data: ledgerRows, error: ledgerError } = await supabase
-        .from("housekeeping_amenity_ledger")
-        .select("reservation_id, room_id, product_id, item_name, action, quantity")
-        .in("reservation_id", candidateReservationIds)
-        .in("room_id", candidateRoomIds);
-
-      if (ledgerError) {
-        const message = String(ledgerError.message ?? "").toLowerCase();
-        if (!message.includes("housekeeping_amenity_ledger") && !message.includes("does not exist")) {
-          return NextResponse.json({ error: ledgerError.message }, { status: 500 });
-        }
-      } else {
-        const roomReservationByKey = new Map(
-          checkedOutReturnCandidates.map(([roomId, reservation]) => [
-            `${roomId}:${reservation.reservation_id}`,
-            roomId,
-          ])
-        );
-        const totalsByKey = new Map<
-          string,
-          {
-            roomId: string;
-            productId: string;
-            itemName: string;
-            delivered: number;
-            returned: number;
-          }
-        >();
-
-        for (const row of ledgerRows ?? []) {
-          const reservationId = String((row as any).reservation_id ?? "");
-          const roomId = String((row as any).room_id ?? "");
-          const productId = String((row as any).product_id ?? "");
-          const itemName = String((row as any).item_name ?? "");
-          const quantity = Math.max(Number((row as any).quantity ?? 0), 0);
-          if (!reservationId || !roomId || !productId || quantity <= 0) continue;
-          if (!isReturnableAmenity({ item: itemName, product_id: productId })) continue;
-          const roomKey = roomReservationByKey.get(`${roomId}:${reservationId}`);
-          if (!roomKey) continue;
-          const key = `${roomId}:${productId}`;
-          const current = totalsByKey.get(key) ?? {
-            roomId,
-            productId,
-            itemName,
-            delivered: 0,
-            returned: 0,
-          };
-          if (String((row as any).action ?? "") === "return") {
-            current.returned += quantity;
-          } else {
-            current.delivered += quantity;
-          }
-          totalsByKey.set(key, current);
-        }
-
-        for (const entry of totalsByKey.values()) {
-          const available = Math.max(entry.delivered - entry.returned, 0);
-          if (available <= 0) continue;
-          if (!returnableStockByRoomId.has(entry.roomId)) {
-            returnableStockByRoomId.set(entry.roomId, []);
-          }
-          returnableStockByRoomId.get(entry.roomId)?.push({
-            product_id: entry.productId,
-            item: getAmenityLabelFromValues(entry.itemName, entry.productId),
-            available_to_return: available,
-            delivered_total: entry.delivered,
-            returned_total: entry.returned,
-          });
-        }
-
-        for (const [roomId, items] of returnableStockByRoomId.entries()) {
-          returnableStockByRoomId.set(roomId, [...items].sort(compareReturnableAmenityOrder));
+      for (const [roomId, reservation] of checkedOutReturnCandidates) {
+        const stock = await getReturnableStockForReservationRoom(supabase, {
+          reservationId: reservation.reservation_id,
+          roomId,
+          checkinDate: reservation.checkin_date ?? null,
+          checkoutDate: reservation.checkout_date ?? null,
+        });
+        if (stock.items.length > 0) {
+          returnableStockByRoomId.set(roomId, stock.items);
         }
       }
     }

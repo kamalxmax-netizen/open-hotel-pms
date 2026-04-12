@@ -1,4 +1,5 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { backfillReturnableAmenityLedgerIfMissing } from "@/lib/hk-returnable-stock";
 import { getAmenityLabelFromValues, isReturnableAmenity } from "@/lib/maid-amenities";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { restoreLoanItemStock } from "@/lib/loan-item-stock";
@@ -715,6 +716,20 @@ export async function POST(
     };
 
     const reservationContext = await resolveTaskReservationContext(supabase, roomCtx);
+    if (
+      reservationContext &&
+      reservationContext.status === "checked_out" &&
+      getStayNightCount(reservationContext.checkin_date, reservationContext.checkout_date) > 1
+    ) {
+      await backfillReturnableAmenityLedgerIfMissing(supabase, {
+        reservationId: reservationContext.reservation_id,
+        roomId: reservationContext.room_id,
+        roomNumber: reservationContext.room_number,
+        floorNumber: reservationContext.floor_number,
+        checkinDate: reservationContext.checkin_date ?? null,
+        checkoutDate: reservationContext.checkout_date ?? null,
+      });
+    }
     const returnValidation = await validateReturnStockPayload(supabase, reservationContext, body);
     if (!returnValidation.valid) {
       return NextResponse.json({ error: returnValidation.error }, { status: 400 });
