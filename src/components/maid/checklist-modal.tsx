@@ -442,7 +442,7 @@ export default function ChecklistModal({
                   </section>
                 )}
 
-                {canReturnStock && visibleReturnableStock.length > 0 && (
+                {visibleReturnableStock.length > 0 && (
                   <section className="space-y-4">
                     <button
                       type="button"

@@ -141,6 +141,14 @@ function TabButton({
   );
 }
 
+function getRoomSortWeight(room: MaidRoom): number {
+  if (room.status === "in_progress") return 0;
+  if (room.status === "paused") return 1;
+  if (room.status === "dirty") return 2;
+  if (room.status === "cleaned" || room.status === "approved") return 3;
+  return 2;
+}
+
 export default function MaidPage() {
   const fallbackMaids = ["Jan", "Tan", "Others"];
   const [maidName, setMaidName] = useState<string>("Jan");
@@ -590,6 +598,31 @@ export default function MaidPage() {
     await handleExtraTaskStart(assignmentId);
   };
 
+  const openChecklistForRoom = async (selectedRoom: MaidRoom) => {
+    try {
+      const date = data?.date ?? getThailandDateString();
+      const res = await fetch(
+        `/api/housekeeping/maid-rooms?maid_name=${encodeURIComponent(maidName)}&date=${encodeURIComponent(date)}`,
+        { cache: "no-store" }
+      );
+      const json = await ensureApiSuccess(res, "Cannot load latest room data");
+      if (json?.success) {
+        setData(json);
+        const freshRoom =
+          (Array.isArray(json.rooms)
+            ? (json.rooms as MaidRoom[]).find((room) => room.room_id === selectedRoom.room_id)
+            : null) ?? selectedRoom;
+        setSelectedChecklistRoom(freshRoom);
+      } else {
+        setSelectedChecklistRoom(selectedRoom);
+      }
+    } catch {
+      setSelectedChecklistRoom(selectedRoom);
+    } finally {
+      setIsChecklistOpen(true);
+    }
+  };
+
   const handleExtraTaskFinish = async (assignmentId: string) => {
     setIsActionLoading(true);
     try {
@@ -622,6 +655,8 @@ export default function MaidPage() {
       return room.status === "cleaned" || room.status === "approved";
     })
     .sort((a, b) => {
+      const weightDiff = getRoomSortWeight(a) - getRoomSortWeight(b);
+      if (weightDiff !== 0) return weightDiff;
       const priorityDiff = Number(a.priority ?? 999) - Number(b.priority ?? 999);
       if (priorityDiff !== 0) return priorityDiff;
       return String(a.room_number ?? "").localeCompare(String(b.room_number ?? ""), undefined, {
@@ -797,8 +832,7 @@ export default function MaidPage() {
                         onPause={handlePause}
                         onResume={handleResume}
                         onFinishClick={(selectedRoom) => {
-                          setSelectedChecklistRoom(selectedRoom);
-                          setIsChecklistOpen(true);
+                          void openChecklistForRoom(selectedRoom);
                         }}
                         onNoServiceClick={(selectedRoom) => setActiveNsRoom(selectedRoom)}
                         isActionLoading={isActionLoading}
