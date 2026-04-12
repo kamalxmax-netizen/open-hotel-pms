@@ -906,7 +906,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const checkedOutReturnCandidates = Array.from(collectionReservationByRoomId.entries()).filter(
+    const checkedOutReturnCandidates = Array.from(checkedOutTodayReservationByRoomId.entries()).filter(
       ([, reservation]) =>
         reservation.status === "checked_out" &&
         getStayNightCount(reservation.checkin_date, reservation.checkout_date) > 1

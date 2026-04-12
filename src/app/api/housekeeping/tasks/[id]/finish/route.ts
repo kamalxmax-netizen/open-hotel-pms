@@ -262,6 +262,52 @@ async function resolveTaskReservationContext(
   return null;
 }
 
+async function resolveCheckedOutTaskReservationContext(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  context: TaskRoomContext
+): Promise<TaskReservationContext | null> {
+  if (!context.room_id || !context.stay_date || !context.room_number) return null;
+  const floorNumber = deriveFloorNumber(context);
+  if (!floorNumber) return null;
+
+  const { data: checkedOutReservations, error: checkedOutError } = await supabase
+    .from("reservations")
+    .select("id, status, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
+    .eq("status", "checked_out")
+    .eq("checkout_date", context.stay_date);
+
+  if (checkedOutError) {
+    throw new Error(`Failed to resolve checked-out reservation: ${checkedOutError.message}`);
+  }
+
+  for (const reservation of checkedOutReservations ?? []) {
+    const activeNights = Array.isArray((reservation as any).reservation_nights)
+      ? (((reservation as any).reservation_nights ?? []) as Array<{
+          room_id?: string | null;
+          stay_date?: string | null;
+          cancelled_at?: string | null;
+        }>)
+          .filter((night) => !night?.cancelled_at && night?.room_id)
+          .sort((left, right) => String(right?.stay_date ?? "").localeCompare(String(left?.stay_date ?? "")))
+      : [];
+    const latestRoomId = String(activeNights[0]?.room_id ?? "");
+    if (latestRoomId !== context.room_id) continue;
+
+    return {
+      reservation_id: String((reservation as any).id ?? ""),
+      room_id: context.room_id,
+      room_number: context.room_number,
+      floor_number: floorNumber,
+      stay_date: context.stay_date,
+      status: String((reservation as any).status ?? "checked_out"),
+      checkin_date: (reservation as any).checkin_date ?? null,
+      checkout_date: (reservation as any).checkout_date ?? null,
+    };
+  }
+
+  return null;
+}
+
 async function validateReturnStockPayload(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   reservationContext: TaskReservationContext | null,
@@ -716,21 +762,22 @@ export async function POST(
     };
 
     const reservationContext = await resolveTaskReservationContext(supabase, roomCtx);
+    const checkedOutReservationContext = await resolveCheckedOutTaskReservationContext(supabase, roomCtx);
+    const returnReservationContext = checkedOutReservationContext;
     if (
-      reservationContext &&
-      reservationContext.status === "checked_out" &&
-      getStayNightCount(reservationContext.checkin_date, reservationContext.checkout_date) > 1
+      returnReservationContext &&
+      getStayNightCount(returnReservationContext.checkin_date, returnReservationContext.checkout_date) > 1
     ) {
       await backfillReturnableAmenityLedgerIfMissing(supabase, {
-        reservationId: reservationContext.reservation_id,
-        roomId: reservationContext.room_id,
-        roomNumber: reservationContext.room_number,
-        floorNumber: reservationContext.floor_number,
-        checkinDate: reservationContext.checkin_date ?? null,
-        checkoutDate: reservationContext.checkout_date ?? null,
+        reservationId: returnReservationContext.reservation_id,
+        roomId: returnReservationContext.room_id,
+        roomNumber: returnReservationContext.room_number,
+        floorNumber: returnReservationContext.floor_number,
+        checkinDate: returnReservationContext.checkin_date ?? null,
+        checkoutDate: returnReservationContext.checkout_date ?? null,
       });
     }
-    const returnValidation = await validateReturnStockPayload(supabase, reservationContext, body);
+    const returnValidation = await validateReturnStockPayload(supabase, returnReservationContext, body);
     if (!returnValidation.valid) {
       return NextResponse.json({ error: returnValidation.error }, { status: 400 });
     }
@@ -767,7 +814,7 @@ export async function POST(
     const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
     const stockResult = await applyStockDeductionNonBlocking(supabase, id, body, roomCtx);
     const deliveryLedgerResult = await recordAmenityDeliveries(supabase, id, body, reservationContext);
-    const stockReturnResult = await applyStockReturn(supabase, id, body, reservationContext);
+    const stockReturnResult = await applyStockReturn(supabase, id, body, returnReservationContext);
     const loanCollectionResult = await collectLoanTracesNonBlocking(
       supabase,
       id,

@@ -574,7 +574,7 @@ export default function InventoryDashboardPage() {
                             <td className="text-right py-2.5 px-4 text-[var(--text-table-cell)]">{product.usage_count}</td>
                             <td className="py-2.5 px-4">
                               <div className="flex flex-wrap gap-1.5">
-                                {product.rooms.slice(0, 10).map((room) => (
+                                {product.rooms.map((room) => (
                                   <span
                                     key={`${product.product_id ?? product.product_name ?? "unknown"}-${room.room_number}-${room.floor_number ?? "na"}`}
                                     className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getRoomBadgeClass(
@@ -584,11 +584,6 @@ export default function InventoryDashboardPage() {
                                     Room {room.room_number}: {room.units_used}
                                   </span>
                                 ))}
-                                {product.rooms.length > 10 && (
-                                  <span className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
-                                    +{product.rooms.length - 10} more
-                                  </span>
-                                )}
                               </div>
                             </td>
                           </tr>

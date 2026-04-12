@@ -57,12 +57,16 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
     const businessDate = await getBusinessDate(supabase, parsed.data.date);
-    const [{ rooms, suggestions }, existingBatch] = await Promise.all([
+    const [{ rooms, suggestions }, existingBatch, oldestOpenBatch] = await Promise.all([
       buildFoPrepareSuggestions(supabase, businessDate),
       getFoPrepareBatchByDate(supabase, businessDate),
+      getOldestOpenFoPrepareBatch(supabase, businessDate),
     ]);
 
-    const returnTargetBatch = await getOldestOpenFoPrepareBatch(supabase, businessDate);
+    const returnTargetBatch =
+      existingBatch?.status === "prepared"
+        ? existingBatch
+        : oldestOpenBatch;
 
     let canReturn = null;
     let batchDetail = null;
