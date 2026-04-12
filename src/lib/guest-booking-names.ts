@@ -185,6 +185,70 @@ export async function listGuestProfileBookingNames(
   );
 }
 
+export async function replaceGuestProfileBookingNames(params: {
+  supabase: SupabaseLike;
+  guestProfileId: string;
+  bookingNames: unknown[];
+}): Promise<void> {
+  const { supabase } = params;
+  const profileId = String(params.guestProfileId ?? "").trim();
+  if (!profileId) return;
+
+  const normalizedRows = Array.from(
+    new Map(
+      (Array.isArray(params.bookingNames) ? params.bookingNames : [])
+        .map((value) => {
+          const bookingName = normalizeBookingNameDisplay(value);
+          const normalizedBookingName = normalizeBookingName(bookingName);
+          if (!bookingName || !normalizedBookingName) return null;
+          return [normalizedBookingName, bookingName] as const;
+        })
+        .filter((row): row is readonly [string, string] => Boolean(row))
+    ).entries()
+  ).map(([normalized_booking_name, booking_name]) => ({
+    normalized_booking_name,
+    booking_name,
+  }));
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from("guest_profile_booking_names")
+    .select("id, normalized_booking_name")
+    .eq("guest_profile_id", profileId);
+
+  if (existingError) {
+    if (isGuestBookingNamesTableMissing(existingError.message)) return;
+    throw new Error(existingError.message ?? "Failed to load guest booking names.");
+  }
+
+  const keepNames = new Set(normalizedRows.map((row) => row.normalized_booking_name));
+  const deleteIds = (existingRows ?? [])
+    .filter((row: any) => !keepNames.has(String(row?.normalized_booking_name ?? "").trim()))
+    .map((row: any) => String(row?.id ?? "").trim())
+    .filter(Boolean);
+
+  if (deleteIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("guest_profile_booking_names")
+      .delete()
+      .in("id", deleteIds);
+
+    if (deleteError) {
+      if (isGuestBookingNamesTableMissing(deleteError.message)) return;
+      throw new Error(deleteError.message ?? "Failed to delete guest booking names.");
+    }
+  }
+
+  const seenAt = new Date().toISOString();
+  for (const row of normalizedRows) {
+    await upsertGuestProfileBookingName({
+      supabase,
+      guestProfileId: profileId,
+      bookingName: row.booking_name,
+      seenAt,
+    });
+  }
+}
+
 export async function mergeGuestProfileBookingNames(params: {
   supabase: SupabaseLike;
   masterProfileId: string;

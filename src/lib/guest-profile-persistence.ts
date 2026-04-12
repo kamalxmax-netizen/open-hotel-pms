@@ -1,4 +1,5 @@
 import {
+  findExistingGuestProfileByIdentity,
   findExistingGuestProfileByDocument,
   normalizeGuestDocumentNumber,
   type GuestDocumentType,
@@ -246,6 +247,42 @@ export async function createGuestProfileWithConflictHandling(params: {
 }): Promise<GuestProfileMutationResult> {
   const { supabase, payload, logContext } = params;
   const { normalizedPayload, document } = normalizeGuestProfilePayload(payload);
+
+  if (!document) {
+    const identityMatch = await findExistingGuestProfileByIdentity(supabase as any, {
+      first_name: normalizedPayload.first_name as string | null | undefined,
+      last_name: normalizedPayload.last_name as string | null | undefined,
+      phone: normalizedPayload.phone as string | null | undefined,
+    });
+
+    if (identityMatch) {
+      const patch = buildConservativeConflictPatch(identityMatch ?? {}, normalizedPayload);
+      let profile = identityMatch as Record<string, any>;
+
+      if (Object.keys(patch).length > 0) {
+        const { data: patched, error: patchError } = await supabase
+          .from("guest_profiles")
+          .update(patch)
+          .eq("id", String(identityMatch.id))
+          .select("*")
+          .maybeSingle();
+
+        if (patchError) {
+          throw new Error(patchError.message ?? "Failed to enrich matched guest profile.");
+        }
+
+        profile = (patched as Record<string, any> | null) ?? ({
+          ...(identityMatch ?? {}),
+          ...patch,
+        } as Record<string, any>);
+      }
+
+      return {
+        profile,
+        rerouted: true,
+      };
+    }
+  }
 
   const { data, error } = await supabase
     .from("guest_profiles")

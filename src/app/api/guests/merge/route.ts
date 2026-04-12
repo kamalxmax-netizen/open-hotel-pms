@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { mergeGuestProfileBookingNames } from "@/lib/guest-booking-names";
+import { listGuestProfileBookingNames, replaceGuestProfileBookingNames } from "@/lib/guest-booking-names";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
         }
 
         const supabase = createServerSupabaseClient();
+        const [masterBookingNames, sourceBookingNames] = await Promise.all([
+            listGuestProfileBookingNames(supabase as any, master_id),
+            listGuestProfileBookingNames(supabase as any, source_id),
+        ]);
 
         // Call atomic RPC (D17+D25)
         const { data, error } = await supabase.rpc("merge_guest_profiles", {
@@ -59,10 +63,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: msg }, { status });
         }
 
-        await mergeGuestProfileBookingNames({
+        await replaceGuestProfileBookingNames({
             supabase: supabase as any,
-            masterProfileId: master_id,
-            sourceProfileId: source_id,
+            guestProfileId: master_id,
+            bookingNames: Array.from(new Set([...masterBookingNames, ...sourceBookingNames])),
         });
 
         return NextResponse.json({

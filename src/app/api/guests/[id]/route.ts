@@ -9,7 +9,7 @@ import {
   shouldMaskIdentityForRole,
   validateGuestUnmaskAccess,
 } from "@/lib/data-masking";
-import { listGuestProfileBookingNames } from "@/lib/guest-booking-names";
+import { listGuestProfileBookingNames, replaceGuestProfileBookingNames } from "@/lib/guest-booking-names";
 import { updateGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
@@ -51,6 +51,7 @@ const patchSchema = z
     vip_tier: z.string().trim().max(120).optional().nullable(),
     preferences: z.string().trim().max(2000).optional().nullable(),
     notes: z.string().trim().max(4000).optional().nullable(),
+    booking_names: z.array(z.string().trim().min(1).max(160)).max(30).optional(),
     blacklisted: z.boolean().optional(),
     passport_raw: z.record(z.any()).optional().nullable(),
     profile_status: z.enum(["draft", "verified", "merged", "blacklisted"]).optional(),
@@ -219,8 +220,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     for (const [key, value] of Object.entries(parsedBody.data)) {
       if (value !== undefined) updates[key] = value;
     }
+    const requestedBookingNames = Array.isArray(parsedBody.data.booking_names)
+      ? Array.from(
+          new Set(
+            parsedBody.data.booking_names
+              .map((value) => String(value ?? "").replace(/\s+/g, " ").trim())
+              .filter(Boolean)
+          )
+        )
+      : undefined;
     const reservationId = String(parsedBody.data.reservation_id ?? "").trim();
     const sourceFlow = String(parsedBody.data.source_flow ?? "").trim();
+    delete updates.booking_names;
     delete updates.reservation_id;
     delete updates.source_flow;
     for (const key of ["passport_no", "id_card_number", "id_number"] as const) {
@@ -245,8 +256,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const supabase = createServerSupabaseClient();
     const targetId = parsedParams.data.id;
     const actor = await getAuthenticatedUser(supabase, request).catch(() => null);
+    const actorRole = actor ? await getUserRole(supabase, actor.id).catch(() => null) : null;
     const businessDate = await resolveBusinessDate(supabase);
-    if (Object.keys(updates).length === 0) {
+    if (requestedBookingNames !== undefined && actorRole !== "admin") {
+      return NextResponse.json(
+        { success: false, error: "Only admin can edit booking names." },
+        { status: 403 }
+      );
+    }
+
+    if (Object.keys(updates).length === 0 && requestedBookingNames === undefined) {
       const { data: current, error: currentError } = await supabase
         .from("guest_profiles")
         .select("*")
@@ -258,29 +277,69 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       if (!current) {
         return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
       }
-      return NextResponse.json({ success: true, profile: current });
+      const bookingNames = await listGuestProfileBookingNames(supabase as any, targetId);
+      return NextResponse.json({ success: true, profile: { ...current, booking_names: bookingNames } });
     }
 
-    const mutation = await updateGuestProfileWithConflictHandling({
-      supabase,
-      profileId: targetId,
-      payload: updates,
-      logContext: {
-        actorUserId: actor?.id ?? null,
-        reservationId: reservationId || null,
-        businessDate,
-        sourceFlow: sourceFlow || "guest_profile_api_patch",
-        terminalId: request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id"),
-        userAgent: request.headers.get("user-agent"),
-        source: "manual",
+    let mutationProfile: Record<string, unknown> | null = null;
+    let rerouted = false;
+
+    if (Object.keys(updates).length > 0) {
+      const mutation = await updateGuestProfileWithConflictHandling({
+        supabase,
+        profileId: targetId,
+        payload: updates,
+        logContext: {
+          actorUserId: actor?.id ?? null,
+          reservationId: reservationId || null,
+          businessDate,
+          sourceFlow: sourceFlow || "guest_profile_api_patch",
+          terminalId: request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id"),
+          userAgent: request.headers.get("user-agent"),
+          source: "manual",
+        },
+      });
+
+      if (!mutation.profile) {
+        return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
+      }
+
+      mutationProfile = mutation.profile as Record<string, unknown>;
+      rerouted = Boolean(mutation.rerouted);
+    } else {
+      const { data: current, error: currentError } = await supabase
+        .from("guest_profiles")
+        .select("*")
+        .eq("id", targetId)
+        .maybeSingle();
+
+      if (currentError) {
+        return NextResponse.json({ success: false, error: currentError.message }, { status: 500 });
+      }
+      if (!current) {
+        return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
+      }
+      mutationProfile = current as Record<string, unknown>;
+    }
+
+    if (requestedBookingNames !== undefined) {
+      await replaceGuestProfileBookingNames({
+        supabase: supabase as any,
+        guestProfileId: targetId,
+        bookingNames: requestedBookingNames,
+      });
+    }
+
+    const bookingNames = await listGuestProfileBookingNames(supabase as any, targetId);
+
+    return NextResponse.json({
+      success: true,
+      profile: {
+        ...mutationProfile,
+        booking_names: bookingNames,
       },
+      rerouted,
     });
-
-    if (!mutation.profile) {
-      return NextResponse.json({ success: false, error: "Guest profile not found." }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, profile: mutation.profile, rerouted: mutation.rerouted });
   } catch (err) {
     console.error("api/guests/[id] PATCH failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";

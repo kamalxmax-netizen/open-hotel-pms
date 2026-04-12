@@ -78,6 +78,7 @@ type EditForm = {
   profile_status: "draft" | "verified";
   preferences: string;
   notes: string;
+  booking_names: string;
   blacklisted: boolean;
 };
 
@@ -102,6 +103,7 @@ function toEditForm(profile: GuestProfile): EditForm {
     profile_status: profile.profile_status === "verified" ? "verified" : "draft",
     preferences: profile.preferences ?? "",
     notes: profile.notes ?? "",
+    booking_names: Array.isArray(profile.booking_names) ? profile.booking_names.join("\n") : "",
     blacklisted: profile.blacklisted,
   };
 }
@@ -198,6 +200,7 @@ function EditGuestProfileModal({
   onClose,
   onSave,
   isMasked,
+  canEditBookingNames,
 }: {
   form: EditForm;
   saving: boolean;
@@ -207,6 +210,7 @@ function EditGuestProfileModal({
   onClose: () => void;
   onSave: () => void;
   isMasked?: boolean;
+  canEditBookingNames?: boolean;
 }) {
   const lastNameInvalid = showValidation && !form.last_name.trim();
   return (
@@ -363,6 +367,18 @@ function EditGuestProfileModal({
               onChange={(e) => onChange({ notes: e.target.value })}
             />
           </div>
+          {canEditBookingNames ? (
+            <div className="md:col-span-2">
+              <label className="form-label">Booking Names</label>
+              <textarea
+                className="form-input min-h-[100px]"
+                value={form.booking_names}
+                onChange={(e) => onChange({ booking_names: e.target.value })}
+                placeholder="One booking name per line"
+              />
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Admin only. One booking alias per line.</p>
+            </div>
+          ) : null}
         </div>
       </div>
     </PmsModal>
@@ -494,7 +510,7 @@ function StaySummaryDrawer({
 export default function GuestProfileDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { isAdmin } = useAdminRole();
+  const { isAdmin, role } = useAdminRole();
   const profileId = useMemo(() => String(params?.id ?? ""), [params]);
 
   const [loading, setLoading] = useState(true);
@@ -721,6 +737,17 @@ export default function GuestProfileDetailPage() {
         notes: editForm.notes || null,
         blacklisted: editForm.blacklisted,
       };
+
+      if (role === "admin") {
+        updatePayload.booking_names = Array.from(
+          new Set(
+            editForm.booking_names
+              .split(/\r?\n|,/)
+              .map((value) => value.replace(/\s+/g, " ").trim())
+              .filter(Boolean)
+          )
+        );
+      }
 
       if (!isMasked) {
         updatePayload.id_number = editForm.id_number || null;
@@ -1132,6 +1159,7 @@ export default function GuestProfileDetailPage() {
           error={editError}
           showValidation={showEditValidation}
           isMasked={(profile as any)?._masked === true}
+          canEditBookingNames={role === "admin"}
           onChange={(patch) => setEditForm((current) => (current ? { ...current, ...patch } : current))}
           onClose={() => {
             if (editSaving) return;

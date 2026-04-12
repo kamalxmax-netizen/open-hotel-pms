@@ -3,6 +3,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export function useAdminRole() {
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+    const [role, setRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -15,6 +16,7 @@ export function useAdminRole() {
                 if (!user) {
                     if (mounted) {
                         setIsAdmin(false);
+                        setRole(null);
                         setLoading(false);
                     }
                     return;
@@ -29,12 +31,17 @@ export function useAdminRole() {
                 if (mounted && data) {
                     const role = String(data.role ?? "").trim().toLowerCase();
                     setIsAdmin(role === "admin" || role === "supervisor");
+                    setRole(role || null);
                 } else if (mounted) {
                     setIsAdmin(false);
+                    setRole(null);
                 }
             } catch (err) {
                 console.error("Failed to fetch user role", err);
-                if (mounted) setIsAdmin(false);
+                if (mounted) {
+                    setIsAdmin(false);
+                    setRole(null);
+                }
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -47,5 +54,5 @@ export function useAdminRole() {
         };
     }, []);
 
-    return { isAdmin, loading };
+    return { isAdmin, role, loading };
 }

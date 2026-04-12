@@ -292,7 +292,9 @@ export default function InventoryDashboardPage() {
         const products = Array.from(productMap.values()).map((product) => ({
           ...product,
           rooms: [...product.rooms].sort((a, b) => {
-            if (b.units_used !== a.units_used) return b.units_used - a.units_used;
+            const floorA = typeof a.floor_number === "number" ? a.floor_number : Number.MAX_SAFE_INTEGER;
+            const floorB = typeof b.floor_number === "number" ? b.floor_number : Number.MAX_SAFE_INTEGER;
+            if (floorA !== floorB) return floorA - floorB;
             return a.room_number.localeCompare(b.room_number, undefined, { numeric: true });
           }),
         }));

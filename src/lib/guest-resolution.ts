@@ -27,6 +27,10 @@ function normalizeText(value: unknown): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function normalizeIdentityText(value: unknown): string {
+  return normalizeText(value).toLowerCase();
+}
+
 function normalizeDigits(value: unknown): string {
   if (typeof value !== "string") return "";
   const digits = value.replace(/\D+/g, "");
@@ -149,8 +153,8 @@ export async function resolveGuestProfile(
     }
   }
 
-  const firstName = normalizeText(input.first_name).toLowerCase();
-  const lastName = normalizeText(input.last_name).toLowerCase();
+  const firstName = normalizeIdentityText(input.first_name);
+  const lastName = normalizeIdentityText(input.last_name);
 
   if (firstName || lastName || normalizedPhone) {
     const { data: candidates, error: candidateError } = await supabase
@@ -164,8 +168,8 @@ export async function resolveGuestProfile(
     }
 
     const fuzzy = (candidates ?? []).find((row: any) => {
-      const rowFirst = normalizeText(row.first_name).toLowerCase();
-      const rowLast = normalizeText(row.last_name).toLowerCase();
+      const rowFirst = normalizeIdentityText(row.first_name);
+      const rowLast = normalizeIdentityText(row.last_name);
       const rowPhone = normalizeDigits(row.phone);
       const nameMatch =
         Boolean(firstName || lastName) &&
@@ -221,4 +225,40 @@ export async function resolveGuestProfile(
     action: "created_draft",
     profile: created ?? null,
   };
+}
+
+export async function findExistingGuestProfileByIdentity(
+  supabase: SupabaseLike,
+  input: Pick<GuestResolutionInput, "first_name" | "last_name" | "phone">
+) {
+  const firstName = normalizeIdentityText(input.first_name);
+  const lastName = normalizeIdentityText(input.last_name);
+  const normalizedPhone = normalizeDigits(input.phone ?? "");
+
+  if (!firstName && !lastName && !normalizedPhone) return null;
+
+  const { data: candidates, error } = await supabase
+    .from("guest_profiles")
+    .select("id, first_name, last_name, phone, profile_status, nationality_code, country")
+    .neq("profile_status", "merged")
+    .limit(200);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load guest profile identity candidates.");
+  }
+
+  return (candidates ?? []).find((row: any) => {
+    const rowFirst = normalizeIdentityText(row.first_name);
+    const rowLast = normalizeIdentityText(row.last_name);
+    const rowPhone = normalizeDigits(row.phone);
+    const fullNameMatch =
+      Boolean(firstName && lastName) &&
+      rowFirst === firstName &&
+      rowLast === lastName;
+    const phoneBackedPartialMatch =
+      Boolean(normalizedPhone && rowPhone && normalizedPhone === rowPhone) &&
+      ((Boolean(firstName) && rowFirst === firstName) || (Boolean(lastName) && rowLast === lastName));
+    const phoneOnlyMatch = Boolean(normalizedPhone) && rowPhone === normalizedPhone;
+    return fullNameMatch || phoneBackedPartialMatch || phoneOnlyMatch;
+  }) ?? null;
 }
