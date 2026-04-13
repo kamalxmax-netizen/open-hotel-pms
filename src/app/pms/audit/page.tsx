@@ -10,6 +10,7 @@ import {
   SOURCE_BADGE,
   toBangkokDateString,
 } from "@/lib/audit-utils";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 type AuditGroup = "reservation" | "payment" | "housekeeping" | "night_audit" | "staff" | "configuration";
 
@@ -463,7 +464,7 @@ export default function AuditExplorerPage() {
                               title={`Click to copy: ${row.entity_id}`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void navigator.clipboard.writeText(row.entity_id);
+                                void copyToClipboardWithHistory(row.entity_id, { sourceLabel: "Audit Entity ID" });
                               }}
                             >
                               {row.entity_id.length > 12 ? `${row.entity_id.slice(0, 8)}...` : row.entity_id}

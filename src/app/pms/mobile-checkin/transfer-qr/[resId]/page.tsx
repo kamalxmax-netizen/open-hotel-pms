@@ -6,6 +6,7 @@ import QRCode from "react-qr-code";
 import { ArrowLeft, Save, Share2, CheckCircle2, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { APP_NAME } from "@/lib/constants";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 export default function TransferQRPage() {
   const params = useParams();
@@ -250,7 +251,7 @@ export default function TransferQRPage() {
         console.error("Share failed:", err);
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      await copyToClipboardWithHistory(window.location.href, { sourceLabel: "Transfer QR Link" });
       alert("Link copied to clipboard");
     }
   };

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Copy } from "lucide-react";
 import NightCounter from "@/components/night-counter";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 export default function MobileRoomAvailabilityTextPage() {
   const today = new Date().toISOString().slice(0, 10);
@@ -39,7 +40,8 @@ export default function MobileRoomAvailabilityTextPage() {
 
   const handleCopy = async () => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
+    const copied = await copyToClipboardWithHistory(text, { sourceLabel: "Room Availability" });
+    if (!copied) return;
     setCopySuccess(true);
     window.setTimeout(() => setCopySuccess(false), 2000);
   };

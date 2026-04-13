@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { formatDateRangeDisplay } from "@/lib/date-display";
+import PmsModal from "./pms-modal";
 
 interface LinkStayModalProps {
   /** The reservation we want to link FROM (will be the parent) */
@@ -118,64 +119,57 @@ export default function LinkStayModal({
 
   const selectedResult = results.find((r) => r.id === selectedId);
   const currentDateRange = formatDateRangeDisplay(checkinDate, checkoutDate);
+  const footer = (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={handleLink}
+        disabled={!selectedId || linking}
+        className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 border border-indigo-700 rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {linking ? "Linking..." : "Link Reservations"}
+      </button>
+    </div>
+  );
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-50 bg-black/40"
-        onClick={onClose}
-      />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg max-h-[85vh] flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  Link to Another Booking
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {guestName} · {currentDateRange}
-                </p>
+    <PmsModal
+      title="Link to Another Booking"
+      size="lg"
+      onClose={onClose}
+      footer={footer}
+    >
+      <div className="flex max-h-[75vh] flex-col">
+        <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {guestName} · {currentDateRange}
+          </p>
+
+          <div className="mt-3 relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by guest name, booking code, or phone..."
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+              autoFocus
+            />
+            {searching && (
+              <div className="absolute right-3 top-2.5">
+                <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {/* Search */}
-            <div className="mt-3 relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search by guest name, booking code, or phone..."
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
-                autoFocus
-              />
-              {searching && (
-                <div className="absolute right-3 top-2.5">
-                  <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
+            )}
           </div>
+        </div>
 
-          {/* Results */}
-          <div className="flex-1 overflow-y-auto px-5 py-3 min-h-0">
+        <div className="flex-1 overflow-y-auto py-3 min-h-0">
             {searchError && (
               <p className="text-xs text-red-600 dark:text-red-400 mb-2">
                 {searchError}
@@ -261,10 +255,10 @@ export default function LinkStayModal({
                 );
               })}
             </div>
-          </div>
+        </div>
 
-          {/* Footer: Confirm link */}
-          <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+        {(linkError || selectedResult) && (
+          <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
             {linkError && (
               <p className="text-xs text-red-600 dark:text-red-400 mb-2 font-medium">
                 {linkError}
@@ -272,7 +266,7 @@ export default function LinkStayModal({
             )}
 
             {selectedResult && (
-              <div className="mb-3 p-2.5 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-lg border border-indigo-100 dark:border-indigo-500/20">
+              <div className="p-2.5 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-lg border border-indigo-100 dark:border-indigo-500/20">
                 <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
                   Link: {guestName} ({currentDateRange}) + {selectedResult.guest_name} ({formatDateRangeDisplay(selectedResult.checkin_date, selectedResult.checkout_date)})
                 </p>
@@ -285,27 +279,9 @@ export default function LinkStayModal({
                 />
               </div>
             )}
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleLink}
-                disabled={!selectedId || linking}
-                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 border border-indigo-700 rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {linking ? "Linking..." : "Link Reservations"}
-              </button>
-            </div>
           </div>
-        </div>
+        )}
       </div>
-    </>
+    </PmsModal>
   );
 }

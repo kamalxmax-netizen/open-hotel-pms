@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Copy, Check, QrCode } from "lucide-react"
+import { copyToClipboardWithHistory } from "@/lib/copy-board"
 import { createBrowserSupabaseClient } from "@/lib/supabase/client"
 import QRCode from "react-qr-code"
 
@@ -59,9 +60,11 @@ export function LineBindCard({ staffId, onClose }: { staffId: string, onClose: (
 
     const handleCopy = () => {
         if (!tokenData) return
-        navigator.clipboard.writeText(`BIND ${tokenData.token}`)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        void copyToClipboardWithHistory(`BIND ${tokenData.token}`, { sourceLabel: "LINE Bind Token" }).then((copiedOk) => {
+            if (!copiedOk) return
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        })
     }
 
     const mins = Math.floor(timeLeft / 60)

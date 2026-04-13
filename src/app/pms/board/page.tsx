@@ -191,10 +191,11 @@ const DIARY_STYLE: Record<DiaryState, { symbol: ReactNode; label: string; symbol
         chipClass: "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
     }
 };
-type FilterKey = RoomStatus | "all" | "due_in" | "due_out" | "inhouse" | "back_to_back";
+type FilterKey = RoomStatus | "all" | "available_now" | "due_in" | "due_out" | "inhouse" | "back_to_back";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
     { key: "all", label: "All" },
+    { key: "available_now", label: "Available Now" },
     { key: "available", label: "Available" },
     { key: "due_in", label: "Due In 🛬" },
     { key: "inhouse", label: "In-House" },
@@ -205,8 +206,14 @@ const FILTERS: { key: FilterKey; label: string }[] = [
     { key: "ooo", label: "Blocked" },
 ];
 
+function isAvailableForToday(room: ApiRoom): boolean {
+    return room.sellable && room.diary_state === "available";
+}
+
 function matchesFilter(room: ApiRoom, f: FilterKey): boolean {
     if (f === "all") return true;
+    if (f === "available_now") return room.status === "available";
+    if (f === "available") return isAvailableForToday(room);
     if (f === "due_in") return room.diary_state === "due_in";
     if (f === "due_out") return room.diary_state === "due_out";
     if (f === "inhouse") return room.diary_state === "inhouse";
@@ -1383,7 +1390,7 @@ export default function BoardPage() {
                                     key={f.key}
                                     onClick={() => toggleFilter(f.key)}
                                     className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
-                                        ? f.key === "available" ? "border-emerald-400 bg-emerald-600 text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40"
+                                        ? f.key === "available_now" || f.key === "available" ? "border-emerald-400 bg-emerald-600 text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40"
                                             : f.key === "due_in" ? "border-sky-400 bg-sky-600 text-white dark:bg-sky-500/20 dark:text-sky-400 dark:border-sky-500/40"
                                                 : f.key === "inhouse" ? "border-amber-400 bg-amber-600 text-white dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40"
                                                     : f.key === "back_to_back" ? "border-indigo-400 bg-indigo-600 text-white dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-500/40"

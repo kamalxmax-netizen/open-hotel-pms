@@ -2,7 +2,9 @@
 
 import Sidebar from "@/components/sidebar";
 import BugReportButton from "@/components/bug-report-button";
+import UrgentLogbookOverlay from "@/components/urgent-logbook-overlay";
 import UiEventLogProvider from "@/components/ui-event-log-provider";
+import { ensureCopyBoardFocusTracking } from "@/lib/copy-board";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -25,6 +27,10 @@ export default function AppShell({
     pathname === "/pms/smart-card" ||
     pathname === "/passport-ocr" ||
     pathname === "/pms/passport-ocr";
+
+  useEffect(() => {
+    ensureCopyBoardFocusTracking();
+  }, []);
 
   useEffect(() => {
     if (isMaidApp || isStandalonePopup || isLoginPage) return;
@@ -58,6 +64,8 @@ export default function AppShell({
     return <div className="bg-[var(--bg-body)] min-h-screen">{children}</div>;
   }
 
+  const showBugReport = process.env.NEXT_PUBLIC_SHOW_BUG_REPORT === "true";
+
   return (
     <div className="app-shell">
       <UiEventLogProvider />
@@ -65,7 +73,8 @@ export default function AppShell({
       <div className="main-content">
         <main className="page-body">{children}</main>
       </div>
-      {process.env.NEXT_PUBLIC_SHOW_BUG_REPORT === "true" && <BugReportButton />}
+      <UrgentLogbookOverlay hasNeighbor={showBugReport} />
+      {showBugReport && <BugReportButton />}
     </div>
   );
 }

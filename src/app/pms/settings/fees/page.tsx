@@ -19,6 +19,7 @@ export default function FeeTemplatesPage() {
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState({ text: "", type: "" });
     const [showForm, setShowForm] = useState(false);
+    const [editingCode, setEditingCode] = useState<string | null>(null);
 
     const [form, setForm] = useState<Partial<FeeTemplate>>({
         code: "",
@@ -41,6 +42,33 @@ export default function FeeTemplatesPage() {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    const resetForm = useCallback(() => {
+        setForm({ code: "", name: "", category: "service", default_price: 0, is_active: true });
+        setEditingCode(null);
+        setShowForm(false);
+    }, []);
+
+    function startCreate() {
+        setMsg({ text: "", type: "" });
+        setEditingCode(null);
+        setForm({ code: "", name: "", category: "service", default_price: 0, is_active: true });
+        setShowForm(true);
+    }
+
+    function startEdit(template: FeeTemplate) {
+        setMsg({ text: "", type: "" });
+        setEditingCode(template.code);
+        setForm({
+            code: template.code,
+            name: template.name,
+            category: template.category,
+            default_price: Number(template.default_price ?? 0),
+            is_active: template.is_active,
+            sort_order: template.sort_order ?? 0,
+        });
+        setShowForm(true);
+    }
 
     async function toggleActive(code: string, currentActive: boolean) {
         setSaving(true);
@@ -91,6 +119,37 @@ export default function FeeTemplatesPage() {
         }
     }
 
+    async function handleUpdate(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editingCode || !form.name || !form.category) return;
+        setSaving(true);
+        setMsg({ text: "", type: "" });
+
+        try {
+            const res = await fetch(`/api/extra-fee-templates/${editingCode}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: form.name,
+                    category: form.category,
+                    default_price: form.default_price ?? 0,
+                    is_active: form.is_active,
+                    sort_order: form.sort_order ?? 0,
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMsg({ text: `✓ Template ${editingCode} updated successfully.`, type: "ok" });
+                await load();
+                resetForm();
+            } else {
+                setMsg({ text: data.error ?? "Failed to update.", type: "err" });
+            }
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
             <div>
@@ -110,15 +169,23 @@ export default function FeeTemplatesPage() {
             <div className="flex justify-end">
                 <button
                     className="btn btn-primary"
-                    onClick={() => setShowForm(!showForm)}
+                    onClick={() => {
+                        if (showForm) {
+                            resetForm();
+                            return;
+                        }
+                        startCreate();
+                    }}
                 >
                     {showForm ? "Cancel" : "+ Add Template"}
                 </button>
             </div>
 
             {showForm && (
-                <form onSubmit={handleCreate} className="rounded-xl border border-brand-200 bg-brand-50 p-4 space-y-4">
-                    <h2 className="text-sm font-bold text-brand-900 uppercase tracking-wide">New Fee Template</h2>
+                <form onSubmit={editingCode ? handleUpdate : handleCreate} className="rounded-xl border border-brand-200 bg-brand-50 p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-brand-900 uppercase tracking-wide">
+                        {editingCode ? `Edit Fee Template · ${editingCode}` : "New Fee Template"}
+                    </h2>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="form-label">Template Code</label>
@@ -127,9 +194,15 @@ export default function FeeTemplatesPage() {
                                 value={form.code}
                                 onChange={(e) => setForm({ ...form, code: e.target.value })}
                                 placeholder="E.g. AIRPORT_TRANSFER"
+                                disabled={Boolean(editingCode)}
+                                readOnly={Boolean(editingCode)}
                                 required
                             />
-                            <p className="text-[10px] text-[var(--text-muted)] mt-1">Unique identifier (letters and underscores only)</p>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                                {editingCode
+                                    ? "Template code is fixed after creation."
+                                    : "Unique identifier (letters and underscores only)"}
+                            </p>
                         </div>
                         <div>
                             <label className="form-label">Display Name</label>
@@ -164,9 +237,9 @@ export default function FeeTemplatesPage() {
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                        <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+                        <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancel</button>
                         <button type="submit" className="btn btn-primary" disabled={saving}>
-                            {saving ? "Saving…" : "Save Template"}
+                            {saving ? "Saving…" : editingCode ? "Save Changes" : "Save Template"}
                         </button>
                     </div>
                 </form>
@@ -218,13 +291,22 @@ export default function FeeTemplatesPage() {
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                        <button
-                                            className={`text-xs font-semibold px-3 py-1 rounded border ${t.is_active ? 'text-rose-600 border-rose-200 hover:bg-rose-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
-                                            onClick={() => toggleActive(t.code, t.is_active)}
-                                            disabled={saving}
-                                        >
-                                            {t.is_active ? "Deactivate" : "Activate"}
-                                        </button>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button
+                                                className="text-xs font-semibold px-3 py-1 rounded border border-brand-200 text-brand-700 hover:bg-brand-50"
+                                                onClick={() => startEdit(t)}
+                                                disabled={saving}
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                className={`text-xs font-semibold px-3 py-1 rounded border ${t.is_active ? 'text-rose-600 border-rose-200 hover:bg-rose-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
+                                                onClick={() => toggleActive(t.code, t.is_active)}
+                                                disabled={saving}
+                                            >
+                                                {t.is_active ? "Deactivate" : "Activate"}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Copy, RefreshCw, Search } from "lucide-react";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 type Candidate = {
   reservation_id: string;
@@ -86,7 +87,8 @@ export default function MobileBookingSummaryPage() {
 
   const handleCopy = async () => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
+    const copied = await copyToClipboardWithHistory(text, { sourceLabel: "Booking Summary" });
+    if (!copied) return;
     setCopySuccess(true);
     window.setTimeout(() => setCopySuccess(false), 2000);
   };

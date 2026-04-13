@@ -342,7 +342,8 @@ function getExtraTaskActualBlock(
   const elapsedMin = safeAccumulatedMs / 60_000;
   const parsedDuration = Number(task.duration_min ?? 0);
   const safeDurationMin = Number.isFinite(parsedDuration) ? parsedDuration : 0;
-  const fallbackDuration = Math.max(elapsedMin, safeDurationMin, 1);
+  const actualDurationMin = elapsedMin > 0 ? Math.max(elapsedMin, 1) : null;
+  const fallbackDuration = Math.max(safeDurationMin, 1);
 
   let startMin: number | null = toMinuteOfDay(task.started_at);
   let endMin: number | null = null;
@@ -352,39 +353,39 @@ function getExtraTaskActualBlock(
       endMin = selectedIsToday ? nowMinuteOfDay : startMin + fallbackDuration;
     } else {
       endMin = selectedIsToday ? nowMinuteOfDay : TRACK_END_MIN;
-      startMin = endMin - fallbackDuration;
+      startMin = endMin - (actualDurationMin ?? fallbackDuration);
     }
   } else if (task.status === "paused") {
     const finishedMin = toMinuteOfDay(task.finished_at);
     if (startMin != null) {
-      endMin = startMin + fallbackDuration;
+      endMin = startMin + (actualDurationMin ?? fallbackDuration);
     } else if (finishedMin != null) {
       endMin = finishedMin;
-      startMin = finishedMin - fallbackDuration;
+      startMin = finishedMin - (actualDurationMin ?? fallbackDuration);
     } else {
       endMin = selectedIsToday ? nowMinuteOfDay : TRACK_END_MIN;
-      startMin = endMin - fallbackDuration;
+      startMin = endMin - (actualDurationMin ?? fallbackDuration);
     }
   } else if (task.status === "done") {
     const finishedMin = toMinuteOfDay(task.finished_at);
     if (finishedMin != null) {
       endMin = finishedMin;
-      startMin = finishedMin - fallbackDuration;
+      startMin = finishedMin - (actualDurationMin ?? fallbackDuration);
     } else if (startMin != null) {
-      endMin = startMin + fallbackDuration;
+      endMin = startMin + (actualDurationMin ?? fallbackDuration);
     } else {
       return null;
     }
   } else {
     const finishedMin = toMinuteOfDay(task.finished_at);
     if (startMin != null) {
-      endMin = startMin + fallbackDuration;
+      endMin = startMin + (actualDurationMin ?? fallbackDuration);
     } else if (finishedMin != null) {
       endMin = finishedMin;
-      startMin = finishedMin - fallbackDuration;
+      startMin = finishedMin - (actualDurationMin ?? fallbackDuration);
     } else {
       endMin = selectedIsToday ? nowMinuteOfDay : TRACK_END_MIN;
-      startMin = endMin - fallbackDuration;
+      startMin = endMin - (actualDurationMin ?? fallbackDuration);
     }
   }
 

@@ -7,6 +7,7 @@ import {
   Clock, AlertTriangle, Loader2 
 } from "lucide-react";
 import { format } from "date-fns";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 interface GenerateScbQrModalProps {
   reservationId: string;
@@ -488,7 +489,13 @@ export function GenerateScbQrModal({
                        <button type="button" onClick={handleCheckPaymentNow} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
                           <CheckCircle2 className="w-4 h-4" /> ตรวจสอบการชำระ
                        </button>
-                       <button type="button" onClick={() => navigator.clipboard.writeText(request?.partner_reference_no)} className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10">
+                       <button
+                         type="button"
+                         onClick={() => {
+                           void copyToClipboardWithHistory(request?.partner_reference_no ?? "", { sourceLabel: "SCB QR Ref" });
+                         }}
+                         className="btn btn-secondary px-4 py-2 text-xs flex items-center gap-1.5 h-10"
+                       >
                           <Copy className="w-4 h-4" /> คัดลอก Ref
                        </button>
                      </>

@@ -163,92 +163,94 @@ function ReservationDetail({
 
     return (
         <>
-            <PmsModal title={`Reservation — Room ${roomNumber}`} size="md" onClose={onClose}
-                footer={
-                    <div className="flex gap-2 w-full">
-                        {!isCheckedOut && (
-                            <button className="btn btn-danger btn-sm" onClick={handleCancelClick} disabled={cancelling}>
-                                {cancelling ? "…" : "Cancel Booking"}
-                            </button>
-                        )}
-                        <button
-                            className="btn btn-secondary btn-sm flex items-center gap-1.5"
-                            onClick={() => setShowOptions(true)}
-                            title="Traces, Alerts, Guest Profile, Loan Items"
-                        >
-                            <SettingsIcon className="w-3.5 h-3.5" />
-                            Options
-                        </button>
-                        {canSwap && (
-                            <button className="btn btn-secondary flex-1" onClick={onSwap}>
-                                Swap
-                            </button>
-                        )}
-                        {!isCheckedOut && (
-                            <button className="btn btn-primary flex-1" onClick={onEdit}>Edit</button>
-                        )}
-                        {isCheckedOut && (
-                            <span className="flex-1 flex items-center justify-center text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">
-                                ✓ Checked Out
-                            </span>
-                        )}
-                    </div>
-                }
-            >
-                <div className="space-y-4">
-                    {msg && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">{msg}</div>}
-
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className={`text-xl font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>{res.guest_name}</p>
-                            {res.phone && <p className="text-sm text-[var(--text-secondary)]">{res.phone}</p>}
-                            {res.booking_group_id && (
-                                <Link
-                                    href={`/pms/groups?group_id=${res.booking_group_id}`}
-                                    className="inline-flex mt-1 badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors dark:bg-indigo-500/20 dark:text-indigo-300 dark:hover:bg-indigo-500/30"
-                                    title={res.group_name ?? "Open Group Booking"}
-                                >
-                                    {formatShortGroupCode(res.group_code)}
-                                </Link>
+            {!showOptions && (
+                <PmsModal title={`Reservation — Room ${roomNumber}`} size="md" onClose={onClose}
+                    footer={
+                        <div className="flex gap-2 w-full">
+                            {!isCheckedOut && (
+                                <button className="btn btn-danger btn-sm" onClick={handleCancelClick} disabled={cancelling}>
+                                    {cancelling ? "…" : "Cancel Booking"}
+                                </button>
                             )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
+                            <button
+                                className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                                onClick={() => setShowOptions(true)}
+                                title="Traces, Alerts, Guest Profile, Loan Items"
+                            >
+                                <SettingsIcon className="w-3.5 h-3.5" />
+                                Options
+                            </button>
+                            {canSwap && (
+                                <button className="btn btn-secondary flex-1" onClick={onSwap}>
+                                    Swap
+                                </button>
+                            )}
+                            {!isCheckedOut && (
+                                <button className="btn btn-primary flex-1" onClick={onEdit}>Edit</button>
+                            )}
                             {isCheckedOut && (
-                                <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 dark:bg-emerald-500/20 dark:text-emerald-400">✓ CO</span>
+                                <span className="flex-1 flex items-center justify-center text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">
+                                    ✓ Checked Out
+                                </span>
                             )}
-                            <span className={`badge ${sc.bar} ${sc.text} px-3 py-1 ${isCheckedOut ? "opacity-50" : ""}`}>
-                                {SOURCE_LABEL[res.source] ?? res.source}
-                            </span>
                         </div>
-                    </div>
+                    }
+                >
+                    <div className="space-y-4">
+                        {msg && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400">{msg}</div>}
 
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-in</p>
-                            <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkin_date)}</p>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className={`text-xl font-bold ${isCheckedOut ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"}`}>{res.guest_name}</p>
+                                {res.phone && <p className="text-sm text-[var(--text-secondary)]">{res.phone}</p>}
+                                {res.booking_group_id && (
+                                    <Link
+                                        href={`/pms/groups?group_id=${res.booking_group_id}`}
+                                        className="inline-flex mt-1 badge bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors dark:bg-indigo-500/20 dark:text-indigo-300 dark:hover:bg-indigo-500/30"
+                                        title={res.group_name ?? "Open Group Booking"}
+                                    >
+                                        {formatShortGroupCode(res.group_code)}
+                                    </Link>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                {isCheckedOut && (
+                                    <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 dark:bg-emerald-500/20 dark:text-emerald-400">✓ CO</span>
+                                )}
+                                <span className={`badge ${sc.bar} ${sc.text} px-3 py-1 ${isCheckedOut ? "opacity-50" : ""}`}>
+                                    {SOURCE_LABEL[res.source] ?? res.source}
+                                </span>
+                            </div>
                         </div>
-                        <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-out</p>
-                            <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkout_date)}</p>
-                        </div>
-                    </div>
 
-                    <div className="flex justify-between items-center border-t border-[var(--border-subtle)] pt-3">
-                        <span className="text-sm text-[var(--text-secondary)]">{nights} night{nights !== 1 ? "s" : ""}</span>
-                        <span className="text-2xl font-extrabold text-brand-700">฿{fmt(res.total_price)}</span>
-                    </div>
-
-                    <div className="text-xs text-[var(--text-muted)]">Code: {res.booking_code}</div>
-                    {res.note && (
-                        <div
-                            className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400"
-                            title={res.note}
-                        >
-                            📝 {res.note}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
+                                <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-in</p>
+                                <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkin_date)}</p>
+                            </div>
+                            <div className="rounded-lg bg-[var(--bg-body)] border border-[var(--border-default)] px-3 py-2">
+                                <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">Check-out</p>
+                                <p className="font-bold text-[var(--text-primary)]">{formatDateDisplay(res.checkout_date)}</p>
+                            </div>
                         </div>
-                    )}
-                </div>
-            </PmsModal>
+
+                        <div className="flex justify-between items-center border-t border-[var(--border-subtle)] pt-3">
+                            <span className="text-sm text-[var(--text-secondary)]">{nights} night{nights !== 1 ? "s" : ""}</span>
+                            <span className="text-2xl font-extrabold text-brand-700">฿{fmt(res.total_price)}</span>
+                        </div>
+
+                        <div className="text-xs text-[var(--text-muted)]">Code: {res.booking_code}</div>
+                        {res.note && (
+                            <div
+                                className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400"
+                                title={res.note}
+                            >
+                                📝 {res.note}
+                            </div>
+                        )}
+                    </div>
+                </PmsModal>
+            )}
 
             {/* Reservation Options Panel (Traces / Alerts / Guest Profile / Loan Items) */}
             {showOptions && (
@@ -257,6 +259,7 @@ function ReservationDetail({
                     guestName={res.guest_name}
                     checkinDate={res.checkin_date}
                     checkoutDate={res.checkout_date}
+                    layer="modal"
                     onClose={() => setShowOptions(false)}
                 />
             )}

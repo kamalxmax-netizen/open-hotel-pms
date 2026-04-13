@@ -139,20 +139,23 @@ type Props = {
     checkoutDate: string;
     onClose: () => void;
     initialTab?: Tab;
+    layer?: "drawer" | "modal";
 };
 
 /* ═══════════════════════════════════════════════════════════════
    Main Component
 ═══════════════════════════════════════════════════════════════ */
 export default function ReservationOptionsPanel({
-    reservationId, guestName, checkinDate, checkoutDate, onClose, initialTab = "traces"
+    reservationId, guestName, checkinDate, checkoutDate, onClose, initialTab = "traces", layer = "drawer"
 }: Props) {
     const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+    const overlayClassName = layer === "modal" ? "drawer-overlay z-[210]" : "drawer-overlay";
+    const panelClassName = layer === "modal" ? "drawer-panel z-[220]" : "drawer-panel";
 
     return (
         <>
-            <div className="drawer-overlay" onClick={onClose} />
-            <div className="drawer-panel" style={{ maxWidth: 520 }}>
+            <div className={overlayClassName} onClick={onClose} />
+            <div className={panelClassName} style={{ maxWidth: 520 }}>
                 {/* Header */}
                 <div className="drawer-header">
                     <div>

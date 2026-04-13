@@ -1,5 +1,7 @@
 "use client";
 
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
+
 function channelBadgeClass(channel: string | null) {
   if (channel === "booking_folio") return "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300";
   if (channel === "mobile_checkin") return "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300";
@@ -87,7 +89,9 @@ export function ScbTransferTable({ tab, role, rows, onDetail, onAssign, onIgnore
                 <button
                   type="button"
                   className="max-w-[140px] truncate text-left font-mono text-xs text-[var(--text-primary)] hover:underline"
-                  onClick={() => navigator.clipboard.writeText(row.transaction_id || row.id)}
+                  onClick={() => {
+                    void copyToClipboardWithHistory(row.transaction_id || row.id, { sourceLabel: "SCB Transfer TXN" });
+                  }}
                   title="Copy ID"
                 >
                   {row.transaction_id || row.id}

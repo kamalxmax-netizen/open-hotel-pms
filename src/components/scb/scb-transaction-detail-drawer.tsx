@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, X } from "lucide-react";
+import { copyToClipboardWithHistory } from "@/lib/copy-board";
 
 type DrawerItem = {
   id: string;
@@ -115,7 +116,15 @@ export function ScbTransactionDetailDrawer({ item, onClose, onRefresh }: Props) 
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">ข้อมูล SCB</h4>
                 <div className="grid grid-cols-[120px_1fr] gap-y-2 text-sm">
                   <span>TXN ID</span>
-                  <button className="text-left font-mono hover:underline" onClick={() => navigator.clipboard.writeText(detail.transaction?.transaction_id || detail.request?.partner_reference_no || detail.id || "")}>
+                  <button
+                    className="text-left font-mono hover:underline"
+                    onClick={() => {
+                      void copyToClipboardWithHistory(
+                        detail.transaction?.transaction_id || detail.request?.partner_reference_no || detail.id || "",
+                        { sourceLabel: "SCB Detail Ref" }
+                      );
+                    }}
+                  >
                     {detail.transaction?.transaction_id || detail.request?.partner_reference_no || "—"}
                   </button>
                   <span>ยอด</span>

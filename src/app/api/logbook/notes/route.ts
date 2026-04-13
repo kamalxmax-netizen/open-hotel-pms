@@ -24,12 +24,23 @@ export const fetchCache = "force-no-store";
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
+const booleanQueryParam = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return value;
+}, z.boolean().optional());
+
 const querySchema = z.object({
   date: z.string().regex(dateRegex, "date must be YYYY-MM-DD").optional(),
   type: z.string().optional(),
   staff_id: z.string().uuid().optional(),
   status: z.enum(LOGBOOK_STATUSES).optional(),
-  archived: z.coerce.boolean().optional().default(false),
+  archived: booleanQueryParam.default(false),
   q: z.string().trim().max(160).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
   offset: z.coerce.number().int().min(0).optional().default(0),
