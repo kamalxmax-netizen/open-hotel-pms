@@ -254,47 +254,47 @@ function CopyBoardCard({
       }}
       onMouseDown={() => onFocus(COPY_BOARD_CARD_ID)}
     >
-      <div className="relative z-[1] overflow-hidden rounded-2xl border border-sky-700/40 bg-[#0b1320] shadow-xl">
+      <div className="relative z-[1] overflow-hidden rounded-2xl border border-sky-300/70 bg-[var(--bg-surface)] shadow-xl dark:border-sky-700/40 dark:bg-[#0b1320]">
         <div
-          className="relative z-[1] flex cursor-move items-center justify-between border-b border-sky-700/40 bg-sky-900/30 px-3 py-2"
+          className="relative z-[1] flex cursor-move items-center justify-between border-b border-sky-200/80 bg-sky-50/90 px-3 py-2 dark:border-sky-700/40 dark:bg-sky-900/30"
           onPointerDown={(event) => onPointerDown(COPY_BOARD_CARD_ID, event)}
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-[var(--text-primary)]">Copy Board</p>
             <p className="text-[10px] font-medium text-[var(--text-secondary)]">Latest 5</p>
           </div>
-          <div className="rounded-md border border-sky-700/60 bg-sky-950/40 px-2 py-1 text-[11px] font-semibold text-sky-300">
+          <div className="rounded-md border border-sky-300 bg-sky-100 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-300">
             {entries.length}/5
           </div>
         </div>
-        <div className="relative z-[1] grid h-[196px] grid-rows-5 gap-1.5 bg-slate-950/70 px-3 py-2.5">
+        <div className="relative z-[1] grid h-[196px] grid-rows-5 gap-1.5 bg-[var(--bg-muted)]/70 px-3 py-2.5 dark:bg-slate-950/70">
           {slots.map((entry, index) => (
             <button
               key={entry?.id ?? `empty-${index}`}
               type="button"
               disabled={!entry}
               onClick={() => entry && onPaste(entry)}
-              className={`flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition ${
+              className={`flex w-full items-center gap-2 overflow-hidden rounded-xl border px-2.5 py-2 text-left transition ${
                 entry
-                  ? "border-sky-800/60 bg-slate-950/80 hover:border-sky-500/70 hover:bg-slate-900"
-                  : "cursor-default border-slate-800/80 bg-slate-950/30 opacity-60"
+                  ? "border-sky-200 bg-[var(--bg-surface)] hover:border-sky-400 hover:bg-sky-50/70 dark:border-sky-800/60 dark:bg-slate-950/80 dark:hover:border-sky-500/70 dark:hover:bg-slate-900"
+                  : "cursor-default border-[var(--border-default)] bg-[var(--bg-surface)]/60 opacity-60 dark:border-slate-800/80 dark:bg-slate-950/30"
               }`}
             >
-              <span className={`inline-flex min-w-[42px] justify-center rounded-md px-2 py-1 text-[10px] font-bold ${
+              <span className={`inline-flex min-w-[42px] shrink-0 justify-center rounded-md px-2 py-1 text-[10px] font-bold ${
                 index === 0
-                  ? "bg-sky-500/20 text-sky-300"
-                  : "bg-slate-800 text-slate-300"
+                  ? "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
+                  : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
               }`}>
                 {index === 0 ? "Latest" : `${index + 1}`}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className={`block truncate text-xs font-medium ${
+              <span className="min-w-0 flex-1 overflow-hidden">
+                <span className={`block w-full truncate text-xs font-medium ${
                   entry ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
                 }`}>
                   {entry ? entry.text.replace(/\s+/g, " ").trim() : "Empty"}
                 </span>
                 {entry ? (
-                  <span className="mt-0.5 block truncate text-[10px] text-[var(--text-secondary)]">
+                  <span className="mt-0.5 block w-full truncate text-[10px] text-[var(--text-secondary)]">
                     {entry.sourceLabel ?? "Copied text"}
                   </span>
                 ) : null}
@@ -606,17 +606,28 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
     if (existing) clearTimeout(existing);
     const timer = setTimeout(async () => {
       try {
-        await fetch(`/api/logbook/notes/${noteId}`, {
+        const res = await fetch(`/api/logbook/notes/${noteId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body }),
         });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || "Failed to save urgent note.");
+        }
+      } catch (error) {
+        toast({
+          title: "Save failed",
+          description: error instanceof Error ? error.message : "Failed to save urgent note.",
+          variant: "destructive",
+        });
+        void fetchNotes();
       } finally {
         saveTimersRef.current.delete(noteId);
       }
     }, 450);
     saveTimersRef.current.set(noteId, timer);
-  }, []);
+  }, [fetchNotes, toast]);
 
   useEffect(() => {
     return () => {
@@ -631,14 +642,30 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
   }, [queueBodySave]);
 
   const handleArchive = useCallback(async (noteId: string) => {
-    await fetch(`/api/logbook/notes/${noteId}/archive`, { method: "POST" });
+    const previousNotes = notes;
     setNotes((prev) => prev.filter((note) => note.id !== noteId));
     persistMutedMap((prev) => {
       const next = { ...prev };
       delete next[noteId];
       return next;
     });
-  }, [persistMutedMap]);
+
+    try {
+      const res = await fetch(`/api/logbook/notes/${noteId}/archive`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Failed to archive urgent note.");
+      }
+    } catch (error) {
+      setNotes(previousNotes);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Failed to archive urgent note.",
+        variant: "destructive",
+      });
+      void fetchNotes();
+    }
+  }, [fetchNotes, notes, persistMutedMap, toast]);
 
   const handleToggleAlarm = useCallback((note: UrgentOverlayNote) => {
     persistMutedMap((prev) => {
