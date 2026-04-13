@@ -33,10 +33,10 @@ type DragState = {
 const STORAGE_KEY = "urgent-logbook-muted-alarms-v1";
 const BUTTON_SIZE = 40;
 const BUTTON_GAP = 12;
-const NOTE_CARD_WIDTH = 360;
-const NOTE_CARD_HEIGHT = 200;
-const COPY_BOARD_WIDTH = 260;
-const COPY_BOARD_HEIGHT = 200;
+const NOTE_CARD_WIDTH = 330;
+const NOTE_CARD_HEIGHT = 215;
+const COPY_BOARD_WIDTH = 230;
+const COPY_BOARD_HEIGHT = 240;
 const CARD_GAP = 12;
 const VIEWPORT_MARGIN = 16;
 const POLL_MS = 30_000;
@@ -318,23 +318,20 @@ function CopyBoardCard({
               type="button"
               disabled={!entry}
               onClick={() => entry && onPaste(entry)}
-              className={`flex w-full items-center gap-2 overflow-hidden rounded-xl border px-2 py-1 text-left transition ${
-                entry
-                  ? "border-sky-200 bg-[var(--bg-surface)] hover:border-sky-400 hover:bg-sky-50/70 dark:border-sky-800/60 dark:bg-slate-950/80 dark:hover:border-sky-500/70 dark:hover:bg-slate-900"
-                  : "cursor-default border-[var(--border-default)] bg-[var(--bg-surface)]/60 opacity-60 dark:border-slate-800/80 dark:bg-slate-950/30"
-              }`}
+              className={`flex w-full items-center gap-2 overflow-hidden rounded-xl border px-2 py-1 text-left transition ${entry
+                ? "border-sky-200 bg-[var(--bg-surface)] hover:border-sky-400 hover:bg-sky-50/70 dark:border-sky-800/60 dark:bg-slate-950/80 dark:hover:border-sky-500/70 dark:hover:bg-slate-900"
+                : "cursor-default border-[var(--border-default)] bg-[var(--bg-surface)]/60 opacity-60 dark:border-slate-800/80 dark:bg-slate-950/30"
+                }`}
             >
-              <span className={`inline-flex min-w-[42px] shrink-0 justify-center rounded-md px-2 py-1 text-[10px] font-bold ${
-                index === 0
-                  ? "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
-                  : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-              }`}>
+              <span className={`inline-flex min-w-[42px] shrink-0 justify-center rounded-md px-2 py-1 text-[10px] font-bold ${index === 0
+                ? "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
+                : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}>
                 {index === 0 ? "Latest" : `${index + 1}`}
               </span>
               <span className="min-w-0 flex-1 overflow-hidden">
-                <span className={`block w-full truncate text-xs font-medium ${
-                  entry ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
-                }`}>
+                <span className={`block w-full truncate text-xs font-medium ${entry ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+                  }`}>
                   {entry ? entry.text.replace(/\s+/g, " ").trim() : "Empty"}
                 </span>
               </span>
