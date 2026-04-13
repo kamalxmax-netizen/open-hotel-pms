@@ -33,12 +33,15 @@ type DragState = {
 const STORAGE_KEY = "urgent-logbook-muted-alarms-v1";
 const BUTTON_SIZE = 40;
 const BUTTON_GAP = 12;
-const CARD_WIDTH = 360;
-const CARD_HEIGHT = 248;
+const NOTE_CARD_WIDTH = 360;
+const NOTE_CARD_HEIGHT = 200;
+const COPY_BOARD_WIDTH = 260;
+const COPY_BOARD_HEIGHT = 200;
 const CARD_GAP = 12;
 const VIEWPORT_MARGIN = 16;
 const POLL_MS = 30_000;
 const COPY_BOARD_CARD_ID = "__copy-board__";
+const CONTROL_PANEL_BOTTOM = 64;
 
 const NOTE_COLORS = {
   urgent: {
@@ -136,26 +139,68 @@ function formatDateTime(value: string | null | undefined) {
   }).format(date);
 }
 
-function getDefaultPositions(count: number, anchorRect: DOMRect | null) {
+function getCardDimensions(cardId: OverlayCardId) {
+  if (cardId === COPY_BOARD_CARD_ID) {
+    return { width: COPY_BOARD_WIDTH, height: COPY_BOARD_HEIGHT };
+  }
+  return { width: NOTE_CARD_WIDTH, height: NOTE_CARD_HEIGHT };
+}
+
+function getControlAnchorRect(anchorRect: DOMRect | null) {
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1440;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
-  const anchorRight = anchorRect?.right ?? viewportWidth - VIEWPORT_MARGIN;
-  const anchorTop = anchorRect?.top ?? viewportHeight - VIEWPORT_MARGIN - BUTTON_SIZE;
+  const fallbackWidth = 260;
+  const fallbackHeight = 44;
+  return {
+    left: anchorRect?.left ?? viewportWidth - VIEWPORT_MARGIN - fallbackWidth,
+    right: anchorRect?.right ?? viewportWidth - VIEWPORT_MARGIN,
+    top: anchorRect?.top ?? viewportHeight - CONTROL_PANEL_BOTTOM - fallbackHeight,
+    bottom: anchorRect?.bottom ?? viewportHeight - CONTROL_PANEL_BOTTOM,
+    width: anchorRect?.width ?? fallbackWidth,
+    height: anchorRect?.height ?? fallbackHeight,
+  } as DOMRect;
+}
 
-  const positions: Array<{ x: number; y: number }> = [];
-  let currentX = anchorRight - CARD_WIDTH;
-  let currentY = anchorTop - CARD_HEIGHT - CARD_GAP;
+function getDefaultPositions(cardIds: OverlayCardId[], anchorRect: DOMRect | null) {
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1440;
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
+  const controlRect = getControlAnchorRect(anchorRect);
+  const copyX = clamp(
+    controlRect.right - COPY_BOARD_WIDTH,
+    VIEWPORT_MARGIN,
+    Math.max(VIEWPORT_MARGIN, viewportWidth - COPY_BOARD_WIDTH - VIEWPORT_MARGIN)
+  );
+  const copyY = clamp(
+    controlRect.bottom - COPY_BOARD_HEIGHT,
+    VIEWPORT_MARGIN,
+    Math.max(VIEWPORT_MARGIN, viewportHeight - COPY_BOARD_HEIGHT - VIEWPORT_MARGIN)
+  );
 
-  for (let index = 0; index < count; index += 1) {
-    if (currentX < VIEWPORT_MARGIN) {
-      currentX = anchorRight - CARD_WIDTH;
-      currentY -= CARD_HEIGHT + CARD_GAP;
+  const positions: Record<OverlayCardId, { x: number; y: number }> = {
+    [COPY_BOARD_CARD_ID]: { x: copyX, y: copyY },
+  };
+
+  const rowBottom = controlRect.bottom;
+  let currentX = copyX - CARD_GAP;
+  let currentRowBottom = rowBottom;
+
+  for (const cardId of cardIds) {
+    if (cardId === COPY_BOARD_CARD_ID) continue;
+    const { width, height } = getCardDimensions(cardId);
+    let nextX = currentX - width;
+    if (nextX < VIEWPORT_MARGIN) {
+      currentRowBottom -= NOTE_CARD_HEIGHT + CARD_GAP;
+      nextX = copyX - width;
     }
-    positions.push({
-      x: clamp(currentX, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportWidth - CARD_WIDTH - VIEWPORT_MARGIN)),
-      y: clamp(currentY, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportHeight - CARD_HEIGHT - VIEWPORT_MARGIN)),
-    });
-    currentX -= CARD_WIDTH + CARD_GAP;
+    positions[cardId] = {
+      x: nextX,
+      y: clamp(
+        currentRowBottom - height,
+        VIEWPORT_MARGIN,
+        Math.max(VIEWPORT_MARGIN, viewportHeight - height - VIEWPORT_MARGIN)
+      ),
+    };
+    currentX = nextX - CARD_GAP;
   }
 
   return positions;
@@ -248,8 +293,8 @@ function CopyBoardCard({
       style={{
         left: position.x,
         top: position.y,
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
+        width: COPY_BOARD_WIDTH,
+        height: COPY_BOARD_HEIGHT,
         zIndex,
       }}
       onMouseDown={() => onFocus(COPY_BOARD_CARD_ID)}
@@ -259,22 +304,21 @@ function CopyBoardCard({
           className="relative z-[1] flex cursor-move items-center justify-between border-b border-sky-200/80 bg-sky-50/90 px-3 py-2 dark:border-sky-700/40 dark:bg-sky-900/30"
           onPointerDown={(event) => onPointerDown(COPY_BOARD_CARD_ID, event)}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-[var(--text-primary)]">Copy Board</p>
-            <p className="text-[10px] font-medium text-[var(--text-secondary)]">Latest 5</p>
           </div>
           <div className="rounded-md border border-sky-300 bg-sky-100 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-300">
             {entries.length}/5
           </div>
         </div>
-        <div className="relative z-[1] grid h-[196px] grid-rows-5 gap-1.5 bg-[var(--bg-muted)]/70 px-3 py-2.5 dark:bg-slate-950/70">
+        <div className="relative z-[1] grid h-[146px] grid-rows-5 gap-1 bg-[var(--bg-muted)]/70 px-2.5 py-2 dark:bg-slate-950/70">
           {slots.map((entry, index) => (
             <button
               key={entry?.id ?? `empty-${index}`}
               type="button"
               disabled={!entry}
               onClick={() => entry && onPaste(entry)}
-              className={`flex w-full items-center gap-2 overflow-hidden rounded-xl border px-2.5 py-2 text-left transition ${
+              className={`flex w-full items-center gap-2 overflow-hidden rounded-xl border px-2 py-1 text-left transition ${
                 entry
                   ? "border-sky-200 bg-[var(--bg-surface)] hover:border-sky-400 hover:bg-sky-50/70 dark:border-sky-800/60 dark:bg-slate-950/80 dark:hover:border-sky-500/70 dark:hover:bg-slate-900"
                   : "cursor-default border-[var(--border-default)] bg-[var(--bg-surface)]/60 opacity-60 dark:border-slate-800/80 dark:bg-slate-950/30"
@@ -293,11 +337,6 @@ function CopyBoardCard({
                 }`}>
                   {entry ? entry.text.replace(/\s+/g, " ").trim() : "Empty"}
                 </span>
-                {entry ? (
-                  <span className="mt-0.5 block w-full truncate text-[10px] text-[var(--text-secondary)]">
-                    {entry.sourceLabel ?? "Copied text"}
-                  </span>
-                ) : null}
               </span>
             </button>
           ))}
@@ -329,8 +368,8 @@ function UrgentLogbookNoteCard({
       style={{
         left: position.x,
         top: position.y,
-        width: CARD_WIDTH,
-        minHeight: CARD_HEIGHT,
+        width: NOTE_CARD_WIDTH,
+        minHeight: NOTE_CARD_HEIGHT,
         zIndex,
       }}
       onMouseDown={() => onFocus(note.id)}
@@ -378,7 +417,7 @@ function UrgentLogbookNoteCard({
           <textarea
             value={note.body ?? ""}
             onChange={(event) => onBodyChange(note.id, event.target.value)}
-            className="min-h-[150px] w-full resize-none rounded-xl border border-rose-200/80 bg-white/90 px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400 dark:border-rose-900/60 dark:bg-slate-950/60"
+            className="min-h-[110px] w-full resize-none rounded-xl border border-rose-200/80 bg-white/90 px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400 dark:border-rose-900/60 dark:bg-slate-950/60"
             placeholder="Urgent note..."
             spellCheck={false}
           />
@@ -407,6 +446,7 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
   const [dragState, setDragState] = useState<DragState | null>(null);
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -546,13 +586,13 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
     if (!open) return;
     const missingIds = visibleCardIds.filter((cardId) => !positions[cardId]);
     if (missingIds.length === 0) return;
-    const anchorRect = buttonRef.current?.getBoundingClientRect() ?? null;
-    const defaultPositions = getDefaultPositions(visibleCardIds.length, anchorRect);
+    const anchorRect = panelRef.current?.getBoundingClientRect() ?? buttonRef.current?.getBoundingClientRect() ?? null;
+    const defaultPositions = getDefaultPositions(visibleCardIds, anchorRect);
     setPositions((prev) => {
       const next = { ...prev };
-      visibleCardIds.forEach((cardId, index) => {
+      visibleCardIds.forEach((cardId) => {
         if (!next[cardId]) {
-          next[cardId] = defaultPositions[index] ?? { x: VIEWPORT_MARGIN, y: VIEWPORT_MARGIN };
+          next[cardId] = defaultPositions[cardId] ?? { x: VIEWPORT_MARGIN, y: VIEWPORT_MARGIN };
         }
       });
       return next;
@@ -569,18 +609,10 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
   const openOverlay = useCallback(() => {
     void fetchNotes();
     refreshCopyBoardEntries();
-    const anchorRect = buttonRef.current?.getBoundingClientRect() ?? null;
-    const defaultPositions = getDefaultPositions(visibleCardIds.length, anchorRect);
-    const nextPositions: Record<string, { x: number; y: number }> = {};
-    const nextZIndexes: Record<string, number> = {};
-    visibleCardIds.forEach((cardId, index) => {
-      nextPositions[cardId] = defaultPositions[index] ?? { x: VIEWPORT_MARGIN, y: VIEWPORT_MARGIN };
-      nextZIndexes[cardId] = 10030 + index;
-    });
-    setPositions(nextPositions);
-    setZIndexes(nextZIndexes);
+    setPositions({});
+    setZIndexes({});
     setOpen(true);
-  }, [fetchNotes, refreshCopyBoardEntries, visibleCardIds]);
+  }, [fetchNotes, refreshCopyBoardEntries]);
 
   const closeOverlay = useCallback(() => {
     setOpen(false);
@@ -712,8 +744,9 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
     const handleMove = (event: PointerEvent) => {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const nextX = clamp(event.clientX - dragState.pointerOffsetX, 0, Math.max(0, viewportWidth - CARD_WIDTH));
-      const nextY = clamp(event.clientY - dragState.pointerOffsetY, 0, Math.max(0, viewportHeight - CARD_HEIGHT));
+      const { width, height } = getCardDimensions(dragState.noteId);
+      const nextX = clamp(event.clientX - dragState.pointerOffsetX, 0, Math.max(0, viewportWidth - width));
+      const nextY = clamp(event.clientY - dragState.pointerOffsetY, 0, Math.max(0, viewportHeight - height));
       setPositions((prev) => ({
         ...prev,
         [dragState.noteId]: { x: nextX, y: nextY },
@@ -768,7 +801,7 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
 
       {open && createPortal(
         <div id="urgent-logbook-overlay" className="pointer-events-none fixed inset-0 z-[10019]">
-          <div className="pointer-events-auto fixed bottom-16 right-4 z-[10021] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]/95 px-3 py-2 shadow-xl backdrop-blur">
+          <div ref={panelRef} className="pointer-events-auto fixed bottom-16 right-4 z-[10021] rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]/95 px-3 py-2 shadow-xl backdrop-blur">
             <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
               <span className={`inline-block h-2.5 w-2.5 rounded-full ${highestSeverity === "red" ? "bg-rose-500" : highestSeverity === "yellow" ? "bg-amber-400" : "bg-sky-500"}`} />
               <span>Urgent Logbook</span>
