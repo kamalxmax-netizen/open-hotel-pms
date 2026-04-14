@@ -3,7 +3,7 @@ import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
 import { clearPermissionCache, readPermissionCache, writePermissionCache } from "@/lib/middleware-permission-cache";
 
 // Routes that are always public (no auth required)
-const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/offline"];
 
 // Routes that should redirect authenticated users away
 const AUTH_ONLY_PATHS = ["/login"];

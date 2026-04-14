@@ -184,14 +184,26 @@ function applyCorrectionMovement(
 }
 
 function buildVoidedPaymentIdSet(
-  rows: Array<{ id?: string | null; void_of?: string | null }>
+  rows: Array<{ id?: string | null; void_of?: string | null }>,
+  laterVoidedOriginalIds: Set<string> = new Set<string>()
 ): Set<string> {
   const excluded = new Set<string>();
+  const scopedIds = new Set(
+    rows
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean)
+  );
+
+  for (const originalId of laterVoidedOriginalIds) {
+    if (originalId) excluded.add(originalId);
+  }
+
   for (const row of rows) {
     const reversalId = String(row.id ?? "").trim();
     const originalId = String(row.void_of ?? "").trim();
     if (!originalId) continue;
-    if (originalId) excluded.add(originalId);
+    if (!scopedIds.has(originalId)) continue;
+    excluded.add(originalId);
     if (reversalId) excluded.add(reversalId);
   }
   return excluded;
@@ -282,7 +294,26 @@ export async function getNightAuditPaymentTotals(
     pos_order_id?: string | null;
   }>;
 
-  const voidedPaymentIds = buildVoidedPaymentIdSet(rows);
+  const scopedPaymentIds = rows
+    .map((row) => String(row.id ?? "").trim())
+    .filter(Boolean);
+  const laterVoidedOriginalIds = new Set<string>();
+  if (scopedPaymentIds.length > 0) {
+    const { data: laterVoidRows, error: laterVoidError } = await supabase
+      .from("folio_payments")
+      .select("id, void_of")
+      .eq("is_void_reversal", true)
+      .in("void_of", scopedPaymentIds);
+    if (laterVoidError) {
+      throw new Error(laterVoidError.message);
+    }
+    for (const row of laterVoidRows ?? []) {
+      const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+      if (originalId) laterVoidedOriginalIds.add(originalId);
+    }
+  }
+
+  const voidedPaymentIds = buildVoidedPaymentIdSet(rows, laterVoidedOriginalIds);
   const methods = createMethodsMap();
 
   for (const row of rows) {

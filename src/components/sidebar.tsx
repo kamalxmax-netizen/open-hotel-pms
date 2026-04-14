@@ -105,24 +105,30 @@ const NAV_ITEMS = [
         ]
     },
     {
-        section: "Admin",
+        section: "Audit & Finance",
         items: [
-            { href: "/pms/training", label: "Training", icon: BookOpenIcon },
             { href: "/pms/night-audit", label: "Night Audit", icon: MoonIcon },
             { href: "/pms/audit", label: "Audit Explorer", icon: ListIcon },
-            { href: "/pms/admin/debug-logs", label: "Debug Logs", icon: BugIcon },
-            { href: "/pms/admin/corrections", label: "Admin Corrections", icon: WrenchIcon },
             { href: "/pms/audit/monthly", label: "Monthly Audit", icon: ListIcon },
+            { href: "/pms/admin/corrections", label: "Admin Corrections", icon: WrenchIcon },
+        ]
+    },
+    {
+        section: "System",
+        items: [
             { href: "/pms/settings", label: "Settings", icon: SettingsIcon },
             { href: "/pms/admin/settings", label: "System Settings", icon: SettingsIcon },
-            { href: "/pms/inventory/settings", label: "Inventory Settings", icon: PackageIcon },
-            { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
             { href: "/pms/setup/rooms", label: "Room Setup", icon: GridIcon },
             { href: "/pms/setup/rates", label: "Rate Setup", icon: RatesIcon },
             { href: "/pms/setup/guests", label: "Guest Setup", icon: GuestsIcon },
             { href: "/pms/setup/operations", label: "Operations Setup", icon: SettingsIcon },
             { href: "/pms/setup/room-blocks", label: "Room Blocks (OOO)", icon: HouseKeepingIcon },
+            { href: "/pms/inventory/settings", label: "Inventory Settings", icon: PackageIcon },
+            { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
             { href: "/pms/setup/permissions", label: "Permissions", icon: ShieldIcon },
+            { href: "/pms/admin/backup-status", label: "Backup Status", icon: BackupIcon },
+            { href: "/pms/training", label: "Training", icon: BookOpenIcon },
+            { href: "/pms/admin/debug-logs", label: "Debug Logs", icon: BugIcon },
             { href: "/pms/setup/bug-reports", label: "Bug Reports", icon: BugIcon },
         ]
     }
@@ -543,6 +549,14 @@ function FileTextIcon({ className }: { className?: string }) {
             <line x1="16" y1="13" x2="8" y2="13" />
             <line x1="16" y1="17" x2="8" y2="17" />
             <polyline points="10 9 9 9 8 9" />
+        </svg>
+    );
+}
+
+function BackupIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 100-2 1 1 0 000 2zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
         </svg>
     );
 }

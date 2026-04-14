@@ -259,13 +259,27 @@ function buildPolicyFeeDedupKey(row: PaymentRow): string {
   return `${reservationId}|${paidAt}|${method}|${amount}|${note}`;
 }
 
-function buildVoidedPaymentIdSet(rows: PaymentRow[]): Set<string> {
+function buildVoidedPaymentIdSet(
+  rows: PaymentRow[],
+  laterVoidedOriginalIds: Set<string> = new Set<string>()
+): Set<string> {
   const excluded = new Set<string>();
+  const scopedIds = new Set(
+    rows
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean)
+  );
+
+  for (const originalId of laterVoidedOriginalIds) {
+    if (originalId) excluded.add(originalId);
+  }
+
   for (const row of rows) {
     const reversalId = String(row.id ?? "").trim();
     const originalId = String(row.void_of ?? "").trim();
     if (!originalId) continue;
-    if (originalId) excluded.add(originalId);
+    if (!scopedIds.has(originalId)) continue;
+    excluded.add(originalId);
     if (reversalId) excluded.add(reversalId);
   }
   return excluded;
@@ -561,7 +575,25 @@ export async function GET(request: NextRequest) {
     }
     const folioPayments = (paymentsRes.data ?? []) as PaymentRow[];
     const paymentRowsForDay: PaymentRow[] = [...folioPayments];
-    const voidedPaymentIds = buildVoidedPaymentIdSet(paymentRowsForDay);
+    const scopedPaymentIds = paymentRowsForDay
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean);
+    const laterVoidedOriginalIds = new Set<string>();
+    if (scopedPaymentIds.length > 0) {
+      const { data: laterVoidRows, error: laterVoidError } = await supabase
+        .from("folio_payments")
+        .select("id, void_of")
+        .eq("is_void_reversal", true)
+        .in("void_of", scopedPaymentIds);
+      if (laterVoidError) {
+        return NextResponse.json({ success: false, error: laterVoidError.message }, { status: 500 });
+      }
+      for (const row of laterVoidRows ?? []) {
+        const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+        if (originalId) laterVoidedOriginalIds.add(originalId);
+      }
+    }
+    const voidedPaymentIds = buildVoidedPaymentIdSet(paymentRowsForDay, laterVoidedOriginalIds);
 
     const posDepositOrderIds = Array.from(
       new Set(
@@ -700,7 +732,25 @@ export async function GET(request: NextRequest) {
       }
 
       const priorRows = (priorPaymentsRes.data ?? []) as PaymentRow[];
-      const priorVoidedPaymentIds = buildVoidedPaymentIdSet(priorRows);
+      const priorPaymentIds = priorRows
+        .map((row) => String(row.id ?? "").trim())
+        .filter(Boolean);
+      const laterVoidedPriorIds = new Set<string>();
+      if (priorPaymentIds.length > 0) {
+        const { data: laterVoidRows, error: laterVoidError } = await supabase
+          .from("folio_payments")
+          .select("id, void_of")
+          .eq("is_void_reversal", true)
+          .in("void_of", priorPaymentIds);
+        if (laterVoidError) {
+          return NextResponse.json({ success: false, error: laterVoidError.message }, { status: 500 });
+        }
+        for (const row of laterVoidRows ?? []) {
+          const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+          if (originalId) laterVoidedPriorIds.add(originalId);
+        }
+      }
+      const priorVoidedPaymentIds = buildVoidedPaymentIdSet(priorRows, laterVoidedPriorIds);
       const priorNetByReservationId = new Map<string, number>();
       for (const row of priorRows) {
         const paymentId = String(row.id ?? "").trim();
@@ -792,6 +842,7 @@ export async function GET(request: NextRequest) {
 
     const policyExtraChargeKeys = new Set<string>();
     for (const payment of paymentRowsForDay) {
+      if (payment.is_void_reversal === true) continue;
       const txType = normalizeTxType(payment.tx_type);
       if (txType !== "payment") continue;
       const category = String(payment.revenue_category ?? "").trim().toLowerCase();
@@ -803,6 +854,9 @@ export async function GET(request: NextRequest) {
 
     for (const payment of paymentRowsForDay) {
       if (voidedPaymentIds.has(String(payment.id ?? "").trim())) {
+        continue;
+      }
+      if (payment.is_void_reversal === true) {
         continue;
       }
       const reservationId = payment.reservation_id ? String(payment.reservation_id) : "";

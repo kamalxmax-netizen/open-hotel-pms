@@ -1484,7 +1484,7 @@ export interface VehicleSummary {
   description?: string | null;
 }
 
-// ── Phase 65: Backup & Disaster Recovery ──────────────────────
+// ── Phase 58: Backup & Disaster Recovery ──────────────────────
 
 export type BackupLogType = 'daily_cloud' | 'offline_snapshot';
 export type BackupLogStatus = 'started' | 'success' | 'failed';
