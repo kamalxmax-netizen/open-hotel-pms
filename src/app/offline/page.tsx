@@ -34,12 +34,22 @@ type BackupConfigPublic = {
   updated_at: string;
   pin_hash: string | null;
   has_pin: boolean;
+  device_pairing_required: boolean;
+};
+
+type DevicePairResponse = {
+  device_id: string;
+  device_name: string;
+  device_token: string;
+  paired_at: string;
 };
 
 type Tab = "arrivals" | "inhouse" | "departures" | "rooms";
 
 const PIN_HASH_CACHE_KEY = "pms_offline_pin_hash";
 const SNAPSHOT_CACHE_KEY = "pms_offline_snapshot";
+const DEVICE_TOKEN_CACHE_KEY = "pms_offline_device_token";
+const DEVICE_NAME_CACHE_KEY = "pms_offline_device_name";
 const SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -54,13 +64,27 @@ export default function OfflinePage() {
   const [isLocked, setIsLocked] = useState(true);
   const [pin, setPin] = useState("");
   const [unlockPin, setUnlockPin] = useState<string | null>(null);
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+  const [registeredDeviceName, setRegisteredDeviceName] = useState<string | null>(null);
+  const [pairingToken, setPairingToken] = useState("");
+  const [pairingDeviceName, setPairingDeviceName] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("arrivals");
   const [isOnline, setIsOnline] = useState(false);
   const [snapshot, setSnapshot] = useState<OfflineSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPairing, setIsPairing] = useState(false);
   const lastSyncAtRef = useRef<number | null>(null);
+
+  const isPaired = Boolean(deviceToken);
+
+  const refreshPinCache = async () => {
+    const config = await readJson<BackupConfigPublic>(await fetch("/api/backup/config", { cache: "no-store" }));
+    if (typeof window !== "undefined" && config.pin_hash) {
+      window.localStorage.setItem(PIN_HASH_CACHE_KEY, config.pin_hash);
+    }
+  };
 
   useEffect(() => {
     const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -75,7 +99,8 @@ export default function OfflinePage() {
           window.localStorage.removeItem(SNAPSHOT_CACHE_KEY);
         }
       }
-
+      setDeviceToken(window.localStorage.getItem(DEVICE_TOKEN_CACHE_KEY));
+      setRegisteredDeviceName(window.localStorage.getItem(DEVICE_NAME_CACHE_KEY));
     }
 
     const handleOnline = () => setIsOnline(true);
@@ -110,10 +135,14 @@ export default function OfflinePage() {
     return () => {
       cancelled = true;
     };
-  }, [isOnline]);
+  }, [isOnline, deviceToken]);
 
   const syncSnapshot = async (providedPin: string, options?: { silent?: boolean }) => {
     if (!providedPin) return;
+    if (!deviceToken) {
+      setError("This device has not been paired yet.");
+      return;
+    }
     if (!options?.silent) {
       setError(null);
       setSyncMessage(null);
@@ -125,6 +154,7 @@ export default function OfflinePage() {
           cache: "no-store",
           headers: {
             "x-offline-pin": providedPin,
+            "x-offline-device-token": deviceToken,
           },
         })
       );
@@ -157,11 +187,57 @@ export default function OfflinePage() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [isLocked, isOnline, unlockPin]);
+  }, [deviceToken, isLocked, isOnline, unlockPin]);
+
+  const handlePairDevice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setSyncMessage(null);
+
+    if (!isOnline) {
+      setError("This device must be online for first-time pairing.");
+      return;
+    }
+
+    setIsPairing(true);
+    try {
+      const data = await readJson<DevicePairResponse>(
+        await fetch("/api/backup/device-pair", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            pairing_token: pairingToken,
+            device_name: pairingDeviceName.trim() || undefined,
+          }),
+        })
+      );
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(DEVICE_TOKEN_CACHE_KEY, data.device_token);
+        window.localStorage.setItem(DEVICE_NAME_CACHE_KEY, data.device_name);
+      }
+
+      setDeviceToken(data.device_token);
+      setRegisteredDeviceName(data.device_name);
+      setPairingToken("");
+      setPairingDeviceName(data.device_name);
+      await refreshPinCache();
+      setSyncMessage(`Device paired as ${data.device_name}. Enter the offline PIN to continue.`);
+    } catch (pairError) {
+      setError(pairError instanceof Error ? pairError.message : "Failed to pair this device.");
+    } finally {
+      setIsPairing(false);
+    }
+  };
 
   const handleUnlock = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+
+    if (!deviceToken) {
+      setError("This device must be paired before offline access is allowed.");
+      return;
+    }
 
     const cachedPinHash =
       typeof window !== "undefined" ? window.localStorage.getItem(PIN_HASH_CACHE_KEY) : null;
@@ -211,6 +287,66 @@ export default function OfflinePage() {
   }, [snapshot?.id, isOnline]);
 
   if (isLocked) {
+    if (!isPaired) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-body)] p-4">
+          <div className="card w-full max-w-md space-y-6 p-8 text-center shadow-xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+              <LockIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Pair This Device First</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Enter the one-time pairing token from the Backup page. After pairing, this browser becomes an allowed
+                offline device and can use the normal PIN flow.
+              </p>
+            </div>
+
+            <form onSubmit={handlePairDevice} className="space-y-4 text-left">
+              <div>
+                <label className="form-label">Device Label</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="FO Front Desk PC"
+                  value={pairingDeviceName}
+                  onChange={(event) => setPairingDeviceName(event.target.value)}
+                  disabled={isPairing}
+                />
+              </div>
+              <div>
+                <label className="form-label">Pairing Token</label>
+                <input
+                  type="text"
+                  className="form-input font-mono"
+                  placeholder="Paste token from Backup page"
+                  value={pairingToken}
+                  onChange={(event) => setPairingToken(event.target.value.trim())}
+                  disabled={isPairing}
+                  autoFocus
+                />
+              </div>
+
+              {error ? <p className="text-sm font-medium text-rose-500">{error}</p> : null}
+              {syncMessage ? <p className="text-sm font-medium text-emerald-500">{syncMessage}</p> : null}
+
+              <button
+                type="submit"
+                className="btn-primary h-12 w-full text-lg"
+                disabled={!isOnline || isPairing || pairingToken.length < 8}
+              >
+                {isPairing ? "Pairing..." : "Pair This Device"}
+              </button>
+            </form>
+
+            <div className="border-t pt-4 text-[10px] text-[var(--text-muted)]">
+              System Status: {isOnline ? "Online" : "Offline"} | Pairing requires an online connection
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg-body)] p-4">
         <div className="card w-full max-w-sm space-y-6 p-8 text-center shadow-xl">
@@ -220,7 +356,8 @@ export default function OfflinePage() {
           <div>
             <h2 className="text-xl font-bold">Offline Access Required</h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Enter your 4-digit PIN to access the emergency viewer.
+              Enter your 4-digit PIN to access the emergency viewer on{" "}
+              <strong>{registeredDeviceName ?? "this paired device"}</strong>.
             </p>
           </div>
           <form onSubmit={handleUnlock} className="space-y-4">
@@ -239,7 +376,7 @@ export default function OfflinePage() {
             </button>
           </form>
           <div className="border-t pt-4 text-[10px] text-[var(--text-muted)]">
-            System Status: {isOnline ? "Online" : "Offline"}
+            System Status: {isOnline ? "Online" : "Offline"} | Device: {registeredDeviceName ?? "Paired"}
           </div>
         </div>
       </div>
@@ -262,6 +399,9 @@ export default function OfflinePage() {
             <h1 className="text-2xl font-bold tracking-tight">Emergency Operations Viewer</h1>
             <p className="text-sm text-[var(--text-secondary)]">
               Read-only operational data for front desk use during connectivity or Supabase outages.
+            </p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Paired device: <strong>{registeredDeviceName ?? "Unknown device"}</strong>
             </p>
           </div>
           <button onClick={handleLock} className="btn-secondary btn-sm">

@@ -56,6 +56,7 @@ export async function PATCH(request: NextRequest) {
         updated_at: config.updated_at,
         pin_hash: config.offline_pin,
         has_pin: Boolean(config.offline_pin),
+        device_pairing_required: true,
       },
     });
   } catch (error) {

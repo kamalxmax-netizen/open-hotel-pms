@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BackupLog } from "@/lib/types";
 import { BackupStatusCards } from "@/components/backup/backup-status-cards";
 import { BackupHistoryTable } from "@/components/backup/backup-history-table";
+import { DevicePairingTokenCard } from "@/components/backup/device-pairing-token-card";
 import { OfflinePinSetup } from "@/components/backup/offline-pin-setup";
 
 type BackupStatusResponse = {
@@ -12,6 +13,7 @@ type BackupStatusResponse = {
     r2_bucket: string;
     updated_at: string;
     has_pin: boolean;
+    device_pairing_required: boolean;
   };
   pin_hash: string | null;
   latest_cloud_backup: BackupLog | null;
@@ -104,6 +106,24 @@ export default function BackupStatusPage() {
     setNotice("Offline PIN updated.");
   };
 
+  const handleGeneratePairingToken = async (input: {
+    device_name?: string;
+    expires_in_minutes?: number;
+  }) => {
+    const response = await fetch("/api/backup/device-token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await readJson<{
+      pairing_token: string;
+      device_name: string;
+      expires_at: string;
+    }>(response);
+    setNotice(`Pairing token generated for ${data.device_name}.`);
+    return data;
+  };
+
   const handleTriggerBackup = async (action: "daily_cloud" | "offline_snapshot") => {
     setPageError(null);
     setNotice(null);
@@ -189,6 +209,8 @@ export default function BackupStatusPage() {
             onUpdate={handleUpdatePin}
             viewerUrl="/offline"
           />
+
+          <DevicePairingTokenCard onGenerate={handleGeneratePairingToken} />
 
           <div className="card border-rose-200 bg-rose-50/30 p-5 dark:border-rose-900/30 dark:bg-rose-950/10">
             <h4 className="mb-2 text-sm font-bold text-rose-800 dark:text-rose-300">Emergency Recovery</h4>

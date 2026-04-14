@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import {
   DeleteObjectsCommand,
@@ -138,12 +138,26 @@ export type BackupStatusPayload = {
     r2_bucket: string;
     updated_at: string;
     has_pin: boolean;
+    device_pairing_required: boolean;
   };
   pin_hash: string | null;
   latest_cloud_backup: BackupLogRow | null;
   latest_offline_sync: BackupLogRow | null;
   history: BackupLogRow[];
   storage: BackupStorageSummary;
+};
+
+export type PairingTokenIssueResult = {
+  pairing_token: string;
+  device_name: string;
+  expires_at: string;
+};
+
+export type DevicePairingResult = {
+  device_id: string;
+  device_name: string;
+  device_token: string;
+  paired_at: string;
 };
 
 export type DailyBackupRunResult = {
@@ -339,6 +353,17 @@ function toRoomSortKey(roomNumber: string): string {
 
 function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function createOpaqueToken(byteLength = 32): string {
+  return randomBytes(byteLength).toString("hex");
+}
+
+function normalizeDeviceName(value: string | null | undefined, fallback = "FO Device"): string {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+  return normalized ? normalized.slice(0, 80) : fallback;
 }
 
 function parseObjectDate(key: string): string | null {
@@ -945,6 +970,141 @@ export async function verifyOfflinePin(
   return timingSafeEqual(provided, expected);
 }
 
+async function verifyTrustedDeviceToken(
+  supabase: SupabaseServerClient,
+  rawDeviceToken: string
+): Promise<{ id: string; device_name: string }> {
+  const tokenHash = hashValue(rawDeviceToken.trim());
+  const { data, error } = await supabase
+    .from("backup_trusted_devices")
+    .select("id, device_name")
+    .eq("device_token_hash", tokenHash)
+    .is("revoked_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data?.id) {
+    throw new BackupHttpError(403, "This device is not paired for offline sync");
+  }
+
+  await supabase
+    .from("backup_trusted_devices")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("id", data.id);
+
+  return {
+    id: String(data.id),
+    device_name: normalizeDeviceName(data.device_name, "FO Device"),
+  };
+}
+
+export async function issueBackupPairingToken(
+  supabase: SupabaseServerClient,
+  params: {
+    device_name?: string | null;
+    expires_in_minutes?: number;
+    created_by_user_id?: string | null;
+  }
+): Promise<PairingTokenIssueResult> {
+  const pairingToken = createOpaqueToken(16);
+  const expiresInMinutes = Math.max(5, Math.min(24 * 60, Number(params.expires_in_minutes ?? 30)));
+  const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
+  const deviceName = normalizeDeviceName(params.device_name, "FO Device");
+
+  const { error } = await supabase.from("backup_pairing_tokens").insert({
+    token_hash: hashValue(pairingToken),
+    device_name: deviceName,
+    expires_at: expiresAt,
+    created_by_user_id: params.created_by_user_id ?? null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    pairing_token: pairingToken,
+    device_name: deviceName,
+    expires_at: expiresAt,
+  };
+}
+
+export async function pairOfflineDevice(
+  supabase: SupabaseServerClient,
+  params: {
+    pairing_token: string;
+    device_name?: string | null;
+    user_agent?: string | null;
+  }
+): Promise<DevicePairingResult> {
+  const pairingToken = String(params.pairing_token ?? "").trim();
+  if (!pairingToken) {
+    throw new BackupHttpError(400, "Pairing token is required");
+  }
+
+  const { data: tokenRow, error: tokenError } = await supabase
+    .from("backup_pairing_tokens")
+    .select("id, device_name, expires_at, used_at")
+    .eq("token_hash", hashValue(pairingToken))
+    .maybeSingle();
+
+  if (tokenError) {
+    throw new Error(tokenError.message);
+  }
+  if (!tokenRow?.id) {
+    throw new BackupHttpError(404, "Pairing token not found");
+  }
+  if (tokenRow.used_at) {
+    throw new BackupHttpError(409, "Pairing token has already been used");
+  }
+  if (new Date(String(tokenRow.expires_at)).getTime() < Date.now()) {
+    throw new BackupHttpError(410, "Pairing token has expired");
+  }
+
+  const deviceToken = createOpaqueToken(24);
+  const deviceName = normalizeDeviceName(params.device_name, tokenRow.device_name);
+  const pairedAt = new Date().toISOString();
+
+  const { data: deviceRow, error: deviceError } = await supabase
+    .from("backup_trusted_devices")
+    .insert({
+      device_name: deviceName,
+      device_token_hash: hashValue(deviceToken),
+      paired_via_token_id: tokenRow.id,
+      user_agent: params.user_agent ? String(params.user_agent).slice(0, 255) : null,
+      paired_at: pairedAt,
+      last_seen_at: pairedAt,
+    })
+    .select("id, device_name, paired_at")
+    .maybeSingle();
+
+  if (deviceError) {
+    throw new Error(deviceError.message);
+  }
+  if (!deviceRow?.id) {
+    throw new Error("Failed to pair this device");
+  }
+
+  const { error: updateError } = await supabase
+    .from("backup_pairing_tokens")
+    .update({ used_at: pairedAt })
+    .eq("id", tokenRow.id)
+    .is("used_at", null);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return {
+    device_id: String(deviceRow.id),
+    device_name: normalizeDeviceName(deviceRow.device_name, deviceName),
+    device_token: deviceToken,
+    paired_at: String(deviceRow.paired_at ?? pairedAt),
+  };
+}
+
 export async function authorizeOfflineSnapshotRequest(
   supabase: SupabaseServerClient,
   request: NextRequest
@@ -958,6 +1118,15 @@ export async function authorizeOfflineSnapshotRequest(
   const headerPin = String(request.headers.get("x-offline-pin") ?? "").trim();
   const queryPin = String(request.nextUrl.searchParams.get("pin") ?? "").trim();
   const rawPin = headerPin || queryPin;
+  const headerDeviceToken = String(request.headers.get("x-offline-device-token") ?? "").trim();
+  const queryDeviceToken = String(request.nextUrl.searchParams.get("device_token") ?? "").trim();
+  const rawDeviceToken = headerDeviceToken || queryDeviceToken;
+
+  if (!rawDeviceToken) {
+    throw new BackupHttpError(401, "Paired device token required");
+  }
+
+  await verifyTrustedDeviceToken(supabase, rawDeviceToken);
 
   if (!rawPin) {
     throw new BackupHttpError(401, "Offline PIN required");
@@ -979,6 +1148,7 @@ export async function getBackupConfigPublicPayload(
   updated_at: string;
   pin_hash: string | null;
   has_pin: boolean;
+  device_pairing_required: boolean;
 }> {
   const config = await ensureBackupConfig(supabase);
   return {
@@ -987,6 +1157,7 @@ export async function getBackupConfigPublicPayload(
     updated_at: config.updated_at,
     pin_hash: config.offline_pin,
     has_pin: Boolean(config.offline_pin),
+    device_pairing_required: true,
   };
 }
 
@@ -1071,6 +1242,7 @@ export async function getBackupStatus(supabase: SupabaseServerClient): Promise<B
       r2_bucket: config.r2_bucket,
       updated_at: config.updated_at,
       has_pin: Boolean(config.offline_pin),
+      device_pairing_required: true,
     },
     pin_hash: config.offline_pin,
     latest_cloud_backup: history.find((row) => row.backup_type === "daily_cloud") ?? null,
