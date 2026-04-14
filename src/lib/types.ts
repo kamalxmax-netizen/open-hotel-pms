@@ -1483,3 +1483,54 @@ export interface VehicleSummary {
   title?: string;
   description?: string | null;
 }
+
+// ── Phase 65: Backup & Disaster Recovery ──────────────────────
+
+export type BackupLogType = 'daily_cloud' | 'offline_snapshot';
+export type BackupLogStatus = 'started' | 'success' | 'failed';
+
+export interface BackupLog {
+  id: string;
+  backup_type: BackupLogType;
+  status: BackupLogStatus;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  record_count: number | null;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface BackupSnapshot {
+  id: string;
+  snapshot_date: string;
+  snapshot_data: {
+    generated_at: string;
+    date_range: { from: string; to: string };
+    rooms: Array<{ id: string; room_number: string; room_type: string; floor: number }>;
+    reservations: Array<{
+      id: string;
+      booking_code: string | null;
+      guest_name: string | null;
+      guest_phone: string | null;
+      room_number: string | null;
+      checkin_date: string;
+      checkout_date: string;
+      status: string;
+      adults: number;
+      children: number;
+    }>;
+    hk_status: Array<{ room_id: string; room_number: string; status: string; maid_name: string | null }>;
+  };
+  record_count: number;
+  created_at: string;
+}
+
+export interface BackupConfig {
+  id: number;
+  offline_pin: string | null;
+  r2_bucket: string;
+  retention_days: number;
+  updated_at: string;
+}

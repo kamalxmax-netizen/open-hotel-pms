@@ -65,6 +65,7 @@ type LinkedCheckoutContext = {
     fullCheckinDate: string;
     fullCheckoutDate: string;
     fallbackPrimaryGuestProfileId: string | null;
+    shouldApplyGuestCounters: boolean;
 };
 
 function diffStayNights(checkinDate: string, checkoutDate: string): number {
@@ -94,6 +95,14 @@ async function loadLinkedCheckoutContext(
     supabase: ReturnType<typeof createServerSupabaseClient>,
     reservation: CheckoutReservationRow
 ): Promise<LinkedCheckoutContext> {
+    const fallbackRow = {
+        id: String(reservation.id),
+        parent_reservation_id: reservation.parent_reservation_id ?? null,
+        status: String(reservation.status ?? ""),
+        guest_profile_id: reservation.guest_profile_id ?? null,
+        checkin_date: reservation.checkin_date ?? null,
+        checkout_date: reservation.checkout_date ?? null,
+    };
     const rootReservationId = reservation.parent_reservation_id ? String(reservation.parent_reservation_id) : String(reservation.id);
     const { data, error } = await supabase
         .from("reservations")
@@ -124,23 +133,23 @@ async function loadLinkedCheckoutContext(
             String(left.id).localeCompare(String(right.id))
         );
 
-    const scopedRows = rows.length > 0 ? rows : [{
-        id: String(reservation.id),
-        parent_reservation_id: reservation.parent_reservation_id ?? null,
-        status: String(reservation.status ?? ""),
-        guest_profile_id: reservation.guest_profile_id ?? null,
-        checkin_date: reservation.checkin_date ?? null,
-        checkout_date: reservation.checkout_date ?? null,
-    }];
+    const scopedRows = rows.length > 0 ? rows : [fallbackRow];
+    const currentIndex = scopedRows.findIndex((row) => row.id === String(reservation.id));
+    const currentRow = currentIndex >= 0 ? scopedRows[currentIndex] : fallbackRow;
+    const isTerminalSegment = currentIndex >= 0 ? currentIndex === scopedRows.length - 1 : true;
+    const counterScopeRows = isTerminalSegment
+        ? (currentIndex >= 0 ? scopedRows.slice(0, currentIndex + 1) : [currentRow])
+        : [currentRow];
+    const activeReservationIds = counterScopeRows.filter((row) => row.status === "active").map((row) => row.id);
 
-    const activeReservationIds = scopedRows.filter((row) => row.status === "active").map((row) => row.id);
     return {
-        allReservationIds: scopedRows.map((row) => row.id),
+        allReservationIds: counterScopeRows.map((row) => row.id),
         activeReservationIds: activeReservationIds.length > 0 ? activeReservationIds : [String(reservation.id)],
-        fullCheckinDate: minDate(scopedRows.map((row) => row.checkin_date), String(reservation.checkin_date ?? "")),
-        fullCheckoutDate: maxDate(scopedRows.map((row) => row.checkout_date), String(reservation.checkout_date ?? "")),
+        fullCheckinDate: minDate(counterScopeRows.map((row) => row.checkin_date), String(reservation.checkin_date ?? "")),
+        fullCheckoutDate: maxDate(counterScopeRows.map((row) => row.checkout_date), String(reservation.checkout_date ?? "")),
         fallbackPrimaryGuestProfileId:
-            reservation.guest_profile_id ? String(reservation.guest_profile_id) : scopedRows.find((row) => row.guest_profile_id)?.guest_profile_id ?? null,
+            reservation.guest_profile_id ? String(reservation.guest_profile_id) : counterScopeRows.find((row) => row.guest_profile_id)?.guest_profile_id ?? null,
+        shouldApplyGuestCounters: isTerminalSegment,
     };
 }
 
@@ -538,7 +547,9 @@ export async function POST(
 
         let checkoutCounterResult: { mode: "v2" | "legacy" | "none"; updated_profiles: number } | null = null;
         try {
-            const counterAlreadyApplied = await hasLinkedCheckoutCounterAudit(supabase, linkedCheckoutContext.allReservationIds);
+            const counterAlreadyApplied = linkedCheckoutContext.shouldApplyGuestCounters
+                ? await hasLinkedCheckoutCounterAudit(supabase, linkedCheckoutContext.allReservationIds)
+                : true;
             checkoutCounterResult = counterAlreadyApplied
                 ? { mode: "none", updated_profiles: 0 }
                 : await applyGuestCheckoutCounters({
