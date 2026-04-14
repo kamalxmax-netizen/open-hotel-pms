@@ -14,6 +14,7 @@ export default function AdminSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [triggering, setTriggering] = useState(false);
     const [applying, setApplying] = useState(false);
+    const [previewing, setPreviewing] = useState(false);
     
     const [retentionDays, setRetentionDays] = useState("30");
     const [gasSyncEnabled, setGasSyncEnabled] = useState(true);
@@ -167,7 +168,7 @@ export default function AdminSettingsPage() {
         setError("");
         setSuccessMsg("");
         try {
-            const res = await fetch("/api/admin/settings?apply_existing=true", {
+            const res = await fetch("/api/admin/settings/apply-retention", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -178,13 +179,39 @@ export default function AdminSettingsPage() {
             if (!res.ok || !data.success) {
                 throw new Error(data.error || "Failed to apply to existing");
             }
-            setSuccessMsg(`Applied retention policy to ${data.total_updated || data.updated_count || 0} existing scans.`);
+            setSuccessMsg(`Applied retention policy to ${data.recalculated_count || 0} existing scans.`);
             fetchData();
             setTimeout(() => setSuccessMsg(""), 5000);
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred");
         } finally {
             setApplying(false);
+        }
+    };
+
+    const handleDryRunRetention = async () => {
+        setPreviewing(true);
+        setError("");
+        setSuccessMsg("");
+        try {
+            const res = await fetch("/api/admin/settings/apply-retention", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    retention_days: parseInt(retentionDays, 10),
+                    dry_run: true
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to preview retention cleanup");
+            }
+            setSuccessMsg(`Dry run: ${data.would_delete_count || 0} scans would be deleted with a ${data.retention_days}-day policy.`);
+            setTimeout(() => setSuccessMsg(""), 5000);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "An error occurred");
+        } finally {
+            setPreviewing(false);
         }
     };
 
@@ -359,6 +386,14 @@ export default function AdminSettingsPage() {
                                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Retroactive Policy Update</h3>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">Recalculate expiration dates for all {stats.total_uncleaned} pending scans using the {retentionDays}-day policy.</p>
                             </div>
+                            <Button 
+                                variant="outline" 
+                                onClick={handleDryRunRetention} 
+                                disabled={previewing || stats.total_uncleaned === 0}
+                                className="w-full justify-center h-10 border-dashed border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                            >
+                                {previewing ? "Running Dry Run..." : `Dry Run ${retentionDays}-Day Policy`}
+                            </Button>
                             <Button 
                                 variant="outline" 
                                 onClick={handleApplyExisting} 

@@ -207,7 +207,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 function isAvailableForToday(room: ApiRoom): boolean {
-    return room.sellable && room.diary_state === "available";
+    return room.sellable && (room.diary_state === "available" || room.diary_state === "due_out");
 }
 
 function matchesFilter(room: ApiRoom, f: FilterKey): boolean {

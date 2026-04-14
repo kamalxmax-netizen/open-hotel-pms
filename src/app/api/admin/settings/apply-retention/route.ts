@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   retention_days: z.number().int().min(7).max(90).optional(),
+  dry_run: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -30,6 +31,29 @@ export async function POST(request: NextRequest) {
     const retentionDays = clampPassportRetentionDays(
       Number(parsed.data.retention_days ?? configuredDays)
     );
+
+    if (parsed.data.dry_run) {
+      const threshold = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+      const { count, error } = await auth.supabase
+        .from("passport_scans")
+        .select("id", { count: "exact", head: true })
+        .lt("created_at", threshold)
+        .not("image_path", "is", null)
+        .is("cleaned_at", null);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return NextResponse.json({
+        success: true,
+        dry_run: true,
+        retention_days: retentionDays,
+        threshold_created_at: threshold,
+        would_delete_count: Number(count ?? 0),
+      });
+    }
+
     const recalculatedCount = await applyPassportRetentionToExistingScans({
       supabase: auth.supabase,
       retentionDays,

@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const functionUrl = process.env.SUPABASE_CLEANUP_FUNCTION_URL;
-  const functionSecret = process.env.SUPABASE_CLEANUP_FUNCTION_SECRET;
+  const functionSecret =
+    process.env.CLEANUP_FUNCTION_SECRET ?? process.env.SUPABASE_CLEANUP_FUNCTION_SECRET;
   if (!functionUrl || !functionSecret) {
     return NextResponse.json(
       {
         success: false,
         error:
-          "Missing SUPABASE_CLEANUP_FUNCTION_URL or SUPABASE_CLEANUP_FUNCTION_SECRET.",
+          "Missing SUPABASE_CLEANUP_FUNCTION_URL or CLEANUP_FUNCTION_SECRET.",
       },
       { status: 500 }
     );

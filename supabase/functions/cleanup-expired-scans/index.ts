@@ -18,8 +18,16 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
+function getConfiguredSecret(): string {
+  return (
+    Deno.env.get("CLEANUP_FUNCTION_SECRET") ??
+    Deno.env.get("SUPABASE_CLEANUP_FUNCTION_SECRET") ??
+    ""
+  );
+}
+
 function isAuthorized(req: Request): boolean {
-  const expected = Deno.env.get("SUPABASE_CLEANUP_FUNCTION_SECRET") ?? "";
+  const expected = getConfiguredSecret();
   if (!expected) return true;
 
   const authHeader = req.headers.get("authorization") ?? "";
