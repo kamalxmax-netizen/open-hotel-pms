@@ -385,6 +385,7 @@ export async function POST(request: NextRequest) {
                 no_show_fee_total: Math.round(noShowFeeTotal * 100) / 100,
                 dayuse_revenue: Math.round(dayuseRevenue * 100) / 100,
                 dayuse_sessions: dayuseSessions,
+                is_eod_closed: true,
                 eod_run_at: new Date().toISOString(),
                 notes: notes ?? null
             }, { onConflict: "business_date" });

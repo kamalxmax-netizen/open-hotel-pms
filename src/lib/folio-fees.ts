@@ -85,7 +85,28 @@ export async function assertBusinessDayOpen(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   targetDate: string
 ) {
-  const { data, error } = await supabase
+  const closedByFlag = await supabase
+    .from("daily_snapshots")
+    .select("business_date, is_eod_closed")
+    .gte("business_date", targetDate)
+    .eq("is_eod_closed", true)
+    .order("business_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!closedByFlag.error) {
+    if (closedByFlag.data?.business_date) {
+      throw new Error("Business day already closed. Use reversal.");
+    }
+    return;
+  }
+
+  const message = String(closedByFlag.error.message ?? "").toLowerCase();
+  if (!message.includes("is_eod_closed")) {
+    throw new Error(closedByFlag.error.message);
+  }
+
+  const legacyResult = await supabase
     .from("daily_snapshots")
     .select("business_date")
     .gte("business_date", targetDate)
@@ -93,8 +114,8 @@ export async function assertBusinessDayOpen(
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
-  if (data?.business_date) {
+  if (legacyResult.error) throw new Error(legacyResult.error.message);
+  if (legacyResult.data?.business_date) {
     throw new Error("Business day already closed. Use reversal.");
   }
 }
