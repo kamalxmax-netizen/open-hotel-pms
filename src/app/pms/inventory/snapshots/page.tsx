@@ -21,8 +21,9 @@ export default function DailySnapshotPage() {
   const [modeFilter, setModeFilter] = useState<"all" | StockTrackingMode>("all");
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecomputing, setIsRecomputing] = useState(false);
   const [data, setData] = useState<StockSnapshotResponse | null>(null);
-  
+
   const [selectedProduct, setSelectedProduct] = useState<StockSnapshotRow | null>(null);
   const [timeline, setTimeline] = useState<StockSnapshotTxEntry[]>([]);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
@@ -58,6 +59,49 @@ export default function DailySnapshotPage() {
   useEffect(() => {
     fetchSnapshot();
   }, [fetchSnapshot]);
+
+  const recomputeSnapshot = useCallback(async () => {
+    const defaultNote = `Admin manual recompute ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
+    const note = typeof window !== "undefined"
+      ? window.prompt(
+          `Recompute stock snapshot for ${businessDate}?\n\nThis re-aggregates stock_transactions_v2 for this date and overwrites the stored snapshot.\n\nNote (required, min 1 char):`,
+          defaultNote,
+        )
+      : defaultNote;
+
+    if (note == null) return; // user cancelled
+    const trimmed = note.trim();
+    if (!trimmed) {
+      toast({ title: "Note required", description: "Please provide a short reason.", variant: "destructive" });
+      return;
+    }
+
+    setIsRecomputing(true);
+    try {
+      const res = await fetch(`/api/inventory/snapshots/${businessDate}/recompute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: trimmed }),
+      });
+      const apiData = await res.json();
+      if (!res.ok || !apiData.success) {
+        throw new Error(apiData.error || `Recompute failed (HTTP ${res.status})`);
+      }
+      toast({
+        title: "Snapshot recomputed",
+        description: `${apiData.products_computed ?? 0} product(s), ${apiData.variance_count ?? 0} with variance.`,
+      });
+      await fetchSnapshot();
+    } catch (err) {
+      toast({
+        title: "Recompute failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecomputing(false);
+    }
+  }, [businessDate, fetchSnapshot, toast]);
 
   const loadTimeline = useCallback(async (productId: string) => {
     setIsLoadingTimeline(true);
@@ -108,7 +152,7 @@ export default function DailySnapshotPage() {
 
       <SnapshotSummaryCards summary={data?.summary || null} />
 
-      <SnapshotFilterBar 
+      <SnapshotFilterBar
         businessDate={businessDate}
         setBusinessDate={setBusinessDate}
         categoryFilter={categoryFilter}
@@ -116,7 +160,9 @@ export default function DailySnapshotPage() {
         modeFilter={modeFilter}
         setModeFilter={setModeFilter}
         onRefresh={fetchSnapshot}
+        onRecompute={recomputeSnapshot}
         isLoading={isLoading}
+        isRecomputing={isRecomputing}
       />
 
       {isLoading && !data ? (

@@ -222,11 +222,29 @@ export async function getStockReconcileStatus(supabase: SupabaseServerClient, bu
     }));
 
   const acknowledgments = (detail.summary.acknowledgments ?? {}) as Partial<Record<StockSnapshotSection, any>>;
-  const needsAck =
-    posVarianceCount > 0 ||
-    pendingBatchIds.length > 0 ||
-    staleFloors.length > 0;
-  const allSectionsAcked = ["pos", "amenity_prepare", "amenity_direct"].every((section) => acknowledgments[section as StockSnapshotSection]);
+
+  // Only the sections that actually have a variance/pending/stale condition need an
+  // explicit acknowledgment. A section that was clean from the start should not
+  // require a user click to pass the Night Audit gate.
+  //
+  // Phase 65 hotfix 2026-04-15 — previous logic required ack entries for all three
+  // sections which left the "Next" button permanently disabled whenever any section
+  // was already clean (because clean sections never get acked).
+  const sectionsNeedingAck: StockSnapshotSection[] = [];
+  if (posVarianceCount > 0) sectionsNeedingAck.push("pos");
+  if (pendingBatchIds.length > 0) sectionsNeedingAck.push("amenity_prepare");
+  if (staleFloors.length > 0) sectionsNeedingAck.push("amenity_direct");
+
+  const needsAck = sectionsNeedingAck.length > 0;
+  const allRequiredSectionsAcked = sectionsNeedingAck.every(
+    (section) => !!acknowledgments[section]
+  );
+
+  const overallStatus: "clean" | "needs_ack" | "acknowledged" = !needsAck
+    ? "clean"
+    : allRequiredSectionsAcked
+      ? "acknowledged"
+      : "needs_ack";
 
   return {
     success: true,
@@ -246,7 +264,8 @@ export async function getStockReconcileStatus(supabase: SupabaseServerClient, bu
       status: staleFloors.length > 0 ? "stale" : "clean",
       warn_days_threshold: amenityStatus.warn_days_threshold,
     },
-    overall_status: needsAck ? (allSectionsAcked ? "acknowledged" : "needs_ack") : "clean",
+    overall_status: overallStatus,
+    sections_needing_ack: sectionsNeedingAck,
     acknowledgments: {
       pos: acknowledgments.pos ?? null,
       amenity_prepare: acknowledgments.amenity_prepare ?? null,

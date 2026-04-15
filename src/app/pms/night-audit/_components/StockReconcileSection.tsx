@@ -139,12 +139,14 @@ export function StockReconcileSection({ onReconcileComplete }: StockReconcileSec
 
   if (status.all_clean) {
     return (
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 flex items-center justify-between mt-4">
-         <div className="flex items-center gap-2">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 mt-4">
+         <div className="flex items-center gap-2 mb-1">
             <CheckCircle2Icon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-semibold text-emerald-800 dark:text-emerald-400">Stock Reconciliation Clean</span>
+            <span className="font-semibold text-emerald-800 dark:text-emerald-400">Stock Reconciliation — All Clean</span>
          </div>
-         <span className="text-xs text-emerald-600 dark:text-emerald-500">All POS and Amenity stocks are balanced.</span>
+         <p className="text-xs text-emerald-700 dark:text-emerald-500 pl-7">
+            POS inventory, Amenity Prepare batches, and Floor Audit are all balanced for this business date.
+         </p>
       </div>
     );
   }
