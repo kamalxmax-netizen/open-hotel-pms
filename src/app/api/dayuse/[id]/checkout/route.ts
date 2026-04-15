@@ -92,6 +92,16 @@ export async function POST(request: NextRequest, context: { params: { id: string
       return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
     }
 
+    const { error: cancelNightsError } = await supabase
+      .from("reservation_nights")
+      .update({ cancelled_at: nowIso })
+      .eq("reservation_id", reservationId)
+      .is("cancelled_at", null);
+
+    if (cancelNightsError) {
+      return NextResponse.json({ success: false, error: cancelNightsError.message }, { status: 500 });
+    }
+
     if (roomId) {
       const { error: housekeepingError } = await supabase
         .from("housekeeping_tasks")

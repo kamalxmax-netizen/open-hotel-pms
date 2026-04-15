@@ -117,7 +117,11 @@ export default function ConfirmStep() {
 
   if (!sessionData) return null; // Avoid flicker
 
-  const isDraft = false;
+  const roomBlockedDraft = roomData?.room_ready_for_checkin === false;
+  const draftBannerText = roomBlockedDraft
+    ? roomData?.room_ready_reason || "ห้องยังไม่พร้อมเข้าพัก ระบบจะบันทึกเป็น Draft ให้ก่อน"
+    : "ข้อมูลประวัติยังไม่ครบถ้วน กรุณากรอกเพิ่มเติมภายหลัง จากหน้า Booking Desktop";
+  const isDraft = roomBlockedDraft;
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-muted)] pb-24">
@@ -155,7 +159,7 @@ export default function ConfirmStep() {
               </h2>
             </div>
             <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-              ข้อมูลประวัติยังไม่ครบถ้วน กรุณากรอกเพิ่มเติมภายหลัง จากหน้า Booking Desktop
+              {draftBannerText}
             </p>
           </div>
         )}
@@ -260,7 +264,9 @@ export default function ConfirmStep() {
             )}
           </button>
           <p className="mt-3 px-2 text-center text-xs font-semibold text-[var(--text-secondary)]">
-            ข้อมูลครบจะเข้า In House ทันที ถ้าข้อมูลไม่ครบระบบจะบันทึกเป็น Draft ให้อัตโนมัติ
+            {roomBlockedDraft
+              ? "ห้องยัง Dirty / HK ยังไม่พร้อม ระบบจะบันทึกเป็น Draft ก่อน และยังไม่เปลี่ยนเป็น In House"
+              : "ข้อมูลครบจะเข้า In House ทันที ถ้าข้อมูลไม่ครบระบบจะบันทึกเป็น Draft ให้อัตโนมัติ"}
           </p>
         </div>
       </div>

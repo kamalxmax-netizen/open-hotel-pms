@@ -23,6 +23,72 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+async function recordComplimentaryPosStockDeduction(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  params: {
+    businessDate: string;
+    orderId: string;
+    productId: string;
+    quantity: number;
+    performedBy: string | null;
+    nowIso: string;
+  }
+): Promise<void> {
+  const quantity = Math.max(Number(params.quantity ?? 0), 0);
+  if (!params.orderId || !params.productId || quantity <= 0) return;
+
+  const { error: ensureMainError } = await supabase
+    .from("main_stock")
+    .upsert(
+      {
+        product_id: params.productId,
+        quantity: 0,
+        reorder_level: 10,
+        updated_at: params.nowIso,
+      },
+      { onConflict: "product_id", ignoreDuplicates: true }
+    );
+  if (ensureMainError) throw new Error(ensureMainError.message);
+
+  const { data: currentRow, error: currentError } = await supabase
+    .from("main_stock")
+    .select("quantity")
+    .eq("product_id", params.productId)
+    .single();
+  if (currentError || !currentRow) {
+    throw new Error(currentError?.message || "Main stock row not found");
+  }
+
+  const currentQty = Math.max(Number((currentRow as { quantity?: number | null }).quantity ?? 0), 0);
+  const deductQty = Math.min(currentQty, quantity);
+  const oversell = Math.max(quantity - currentQty, 0);
+  const newQty = Math.max(currentQty - quantity, 0);
+
+  const { error: updateMainError } = await supabase
+    .from("main_stock")
+    .update({ quantity: newQty, updated_at: params.nowIso })
+    .eq("product_id", params.productId);
+  if (updateMainError) throw new Error(updateMainError.message);
+
+  const { error: txError } = await supabase.from("stock_transactions_v2").insert({
+    transaction_date: params.businessDate,
+    product_id: params.productId,
+    action: "sale",
+    quantity_change: -deductQty,
+    from_location: "main",
+    to_location: null,
+    reference_type: "pos_order",
+    reference_id: params.orderId,
+    performed_by: params.performedBy,
+    note:
+      oversell > 0
+        ? `[DAYUSE OVERSELL] requested=${quantity}, available=${currentQty}, shortfall=${oversell}`
+        : `Day use complimentary water auto-deduct ${quantity}`,
+    created_at: params.nowIso,
+  });
+  if (txError) throw new Error(txError.message);
+}
+
 function toBangkokTimeHHmm(date: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Bangkok",
@@ -142,6 +208,43 @@ export async function POST(request: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    const cleanupNowIso = new Date().toISOString();
+
+    const { data: staleDayUseNights, error: staleDayUseError } = await supabase
+      .from("reservation_nights")
+      .select("id, reservation_id, reservations!inner(status, is_dayuse)")
+      .eq("room_id", room.id)
+      .eq("stay_date", businessDate)
+      .is("cancelled_at", null)
+      .eq("reservations.is_dayuse", true)
+      .neq("reservations.status", "active");
+
+    if (staleDayUseError) {
+      return NextResponse.json({ success: false, error: staleDayUseError.message }, { status: 500 });
+    }
+
+    const staleReservationIds = Array.from(
+      new Set(
+        (staleDayUseNights ?? [])
+          .map((row: any) => String(row?.reservation_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (staleReservationIds.length > 0) {
+      const { error: staleCleanupError } = await supabase
+        .from("reservation_nights")
+        .update({ cancelled_at: cleanupNowIso })
+        .in("reservation_id", staleReservationIds)
+        .eq("room_id", room.id)
+        .eq("stay_date", businessDate)
+        .is("cancelled_at", null);
+
+      if (staleCleanupError) {
+        return NextResponse.json({ success: false, error: staleCleanupError.message }, { status: 500 });
+      }
     }
 
     const { data: latestSessionRow, error: latestSessionError } = await supabase
@@ -282,13 +385,26 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (!orderError && orderRow?.id) {
-          await supabase.from("pos_order_items").insert({
+          const waterQuantity = 1;
+          const { error: itemInsertError } = await supabase.from("pos_order_items").insert({
             order_id: orderRow.id,
             product_id: waterProduct.id,
             product_name: String(waterProduct.name ?? "Water"),
-            quantity: 1,
+            quantity: waterQuantity,
             unit_price: 0,
             line_total: 0,
+          });
+          if (itemInsertError) {
+            throw itemInsertError;
+          }
+
+          await recordComplimentaryPosStockDeduction(supabase, {
+            businessDate,
+            orderId: String(orderRow.id),
+            productId: String(waterProduct.id),
+            quantity: waterQuantity,
+            performedBy: "System",
+            nowIso,
           });
         }
       }

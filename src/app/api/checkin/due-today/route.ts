@@ -5,6 +5,7 @@ import {
   requireMobileCheckinAuth,
   toBangkokDate,
 } from "@/lib/mobile-checkin";
+import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -124,6 +125,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const roomReadinessByReservationId = new Map<
+      string,
+      { room_number: string | null; hk_status: string | null; room_ready_for_checkin: boolean; room_ready_reason: string | null }
+    >();
+    await Promise.all(
+      reservations.map(async (row) => {
+        const readiness = await ensureReservationRoomReadyForMobileCheckin(
+          supabase as any,
+          row.reservation_id,
+          businessDate,
+          { autoApproveCleaned: false }
+        );
+        roomReadinessByReservationId.set(row.reservation_id, {
+          room_number: readiness.room_number ?? roomByReservation.get(row.reservation_id) ?? null,
+          hk_status: readiness.hk_status,
+          room_ready_for_checkin: readiness.ok,
+          room_ready_reason: readiness.ok ? null : readiness.draft_message,
+        });
+      })
+    );
+
     const rooms = reservations
       .map((row) => {
         const completeness = row.guest_profile_id
@@ -131,10 +153,11 @@ export async function GET(request: NextRequest) {
           : { is_complete: false, missing_fields: ["guest_profile_id"] };
         const reservationStatus = row.reservation_status;
         const uiStatus = reservationStatus === "active" ? "confirmed" : reservationStatus;
+        const readiness = roomReadinessByReservationId.get(row.reservation_id);
 
         return {
           reservation_id: row.reservation_id,
-          room_number: roomByReservation.get(row.reservation_id) ?? null,
+          room_number: readiness?.room_number ?? roomByReservation.get(row.reservation_id) ?? null,
           guest_name: row.guest_name,
           source: row.source,
           checkin_date: row.checkin_date,
@@ -146,6 +169,9 @@ export async function GET(request: NextRequest) {
           has_passport_scan: scanByReservation.has(row.reservation_id),
           profile_complete: completeness.is_complete,
           missing_fields: completeness.missing_fields,
+          hk_status: readiness?.hk_status ?? null,
+          room_ready_for_checkin: readiness?.room_ready_for_checkin ?? true,
+          room_ready_reason: readiness?.room_ready_reason ?? null,
         };
       })
       .sort((a, b) =>
@@ -203,6 +229,9 @@ export async function GET(request: NextRequest) {
           has_passport_scan: false,
           profile_complete: true,
           missing_fields: [] as string[],
+          hk_status: null,
+          room_ready_for_checkin: true,
+          room_ready_reason: null,
         })).sort((a, b) =>
           toSortableRoom(a.room_number).localeCompare(toSortableRoom(b.room_number), undefined, {
             numeric: true,

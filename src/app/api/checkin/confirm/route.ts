@@ -16,6 +16,7 @@ import {
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -234,7 +235,20 @@ export async function POST(request: NextRequest) {
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const isDraft = Boolean(!completeness.is_complete);
+    const roomReadiness = await ensureReservationRoomReadyForMobileCheckin(
+      supabase as any,
+      payload.reservation_id,
+      businessDate
+    );
+    const draftReason =
+      !roomReadiness.ok ? roomReadiness.draft_reason : !completeness.is_complete ? "profile_incomplete" : null;
+    const draftMessage =
+      !roomReadiness.ok
+        ? roomReadiness.draft_message
+        : !completeness.is_complete
+          ? "Profile is incomplete. Save Draft and complete the missing guest details later."
+          : null;
+    const isDraft = Boolean(payload.force_draft || draftReason);
     if (!isDraft) {
       await assertPrimaryGuestAvailableForCheckin({
         supabase: supabase as any,
@@ -379,13 +393,17 @@ export async function POST(request: NextRequest) {
         checked_in_at: isDraft ? null : nowIso,
         guest_profile_id: resolvedPrimary.guestProfileId,
         is_draft: isDraft,
+        draft_reason: draftReason,
         checkin_time: capturedCheckinTime,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
+        hk_status: roomReadiness.hk_status,
       },
       note: [
         isDraft
-          ? "Mobile check-in saved as draft (profile requires follow-up)."
+          ? draftReason === "room_not_ready"
+            ? `Mobile check-in saved as draft because room is not ready.${roomReadiness.hk_status ? ` HK status: ${roomReadiness.hk_status}.` : ""}`
+            : "Mobile check-in saved as draft (profile requires follow-up)."
           : `Mobile check-in completed.${scanBelowThreshold ? " Booking name did not match strongly, but actual guest profile was accepted." : ""}`,
         payload.booking_name_note || "",
       ].filter(Boolean).join(" "),
@@ -397,10 +415,14 @@ export async function POST(request: NextRequest) {
         reservation_id: payload.reservation_id,
         status: isDraft ? "draft_checkin" : "active",
         is_draft: isDraft,
+        draft_reason: draftReason,
+        draft_message: draftMessage,
         profile_complete: completeness.is_complete,
         missing_fields: completeness.missing_fields,
         checked_in_at: isDraft ? null : nowIso,
         checkin_time: capturedCheckinTime,
+        room_number: roomReadiness.room_number,
+        hk_status: roomReadiness.hk_status,
       },
     });
   } catch (error) {

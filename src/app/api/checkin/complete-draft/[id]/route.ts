@@ -15,6 +15,7 @@ import {
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
+import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
 import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/reservation-party";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -87,7 +88,8 @@ export async function POST(
       throw new MobileCheckinError("Reservation not found.", 404, "RESERVATION_NOT_FOUND");
     }
 
-    if (String(reservation.status ?? "") !== "active") {
+    const reservationStatus = String(reservation.status ?? "");
+    if (reservationStatus !== "active" && reservationStatus !== "draft_checkin") {
       throw new MobileCheckinError("Reservation is not eligible.", 409, "RESERVATION_STATUS_BLOCKED");
     }
     if (reservation.checked_in_at) {
@@ -120,7 +122,20 @@ export async function POST(
     });
 
     const completeness = await fetchProfileCompleteness(supabase, resolvedPrimary.guestProfileId);
-    const canComplete = completeness.is_complete;
+    const roomReadiness = await ensureReservationRoomReadyForMobileCheckin(
+      supabase as any,
+      reservationId,
+      businessDate
+    );
+    const draftReason =
+      !roomReadiness.ok ? roomReadiness.draft_reason : !completeness.is_complete ? "profile_incomplete" : null;
+    const draftMessage =
+      !roomReadiness.ok
+        ? roomReadiness.draft_message
+        : !completeness.is_complete
+          ? "Profile is incomplete. Save Draft and complete the missing guest details later."
+          : null;
+    const canComplete = !draftReason;
     if (canComplete) {
       await assertPrimaryGuestAvailableForCheckin({
         supabase: supabase as any,
@@ -157,7 +172,7 @@ export async function POST(
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
-        status: "active",
+        status: canComplete ? "active" : "draft_checkin",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         guest_name: effectiveName,
@@ -214,29 +229,37 @@ export async function POST(
       action: canComplete ? "checked_in" : "draft_checkin",
       businessDate,
       beforeJson: {
-        status: "active",
-        checked_in_at: null,
+        status: String(reservation.status ?? "draft_checkin"),
+        checked_in_at: reservation.checked_in_at ?? null,
       },
       afterJson: {
-        status: "active",
+        status: canComplete ? "active" : "draft_checkin",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         is_draft: !canComplete,
+        draft_reason: draftReason,
         missing_fields: completeness.missing_fields,
+        hk_status: roomReadiness.hk_status,
       },
       note: canComplete
         ? "Draft check-in completed from mobile flow."
-        : "Draft check-in updated but still incomplete.",
+        : draftReason === "room_not_ready"
+          ? `Draft check-in saved because room is not ready.${roomReadiness.hk_status ? ` HK status: ${roomReadiness.hk_status}.` : ""}`
+          : "Draft check-in updated but still incomplete.",
     });
 
     return NextResponse.json({
       success: true,
       data: {
         reservation_id: reservationId,
-        status: "active",
+        status: canComplete ? "active" : "draft_checkin",
         is_draft: !canComplete,
+        draft_reason: draftReason,
+        draft_message: draftMessage,
         profile_complete: completeness.is_complete,
         missing_fields: completeness.missing_fields,
+        room_number: roomReadiness.room_number,
+        hk_status: roomReadiness.hk_status,
       },
     });
   } catch (error) {

@@ -21,6 +21,11 @@ export default function SuccessStep() {
   if (!result) return null;
 
   const isDraft = result?.status === "draft_checkin" || result?.is_draft;
+  const draftReason = String(result?.draft_reason ?? "").trim();
+  const draftMessage =
+    draftReason === "room_not_ready"
+      ? result?.draft_message || "ห้องยังไม่พร้อมเข้าพัก ระบบบันทึกเป็น Draft ให้ก่อน รอแม่บ้าน approve แล้วค่อย Complete Check-in"
+      : "กรุณากรอกข้อมูลเพิ่มเติมจาก Desktop ในเมนู Booking > Passport OCR";
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-surface)]">
@@ -44,7 +49,7 @@ export default function SuccessStep() {
                 <span className="font-bold text-amber-800 dark:text-amber-300">ACTION REQUIRED</span>
               </div>
               <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                กรุณากรอกข้อมูลเพิ่มเติมจาก Desktop ในเมนู Booking {">"} Passport OCR 
+                {draftMessage}
               </p>
             </div>
           </>

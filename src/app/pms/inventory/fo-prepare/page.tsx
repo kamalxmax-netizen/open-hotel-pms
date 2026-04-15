@@ -88,6 +88,7 @@ function todayBangkok(): string {
 
 type TabKey = "prepare" | "return";
 type ReturnFeedback = { kind: "info" | "success" | "error"; message: string } | null;
+type PrepareFeedback = { kind: "info" | "success" | "error"; message: string } | null;
 
 export default function FoPreparePage() {
   const { toast } = useToast();
@@ -115,6 +116,7 @@ export default function FoPreparePage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPreparing, setIsPreparing] = useState<boolean>(false);
   const [isReturning, setIsReturning] = useState<boolean>(false);
+  const [prepareFeedback, setPrepareFeedback] = useState<PrepareFeedback>(null);
   const [returnFeedback, setReturnFeedback] = useState<ReturnFeedback>(null);
 
   const prepareKey = (row: FoSuggestion) => `${row.floor_number}:${row.product_id}`;
@@ -171,6 +173,7 @@ export default function FoPreparePage() {
           setReturnQtyMap({});
           setLineNoteMap({});
         }
+        setPrepareFeedback(null);
         setReturnFeedback(null);
       } finally {
         setIsLoading(false);
@@ -251,20 +254,57 @@ export default function FoPreparePage() {
       const data = await readJsonSafe<{
         result?: { has_shortage?: boolean; total_shortage?: number };
         batch_detail?: FoBatchDetail;
+        shortages?: Array<{
+          product_name?: string;
+          requested_qty?: number;
+          available_qty?: number;
+        }>;
       }>(res);
 
       if (!res.ok || data.success === false) {
-        throw new Error(data.error || "Prepare failed");
+        const shortages = Array.isArray(data.shortages) ? data.shortages : [];
+        const allOutOfStock = shortages.length > 0 && shortages.every((row) => Number(row.available_qty ?? 0) <= 0);
+        const shortageSummary = shortages
+          .map((row) => {
+            const productName = String(row.product_name ?? "Unknown product");
+            const availableQty = Number(row.available_qty ?? 0);
+            const requestedQty = Number(row.requested_qty ?? 0);
+            return `${productName} (need ${requestedQty}, have ${availableQty})`;
+          })
+          .join(", ");
+        const message =
+          allOutOfStock
+            ? `Main stock is out: ${shortageSummary || "selected products"}. Refill stock before adding to floor stock.`
+            : data.error || "Prepare failed";
+
+        setPrepareFeedback({
+          kind: "error",
+          message,
+        });
+        toast({
+          title: allOutOfStock ? "Main stock is out" : "Prepare failed",
+          description: message,
+          variant: "destructive",
+        });
+        return;
       }
 
       const shortage = Number((data.result as any)?.total_shortage ?? 0);
       if (shortage > 0) {
+        setPrepareFeedback({
+          kind: "error",
+          message: `Main stock is short by ${shortage}. Please refill stock before continuing.`,
+        });
         toast({
           title: "Prepared with shortage",
           description: `Main stock not enough for some items (shortage ${shortage}).`,
           variant: "destructive",
         });
       } else {
+        setPrepareFeedback({
+          kind: "success",
+          message: "Daily prepare batch has been added to floor stock.",
+        });
         toast({
           title: "Prepared",
           description: "Daily prepare batch has been added to floor stock.",
@@ -274,6 +314,10 @@ export default function FoPreparePage() {
       await loadPrepareData(businessDate);
       setActiveTab("return");
     } catch (err) {
+      setPrepareFeedback({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Prepare failed",
+      });
       toast({
         title: "Prepare failed",
         description: err instanceof Error ? err.message : "Prepare failed",
@@ -522,6 +566,19 @@ export default function FoPreparePage() {
               <p className="text-xs mt-1">
                 To adjust after prepare, use End-of-day return (with note) or manual stock adjustment.
               </p>
+            </div>
+          )}
+          {prepareFeedback && (
+            <div
+              className={`rounded-xl border p-3 text-sm ${
+                prepareFeedback.kind === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400"
+                  : prepareFeedback.kind === "info"
+                    ? "border-sky-200 bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400"
+                    : "border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400"
+              }`}
+            >
+              {prepareFeedback.message}
             </div>
           )}
 

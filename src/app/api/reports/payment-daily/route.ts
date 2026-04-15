@@ -80,6 +80,7 @@ type ReservationNightRoom = {
   room_id: string | null;
   room_number: string | null;
   floor_number: number | null;
+  cancelled_at: string | null;
 };
 
 type PosOrderRow = {
@@ -454,12 +455,15 @@ function resolveRoomForDate(
     return { room_number: null, floor_number: null, room_id: null };
   }
 
-  const exact = nights.find((n) => n.stay_date === paidDate && n.room_number);
+  const activeNights = nights.filter((n) => !n.cancelled_at);
+  const source = activeNights.length > 0 ? activeNights : nights;
+
+  const exact = source.find((n) => n.stay_date === paidDate && n.room_number);
   if (exact) {
     return { room_number: exact.room_number, floor_number: exact.floor_number, room_id: exact.room_id };
   }
 
-  const latestBeforeOrOn = [...nights]
+  const latestBeforeOrOn = [...source]
     .filter((n) => n.stay_date <= paidDate && n.room_number)
     .sort((a, b) => b.stay_date.localeCompare(a.stay_date))[0];
   if (latestBeforeOrOn) {
@@ -471,14 +475,14 @@ function resolveRoomForDate(
   }
 
   const target = checkinDate ?? paidDate;
-  const earliestAfter = [...nights]
+  const earliestAfter = [...source]
     .filter((n) => n.stay_date >= target && n.room_number)
     .sort((a, b) => a.stay_date.localeCompare(b.stay_date))[0];
   if (earliestAfter) {
     return { room_number: earliestAfter.room_number, floor_number: earliestAfter.floor_number, room_id: earliestAfter.room_id };
   }
 
-  const fallback = nights.find((n) => n.room_number) ?? null;
+  const fallback = source.find((n) => n.room_number) ?? null;
   if (fallback) {
     return { room_number: fallback.room_number, floor_number: fallback.floor_number, room_id: fallback.room_id };
   }
@@ -663,9 +667,8 @@ export async function GET(request: NextRequest) {
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
-          .select("reservation_id, stay_date, room_id, rooms:room_id(room_number, floor_number)")
+          .select("reservation_id, stay_date, room_id, cancelled_at, rooms:room_id(room_number, floor_number)")
           .in("reservation_id", reservationIdList)
-          .is("cancelled_at", null)
           .order("stay_date", { ascending: true }),
         supabase
           .from("folio_payments")
@@ -715,6 +718,7 @@ export async function GET(request: NextRequest) {
           room_id: row.room_id ? String(row.room_id) : null,
           room_number: roomRef?.room_number ? String(roomRef.room_number) : null,
           floor_number: roomRef?.floor_number != null ? Number(roomRef.floor_number) : null,
+          cancelled_at: row.cancelled_at ? String(row.cancelled_at) : null,
         };
         const current = nightsByReservation.get(rid);
         if (current) current.push(item);
