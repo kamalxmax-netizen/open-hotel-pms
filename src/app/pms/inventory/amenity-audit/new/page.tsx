@@ -151,8 +151,8 @@ function AuditFormContent() {
           <ArrowLeftIcon className="w-5 h-5" />
         </Link>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Amenity Audit</p>
-          <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">New Session (Floor {floorNumber})</h1>
+          <p className="text-sm font-semibold uppercase tracking-widest text-brand-600 mb-1">Amenity Audit</p>
+          <h1 className="text-3xl font-extrabold text-[var(--text-primary)]">New Session (Floor {floorNumber})</h1>
         </div>
       </div>
       

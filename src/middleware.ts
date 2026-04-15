@@ -8,6 +8,7 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/of
 // Routes that should redirect authenticated users away
 const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
+const EXACT_PERMISSION_PATHS = new Set(["/pms/inventory"]);
 
 function resolvePostLoginPath(role: string | null | undefined): string {
   return String(role ?? "").trim().toLowerCase() === "mobile" ? MOBILE_HOME_PATH : "/pms/board";
@@ -79,9 +80,10 @@ export async function middleware(request: NextRequest) {
         pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
           ? "/pms/calendar"
           : pathname;
-      const hasAccess = allowedPages.some(
-        (p) => permissionPath === p || permissionPath.startsWith(p + "/") || permissionPath.startsWith(p)
-      );
+      const hasAccess = allowedPages.some((p) => {
+        if (EXACT_PERMISSION_PATHS.has(p)) return permissionPath === p;
+        return permissionPath === p || permissionPath.startsWith(`${p}/`);
+      });
       if (!hasAccess) {
         return NextResponse.redirect(new URL("/pms/unauthorized", request.url));
       }

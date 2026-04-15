@@ -113,7 +113,7 @@ export default function PermissionsPage() {
                   onClick={() => openEdit(user)}
                   className={`w-full text-left p-3.5 rounded-xl border transition-all ${
                     isSelected
-                      ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400"
+                      ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400 dark:bg-indigo-500/20 dark:border-indigo-500/50 dark:ring-indigo-500/30"
                       : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--border-input)] hover:bg-[var(--bg-body)]"
                   }`}
                 >

@@ -8,6 +8,7 @@ import { useTheme } from "@/components/theme-provider";
 
 const SIDEBAR_PERMISSION_CACHE_PREFIX = "pms.sidebar.allowed-pages.";
 const SIDEBAR_PERMISSION_CACHE_TTL_MS = 60_000;
+const EXACT_PERMISSION_PATHS = new Set(["/pms/inventory"]);
 
 type SidebarPermissionCache = {
     uid: string;
@@ -138,7 +139,10 @@ const NAV_ITEMS = [
 
 function isAllowed(href: string, allowedPages: string[]): boolean {
     if (allowedPages.includes("*")) return true;
-    return allowedPages.some((p) => href === p || href.startsWith(p + "/") || href.startsWith(p));
+    return allowedPages.some((p) => {
+        if (EXACT_PERMISSION_PATHS.has(p)) return href === p;
+        return href === p || href.startsWith(`${p}/`);
+    });
 }
 
 function normalizeAllowedPages(value: unknown): string[] {
