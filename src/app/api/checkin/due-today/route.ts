@@ -6,6 +6,13 @@ import {
   toBangkokDate,
 } from "@/lib/mobile-checkin";
 import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
+import {
+  buildPaymentReportVoidedIdSet,
+  normalizePaymentReportCategory,
+  normalizePaymentReportTxType,
+  round2,
+  type PaymentReportRow,
+} from "@/lib/payment-reporting";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -22,6 +29,33 @@ function daysBetween(checkinDate: string, checkoutDate: string): number {
 
 function toSortableRoom(roomNumber: string | null): string {
   return String(roomNumber ?? "").trim();
+}
+
+function buildRoomPaymentPaidByReservation(rows: PaymentReportRow[]): Map<string, number> {
+  const voidedIds = buildPaymentReportVoidedIdSet(rows);
+  const paidByReservation = new Map<string, number>();
+
+  for (const row of rows) {
+    const id = String(row.id ?? "").trim();
+    const reservationId = String(row.reservation_id ?? "").trim();
+    if (!reservationId) continue;
+    if (id && voidedIds.has(id)) continue;
+    if (row.is_void_reversal === true) continue;
+    if (row.is_record_only === true) continue;
+
+    const txType = normalizePaymentReportTxType(row.tx_type);
+    const category = normalizePaymentReportCategory(row.revenue_category, txType, row.note);
+    if (category !== "room_revenue") continue;
+    if (txType !== "payment" && txType !== "refund") continue;
+
+    const amount = Number(row.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    const signedAmount = txType === "refund" ? -amount : amount;
+    paidByReservation.set(reservationId, round2((paidByReservation.get(reservationId) ?? 0) + signedAmount));
+  }
+
+  return paidByReservation;
 }
 
 export async function GET(request: NextRequest) {
@@ -55,6 +89,22 @@ export async function GET(request: NextRequest) {
     }));
 
     const reservationIds = reservations.map((row) => row.reservation_id);
+    const roomPaidByReservation = new Map<string, number>();
+
+    if (reservationIds.length > 0) {
+      const { data: paymentRows, error: paymentError } = await supabase
+        .from("folio_payments")
+        .select("id, reservation_id, tx_type, amount, note, revenue_category, is_record_only, is_void_reversal, void_of")
+        .in("reservation_id", reservationIds);
+
+      if (paymentError) {
+        throw new MobileCheckinError(paymentError.message, 500, "PAYMENT_BALANCE_QUERY_FAILED");
+      }
+
+      for (const [reservationId, paidAmount] of buildRoomPaymentPaidByReservation((paymentRows ?? []) as PaymentReportRow[])) {
+        roomPaidByReservation.set(reservationId, Math.max(0, round2(paidAmount)));
+      }
+    }
 
     const roomByReservation = new Map<string, string | null>();
     if (reservationIds.length > 0) {
@@ -125,6 +175,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const draftReservationIds = new Set<string>();
+    if (reservationIds.length > 0) {
+      const { data: draftAuditRows, error: draftAuditError } = await supabase
+        .from("audit_logs")
+        .select("entity_id")
+        .eq("entity_type", "reservation")
+        .eq("action", "draft_checkin")
+        .in("entity_id", reservationIds);
+
+      if (draftAuditError) {
+        throw new MobileCheckinError(draftAuditError.message, 500, "DRAFT_AUDIT_QUERY_FAILED");
+      }
+
+      for (const row of draftAuditRows ?? []) {
+        const reservationId = String((row as any).entity_id ?? "").trim();
+        if (reservationId) draftReservationIds.add(reservationId);
+      }
+    }
+
     const roomReadinessByReservationId = new Map<
       string,
       { room_number: string | null; hk_status: string | null; room_ready_for_checkin: boolean; room_ready_reason: string | null }
@@ -152,7 +221,14 @@ export async function GET(request: NextRequest) {
           ? completenessByProfileId.get(row.guest_profile_id) ?? { is_complete: false, missing_fields: [] }
           : { is_complete: false, missing_fields: ["guest_profile_id"] };
         const reservationStatus = row.reservation_status;
-        const uiStatus = reservationStatus === "active" ? "confirmed" : reservationStatus;
+        const roomTotal = round2(Number(row.total_price ?? 0));
+        const roomPaid = Math.min(roomTotal, roomPaidByReservation.get(row.reservation_id) ?? 0);
+        const roomBalance = Math.max(0, round2(roomTotal - roomPaid));
+        const uiStatus = draftReservationIds.has(row.reservation_id)
+          ? "draft_checkin"
+          : reservationStatus === "active"
+            ? "confirmed"
+            : reservationStatus;
         const readiness = roomReadinessByReservationId.get(row.reservation_id);
 
         return {
@@ -163,7 +239,9 @@ export async function GET(request: NextRequest) {
           checkin_date: row.checkin_date,
           checkout_date: row.checkout_date,
           nights: daysBetween(row.checkin_date, row.checkout_date),
-          total_price: row.total_price,
+          total_price: roomTotal,
+          room_paid_amount: roomPaid,
+          room_balance_amount: roomBalance,
           status: uiStatus,
           reservation_status: reservationStatus,
           has_passport_scan: scanByReservation.has(row.reservation_id),
@@ -224,6 +302,8 @@ export async function GET(request: NextRequest) {
           checkout_date: String(row.checkout_date ?? ""),
           nights: daysBetween(String(row.checkin_date ?? ""), String(row.checkout_date ?? "")),
           total_price: Number(row.total_price ?? 0),
+          room_paid_amount: 0,
+          room_balance_amount: Number(row.total_price ?? 0),
           status: "in_house",
           reservation_status: "active",
           has_passport_scan: false,

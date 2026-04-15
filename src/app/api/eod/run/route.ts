@@ -6,6 +6,7 @@ import {
 } from "@/lib/night-audit";
 import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { computeStockSnapshot } from "@/lib/stock-snapshot";
 import { NextRequest, NextResponse } from "next/server";
 
 function isMissingRelationError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -390,6 +391,15 @@ export async function POST(request: NextRequest) {
 
         if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
 
+        let stockSnapshotResult: any = null;
+        let stockSnapshotWarning: string | null = null;
+        try {
+            stockSnapshotResult = await computeStockSnapshot(supabase, businessDate);
+        } catch (stockErr) {
+            stockSnapshotWarning = stockErr instanceof Error ? stockErr.message : "Stock snapshot compute failed.";
+            console.error("EOD stock snapshot compute failed", stockErr);
+        }
+
         /* ── 4. Advance business_date ────────────────── */
         const nextDate = new Date(businessDate + "T00:00:00");
         nextDate.setDate(nextDate.getDate() + 1);
@@ -406,6 +416,8 @@ export async function POST(request: NextRequest) {
             success: true,
             closed_date: businessDate,
             new_business_date: newBusinessDate,
+            stock_snapshot: stockSnapshotResult,
+            stock_snapshot_warning: stockSnapshotWarning,
             snapshot: {
                 total_revenue: Math.round(totalRevenue * 100) / 100,
                 occupied_nights: occupiedNights,

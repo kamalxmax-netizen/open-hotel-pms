@@ -326,8 +326,8 @@ export async function buildFoPrepareSuggestions(
 
   const { data: productRows, error: productError } = await supabase
     .from("products")
-    .select("id, name, unit, fulfillment_mode, is_active")
-    .eq("fulfillment_mode", "daily_prepare")
+    .select("id, name, unit, fulfillment_mode, stock_tracking_mode, is_active")
+    .eq("stock_tracking_mode", "amenity_prepare")
     .eq("is_active", true);
 
   if (productError) {

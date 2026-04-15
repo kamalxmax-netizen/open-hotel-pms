@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 type ApiResponse<T extends Record<string, unknown> = Record<string, unknown>> = {
   success?: boolean;
@@ -372,6 +373,17 @@ export default function InventoryDashboardPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Link href="/pms/inventory/snapshots" className="card p-4 hover:shadow-md transition-shadow flex items-center gap-3">
+          <div className="p-2 bg-sky-50 dark:bg-sky-500/10 rounded-lg text-sky-600"><PackageIcon className="w-5 h-5"/></div>
+          <div><p className="text-sm font-bold text-[var(--text-primary)]">Daily Snapshot</p></div>
+        </Link>
+        <Link href="/pms/inventory/amenity-audit" className="card p-4 hover:shadow-md transition-shadow flex items-center gap-3">
+          <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600"><PackageIcon className="w-5 h-5"/></div>
+          <div><p className="text-sm font-bold text-[var(--text-primary)]">Amenity Audit</p></div>
+        </Link>
       </div>
 
       {isLoading && !data && (

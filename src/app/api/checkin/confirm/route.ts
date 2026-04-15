@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
     };
 
     const reservationUpdatePayload: Record<string, unknown> = {
-      status: isDraft ? "draft_checkin" : "active",
+      status: "active",
       guest_name: effectiveName,
       guest_profile_id: resolvedPrimary.guestProfileId,
       note: nextReservationNote,
@@ -389,7 +389,7 @@ export async function POST(request: NextRequest) {
       businessDate,
       beforeJson,
       afterJson: {
-        status: isDraft ? "draft_checkin" : "active",
+        status: "active",
         checked_in_at: isDraft ? null : nowIso,
         guest_profile_id: resolvedPrimary.guestProfileId,
         is_draft: isDraft,
@@ -413,7 +413,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         reservation_id: payload.reservation_id,
-        status: isDraft ? "draft_checkin" : "active",
+        status: "active",
         is_draft: isDraft,
         draft_reason: draftReason,
         draft_message: draftMessage,

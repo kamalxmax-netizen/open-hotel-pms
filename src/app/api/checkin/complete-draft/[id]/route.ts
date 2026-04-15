@@ -172,7 +172,7 @@ export async function POST(
     const { error: reservationUpdateError } = await supabase
       .from("reservations")
       .update({
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         guest_name: effectiveName,
@@ -233,7 +233,7 @@ export async function POST(
         checked_in_at: reservation.checked_in_at ?? null,
       },
       afterJson: {
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         checked_in_at: checkedInAt,
         checkin_time: checkinTime,
         is_draft: !canComplete,
@@ -252,7 +252,7 @@ export async function POST(
       success: true,
       data: {
         reservation_id: reservationId,
-        status: canComplete ? "active" : "draft_checkin",
+        status: "active",
         is_draft: !canComplete,
         draft_reason: draftReason,
         draft_message: draftMessage,

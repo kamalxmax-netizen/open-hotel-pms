@@ -25,6 +25,12 @@ const MODULES = [
     description: "Manage extra fee, damage, policy, and penalty templates from Operations Setup.",
     accent: "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300",
   },
+  {
+    href: "/pms/setup/operations/inventory",
+    title: "Inventory & Amenity Audit",
+    description: "Configure stock warning thresholds, stale audit days, and FO prepare defaults.",
+    accent: "bg-indigo-50 border-indigo-200 text-indigo-800 dark:bg-indigo-500/10 dark:border-indigo-500/30 dark:text-indigo-300",
+  },
 ];
 
 export default function OperationsSetupPage() {

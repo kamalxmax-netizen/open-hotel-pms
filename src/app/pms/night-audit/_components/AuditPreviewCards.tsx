@@ -129,6 +129,11 @@ export function AuditPreviewCards({ onLoad, snapshotOverride }: AuditPreviewCard
           <p className="text-lg font-bold text-[var(--text-primary)]">{formatB(snapshot.no_show_fee_total)} <span className="text-xs font-normal text-[var(--text-secondary)]">({snapshot.no_show_count} bookings)</span></p>
         </div>
       </div>
+      {/* Inventory & Stock Card */}
+      <div className="rounded-lg border border-brand-200 bg-brand-50 p-4 shadow-sm md:col-span-2 dark:bg-brand-900/10 dark:border-brand-500/20">
+        <h3 className="text-sm font-semibold text-brand-800 dark:text-brand-400 mb-1">Inventory & Stock Finalization</h3>
+        <p className="text-xs text-brand-700 dark:text-brand-500">Running the Night Audit will permanently finalize the Stock Snapshot for today and roll over actual closing quantities as tomorrow's initial stock for POS and Amenity categories.</p>
+      </div>
     </div>
   )
 }

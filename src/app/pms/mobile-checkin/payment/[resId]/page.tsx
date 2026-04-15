@@ -51,9 +51,9 @@ export default function PaymentStep() {
 
   useEffect(() => {
     if (!roomData || paymentAmount) return;
-    const total = Number(roomData?.total_price ?? 0);
-    if (Number.isFinite(total) && total > 0) {
-      setPaymentAmount(String(total));
+    const balance = Number(roomData?.room_balance_amount ?? roomData?.total_price ?? 0);
+    if (Number.isFinite(balance) && balance >= 0) {
+      setPaymentAmount(String(balance));
     }
   }, [roomData, paymentAmount]);
 
@@ -80,6 +80,10 @@ export default function PaymentStep() {
     { id: "credit_card", label: "Credit Card", icon: CreditCard },
     { id: "transfer", label: "Transfer", icon: ArrowRightLeft },
   ];
+  const roomTotal = Number(roomData?.total_price ?? 0);
+  const roomPaid = Number(roomData?.room_paid_amount ?? 0);
+  const roomBalance = Number(roomData?.room_balance_amount ?? roomTotal);
+  const hasPrepaid = Number.isFinite(roomPaid) && roomPaid > 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-muted)] pb-24">
@@ -119,11 +123,18 @@ export default function PaymentStep() {
             <>
               <div className="flex justify-between items-baseline mb-1">
                 <span className="text-[var(--text-primary)] font-semibold text-lg">Room {roomData?.room_number ?? "???"}</span>
-                <span className="text-2xl font-black text-[var(--text-primary)]">฿{roomData?.total_price?.toLocaleString() ?? "0"}</span>
+                <span className="text-2xl font-black text-[var(--text-primary)]">฿{roomBalance.toLocaleString()}</span>
               </div>
-              <p className="text-[var(--text-secondary)] font-medium text-sm text-right">
-                for {roomData?.nights ?? 1} {roomData?.nights === 1 ? "night" : "nights"}
-              </p>
+              <div className="space-y-1 text-right">
+                <p className="text-[var(--text-secondary)] font-medium text-sm">
+                  Balance due · for {roomData?.nights ?? 1} {roomData?.nights === 1 ? "night" : "nights"}
+                </p>
+                {hasPrepaid && (
+                  <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                    Total ฿{roomTotal.toLocaleString()} · Paid ฿{roomPaid.toLocaleString()}
+                  </p>
+                )}
+              </div>
             </>
           )}
         </section>

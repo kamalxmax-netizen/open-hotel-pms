@@ -12,6 +12,7 @@ const productCreateSchema = z.object({
   sku: z.string().trim().max(80).optional().nullable(),
   category: z.enum(["amenity", "pos", "both"]).default("amenity"),
   fulfillment_mode: z.enum(["standard", "daily_prepare"]).default("standard"),
+  stock_tracking_mode: z.enum(["pos_main_only", "amenity_prepare", "amenity_direct"]).default("amenity_direct"),
   unit: z.string().trim().min(1, "unit is required").max(30).default("pieces"),
   sale_price: z.number().min(0).max(9999999).nullable().optional(),
   display_order: z.coerce.number().int().min(0).optional(),
@@ -21,6 +22,7 @@ const productCreateSchema = z.object({
 const productQuerySchema = z.object({
   category: z.enum(["amenity", "pos", "both"]).optional(),
   fulfillment_mode: z.enum(["standard", "daily_prepare"]).optional(),
+  stock_tracking_mode: z.enum(["pos_main_only", "amenity_prepare", "amenity_direct"]).optional(),
   is_active: z.enum(["true", "false"]).optional(),
   for_sale: z.enum(["true", "false"]).optional(),
   q: z.string().trim().optional(),
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
     const parsedQuery = productQuerySchema.safeParse({
       category: request.nextUrl.searchParams.get("category") ?? undefined,
       fulfillment_mode: request.nextUrl.searchParams.get("fulfillment_mode") ?? undefined,
+      stock_tracking_mode: request.nextUrl.searchParams.get("stock_tracking_mode") ?? undefined,
       is_active: request.nextUrl.searchParams.get("is_active") ?? undefined,
       for_sale: request.nextUrl.searchParams.get("for_sale") ?? undefined,
       q: request.nextUrl.searchParams.get("q") ?? undefined,
@@ -43,17 +46,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { category, fulfillment_mode, is_active, for_sale, q } = parsedQuery.data;
+    const { category, fulfillment_mode, stock_tracking_mode, is_active, for_sale, q } = parsedQuery.data;
     const supabase = createServerSupabaseClient();
 
     let query = supabase
       .from("products")
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (category) query = query.eq("category", category);
     if (fulfillment_mode) query = query.eq("fulfillment_mode", fulfillment_mode);
+    if (stock_tracking_mode) query = query.eq("stock_tracking_mode", stock_tracking_mode);
     if (is_active) query = query.eq("is_active", is_active === "true");
     if (for_sale === "true") query = query.not("sale_price", "is", null);
     if (for_sale === "false") query = query.is("sale_price", null);
@@ -87,12 +91,23 @@ export async function GET(request: NextRequest) {
           { status: 500 }
         );
       }
+      if (message.includes("stock_tracking_mode")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202604150001_phase65_stock_snapshot_amenity_audit.sql before using product tracking modes.",
+          },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     const rows = (data ?? []).map((row: any) => ({
       ...row,
       fulfillment_mode: row.fulfillment_mode ?? "standard",
+      stock_tracking_mode: row.stock_tracking_mode ?? "amenity_direct",
     }));
 
     const filteredRows =
@@ -186,6 +201,7 @@ export async function POST(request: NextRequest) {
       sku: body.sku?.trim() || null,
       category: body.category,
       fulfillment_mode: body.fulfillment_mode ?? "standard",
+      stock_tracking_mode: body.stock_tracking_mode ?? "amenity_direct",
       unit: body.unit,
       sale_price: body.sale_price ?? null,
       display_order: nextDisplayOrder,
@@ -195,7 +211,7 @@ export async function POST(request: NextRequest) {
     const result = await supabase
       .from("products")
       .insert(payload)
-      .select("id, name, sku, category, fulfillment_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
+      .select("id, name, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
       .single();
 
     const { data, error } = result;
@@ -218,6 +234,16 @@ export async function POST(request: NextRequest) {
             success: false,
             error:
               "DB migration required: apply 202603290002_inventory_display_order.sql before creating products.",
+          },
+          { status: 500 }
+        );
+      }
+      if (message.includes("stock_tracking_mode")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "DB migration required: apply 202604150001_phase65_stock_snapshot_amenity_audit.sql before creating product tracking modes.",
           },
           { status: 500 }
         );
@@ -274,7 +300,14 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: true, product: { ...(data as any), fulfillment_mode: (data as any)?.fulfillment_mode ?? "standard" } },
+      {
+        success: true,
+        product: {
+          ...(data as any),
+          fulfillment_mode: (data as any)?.fulfillment_mode ?? "standard",
+          stock_tracking_mode: (data as any)?.stock_tracking_mode ?? "amenity_direct",
+        },
+      },
       { status: 201 }
     );
   } catch (err) {

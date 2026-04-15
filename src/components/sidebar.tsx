@@ -67,7 +67,9 @@ const NAV_ITEMS = [
         items: [
             { href: "/pms/inventory", label: "Dashboard", icon: PackageIcon, exact: true },
             { href: "/pms/inventory/stock", label: "Stock Levels", icon: PackageIcon },
+            { href: "/pms/inventory/snapshots", label: "Daily Snapshot", icon: PackageIcon },
             { href: "/pms/inventory/fo-prepare", label: "FO Prepare", icon: ShoppingCartIcon },
+            { href: "/pms/inventory/amenity-audit", label: "Amenity Audit", icon: PackageIcon },
             { href: "/pms/inventory/transactions", label: "Transactions", icon: ListIcon },
         ]
     },

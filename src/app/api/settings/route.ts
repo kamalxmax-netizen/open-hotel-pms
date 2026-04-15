@@ -41,6 +41,7 @@ export async function GET() {
             dayuse_duration_min: Number(data?.dayuse_duration_min ?? 120),
             dayuse_extend_rate: Number(data?.dayuse_extend_rate ?? 100),
             dayuse_extend_min: Number(data?.dayuse_extend_min ?? 60),
+            amenity_audit_warn_days: Math.min(Math.max(Number(data?.amenity_audit_warn_days ?? 3), 1), 30),
             identity_alert_under18_thai_id_enabled: data?.identity_alert_under18_thai_id_enabled ?? true,
             identity_alert_under18_passport_enabled: data?.identity_alert_under18_passport_enabled ?? true,
             identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
@@ -69,6 +70,7 @@ export async function PUT(request: NextRequest) {
             "late_checkout_fee", "night_audit_popup_snooze_min",
             "transport_alert_lead_min",
             "dayuse_rate", "dayuse_duration_min", "dayuse_extend_rate", "dayuse_extend_min",
+            "amenity_audit_warn_days",
             "identity_alert_under18_thai_id_enabled",
             "identity_alert_under18_passport_enabled",
             "identity_alert_over18_thai_id_enabled",
@@ -79,9 +81,15 @@ export async function PUT(request: NextRequest) {
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
         for (const key of allowed) {
             if (!(key in body)) continue;
-            updates[key] = key === "transport_alert_lead_min"
-                ? normalizeTransportAlertLeadMinutes(body[key])
-                : body[key];
+            if (key === "transport_alert_lead_min") {
+                updates[key] = normalizeTransportAlertLeadMinutes(body[key]);
+            } else if (key === "amenity_audit_warn_days") {
+                const raw = Number(body[key]);
+                const normalized = Number.isFinite(raw) ? Math.trunc(raw) : 3;
+                updates[key] = Math.min(Math.max(normalized, 1), 30);
+            } else {
+                updates[key] = body[key];
+            }
         }
 
         const { data, error } = await supabase

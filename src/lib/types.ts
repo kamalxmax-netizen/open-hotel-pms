@@ -1534,3 +1534,226 @@ export interface BackupConfig {
   retention_days: number;
   updated_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 65 — Stock Snapshot + FO Amenity Audit + Night Audit Stock Reconcile
+// Added 2026-04-15 by Lead. Owners: Agent A (UI) + Agent B (API/lib wrappers).
+// Canonical spec: WORK_ASSIGNMENT_PHASE65_STOCK_SNAPSHOT_AMENITY_AUDIT.md
+// Do not modify without coordinating on the WA (R4 Controlled Parallel).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * How a product's stock is reconciled.
+ *
+ * - `pos_main_only`      — sold via POS. Stock decrements on sale; no floor concept.
+ * - `amenity_prepare`    — Water/Coffee style. Goes through FO Prepare (Start/EOD) batches
+ *                          with per-batch return + variance note. Already reconcilable today.
+ * - `amenity_direct`     — Soap/Shampoo style. Goes main→floor via transfer; consumed by
+ *                          HK Control; reconciled by FO Amenity Audit flow (new in Phase 65).
+ */
+export type StockTrackingMode = "pos_main_only" | "amenity_prepare" | "amenity_direct";
+
+/** Product category as stored in `products.category`. Phase 65 drops `both` — Water is physically split. */
+export type ProductCategory = "pos" | "amenity";
+
+/** Per-floor breakdown row inside a snapshot entry (empty array when tracking_mode is pos_main_only). */
+export interface StockSnapshotFloorBreakdown {
+  floor_number: number;
+  opening: number;
+  used: number;            // HK deduct (positive)
+  refilled: number;        // transfer_in from main (positive)
+  adjust: number;          // audit correction (signed; negative = overclick correction)
+  expected: number;        // opening + refilled - used + adjust
+  actual: number;          // actual_closing from floor_stock
+  variance: number;        // actual - expected
+}
+
+/** One row of a daily stock snapshot (one product per day). */
+export interface StockSnapshotRow {
+  product_id: string;
+  product_name: string;
+  category: ProductCategory;
+  tracking_mode: StockTrackingMode;
+
+  // Opening balances (read from previous day's snapshot; fallback = current - today's tx on first day)
+  opening_main: number;
+  opening_floor: number;              // sum across floors for amenity; 0 for pos_main_only
+
+  // Aggregated day tx (all signed positive; direction implied by field name)
+  sold_qty: number;                   // POS tx (reference_type = 'pos_order_item')
+  used_qty: number;                   // HK deduct (reference_type = 'hk_deduct')
+  returned_qty: number;               // HK return (reference_type = 'housekeeping_return')
+  refill_qty: number;                 // main→floor (reference_type = 'stock_transfer' or audit refill)
+  adjust_qty: number;                 // signed: admin adjust + audit correction
+
+  // Expected vs actual closing
+  expected_closing_main: number;
+  expected_closing_floor: number;
+  actual_closing_main: number;
+  actual_closing_floor: number;
+  variance_main: number;              // actual - expected
+  variance_floor: number;
+
+  status: "clean" | "variance";
+  floor_breakdown: StockSnapshotFloorBreakdown[];
+}
+
+/** Page-level summary for a single business date. */
+export interface StockSnapshotSummary {
+  business_date: string;              // YYYY-MM-DD Bangkok
+  total_products: number;
+  clean_count: number;
+  variance_count: number;
+  pos_variance_count: number;
+  amenity_prepare_variance_count: number;
+  amenity_direct_variance_count: number;
+  computed_at: string | null;
+  recomputed_count: number;
+}
+
+/** Full snapshot response body (list endpoint shape used by /api/inventory/snapshots/[date]). */
+export interface StockSnapshotResponse {
+  success: true;
+  summary: StockSnapshotSummary;
+  rows: StockSnapshotRow[];
+}
+
+/** Tx drill-down entry for snapshot detail drawer. */
+export interface StockSnapshotTxEntry {
+  tx_id: string;
+  created_at: string;
+  action: string;                     // stock_transactions_v2.action
+  quantity_change: number;            // signed in this shape for UI ease
+  reference_type: string | null;
+  reference_id: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  performed_by: string | null;
+  note: string | null;
+}
+
+// ─── FO Amenity Audit ────────────────────────────────────────────────────────
+
+/** Input submitted by FO for one product in an audit session. */
+export interface AmenityAuditItemInput {
+  product_id: string;
+  system_qty_before: number;          // what the system shows right now (snapshot at open)
+  physical_qty: number;               // what FO physically counted
+  refill_to: number;                  // target quantity after refill (must be >= physical_qty)
+  item_note?: string;                 // required when overclick_delta != 0
+}
+
+/** Display-side item used by the audit form (extends input with computed deltas + UI flags). */
+export interface AmenityAuditItemDisplay extends AmenityAuditItemInput {
+  product_name: string;
+  overclick_delta: number;            // physical - system. Negative = underclick (maid กดขาด)
+  refill_delta: number;               // refill_to - physical (actual physical refill amount)
+  system_adjust_delta: number;        // (refill_to - system) = overclick_delta + refill_delta — what the system must move
+  needs_note: boolean;                // UI guard: true when overclick_delta != 0
+}
+
+/** Audit session submit payload for POST /api/amenity-audit/sessions. */
+export interface AmenityAuditSessionSubmit {
+  business_date: string;              // YYYY-MM-DD Bangkok
+  floor_number: number;               // 1 | 2 | 3 (no cross-floor sessions — per D6)
+  audited_by: string;                 // display name
+  audited_by_user_id: string;         // uuid
+  session_note?: string;
+  items: AmenityAuditItemInput[];
+}
+
+/** Result returned by the atomic RPC after successful submit. */
+export interface AmenityAuditSessionResult {
+  session_id: string;
+  business_date: string;
+  floor_number: number;
+  items_count: number;
+  total_overclick: number;            // sum of positive overclick_delta
+  total_underclick: number;           // sum of negative overclick_delta (as positive magnitude)
+  total_refill: number;               // sum of refill_delta
+  total_system_adjust: number;        // sum of system_adjust_delta
+  created_at: string;
+}
+
+/** One historical audit session row (list view). */
+export interface AmenityAuditSessionListRow {
+  session_id: string;
+  business_date: string;
+  floor_number: number;
+  audited_by: string;
+  items_count: number;
+  total_overclick: number;
+  total_underclick: number;
+  total_refill: number;
+  session_note: string | null;
+  created_at: string;
+}
+
+/** Detail view (includes items + tx refs) for /api/amenity-audit/sessions/[id]. */
+export interface AmenityAuditSessionDetail extends AmenityAuditSessionListRow {
+  items: Array<
+    AmenityAuditItemDisplay & {
+      correction_tx_id: string | null;  // overclick correction (adjust)
+      refill_main_tx_id: string | null; // main→floor transfer_out
+      refill_floor_tx_id: string | null;// main→floor transfer_in
+    }
+  >;
+}
+
+/** Per-floor audit freshness — drives the "X days ago" warning in the floor picker. */
+export interface AmenityAuditFloorStatus {
+  floor_number: number;
+  last_audit_at: string | null;
+  days_since_last: number | null;     // null when never audited
+  is_stale: boolean;                  // true when days_since_last > hotel_settings.amenity_audit_warn_days
+  warn_threshold_days: number;
+}
+
+// ─── Night Audit Stock Reconcile ────────────────────────────────────────────
+
+/** Which reconcile section — matches keys in daily_snapshots.stock_reconcile_ack. */
+export type ReconcileSectionKey = "pos" | "amenity_prepare" | "amenity_direct";
+
+/** One section of the 3-item stock reconcile pre-check shown during Night Audit. */
+export interface ReconcileSection {
+  key: ReconcileSectionKey;
+  label_en: string;
+  label_th: string;
+  variance_count: number;
+  total_count: number;
+  status: "pending" | "clean" | "acknowledged";
+  acknowledged_by?: string;
+  acknowledged_by_user_id?: string;
+  acknowledged_at?: string;
+  note?: string;
+}
+
+/** Aggregate reconcile state for a business date (driven by compute_stock_snapshot output). */
+export interface StockReconcileStatus {
+  business_date: string;
+  sections: ReconcileSection[];
+  all_clean: boolean;                 // true when every section has variance_count = 0
+  all_acked: boolean;                 // true when every section is in {clean, acknowledged}
+  can_complete_night_audit: boolean;  // convenience: warnings resolved or all acked
+}
+
+/** Ack request body — POST /api/night-audit/stock-reconcile/acknowledge. */
+export interface StockReconcileAcknowledgePayload {
+  section: ReconcileSectionKey;
+  note?: string;
+}
+
+/** Ack response shape. */
+export interface StockReconcileAcknowledgeResponse {
+  success: true;
+  acknowledged_at: string;
+  acknowledged_by: string;
+  all_sections_acked: boolean;
+}
+
+// ─── Admin config (hotel_settings extension) ────────────────────────────────
+
+/** Just the Phase 65-added fields — merged into the existing HotelSettings shape in /api/settings. */
+export interface AmenityAuditSettings {
+  amenity_audit_warn_days: number;    // [1,30], default 3
+}

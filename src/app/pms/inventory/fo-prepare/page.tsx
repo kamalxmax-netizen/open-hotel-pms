@@ -490,7 +490,7 @@ export default function FoPreparePage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-600 mb-1">Inventory</p>
           <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">FO Daily Prepare</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Morning prepare by room sale, then end-of-day return to main stock.
+            Morning prepare by room sale (Amenity products), then end-of-day return to main stock.
           </p>
         </div>
         <div className="flex items-end gap-2">

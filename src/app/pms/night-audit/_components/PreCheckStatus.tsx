@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { PreCheckResult } from "@/lib/types"
+import { StockReconcileSection } from "./StockReconcileSection"
 
 interface PreCheckStatusProps {
   onReadyChange: (isReady: boolean) => void
@@ -11,6 +12,7 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
   const [result, setResult] = useState<PreCheckResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [stockReconcileOk, setStockReconcileOk] = useState(false)
 
   useEffect(() => {
     fetch("/api/night-audit/pre-check")
@@ -18,18 +20,23 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
       .then((d) => {
         if (d.success) {
           setResult(d)
-          onReadyChange(d.can_run)
         } else {
           setError(d.error || "Failed to run pre-check")
-          onReadyChange(false)
         }
       })
       .catch(() => {
         setError("Network error running pre-check")
-        onReadyChange(false)
       })
       .finally(() => setLoading(false))
-  }, [onReadyChange])
+  }, [])
+
+  useEffect(() => {
+    if (result && result.can_run && stockReconcileOk) {
+      onReadyChange(true)
+    } else {
+      onReadyChange(false)
+    }
+  }, [result, stockReconcileOk, onReadyChange])
 
   if (loading) {
     return (
@@ -49,20 +56,6 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
   const blockers = result.blockers || []
   const warnings = result.warnings || []
   const isReady = result.can_run
-
-  if (isReady && warnings.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--text-secondary)]">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-emerald-500/20 mb-4">
-          <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-medium text-[var(--text-primary)]">All Clear</h3>
-        <p className="mt-1 text-sm">System is ready for Night Audit.</p>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -103,6 +96,19 @@ export function PreCheckStatus({ onReadyChange }: PreCheckStatusProps) {
           </div>
         </div>
       )}
+
+      {isReady && warnings.length === 0 && (
+        <div className="flex flex-col items-center justify-center p-6 text-center text-[var(--text-secondary)] border border-green-200 bg-green-50 rounded-lg dark:bg-emerald-500/10 dark:border-emerald-500/20">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-emerald-500/20 mb-2">
+            <svg className="h-5 w-5 text-green-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h3 className="text-sm font-medium text-emerald-800 dark:text-emerald-400">System Pre-Checks Clear</h3>
+        </div>
+      )}
+
+      <StockReconcileSection onReconcileComplete={setStockReconcileOk} />
     </div>
   )
 }
