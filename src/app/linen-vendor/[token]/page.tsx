@@ -70,7 +70,6 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
     const returnTotal = data.return_items.reduce((sum, item) => sum + item.received_back, 0);
 
     return (
-    return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans transition-colors">
             <div className="bg-[#1B4038] px-6 py-8 text-white rounded-b-[2rem] shadow-md">
                 <h1 className="text-2xl font-bold">สรุปรายการรับ-ส่งผ้า</h1>
