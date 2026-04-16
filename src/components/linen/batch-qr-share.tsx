@@ -5,9 +5,10 @@ import QRCode from "react-qr-code";
 
 interface BatchQrShareProps {
   token: string;
+  summaryText?: string;
 }
 
-export function BatchQrShare({ token }: BatchQrShareProps) {
+export function BatchQrShare({ token, summaryText }: BatchQrShareProps) {
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("");
 
@@ -21,7 +22,11 @@ export function BatchQrShare({ token }: BatchQrShareProps) {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(vendorLink);
+      const fullContent = summaryText 
+        ? `${summaryText}\n\nเปิดดูรายละเอียด/ยืนยันได้ที่: ${vendorLink}` 
+        : vendorLink;
+        
+      await navigator.clipboard.writeText(fullContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {

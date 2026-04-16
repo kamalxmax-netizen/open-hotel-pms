@@ -9,6 +9,8 @@ import { BatchStepReturn } from "@/components/linen/batch-step-return";
 import { BatchStepVendorSign } from "@/components/linen/batch-step-vendor-sign";
 import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
+import { SignatureDisplay } from "@/components/linen/signature-display";
+import { StatusBadge } from "@/components/linen/status-badge";
 
 export default function BatchDetailPage({ params }: { params: { id: string } }) {
     const { data, isLoading, mutate } = useLinenBatchDetail(params.id);
@@ -179,33 +181,26 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
-                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 text-sm flex items-center gap-2">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col items-center">
+                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 text-sm flex items-center gap-2 self-start">
                         <div className="w-2 h-2 bg-blue-500 rounded-full" /> ลายเซ็นร้านซักรีด
                     </h4>
                     {batch.vendor_pickup_signature_url ? (
-                        <div className="h-[120px] bg-white rounded-lg flex items-center justify-center border border-slate-100 dark:border-slate-800 p-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={batch.vendor_pickup_signature_url} alt="Vendor Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:invert" />
-                        </div>
+                        <SignatureDisplay src={batch.vendor_pickup_signature_url} label={`ผู้เซ็น: ${batch.vendor_name || '-'}`} />
                     ) : (
-                        <div className="h-[120px] bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm border border-slate-100 dark:border-slate-800">
+                        <div className="h-[60px] w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-600 text-xs border border-slate-100 dark:border-slate-800">
                             ยังไม่มีลายเซ็น
                         </div>
                     )}
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">ชื่อผู้เซ็น: <span className="font-semibold text-slate-700 dark:text-slate-200">{batch.vendor_name || '-'}</span></p>
                 </div>
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
-                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 text-sm flex items-center gap-2">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col items-center">
+                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-3 text-sm flex items-center gap-2 self-start">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full" /> ลายเซ็น FO
                     </h4>
                     {batch.fo_return_signature_url ? (
-                        <div className="h-[120px] bg-white rounded-lg flex items-center justify-center border border-slate-100 dark:border-slate-800 p-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={batch.fo_return_signature_url} alt="FO Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:invert" />
-                        </div>
+                        <SignatureDisplay src={batch.fo_return_signature_url} label="พนักงาน Front Office" />
                     ) : (
-                        <div className="h-[120px] bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm border border-slate-100 dark:border-slate-800">
+                        <div className="h-[60px] w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-600 text-xs border border-slate-100 dark:border-slate-800">
                             ยังไม่มีลายเซ็น
                         </div>
                     )}
@@ -231,23 +226,3 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     );
 }
 
-function StatusBadge({ status }: { status: string }) {
-    const map: Record<string, {label: string, color: string}> = {
-        'draft': { label: 'ร่าง', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
-        'fo_dirty_counted': { label: 'รอนับคืน', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-        'fo_return_counted': { label: 'รอร้านเซ็น', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-        'vendor_signed': { label: 'ร้านเซ็นแล้ว', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
-        'fo_return_signed': { label: 'ส่งงานให้ร้าน', color: 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' },
-        'closed': { label: 'เสร็จสมบูรณ์', color: 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' },
-        'partial': { label: 'เสร็จ (มีค้าง)', color: 'bg-emerald-50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/50' },
-        'disputed': { label: 'ยอดไม่ตรง', color: 'bg-rose-100 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400' },
-    };
-    
-    const s = map[status] || { label: status, color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' };
-    
-    return (
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold leading-none uppercase tracking-tight ${s.color}`}>
-            {s.label}
-        </span>
-    );
-}

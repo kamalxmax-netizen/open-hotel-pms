@@ -3,7 +3,7 @@ import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
 import { clearPermissionCache, readPermissionCache, writePermissionCache } from "@/lib/middleware-permission-cache";
 
 // Routes that are always public (no auth required)
-const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/offline"];
+const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/offline", "/linen-vendor"];
 
 // Routes that should redirect authenticated users away
 const AUTH_ONLY_PATHS = ["/login"];
@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // For /pms/** and other protected routes: require session
-  if (pathname.startsWith("/pms") || pathname === "/") {
+  if (pathname.startsWith("/pms") || pathname.startsWith("/linen-mobile") || pathname === "/") {
     const response = NextResponse.next();
     const supabase = createMiddlewareSupabaseClient(request, response);
     const { data: { user } } = await supabase.auth.getUser();
@@ -77,7 +77,9 @@ export async function middleware(request: NextRequest) {
     // ["*"] = full access
     if (!allowedPages.includes("*")) {
       const permissionPath =
-        pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
+        pathname.startsWith("/linen-mobile")
+          ? "/pms/linen"
+        : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
           ? "/pms/calendar"
           : pathname;
       const hasAccess = allowedPages.some((p) => {

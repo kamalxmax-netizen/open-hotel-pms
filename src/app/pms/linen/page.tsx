@@ -28,7 +28,7 @@ export default function LinenDashboardPage() {
                         ประวัติย้อนหลัง
                     </Link>
                     <Link 
-                        href="/pms/linen/batch/new"
+                        href="/linen-mobile/batch/new"
                         className="px-4 py-2 bg-[#1B4038] text-white font-medium text-sm rounded-xl shadow-[0_4px_12px_rgba(27,64,56,0.25)] hover:bg-[#122b26] transition-colors flex items-center gap-2"
                     >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -86,7 +86,7 @@ export default function LinenDashboardPage() {
                     <h3 className="font-semibold text-slate-700 dark:text-slate-300 mb-1">ยังไม่มีรายการรับ-ส่งผ้าวันนี้</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6">กดปุ่มรับ-ส่งผ้าด้านบนเมื่อร้านซักรีดมารับผ้าเปื้อน หรือจะเริ่มการนับผ้าเผื่อเวลาก่อนที่ร้านจะมาถึงก็ได้เช่นกัน</p>
                     <Link 
-                        href="/pms/linen/batch/new"
+                        href="/linen-mobile/batch/new"
                         className="px-5 py-2.5 bg-[#1B4038] text-white font-medium text-sm rounded-xl shadow-[0_2px_8px_rgba(27,64,56,0.25)] hover:bg-[#122b26] transition-colors"
                     >
                         เริ่มนับผ้ารอบใหม่
