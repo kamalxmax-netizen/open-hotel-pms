@@ -1757,3 +1757,217 @@ export interface StockReconcileAcknowledgeResponse {
 export interface AmenityAuditSettings {
   amenity_audit_warn_days: number;    // [1,30], default 3
 }
+
+// ─── Phase 66: Linen & Laundry Reconciliation ─────────────────────────────────
+
+export type LinenItemCategory = "bed" | "bath" | "misc";
+
+export interface LinenItem {
+  id: number;
+  item_number: number;                // 1-9 active, 10+ excluded v1
+  name_th: string;
+  name_en: string;
+  category: LinenItemCategory;
+  is_active: boolean;
+  laundry_rate_per_piece: number;
+  sort_order: number;
+}
+
+export interface RoomLinenSetup {
+  id: number;
+  room_type_code: string;             // TS, DS, DQ, DT, JS, TB, FR
+  linen_item_id: number;
+  qty: number;
+}
+
+export interface LinenDayuseSetup {
+  id: number;
+  linen_item_id: number;
+  qty_per_room: number;
+}
+
+export type LinenRoomCategory =
+  | "checkout_serviced"
+  | "checkout_towel_only"
+  | "inhouse_serviced"
+  | "inhouse_not_started"
+  | "inhouse_no_task"
+  | "inhouse_no_service"
+  | "after_cutoff";
+
+export interface LinenUsageRule {
+  id: number;
+  category: LinenRoomCategory;
+  linen_item_id: number;
+  percentage: number;                  // 0-100
+  use_checklist: boolean;              // true = use HK checklist qty instead of %
+  notes: string | null;
+}
+
+export type LaundryBatchStatus =
+  | "draft"
+  | "fo_dirty_counted"
+  | "fo_return_counted"
+  | "vendor_signed"
+  | "fo_return_signed"
+  | "closed"                           // vendor confirmed + no pending
+  | "partial"                          // vendor confirmed + has pending
+  | "disputed";                        // vendor flagged mismatch
+
+export interface LaundryBatch {
+  id: string;
+  business_date: string;
+  pickup_round: number;
+  vendor_name: string | null;
+  status: LaundryBatchStatus;
+  cutoff_time: string | null;
+  vendor_pickup_signature_url: string | null;
+  fo_return_signature_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LaundryBatchItem {
+  id: string;
+  batch_id: string;
+  linen_item_id: number;
+  is_dayuse: boolean;
+  estimated_qty: number;
+  sent_by_hotel: number;
+  received_back: number;
+  damaged_qty: number;
+  // Joined fields (from linen_items)
+  item_number?: number;
+  name_th?: string;
+}
+
+export interface LaundryReturnSourceItem extends LaundryBatchItem {
+  source_batch_id: string;
+  source_business_date: string;
+  source_pickup_round: number;
+  remaining_qty: number;
+}
+
+export type LaundryBatchEventType =
+  | "created"
+  | "fo_dirty_counted"
+  | "fo_return_counted"
+  | "vendor_signed"
+  | "fo_return_signed"
+  | "vendor_shop_confirmed"
+  | "closed"
+  | "partial_closed"
+  | "disputed"
+  | "reopened"
+  | "dayuse_added"
+  | "pending_resolved";
+
+export interface LaundryBatchEvent {
+  id: string;
+  batch_id: string;
+  event_type: LaundryBatchEventType;
+  actor_name: string | null;
+  actor_role: "fo" | "vendor" | "admin" | null;
+  data: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface LaundryVendorToken {
+  id: string;
+  batch_id: string;
+  token: string;
+  vendor_name: string | null;
+  expires_at: string;
+  revoked: boolean;
+  created_at: string;
+}
+
+export interface LaundryPendingItem {
+  id: string;
+  source_batch_id: string;
+  linen_item_id: number;
+  pending_qty: number;
+  resolved_batch_id: string | null;
+  resolved_at: string | null;
+  reason: string | null;
+  created_at: string;
+  // Joined fields
+  source_batch_date?: string;
+  name_th?: string;
+}
+
+export interface LinenDayusePending {
+  id: string;
+  linen_item_id: number;
+  qty_accumulated: number;
+  last_added_date: string | null;
+  sent_in_batch_id: string | null;
+  sent_at: string | null;
+  // Joined
+  name_th?: string;
+}
+
+// ─── Phase 66: Expected Linen Calculation ──────────────────────────────────────
+
+export interface LinenExpectedRoomDetail {
+  room_id: string;
+  room_number: string;
+  room_type_code: string;
+  category: LinenRoomCategory;
+  guest_name: string | null;
+}
+
+export interface LinenCategorySummary {
+  checkout_serviced: number;
+  checkout_towel_only: number;
+  inhouse_serviced: number;
+  inhouse_not_started: number;
+  inhouse_no_task: number;
+  inhouse_no_service: number;
+  after_cutoff: number;
+}
+
+export interface LinenExpectedResult {
+  business_date: string;
+  cutoff_time: string;
+  rooms: LinenExpectedRoomDetail[];
+  items: {
+    linen_item_id: number;
+    item_number: number;
+    name_th: string;
+    estimated_qty: number;
+  }[];
+  category_summary: LinenCategorySummary;
+}
+
+// ─── Phase 66: Dashboard ───────────────────────────────────────────────────────
+
+export interface LinenDashboard {
+  business_date: string;
+  batches_today: LaundryBatch[];
+  total_sent: number;
+  total_received: number;
+  total_pending: number;
+  pending_items: LaundryPendingItem[];
+  dayuse_accumulated: {
+    linen_item_id: number;
+    name_th: string;
+    qty: number;
+  }[];
+  dayuse_towel_count: number;
+  dayuse_threshold: number;           // 30
+}
+
+// ─── Phase 66: Vendor View (public token-based) ────────────────────────────────
+
+export interface LinenVendorView {
+  batch: LaundryBatch;
+  items: LaundryBatchItem[];           // dirty sent today
+  return_items: LaundryBatchItem[];    // clean returned today
+  pending_items: LaundryPendingItem[];
+  today_received_total: number;        // ผ้าวันนี้ที่เพิ่งรับ (คืนรอบถัดไป)
+  status: LaundryBatchStatus;
+  hotel_name: string;
+}

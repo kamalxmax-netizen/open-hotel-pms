@@ -1,7 +1,7 @@
 import { getCurrentBusinessDate } from "@/lib/stock-snapshot";
 import { listAmenityAuditSessions, submitAmenityAuditSession } from "@/lib/fo-amenity-audit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -28,8 +28,15 @@ const bodySchema = z.object({
   items: z.array(itemSchema).min(1),
 });
 
-function canSubmitAmenityAudit(role: string | null): boolean {
-  return role === "admin" || role === "supervisor" || role === "frontdesk";
+function hasAmenityAuditPermission(allowedPages: unknown): boolean {
+  if (!Array.isArray(allowedPages)) return false;
+  return allowedPages
+    .map((entry) => String(entry ?? "").trim())
+    .some((path) => path === "*" || path === "/pms/inventory/amenity-audit");
+}
+
+function canSubmitAmenityAudit(role: string | null, allowedPages: unknown): boolean {
+  return role === "admin" || role === "supervisor" || role === "frontdesk" || hasAmenityAuditPermission(allowedPages);
 }
 
 export async function GET(request: NextRequest) {
@@ -88,8 +95,16 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const user = await getAuthenticatedUser(supabase, request);
     if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    const role = await getUserRole(supabase, user.id);
-    if (!canSubmitAmenityAudit(role)) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, allowed_pages")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileError) throw new Error(profileError.message);
+
+    const role = String((profile as any)?.role ?? "").trim().toLowerCase();
+    if (!canSubmitAmenityAudit(role, (profile as any)?.allowed_pages)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 

@@ -62,7 +62,7 @@ export function AuditItemRow({ item, onChange }: AuditItemRowProps) {
       
       {item.needs_note && (
         <div className="mt-2 animate-in fade-in slide-in-from-top-2">
-          <label className="text-sm font-semibold text-rose-600 dark:text-rose-400">ระบุเหตุผล (Required for Variance &gt;= 5)</label>
+          <label className="text-sm font-semibold text-rose-600 dark:text-rose-400">ระบุเหตุผล (Required when System != Physical)</label>
           <Input 
              placeholder={`ทำไมถึงมียอดต่าง ${Math.abs(item.overclick_delta)} ชิ้น?`}
              className="mt-1 border-rose-300 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30 dark:bg-rose-500/10"

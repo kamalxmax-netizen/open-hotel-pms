@@ -80,6 +80,7 @@ const NAV_ITEMS = [
             { href: "/pms/housekeeping", label: "HK Dashboard", icon: HouseKeepingIcon, exact: true },
             { href: "/pms/housekeeping/extra-tasks", label: "Extra Tasks", icon: ListIcon },
             { href: "/pms/lost-found", label: "Lost & Found", icon: PackageIcon },
+            { href: "/pms/linen", label: "Linen & Laundry", icon: PackageIcon },
             { href: "/maid", label: "Maid App", icon: BroomIcon },
         ]
     },

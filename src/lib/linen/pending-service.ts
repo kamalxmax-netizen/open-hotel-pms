@@ -1,0 +1,141 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type ReturnItemInput = {
+  source_batch_id: string;
+  linen_item_id: number;
+  received_qty: number;
+  is_dayuse?: boolean;
+};
+
+export type PendingResolveInput = {
+  pending_item_id: string;
+};
+
+function ensureNonNegativeInt(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${field} must be a non-negative integer.`);
+  return parsed;
+}
+
+export async function listPendingItems(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("laundry_pending_items")
+    .select("*, linen_items(item_number, name_th), laundry_batches!source_batch_id(business_date, pickup_round)")
+    .is("resolved_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    item_number: row.linen_items?.item_number,
+    name_th: row.linen_items?.name_th,
+    source_batch_date: row.laundry_batches?.business_date,
+    source_pickup_round: row.laundry_batches?.pickup_round,
+  }));
+}
+
+export async function applyReturnsToSourceBatches(
+  supabase: SupabaseClient,
+  currentBatchId: string,
+  returnItems: ReturnItemInput[] = []
+) {
+  await supabase.from("laundry_pending_items").delete().eq("created_by_batch_id", currentBatchId).is("resolved_at", null);
+
+  const applied: Array<{ source_batch_id: string; linen_item_id: number; received_qty: number; pending_qty: number }> = [];
+
+  for (const input of returnItems) {
+    const receivedQty = ensureNonNegativeInt(input.received_qty, "received_qty");
+    const { data: existing, error: existingError } = await supabase
+      .from("laundry_batch_items")
+      .select("id, sent_by_hotel, received_back")
+      .eq("batch_id", input.source_batch_id)
+      .eq("linen_item_id", input.linen_item_id)
+      .eq("is_dayuse", Boolean(input.is_dayuse))
+      .maybeSingle();
+
+    if (existingError) throw new Error(existingError.message);
+    if (!existing) throw new Error("Source batch item not found.");
+
+    const nextReceived = ensureNonNegativeInt((existing as any).received_back, "received_back") + receivedQty;
+    const sentQty = ensureNonNegativeInt((existing as any).sent_by_hotel, "sent_by_hotel");
+
+    const { error: updateError } = await supabase
+      .from("laundry_batch_items")
+      .update({ received_back: nextReceived })
+      .eq("id", (existing as any).id);
+    if (updateError) throw new Error(updateError.message);
+
+    const pendingQty = Math.max(0, sentQty - nextReceived);
+    if (pendingQty > 0) {
+      const { error: pendingError } = await supabase.from("laundry_pending_items").insert({
+        source_batch_id: input.source_batch_id,
+        linen_item_id: input.linen_item_id,
+        pending_qty: pendingQty,
+        created_by_batch_id: currentBatchId,
+        reason: "return_short",
+      });
+      if (pendingError) throw new Error(pendingError.message);
+    }
+
+    applied.push({
+      source_batch_id: input.source_batch_id,
+      linen_item_id: input.linen_item_id,
+      received_qty: receivedQty,
+      pending_qty: pendingQty,
+    });
+  }
+
+  return applied;
+}
+
+export async function resolvePendingItems(
+  supabase: SupabaseClient,
+  currentBatchId: string,
+  pendingItems: PendingResolveInput[] = []
+) {
+  const resolved: Array<{ pending_item_id: string; source_batch_id: string; linen_item_id: number; qty: number }> = [];
+
+  for (const input of pendingItems) {
+    const { data: pending, error: pendingError } = await supabase
+      .from("laundry_pending_items")
+      .select("id, source_batch_id, linen_item_id, pending_qty")
+      .eq("id", input.pending_item_id)
+      .is("resolved_at", null)
+      .maybeSingle();
+
+    if (pendingError) throw new Error(pendingError.message);
+    if (!pending) continue;
+
+    const { data: item, error: itemError } = await supabase
+      .from("laundry_batch_items")
+      .select("id, received_back")
+      .eq("batch_id", (pending as any).source_batch_id)
+      .eq("linen_item_id", (pending as any).linen_item_id)
+      .maybeSingle();
+    if (itemError) throw new Error(itemError.message);
+    if (!item) throw new Error("Source batch item for pending record not found.");
+
+    const qty = ensureNonNegativeInt((pending as any).pending_qty, "pending_qty");
+    const nextReceived = ensureNonNegativeInt((item as any).received_back, "received_back") + qty;
+    const { error: updateItemError } = await supabase
+      .from("laundry_batch_items")
+      .update({ received_back: nextReceived })
+      .eq("id", (item as any).id);
+    if (updateItemError) throw new Error(updateItemError.message);
+
+    const { error: updatePendingError } = await supabase
+      .from("laundry_pending_items")
+      .update({ resolved_batch_id: currentBatchId, resolved_at: new Date().toISOString() })
+      .eq("id", (pending as any).id);
+    if (updatePendingError) throw new Error(updatePendingError.message);
+
+    resolved.push({
+      pending_item_id: String((pending as any).id),
+      source_batch_id: String((pending as any).source_batch_id),
+      linen_item_id: Number((pending as any).linen_item_id),
+      qty,
+    });
+  }
+
+  return resolved;
+}

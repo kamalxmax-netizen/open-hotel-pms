@@ -20,6 +20,7 @@ function AuditFormContent() {
   const [items, setItems] = useState<AmenityAuditItemDisplay[]>([]);
   const [sessionNote, setSessionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -73,8 +74,8 @@ function AuditFormContent() {
         updated.refill_delta = updated.refill_to - updated.physical_qty;
       }
       
-      // Needs note logic: if absolute variance >= 5, require note
-      updated.needs_note = Math.abs(updated.overclick_delta) >= 5;
+      // Backend requires a reason for any physical/system variance.
+      updated.needs_note = updated.overclick_delta !== 0;
       
       return updated;
     }));
@@ -103,6 +104,7 @@ function AuditFormContent() {
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
+      setSubmitError(null);
       
       const payload = {
         floor_number: floorNumber,
@@ -134,9 +136,11 @@ function AuditFormContent() {
       });
       router.push("/pms/inventory/amenity-audit");
     } catch (err) {
+      const message = err instanceof Error ? err.message : "An error occurred while submitting the session.";
+      setSubmitError(message);
       toast({
         title: "Submit Failed",
-        description: err instanceof Error ? err.message : "An error occurred while submitting the session.",
+        description: message,
         variant: "destructive"
       });
     } finally {
@@ -179,6 +183,7 @@ function AuditFormContent() {
              totalRefill={totals.totalRefill}
              sessionNote={sessionNote}
              setSessionNote={setSessionNote}
+             submitError={submitError}
           />
         </div>
       )}

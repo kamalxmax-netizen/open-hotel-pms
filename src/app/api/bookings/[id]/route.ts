@@ -609,9 +609,12 @@ export async function PUT(
     }
   }
 
-  const requestedCheckinTime = (() => {
-    const explicit = String(payload.checkin_time ?? "").trim();
-    if (explicit) return explicit;
+  const hasCheckinTimeField = Object.prototype.hasOwnProperty.call(payload, "checkin_time");
+  const requestedCheckinTime: string | null | undefined = (() => {
+    if (hasCheckinTimeField) {
+      const explicit = String(payload.checkin_time ?? "").trim();
+      return explicit || null;
+    }
     if (normalizedCheckedInAtIso) {
       return toLocalTime(new Date(normalizedCheckedInAtIso));
     }
@@ -626,7 +629,7 @@ export async function PUT(
     : null;
   const checkinTimestampChanged =
     (normalizedCheckedInAtIso !== undefined && normalizedCheckedInAtIso !== currentCheckedInAtIso) ||
-    (requestedCheckinTime !== undefined && requestedCheckinTime !== String(currentReservation.checkin_time ?? "").trim());
+    (requestedCheckinTime !== undefined && String(requestedCheckinTime ?? "") !== String(currentReservation.checkin_time ?? "").trim());
   const checkinTimestampLockedByBusinessDate =
     Boolean(currentCheckedInBusinessDate) &&
     businessDate > String(currentCheckedInBusinessDate);
@@ -915,7 +918,7 @@ export async function PUT(
           checkin_date: payload.checkin_date,
           checkout_date: payload.checkout_date,
         }),
-        checkin_time: requestedCheckinTime || null,
+        ...(requestedCheckinTime !== undefined ? { checkin_time: requestedCheckinTime || null } : {}),
         ...(normalizedCheckedInAtIso !== undefined ? { checked_in_at: normalizedCheckedInAtIso } : {}),
         ...(hasExpectedArrivalField ? { expected_arrival_time: normalizedExpectedArrivalTime } : {}),
         note: payload.note?.trim() || null,
@@ -940,7 +943,9 @@ export async function PUT(
       p_checkout_date: payload.checkout_date,
       p_source: payload.source,
       p_phone: payload.phone?.trim() || null,
-      p_checkin_time: requestedCheckinTime || null,
+      p_checkin_time: requestedCheckinTime !== undefined
+        ? requestedCheckinTime || null
+        : String(currentReservation.checkin_time ?? "").trim() || null,
       p_note: payload.note?.trim() || null,
       p_ota_prices: normalizedOtaPrices
     });
@@ -957,7 +962,9 @@ export async function PUT(
       const fallback = await supabase.rpc("booking_update_reservation", {
         p_actor_user_id: null,
         p_checkin_date: payload.checkin_date,
-        p_checkin_time: requestedCheckinTime || null,
+        p_checkin_time: requestedCheckinTime !== undefined
+          ? requestedCheckinTime || null
+          : String(currentReservation.checkin_time ?? "").trim() || null,
         p_checkout_date: payload.checkout_date,
         p_guest_name: payload.guest_name.trim(),
         p_note: payload.note?.trim() || null,

@@ -9,12 +9,13 @@ interface AuditSummaryFooterProps {
   onSubmit: () => void;
   sessionNote: string;
   setSessionNote: (val: string) => void;
+  submitError?: string | null;
 }
 
 export function AuditSummaryFooter({
   totalOverclick, totalUnderclick, totalRefill, 
   isValid, isSubmitting, onSubmit,
-  sessionNote, setSessionNote
+  sessionNote, setSessionNote, submitError
 }: AuditSummaryFooterProps) {
   return (
     <div className="card p-6 mt-6 flex flex-col md:flex-row gap-6 justify-between items-start dark:bg-[var(--bg-surface)]">
@@ -57,6 +58,11 @@ export function AuditSummaryFooter({
             {!isValid && (
                <p className="text-center text-xs text-rose-500 mt-2">
                  Please resolve all notes or invalid Refill quantities to submit.
+               </p>
+            )}
+            {submitError && (
+               <p className="text-center text-xs text-rose-500 mt-2 font-semibold">
+                 {submitError}
                </p>
             )}
          </div>

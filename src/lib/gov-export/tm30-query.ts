@@ -65,7 +65,40 @@ export async function queryTM30Guests(
   const utcRangeStart = `${targetDate}T00:00:00+07:00`; // midnight Bangkok = previous day 17:00 UTC
   const utcRangeEnd = `${targetDate}T23:59:59+07:00`;   // end of day Bangkok
 
-  const { data: checkinReservations, error: checkinError } = await supabase
+  const { data: checkedInAuditRows, error: checkedInAuditError } = await supabase
+    .from("audit_logs")
+    .select("entity_id, business_date")
+    .eq("entity_type", "reservation")
+    .eq("action", "checked_in")
+    .eq("business_date", targetDate);
+
+  if (checkedInAuditError) {
+    throw new Error(`Failed to load check-in audit logs: ${checkedInAuditError.message}`);
+  }
+
+  const auditTargetReservationIds = [
+    ...new Set(
+      (checkedInAuditRows ?? [])
+        .map((row: any) => String(row.entity_id ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  let auditReservations: any[] = [];
+  if (auditTargetReservationIds.length > 0) {
+    const { data, error } = await supabase
+      .from("reservations")
+      .select("id, parent_reservation_id, checkin_date, checkout_date, checked_in_at, status")
+      .in("id", auditTargetReservationIds)
+      .in("status", ["active", "checked_out"]);
+
+    if (error) {
+      throw new Error(`Failed to load audited reservations: ${error.message}`);
+    }
+    auditReservations = data ?? [];
+  }
+
+  const { data: timestampReservations, error: checkinError } = await supabase
     .from("reservations")
     .select("id, parent_reservation_id, checkin_date, checkout_date, checked_in_at")
     .not("checked_in_at", "is", null)
@@ -77,18 +110,64 @@ export async function queryTM30Guests(
     throw new Error(`Failed to load reservations: ${checkinError.message}`);
   }
 
+  const timestampReservationIds = [
+    ...new Set((timestampReservations ?? []).map((r: any) => String(r.id)).filter(Boolean)),
+  ];
+  const auditBusinessDateByReservation = new Map<string, string>();
+  for (const row of checkedInAuditRows ?? []) {
+    const id = String((row as any).entity_id ?? "").trim();
+    const businessDate = String((row as any).business_date ?? "").trim();
+    if (id && businessDate) auditBusinessDateByReservation.set(id, businessDate);
+  }
+
+  if (timestampReservationIds.length > 0) {
+    const { data: timestampAuditRows, error: timestampAuditError } = await supabase
+      .from("audit_logs")
+      .select("entity_id, business_date, created_at")
+      .eq("entity_type", "reservation")
+      .eq("action", "checked_in")
+      .in("entity_id", timestampReservationIds)
+      .order("created_at", { ascending: false });
+
+    if (timestampAuditError) {
+      throw new Error(`Failed to load timestamp check-in audit logs: ${timestampAuditError.message}`);
+    }
+
+    for (const row of timestampAuditRows ?? []) {
+      const id = String((row as any).entity_id ?? "").trim();
+      const businessDate = String((row as any).business_date ?? "").trim();
+      if (id && businessDate && !auditBusinessDateByReservation.has(id)) {
+        auditBusinessDateByReservation.set(id, businessDate);
+      }
+    }
+  }
+
+  const checkinReservationMap = new Map<string, any>();
+  for (const reservation of [...auditReservations, ...(timestampReservations ?? [])] as any[]) {
+    const id = String(reservation?.id ?? "").trim();
+    if (id) checkinReservationMap.set(id, reservation);
+  }
+  const checkinReservations = Array.from(checkinReservationMap.values());
+  const auditTargetReservationSet = new Set(auditTargetReservationIds);
+
   // Filter by Bangkok timezone date
-  const matchingReservationIds = (checkinReservations ?? [])
+  const matchingReservationIds = checkinReservations
     .filter((r: any) => {
-      if (!r.checked_in_at) return false;
       if (r.parent_reservation_id) return false;
+      const reservationId = String(r.id);
+      if (auditTargetReservationSet.has(reservationId)) return true;
+      if (!r.checked_in_at) return false;
+
+      const auditBusinessDate = auditBusinessDateByReservation.get(reservationId);
+      if (auditBusinessDate && auditBusinessDate !== targetDate) return false;
+
       return isoToBangkokDate(String(r.checked_in_at)) === targetDate;
     })
     .map((r: any) => String(r.id));
 
   // Build reservation date map
   const reservationDateMap = new Map<string, { checkin_date: string; checkout_date: string }>();
-  for (const r of (checkinReservations ?? []) as any[]) {
+  for (const r of checkinReservations as any[]) {
     reservationDateMap.set(String(r.id), {
       checkin_date: String(r.checkin_date ?? ""),
       checkout_date: String(r.checkout_date ?? ""),
@@ -166,7 +245,7 @@ export async function queryTM30Guests(
     const key = `${resId}:${gp.id}`;
     if (seen.has(key)) continue;
 
-    const reservation = (checkinReservations ?? []).find((r: any) => String(r.id) === resId) as any;
+    const reservation = checkinReservations.find((r: any) => String(r.id) === resId) as any;
     if (!reservation?.checked_in_at) {
       const { data: resRow, error: resError } = await supabase
         .from("reservations")
