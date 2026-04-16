@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import useSWR from "@/hooks/use-simple-swr";
 import { useLinenExpected } from "@/hooks/use-linen-batch";
+import { useLinenDashboard } from "@/hooks/use-linen-dashboard";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
 import { MobileItemRow } from "./mobile-item-row";
 import { MobileExtraItemsSheet } from "./mobile-extra-items-sheet";
@@ -36,6 +37,7 @@ interface MobileBatchStepDirtyProps {
 export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDirtyProps) {
     const router = useRouter();
     const { expected, isLoading: isExpectedLoading } = useLinenExpected();
+    const { dashboard, isLoading: isDashboardLoading } = useLinenDashboard();
     const { data: dayuseData, isLoading: isDayuseLoading } = useSWR("/api/linen/dayuse", dayuseFetcher);
 
     const [actualData, setActualData] = useState<Record<number, string>>(initialData?.actualData || {});
@@ -45,15 +47,24 @@ export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDir
     const [isExtraSheetOpen, setIsExtraSheetOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const pickupRound = useMemo(() => {
+        const draftRound = Number(initialData?.pickupRound ?? initialData?.pickup_round);
+        if (Number.isInteger(draftRound) && draftRound > 0) return draftRound;
+        if (!expected || !dashboard || dashboard.business_date !== expected.business_date) return 1;
+        const maxRound = Math.max(0, ...(dashboard.batches_today ?? []).map((batch) => Number(batch.pickup_round ?? 0)));
+        return maxRound + 1;
+    }, [dashboard, expected, initialData]);
+
     // Save draft to localStorage
     const handleSaveDraft = () => {
         if (!expected) return;
-        const draftKey = `linen_draft_${expected.business_date}_1`;
+        const draftKey = `linen_draft_${expected.business_date}_${pickupRound}`;
         const draftData = {
             actualData,
             extraItems,
             isDayuseOpen,
             editedDayuse,
+            pickupRound,
             timestamp: Date.now()
         };
         localStorage.setItem(draftKey, JSON.stringify(draftData));
@@ -131,7 +142,7 @@ export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDir
 
             const payload = {
                 business_date: expected.business_date,
-                pickup_round: 1,
+                pickup_round: pickupRound,
                 items: itemsToSubmit,
             };
 
@@ -141,23 +152,25 @@ export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDir
                 body: JSON.stringify(payload),
             });
 
-            if (!res.ok) throw new Error("Failed to create batch");
+            const result = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error(result?.error || "Failed to create batch");
+            }
 
-            const result = await res.json();
-            
             // Clear draft on success
-            localStorage.removeItem(`linen_draft_${expected.business_date}_1`);
+            localStorage.removeItem(`linen_draft_${expected.business_date}_${pickupRound}`);
             
             onNext(result.data.batch.id);
         } catch (error) {
             console.error(error);
-            alert("เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่");
+            const message = error instanceof Error ? error.message : "Unknown error";
+            alert(`เกิดข้อผิดพลาดในการบันทึก: ${message}`);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    if (isExpectedLoading || isDayuseLoading) {
+    if (isExpectedLoading || isDashboardLoading || isDayuseLoading) {
         return <div className="py-20 text-center text-slate-400 animate-pulse font-thai">กำลังโหลดข้อมูล...</div>;
     }
 
@@ -168,7 +181,7 @@ export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDir
             <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900 font-thai">1. นับผ้าส่งซัก</h2>
-                    <p className="text-sm text-slate-500 font-thai">วันที่ {expected.business_date} รอบ 1</p>
+                    <p className="text-sm text-slate-500 font-thai">วันที่ {expected.business_date} รอบ {pickupRound}</p>
                 </div>
             </div>
 
@@ -258,7 +271,10 @@ export function MobileBatchStepDirty({ onNext, initialData }: MobileBatchStepDir
                 isOpen={isExtraSheetOpen}
                 onClose={() => setIsExtraSheetOpen(false)}
                 onAdd={handleExtraAdd}
-                existingItemIds={[]}
+                existingItemIds={[
+                    ...expected.items.map((item) => item.linen_item_id),
+                    ...extraItems.map((item) => item.linen_item_id),
+                ]}
             />
         </div>
     );
