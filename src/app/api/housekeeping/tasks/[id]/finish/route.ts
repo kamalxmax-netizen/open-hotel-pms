@@ -1,9 +1,10 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
 import { backfillReturnableAmenityLedgerIfMissing } from "@/lib/hk-returnable-stock";
 import { getAmenityLabelFromValues, isReturnableAmenity } from "@/lib/maid-amenities";
+import { maidAuthErrorResponse, requireMaidOperation } from "@/lib/maid-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { restoreLoanItemStock } from "@/lib/loan-item-stock";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 const finishSchema = z.object({
@@ -731,7 +732,7 @@ async function finishTaskLegacy(
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -750,9 +751,16 @@ export async function POST(
     const body = parsed.data;
     const { data: taskRoomData } = await supabase
       .from("housekeeping_tasks")
-      .select("id, room_id, stay_date, rooms(room_number, floor_number)")
+      .select("id, room_id, stay_date, assigned_maid_name, rooms(room_number, floor_number)")
       .eq("id", id)
       .maybeSingle();
+
+    const maidAuth = await requireMaidOperation(
+      supabase,
+      request,
+      (taskRoomData as { assigned_maid_name?: string | null } | null)?.assigned_maid_name ?? body.maid_name ?? null
+    );
+    body.maid_name = maidAuth.effectiveMaidName ?? body.maid_name;
 
     const roomCtx: TaskRoomContext = {
       room_id: (taskRoomData as { room_id?: string | null } | null)?.room_id ?? null,
@@ -836,7 +844,9 @@ export async function POST(
           auto_approved: Boolean(row?.auto_approved),
           duration_ms: Number(row?.duration_ms ?? 0),
           room_number: roomCtx.room_number,
+          maid_auth: maidAuth.audit,
         },
+        actor_user_id: maidAuth.audit.actor_user_id,
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
       });
@@ -857,6 +867,8 @@ export async function POST(
       loan_collection: loanCollectionResult,
     });
   } catch (err: unknown) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

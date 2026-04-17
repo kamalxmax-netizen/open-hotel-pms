@@ -87,9 +87,27 @@ export async function DELETE(
 
     if (error) {
       const isForeignKey = error.code === "23503";
+      if (isForeignKey) {
+        const { data: updated, error: updateError } = await supabase
+          .from("extra_task_templates")
+          .update({ is_active: false })
+          .eq("id", parsedParams.data.id)
+          .select("id")
+          .maybeSingle();
+
+        if (updateError) {
+          return NextResponse.json({ error: updateError.message }, { status: 500 });
+        }
+        if (!updated) {
+          return NextResponse.json({ error: "Template not found." }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, deactivated: true });
+      }
+
       return NextResponse.json(
-        { error: isForeignKey ? "Template is in use and cannot be deleted." : error.message },
-        { status: isForeignKey ? 409 : 500 }
+        { error: error.message },
+        { status: 500 }
       );
     }
 

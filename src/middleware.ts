@@ -8,10 +8,14 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/of
 // Routes that should redirect authenticated users away
 const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
+const MAID_HOME_PATH = "/maid";
 const EXACT_PERMISSION_PATHS = new Set(["/pms/inventory"]);
 
 function resolvePostLoginPath(role: string | null | undefined): string {
-  return String(role ?? "").trim().toLowerCase() === "mobile" ? MOBILE_HOME_PATH : "/pms/board";
+  const normalizedRole = String(role ?? "").trim().toLowerCase();
+  if (normalizedRole === "mobile") return MOBILE_HOME_PATH;
+  if (normalizedRole === "maid") return MAID_HOME_PATH;
+  return "/pms/board";
 }
 
 export async function middleware(request: NextRequest) {
@@ -37,7 +41,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // For /pms/** and other protected routes: require session
-  if (pathname.startsWith("/pms") || pathname.startsWith("/linen-mobile") || pathname === "/") {
+  if (pathname.startsWith("/pms") || pathname.startsWith("/linen-mobile") || pathname.startsWith("/maid") || pathname === "/") {
     const response = NextResponse.next();
     const supabase = createMiddlewareSupabaseClient(request, response);
     const { data: { user } } = await supabase.auth.getUser();
@@ -65,6 +69,13 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
+    if (role === "maid") {
+      const isMaidPath = pathname === MAID_HOME_PATH || pathname.startsWith(`${MAID_HOME_PATH}/`);
+      if (!isMaidPath) {
+        return NextResponse.redirect(new URL(MAID_HOME_PATH, request.url));
+      }
+    }
+
     // Skip permission check for the unauthorized page itself (avoid redirect loop)
     if (pathname === "/pms/unauthorized") return response;
 
@@ -77,7 +88,9 @@ export async function middleware(request: NextRequest) {
     // ["*"] = full access
     if (!allowedPages.includes("*")) {
       const permissionPath =
-        pathname.startsWith("/linen-mobile")
+        pathname.startsWith("/maid")
+          ? MAID_HOME_PATH
+        : pathname.startsWith("/linen-mobile")
           ? "/pms/linen"
         : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
           ? "/pms/calendar"

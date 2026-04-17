@@ -7,17 +7,20 @@ import { SignatureCanvas } from "./signature-canvas";
 interface MobileBatchStepFoSignProps {
     batchId: string;
     items: any[];
+    returnSummary?: { name: string; qty: number }[];
     onDone: (token: string) => void;
     onBack: () => void;
 }
 
-export function MobileBatchStepFoSign({ batchId, items, onDone, onBack }: MobileBatchStepFoSignProps) {
+export function MobileBatchStepFoSign({ batchId, items, returnSummary, onDone, onBack }: MobileBatchStepFoSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const dirtyItems = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
-    const returnItems = items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+    const returnItems = returnSummary?.length
+        ? returnSummary
+        : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
     const handleBack = () => {
         if (window.confirm("กดย้อนกลับจะทำให้ลายเซ็นที่ลงไว้หายไป ต้องการย้อนกลับหรือไม่?")) {
@@ -37,7 +40,7 @@ export function MobileBatchStepFoSign({ batchId, items, onDone, onBack }: Mobile
             const formData = new FormData();
             formData.append("file", signatureBlob, "signature.png");
             formData.append("type", "fo_return");
-            
+
             const signRes = await fetch(`/api/linen/batches/${batchId}/signature`, {
                 method: "POST",
                 body: formData
@@ -55,11 +58,11 @@ export function MobileBatchStepFoSign({ batchId, items, onDone, onBack }: Mobile
             });
 
             if (!res.ok) throw new Error("Failed to advance step");
-            
+
             // Get vendor token for next step (QR share)
             const tokenRes = await fetch(`/api/linen/batches/${batchId}/token`, { method: "POST" });
             const tokenData = await tokenRes.json();
-            
+
             onDone(tokenData.data.token);
         } catch (error) {
             console.error(error);
@@ -72,7 +75,7 @@ export function MobileBatchStepFoSign({ batchId, items, onDone, onBack }: Mobile
     return (
         <div className="flex flex-col h-full bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden mb-24">
             <div className="p-5 border-b border-slate-100 bg-slate-50">
-                <h2 className="text-xl font-bold text-slate-900 font-thai">4. FO เซ็นรับจบ</h2>
+                <h2 className="text-2xl font-bold text-slate-900 font-thai">4. FO เซ็นรับจบ</h2>
                 <p className="text-sm text-slate-500 font-thai">บันทึกขั้นตอนสุดท้าย</p>
             </div>
 

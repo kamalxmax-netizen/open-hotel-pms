@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getReturnableStockForReservationRoom } from "@/lib/hk-returnable-stock";
+import { isMaidNameMatch, maidAuthErrorResponse, requireMaidRead } from "@/lib/maid-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -8,7 +9,7 @@ const maidRoomsQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
     .optional(),
-  maid_name: z.string().trim().min(1, "maid_name is required"),
+  maid_name: z.string().trim().optional(),
 });
 
 type TaskStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
@@ -191,21 +192,8 @@ function getStayNightCount(checkinDate: string | null | undefined, checkoutDate:
   return Math.max(Math.round((checkout.getTime() - checkin.getTime()) / 86_400_000), 0);
 }
 
-function normalizeMaidName(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function isMaidMatch(candidate: string | null | undefined, target: string): boolean {
-  const c = normalizeMaidName(candidate);
-  const t = normalizeMaidName(target);
-  if (!c || !t) return false;
-  if (c === t) return true;
-
-  const compactCandidate = c.replace(/[^a-z0-9ก-๙]/g, "");
-  const compactTarget = t.replace(/[^a-z0-9ก-๙]/g, "");
-  if (compactCandidate && compactCandidate === compactTarget) return true;
-
-  return c.includes(t) || t.includes(c);
+  return isMaidNameMatch(candidate, target);
 }
 
 function buildLatestTaskByRoom<T extends { room_id: string; task_seq?: number | null }>(rows: T[]) {
@@ -224,7 +212,7 @@ function buildLatestTaskByRoom<T extends { room_id: string; task_seq?: number | 
 export async function GET(request: NextRequest) {
   try {
     const rawDate = request.nextUrl.searchParams.get("date") ?? undefined;
-    const rawMaid = request.nextUrl.searchParams.get("maid_name") ?? "";
+    const rawMaid = request.nextUrl.searchParams.get("maid_name") ?? undefined;
 
     const parsedQuery = maidRoomsQuerySchema.safeParse({
       date: rawDate,
@@ -239,9 +227,14 @@ export async function GET(request: NextRequest) {
     }
 
     const date = parsedQuery.data.date ?? getThailandDateString();
-    const maidName = parsedQuery.data.maid_name;
 
     const supabase = createServerSupabaseClient();
+    const maidAuth = await requireMaidRead(supabase, request, parsedQuery.data.maid_name);
+    const maidName = maidAuth.effectiveMaidName?.trim();
+
+    if (!maidName) {
+      return NextResponse.json({ error: "maid_name is required" }, { status: 400 });
+    }
 
     // Load all plans for date then match maid in code (trim/case-insensitive).
     const { data: allPlanRows, error: planError } = await supabase
@@ -322,6 +315,13 @@ export async function GET(request: NextRequest) {
         success: true,
         date,
         maid_name: maidName,
+        auth: {
+          mode: maidAuth.mode,
+          can_select_maid: maidAuth.canSelectMaid,
+          can_operate_selected: maidAuth.canOperate,
+          staff_lane_name: maidAuth.staffLaneName,
+          reason: maidAuth.reason,
+        },
         summary: emptySummary(),
         rooms: [],
       });
@@ -1072,10 +1072,19 @@ export async function GET(request: NextRequest) {
       success: true,
       date,
       maid_name: maidName,
+      auth: {
+        mode: maidAuth.mode,
+        can_select_maid: maidAuth.canSelectMaid,
+        can_operate_selected: maidAuth.canOperate,
+        staff_lane_name: maidAuth.staffLaneName,
+        reason: maidAuth.reason,
+      },
       summary,
       rooms,
     });
   } catch (err) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

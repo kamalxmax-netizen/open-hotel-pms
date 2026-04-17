@@ -1,4 +1,5 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { isMaidNameMatch, maidAuthErrorResponse, requireMaidRead } from "@/lib/maid-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -35,19 +36,8 @@ function getThailandDateString(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function normalizeName(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function isMaidMatch(candidate: string | null | undefined, selected: string): boolean {
-  const c = normalizeName(candidate);
-  const s = normalizeName(selected);
-  if (!c || !s) return false;
-  if (c === s) return true;
-  const compactC = c.replace(/[^a-z0-9ก-๙]/g, "");
-  const compactS = s.replace(/[^a-z0-9ก-๙]/g, "");
-  if (compactC && compactC === compactS) return true;
-  return c.includes(s) || s.includes(c);
+  return isMaidNameMatch(candidate, selected);
 }
 
 export async function GET(request: NextRequest) {
@@ -65,8 +55,9 @@ export async function GET(request: NextRequest) {
     }
 
     const targetDate = parsedQuery.data.date ?? getThailandDateString();
-    const maidName = parsedQuery.data.maid_name?.trim() ?? null;
     const supabase = createServerSupabaseClient();
+    const maidAuth = await requireMaidRead(supabase, request, parsedQuery.data.maid_name);
+    const maidName = maidAuth.effectiveMaidName?.trim() ?? null;
 
     const { data, error } = await supabase
       .from("extra_task_assignments")
@@ -87,9 +78,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       date: targetDate,
+      auth: {
+        mode: maidAuth.mode,
+        can_select_maid: maidAuth.canSelectMaid,
+        can_operate_selected: maidAuth.canOperate,
+        staff_lane_name: maidAuth.staffLaneName,
+        reason: maidAuth.reason,
+      },
       assignments,
     });
   } catch (err) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     console.error("extra-tasks/assignments GET unexpected", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

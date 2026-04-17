@@ -1827,6 +1827,8 @@ export interface LaundryBatch {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  total_sent?: number;
+  total_received?: number;
 }
 
 export interface LaundryBatchItem {
@@ -1862,7 +1864,11 @@ export type LaundryBatchEventType =
   | "disputed"
   | "reopened"
   | "dayuse_added"
-  | "pending_resolved";
+  | "pending_resolved"
+  | "rewash_created"
+  | "rewash_resolved"
+  | "rewash_expired"
+  | "edit_applied";
 
 export interface LaundryBatchEvent {
   id: string;
@@ -1970,4 +1976,371 @@ export interface LinenVendorView {
   today_received_total: number;        // ผ้าวันนี้ที่เพิ่งรับ (คืนรอบถัดไป)
   status: LaundryBatchStatus;
   hotel_name: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 66.2: Monthly Linen Reconciliation, Expense, Rate Setting
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Phase 66.2: Rate History ──────────────────────────────────────────────────
+
+export interface LinenItemRate {
+  id: string;
+  linen_item_id: number;
+  effective_month: string;              // YYYY-MM-01 (always 1st of month)
+  rate_per_piece: number;
+  note: string | null;
+  created_at: string;
+  created_by: string | null;
+  // Joined
+  item_number?: number;
+  name_th?: string;
+  name_en?: string;
+}
+
+// ─── Phase 66.2: Variance Config ───────────────────────────────────────────────
+
+export type LinenVarianceTier = "green" | "yellow" | "red" | "na";
+
+export interface LinenVarianceConfig {
+  id: 1;                                // singleton
+  green_min: number;                    // default 90
+  green_max: number;                    // default 110
+  yellow_min: number;                   // default 70
+  yellow_max: number;                   // default 130
+  updated_at: string;
+  updated_by: string | null;
+}
+
+// ─── Phase 66.2: Monthly Close ─────────────────────────────────────────────────
+
+export interface LinenMonthlyClose {
+  id: string;
+  year: number;                         // e.g. 2026
+  month: number;                        // 1-12
+  closed_at: string;
+  closed_by: string | null;
+  total_pieces: number;
+  total_baht: number;
+  reopened_at: string | null;
+  reopened_by: string | null;
+  reopen_reason: string | null;
+}
+
+export type LinenMonthlyCloseError =
+  | "dispute_exists"
+  | "pending_exists"
+  | "open_batch_exists";
+
+export interface LinenMonthlyCloseResult {
+  success: boolean;
+  close: LinenMonthlyClose | null;
+  errors?: LinenMonthlyCloseError[];
+  error_details?: {
+    disputed_batch_ids?: string[];
+    pending_item_ids?: string[];
+    open_batch_ids?: string[];
+  };
+}
+
+// ─── Phase 66.2: Monthly Summary (Per-Item View) ───────────────────────────────
+
+export interface LinenMonthlySummaryRow {
+  linen_item_id: number;
+  item_number: number;
+  name_th: string;
+  name_en: string;
+  rate: number;                         // rate effective in the month
+  qty_sent: number;                     // dirty sent to vendor — CANONICAL for billing
+  qty_returned: number;                 // clean received back — operational reference only
+  qty_pending: number;                  // still at vendor end-of-month
+  qty_extra: number;                    // MAX(qty_sent - estimated_qty, 0) for item 1/2 only
+  qty_dayuse: number;                   // "เก่า" qty in month
+  total_baht: number;                   // rate × qty_sent (billed — matches Excel E col)
+}
+
+export interface LinenMonthlyExtra {
+  item_name: string;                    // e.g. "ขนหนูเพิ่ม", "ปลอกหมอนเพิ่ม"
+  linen_item_id: number;
+  qty: number;
+}
+
+export interface LinenMonthlyDayuseSummary {
+  linen_item_id: number;
+  item_number: number;
+  name_th: string;
+  qty: number;
+}
+
+export interface LinenMonthlySummary {
+  year: number;
+  month: number;
+  closed: boolean;
+  closed_at: string | null;
+  total_pieces: number;
+  total_baht: number;
+  items: LinenMonthlySummaryRow[];
+  extras: LinenMonthlyExtra[];
+  dayuse: LinenMonthlyDayuseSummary[];
+}
+
+// ─── Phase 66.2: Monthly Daily Grid (Per-Day View) ─────────────────────────────
+
+export interface LinenMonthlyDailyCell {
+  linen_item_id: number;
+  item_number: number;
+  day_of_month: number;                 // 1-31
+  qty_sent: number;
+}
+
+export interface LinenMonthlyDaily {
+  year: number;
+  month: number;
+  days_in_month: number;
+  cells: LinenMonthlyDailyCell[];
+}
+
+// ─── Phase 66.2: Monthly Variance (Items 1-9 Only) ─────────────────────────────
+
+export interface LinenMonthlyVarianceRow {
+  linen_item_id: number;
+  item_number: number;                  // 1-9 only
+  name_th: string;
+  expected_qty: number;                 // sum of calculateExpectedLinen() across month days
+  actual_qty: number;                   // sum of qty_sent across month (matches Excel D col)
+  variance_pct: number | null;          // (actual / expected) × 100, null if expected = 0
+  tier: LinenVarianceTier;              // green/yellow/red/na
+}
+
+export interface LinenMonthlyVariance {
+  year: number;
+  month: number;
+  rows: LinenMonthlyVarianceRow[];
+  config: LinenVarianceConfig;
+}
+
+// ─── Phase 66.2: Export ────────────────────────────────────────────────────────
+
+export type LinenMonthlyExportFormat = "xlsx";
+
+export interface LinenMonthlyExportRequest {
+  year: number;
+  month: number;
+  format: LinenMonthlyExportFormat;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 66.3: Rewash + Desktop Redesign + Monthly Mega-Table
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Rewash Events ─────────────────────────────────────────────────────────────
+
+export type LaundryRewashStatus = "pending" | "resolved" | "expired";
+
+export interface LaundryRewashEvent {
+  id: number;
+  sent_in_batch_id: string;
+  linen_item_id: number;
+  is_dayuse: boolean;
+  qty: number;
+  photo_keys: string[];                 // private R2 object keys (min 1)
+  status: LaundryRewashStatus;
+  resolved_batch_id: string | null;
+  resolved_qty: number | null;
+  resolved_at: string | null;           // ISO timestamp
+  created_by: string;                   // uuid
+  created_at: string;
+  note: string | null;
+}
+
+export interface LaundryRewashEventExpanded extends LaundryRewashEvent {
+  item_name_th: string;
+  sent_batch_business_date: string;
+  sent_batch_pickup_round: number;
+  days_waiting: number;
+}
+
+export interface LaundryRewashCreateItem {
+  linen_item_id: number;
+  is_dayuse: boolean;
+  qty: number;
+  photo_keys: string[];                 // private R2 object keys (already uploaded)
+  note?: string;
+}
+
+export interface LaundryRewashCreateRequest {
+  sent_in_batch_id: string;
+  items: LaundryRewashCreateItem[];
+  note?: string;
+}
+
+export interface LaundryRewashCreateResponse {
+  events: LaundryRewashEvent[];
+}
+
+export interface LaundryRewashResolveRequest {
+  resolved_in_batch_id: string;
+  resolved_qty: number;
+}
+
+export interface LaundryRewashResolveResponse {
+  event: LaundryRewashEvent;
+}
+
+export interface LaundryRewashPhotoSignRequest {
+  batch_id: string;
+  event_tmp_id: string;                 // client-side uuid
+  content_type: string;                 // e.g. "image/jpeg"
+}
+
+export interface LaundryRewashPhotoSignResponse {
+  object_key: string;                   // private R2 key, read via API proxy
+}
+
+export interface LaundryRewashPendingResponse {
+  events: LaundryRewashEventExpanded[];
+}
+
+// ─── Monthly Mega-Table (unifies per-item + per-day with sub-columns) ──────────
+
+export type LinenMonthlyColumnKind = "N" | "O" | "RW";
+// N = Normal (ผ้าปกติจาก checkout/stayover)
+// O = Old Dayuse (ผ้า day use ค้างส่งวันเดียวกัน)
+// RW = Rewash (ผ้าซักใหม่ — free, not counted in billing)
+
+export interface LinenMonthlyColumn {
+  key: string;                          // e.g. "12_R1_N"
+  day_of_month: number;                 // 1-31
+  pickup_round: number;                 // 1, 2, 3...
+  kind: LinenMonthlyColumnKind;
+}
+
+export interface LinenMonthlyMegaCell {
+  column_key: string;
+  qty: number;                          // 0 means empty
+}
+
+export interface LinenMonthlyMegaRow {
+  linen_item_id: number;
+  item_number: number;
+  name_th: string;
+  rate_baht: number;                    // effective rate for the month
+  total_qty: number;                    // sum of N + O across month (NOT including RW)
+  total_baht: number;                   // total_qty × rate
+  total_rewash_qty: number;             // sum of RW across month (info only)
+  cells: LinenMonthlyMegaCell[];
+}
+
+export interface LinenMonthlyMegaTotals {
+  per_column: Record<string, number>;   // column_key -> qty (N/O only contribute to baht)
+  per_column_baht: Record<string, number>;
+  grand_total_qty: number;              // N + O only
+  grand_total_baht: number;             // N + O only
+  rewash_total_qty: number;             // RW sum (separate)
+}
+
+export interface LinenMonthlyMegaResponse {
+  year: number;
+  month: number;
+  days_in_month: number;
+  columns: LinenMonthlyColumn[];
+  rows: LinenMonthlyMegaRow[];
+  totals: LinenMonthlyMegaTotals;
+}
+
+export interface LinenMonthlyMegaFilter {
+  include_n?: boolean;
+  include_o?: boolean;
+  include_rw?: boolean;
+  include_rounds?: number[];
+}
+
+// ─── Monthly Reopen Flow (Admin Only) ──────────────────────────────────────────
+
+export interface LinenMonthlyReopenRequest {
+  reason: string;                       // required, min 10 chars
+}
+
+export interface LinenMonthCloseReopenLog {
+  id: number;
+  year: number;
+  month: number;
+  close_id: string | null;
+  reopened_by: string;                  // uuid
+  reopened_at: string;
+  reason: string;
+  reclosed_at: string | null;
+  reclosed_by: string | null;           // uuid
+}
+
+export interface LinenMonthlyReopenResponse {
+  close: LinenMonthlyClose;             // updated close record
+  log_id: number;
+}
+
+// ─── Edit Audit Log (Desktop History Corrections) ──────────────────────────────
+
+export type LinenEditAuditEntityType =
+  | "batch_item"
+  | "return_item"
+  | "extra_item"
+  | "rewash_event"
+  | "rate"
+  | "note";
+
+export interface LinenEditAuditLog {
+  id: number;
+  batch_id: string | null;
+  rate_id?: string | null;
+  entity_type: LinenEditAuditEntityType;
+  entity_id: string | null;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  reason: string | null;
+  edited_by: string;                    // uuid
+  edited_at: string;
+}
+
+export interface LinenBatchEditChange {
+  entity_type: LinenEditAuditEntityType;
+  entity_id?: string;
+  field_name: string;
+  old_value: string;                    // optimistic concurrency check
+  new_value: string;
+}
+
+export interface LinenBatchEditRequest {
+  changes: LinenBatchEditChange[];
+  reason?: string;
+}
+
+export interface LinenBatchEditResponse {
+  updated_batch: unknown;               // full LinenBatch row (shape kept loose to avoid import cycle)
+  audit_log_ids: number[];
+}
+
+// ─── Desktop History Filter ────────────────────────────────────────────────────
+
+export interface LinenHistoryFilter {
+  date_from?: string;                   // YYYY-MM-DD
+  date_to?: string;
+  status?: string[];                    // LinenBatchStatus[]
+  linen_item_id?: number;
+  has_extras?: boolean;
+  has_rewash?: boolean;
+  has_edits?: boolean;
+  search?: string;                      // batch_id or note
+  page?: number;
+  page_size?: number;
+}
+
+// ─── Step 1 Request Extension (add rewash_items) ───────────────────────────────
+
+export interface LinenBatchStepDirtyRewashItem {
+  linen_item_id: number;
+  is_dayuse: boolean;
+  qty: number;
+  photo_keys: string[];
+  note?: string;
 }

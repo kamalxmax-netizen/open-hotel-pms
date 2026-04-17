@@ -1,91 +1,180 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import { useLinenBatches, useLinenAuditLogs } from "@/hooks/use-linen-batch";
+import { LinenHistoryFilterBar } from "./_components/LinenHistoryFilterBar";
+import { LinenHistoryTable } from "./_components/LinenHistoryTable";
+import { LinenHistoryEditModal } from "./_components/LinenHistoryEditModal";
+import { ArrowLeft, History, Edit2, Clock, User } from "lucide-react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
-import { useLinenBatches } from "@/hooks/use-linen-batch";
+import type { LaundryBatch } from "@/lib/types";
 
 export default function LinenHistoryPage() {
-    const { batches, isLoading } = useLinenBatches();
+    const [filters, setFilters] = useState<any>({
+        date_from: "",
+        date_to: "",
+        status: "",
+        has_rewash: false,
+        has_extras: false,
+        search: ""
+    });
+
+    const { batches, isLoading, mutate } = useLinenBatches(filters);
+    const [selectedBatch, setSelectedBatch] = useState<LaundryBatch | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+    // Fetch audit logs for the selected batch
+    const { logs: auditLogs, mutate: mutateLogs } = useLinenAuditLogs(selectedBatch?.id);
 
     return (
-        <div className="p-4 md:p-8 max-w-4xl mx-auto pb-20">
-            <div className="flex items-center gap-3 mb-8">
-                <Link 
-                    href="/pms/linen"
-                    className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm"
-                >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M15 18l-6-6 6-6"/></svg>
-                </Link>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">ประวัติการรับ-ส่งผ้า</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">รายการทั้งหมดเรียงตามวันที่ล่าสุด</p>
+        <div className="p-4 md:p-8 max-w-7xl mx-auto pb-20">
+            {/* Header ... */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                    <Link 
+                        href="/pms/linen"
+                        className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition-all shadow-sm hover:scale-110 active:scale-95"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
+                    </Link>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <History className="w-5 h-5 text-emerald-500" />
+                            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 font-thai tracking-tight uppercase">History & Audit</h1>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-thai">ประวัติการรับ-ส่งผ้าและบันทึกการแก้ไขย้อนหลัง</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/50">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-thai uppercase tracking-wider">
+                        {batches.length} Records Found
+                    </span>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex font-semibold text-slate-700 dark:text-slate-300 text-sm">
-                    <div className="w-32">วันที่</div>
-                    <div className="flex-1">รายละเอียด</div>
-                    <div className="w-28 text-right">สถานะ</div>
+            <LinenHistoryFilterBar filters={filters} setFilters={setFilters} />
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className={`${selectedBatch ? 'lg:col-span-8' : 'lg:col-span-12'} transition-all duration-300`}>
+                    <LinenHistoryTable 
+                        batches={batches} 
+                        isLoading={isLoading} 
+                        onViewDetail={setSelectedBatch} 
+                    />
                 </div>
-                
-                {isLoading ? (
-                    <div className="p-8 text-center text-slate-400 animate-pulse">กำลังโหลด...</div>
-                ) : batches.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500">ไม่มีประวัติการรับ-ส่งผ้า</div>
-                ) : (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {batches.map(batch => (
-                            <Link 
-                                href={`/pms/linen/batch/${batch.id}`}
-                                key={batch.id} 
-                                className="flex items-center p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
-                            >
-                                <div className="w-32">
-                                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
-                                        {format(new Date(batch.business_date), "d MMM yy", { locale: th })}
-                                    </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">รอบที่ {batch.pickup_round}</p>
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-sm text-slate-700 dark:text-slate-300">
-                                        ร้าน: <span className="font-medium text-slate-900 dark:text-slate-100">{batch.vendor_name || '-'}</span>
-                                    </p>
-                                </div>
-                                <div className="w-28 text-right flex flex-col items-end gap-1">
-                                    <StatusBadge status={batch.status} />
-                                    <div className="text-slate-300 dark:text-slate-700 group-hover:text-slate-500 dark:group-hover:text-slate-500 transition-colors">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
+
+                {selectedBatch && (
+                    <div className="lg:col-span-4 sticky top-24 animate-in slide-in-from-right duration-300">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/30 shadow-2xl overflow-hidden flex flex-col h-[75vh]">
+                            <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20">
+                                <h3 className="font-black text-slate-900 dark:text-slate-100 font-thai uppercase italic underline decoration-emerald-500 decoration-2 underline-offset-4">Batch Details</h3>
+                                <button 
+                                    onClick={() => setSelectedBatch(null)}
+                                    className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors shadow-sm"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                                <section>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Summary</p>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-slate-500 font-thai">Batch ID</span>
+                                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">#{selectedBatch.id.substring(0, 8)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-slate-500 font-thai">วันที่</span>
+                                            <span className="font-bold text-slate-900 dark:text-slate-100 font-thai">{selectedBatch.business_date}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-slate-500 font-thai">รอบ</span>
+                                            <span className="font-bold text-slate-900 dark:text-slate-100 font-thai">{selectedBatch.pickup_round}</span>
+                                        </div>
                                     </div>
+                                </section>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-4 bg-emerald-600 rounded-2xl text-white shadow-lg shadow-emerald-500/20 text-center">
+                                        <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Items Sent</p>
+                                        <p className="text-3xl font-black">{selectedBatch.total_sent || 0}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsEditModalOpen(true)}
+                                        className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl text-amber-600 border border-amber-100 dark:border-amber-800 flex flex-col items-center justify-center gap-1 hover:bg-amber-100 transition-all active:scale-95"
+                                    >
+                                        <Edit2 size={20} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Audit Edit</span>
+                                    </button>
                                 </div>
-                            </Link>
-                        ))}
+
+                                <section>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <Clock size={12} /> Audit Log (History)
+                                    </p>
+                                    <div className="space-y-3">
+                                        {auditLogs.length === 0 ? (
+                                            <div className="p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center text-slate-400 font-thai text-xs">
+                                                No audit records yet
+                                            </div>
+                                        ) : (
+                                            auditLogs.map((log) => (
+                                                <div key={log.id} className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                                                                <User size={12} className="text-slate-500" />
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">ADMIN</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-mono">
+                                                            {format(new Date(log.edited_at), "HH:mm", { locale: th })}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] font-bold text-slate-900 dark:text-slate-100 font-thai leading-tight mb-1">
+                                                        {log.field_name}: <span className="text-slate-400 line-through">{log.old_value}</span> → <span className="text-emerald-500">{log.new_value}</span>
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500 italic font-thai bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700 mt-2">
+                                                        "{log.reason}"
+                                                    </p>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+
+                                <Link 
+                                    href={`/pms/linen/batch/${selectedBatch.id}`}
+                                    className="block w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-center text-[11px] uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                                >
+                                    View Full Report
+                                </Link>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
+
+            {isEditModalOpen && selectedBatch && (
+                <LinenHistoryEditModal 
+                    batchId={selectedBatch.id} 
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSuccess={() => {
+                        setIsEditModalOpen(false);
+                        mutate();
+                        mutateLogs();
+                    }}
+                />
+            )}
         </div>
     );
 }
 
-function StatusBadge({ status }: { status: string }) {
-    const map: Record<string, {label: string, color: string}> = {
-        'draft': { label: 'ร่าง', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
-        'fo_dirty_counted': { label: 'รอนับคืน', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-        'fo_return_counted': { label: 'รอร้านเซ็น', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-        'vendor_signed': { label: 'ร้านเซ็นแล้ว', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
-        'fo_return_signed': { label: 'ส่งงานให้ร้าน', color: 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' },
-        'closed': { label: 'เสร็จสมบูรณ์', color: 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' },
-        'partial': { label: 'เสร็จ (มีค้าง)', color: 'bg-emerald-50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/50' },
-        'disputed': { label: 'ยอดไม่ตรง', color: 'bg-rose-100 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400' },
-    };
-    
-    const s = map[status] || { label: status, color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' };
-    
-    return (
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold leading-none uppercase tracking-tight ${s.color}`}>
-            {s.label}
-        </span>
-    );
+function X({ size }: { size: number }) {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-4 h-4" style={{ width: size, height: size }}><path d="M18 6L6 18M6 6l12 12"/></svg>;
 }

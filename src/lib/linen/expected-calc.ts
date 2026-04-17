@@ -7,10 +7,19 @@ const DEFAULT_CUTOFF_TIME = "11:00";
 type LinenItemRow = { id: number; item_number: number; name_th: string };
 type SetupRow = { room_type_code: string; linen_item_id: number; qty: number };
 type RuleRow = { category: LinenRoomCategory; linen_item_id: number; percentage: number; use_checklist: boolean };
+type ReservationRow = {
+  id?: string;
+  guest_name?: string | null;
+  status?: string | null;
+  checkin_date?: string | null;
+  checkout_date?: string | null;
+  is_dayuse?: boolean | null;
+};
 
 type TaskRow = {
   id: string;
   room_id: string;
+  reservation_night_id?: string | null;
   stay_date: string;
   status: string;
   started_at: string | null;
@@ -24,33 +33,22 @@ type TaskRow = {
   } | null;
   reservation_nights?: {
     reservation_id?: string | null;
-    reservations?: {
-      id?: string;
-      guest_name?: string | null;
-      status?: string | null;
-      checkin_date?: string | null;
-      checkout_date?: string | null;
-      is_dayuse?: boolean | null;
-    } | null;
+    reservations?: ReservationRow | null;
   } | null;
 };
 
 type InhouseNightRow = {
+  id: string;
   room_id: string;
+  stay_date: string;
+  cancelled_at?: string | null;
   rooms?: {
     id?: string;
     room_number?: string;
     is_dayuse?: boolean | null;
     room_types?: { code?: string | null } | null;
   } | null;
-  reservations?: {
-    id?: string;
-    guest_name?: string | null;
-    status?: string | null;
-    checkin_date?: string | null;
-    checkout_date?: string | null;
-    is_dayuse?: boolean | null;
-  } | null;
+  reservations?: ReservationRow | null;
 };
 
 function dateString(date: Date): string {
@@ -126,12 +124,13 @@ export function extractTowelChecklistQty(snapshot: unknown): number {
 
 function classifyTask(
   task: TaskRow,
+  room: TaskRow["rooms"] | null,
+  reservation: ReservationRow | null,
   businessDate: string,
   windowStartIso: string,
   windowEndIso: string
 ): LinenRoomCategory | null {
-  const reservation = task.reservation_nights?.reservations ?? null;
-  if (reservation?.is_dayuse || task.rooms?.is_dayuse) return null;
+  if (reservation?.is_dayuse || room?.is_dayuse) return null;
   if (task.is_no_service) return "inhouse_no_service";
 
   const startedAt = task.started_at;
@@ -173,6 +172,7 @@ export async function calculateExpectedLinen(
       .select(`
         id,
         room_id,
+        reservation_night_id,
         stay_date,
         status,
         started_at,
@@ -185,8 +185,9 @@ export async function calculateExpectedLinen(
       .lte("stay_date", businessDate),
     supabase
       .from("reservation_nights")
-      .select("room_id, rooms(id, room_number, is_dayuse, room_types(code)), reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse)")
-      .eq("stay_date", businessDate)
+      .select("id, room_id, stay_date, cancelled_at, rooms(id, room_number, is_dayuse, room_types(code)), reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse)")
+      .gte("stay_date", previousDate)
+      .lte("stay_date", businessDate)
       .is("cancelled_at", null),
   ]);
 
@@ -218,19 +219,55 @@ export async function calculateExpectedLinen(
   const estimatedByItem = new Map<number, number>();
   const rooms: LinenExpectedResult["rooms"] = [];
   const categorySummary = emptyCategorySummary();
-  const taskRoomIds = new Set(tasks.map((task) => String(task.room_id)));
+  const taskRoomIdsForBusinessDate = new Set(
+    tasks
+      .filter((task) => String(task.stay_date) === businessDate)
+      .map((task) => String(task.room_id))
+  );
+  const nightById = new Map<string, InhouseNightRow>();
+  const nightByRoomDate = new Map<string, InhouseNightRow>();
+  const nightByRoomCheckoutDate = new Map<string, InhouseNightRow>();
+  const countedTaskKeys = new Set<string>();
+
+  const roomDateKey = (roomId: unknown, date: unknown) => `${String(roomId ?? "")}:${String(date ?? "")}`;
+  for (const night of inhouseNights) {
+    const nightId = String(night.id ?? "");
+    const roomId = String(night.room_id ?? night.rooms?.id ?? "");
+    const stayDate = String(night.stay_date ?? "");
+    const checkoutDate = String(night.reservations?.checkout_date ?? "");
+    if (nightId) nightById.set(nightId, night);
+    if (roomId && stayDate) nightByRoomDate.set(roomDateKey(roomId, stayDate), night);
+    if (roomId && checkoutDate) nightByRoomCheckoutDate.set(roomDateKey(roomId, checkoutDate), night);
+  }
+
+  const resolveNightForTask = (task: TaskRow) => {
+    const reservationNightId = String(task.reservation_night_id ?? "");
+    if (reservationNightId && nightById.has(reservationNightId)) return nightById.get(reservationNightId) ?? null;
+    return (
+      nightByRoomDate.get(roomDateKey(task.room_id, task.stay_date)) ??
+      nightByRoomCheckoutDate.get(roomDateKey(task.room_id, task.stay_date)) ??
+      null
+    );
+  };
 
   for (const task of tasks) {
-    const category = classifyTask(task, businessDate, windowStartIso, windowEndIso);
+    const resolvedNight = resolveNightForTask(task);
+    const room = task.rooms ?? resolvedNight?.rooms ?? null;
+    const reservation = task.reservation_nights?.reservations ?? resolvedNight?.reservations ?? null;
+    if (!reservation) continue;
+
+    const category = classifyTask(task, room, reservation, businessDate, windowStartIso, windowEndIso);
     if (!category) continue;
 
-    const room = task.rooms ?? {};
-    const roomTypeCode = String(room.room_types?.code ?? "");
-    const reservation = task.reservation_nights?.reservations ?? null;
+    const roomTypeCode = String(room?.room_types?.code ?? "");
+    const estimateKey = `${category}:${reservation.id ?? `${task.room_id}:${task.stay_date}`}`;
+    if (countedTaskKeys.has(estimateKey)) continue;
+    countedTaskKeys.add(estimateKey);
+
     categorySummary[category] += 1;
     rooms.push({
-      room_id: String(room.id ?? task.room_id),
-      room_number: String(room.room_number ?? ""),
+      room_id: String(room?.id ?? task.room_id),
+      room_number: String(room?.room_number ?? ""),
       room_type_code: roomTypeCode,
       category,
       guest_name: reservation?.guest_name ?? null,
@@ -250,10 +287,11 @@ export async function calculateExpectedLinen(
   }
 
   for (const night of inhouseNights) {
+    if (String(night.stay_date ?? "") !== businessDate) continue;
     const reservation = night.reservations ?? null;
     const room = night.rooms ?? null;
     const roomId = String(night.room_id ?? room?.id ?? "");
-    if (!roomId || taskRoomIds.has(roomId) || reservation?.is_dayuse || room?.is_dayuse) continue;
+    if (!roomId || taskRoomIdsForBusinessDate.has(roomId) || reservation?.is_dayuse || room?.is_dayuse) continue;
     if (reservation?.status !== "active") continue;
     if (!reservation.checkout_date || reservation.checkout_date <= businessDate) continue;
 

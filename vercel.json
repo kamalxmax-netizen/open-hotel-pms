@@ -1,1 +1,8 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/cron/linen/rewash/cleanup-expired",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { History, BarChart3, Settings, ClipboardList } from "lucide-react";
+
+export function LinenQuickLinks() {
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+
+    const links = [
+        {
+            title: "ประวัติการส่งซัก",
+            href: "/pms/linen/history",
+            icon: History,
+            color: "text-blue-600 dark:text-blue-400",
+            bg: "bg-blue-50 dark:bg-blue-500/10",
+            border: "border-blue-100 dark:border-blue-500/20"
+        },
+        {
+            title: "สรุปรายเดือน",
+            href: `/pms/linen/monthly/${currentYear}/${currentMonth}`,
+            icon: BarChart3,
+            color: "text-emerald-600 dark:text-emerald-400",
+            bg: "bg-emerald-50 dark:bg-emerald-500/10",
+            border: "border-emerald-100 dark:border-emerald-500/20"
+        },
+        {
+            title: "ตั้งค่าอัตรา",
+            href: "/pms/linen/rates",
+            icon: Settings,
+            color: "text-slate-600 dark:text-slate-400",
+            bg: "bg-slate-50 dark:bg-slate-500/10",
+            border: "border-slate-100 dark:border-slate-500/20"
+        },
+        {
+            title: "รายการแก้ไข (Audit)",
+            href: "/pms/linen/audit",
+            icon: ClipboardList,
+            color: "text-purple-600 dark:text-purple-400",
+            bg: "bg-purple-50 dark:bg-purple-500/10",
+            border: "border-purple-100 dark:border-purple-500/20"
+        }
+    ];
+
+    return (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {links.map((link) => (
+                <Link
+                    key={link.title}
+                    href={link.href}
+                    className={`card p-4 flex items-center gap-3 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md transition-all group border ${link.border}`}
+                >
+                    <div className={`w-10 h-10 rounded-xl ${link.bg} flex items-center justify-center ${link.color} group-hover:scale-110 transition-transform`}>
+                        <link.icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 font-thai">{link.title}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-500 uppercase tracking-wider font-bold">Management</p>
+                    </div>
+                </Link>
+            ))}
+        </div>
+    );
+}

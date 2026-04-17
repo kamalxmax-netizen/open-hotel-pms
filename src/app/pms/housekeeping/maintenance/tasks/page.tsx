@@ -132,7 +132,7 @@ export default function MaintenanceTasksPage() {
                 </div>
                 <Button
                     onClick={() => { setSelectedTask(null); setModalOpen(true); }}
-                    className="bg-red-600 hover:bg-red-700 text-white h-9"
+                    className="h-9 bg-[var(--text-primary)] text-[var(--bg-surface)] hover:opacity-90"
                 >
                     <PlusIcon className="w-4 h-4 mr-1.5" /> Add New Task
                 </Button>
@@ -162,7 +162,7 @@ export default function MaintenanceTasksPage() {
                             key={task.id}
                             className={`bg-[var(--bg-surface)] rounded-xl border overflow-hidden transition-all ${
                                 task.is_active
-                                    ? "border-l-4 border-l-red-500 hover:shadow-md"
+                                    ? "border-l-4 border-l-sky-500 hover:shadow-md"
                                     : "opacity-50 border-l-4 border-l-slate-300"
                             }`}
                         >

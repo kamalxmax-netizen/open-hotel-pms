@@ -72,13 +72,13 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
     const returnItems = data.return_items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans transition-colors">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-thai transition-colors">
             <div className="bg-[#1B4038] px-6 pt-10 pb-12 text-white rounded-b-[3rem] shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-48 h-48"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                 </div>
                 <div className="relative z-10">
-                    <h1 className="text-2xl font-black font-thai">สรุปรายการรับ-ส่งผ้า</h1>
+                    <h1 className="text-2xl font-black font-thai tracking-tight uppercase">สรุปรายการรับ-ส่งผ้า</h1>
                     <div className="flex items-center gap-2 mt-3">
                          <div className="px-3 py-1 bg-white/10 rounded-full border border-white/20 text-sm font-bold font-thai">
                             โรงแรม {data.hotel_name}
@@ -91,7 +91,7 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
                 </div>
             </div>
 
-            <div className="max-w-lg mx-auto -mt-8 px-5">
+            <div className="max-w-lg mx-auto mt-4 px-5">
                 {data.status === "disputed" && (
                     <div className="bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-100 dark:border-rose-500/20 text-rose-800 dark:text-rose-300 p-5 rounded-3xl shadow-sm mb-6 flex gap-4 animate-in slide-in-from-top-4">
                         <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-rose-500 shrink-0 shadow-sm">⚠️</div>

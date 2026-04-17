@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, Moon, RotateCw, Sun } from "lucide-react";
 import RoomCard from "@/components/maid/room-card";
 import ExtraTaskCard from "@/components/maid/extra-task-card";
@@ -23,11 +23,27 @@ interface MaidData {
   rooms: MaidRoom[];
 }
 
+interface MaidAuthState {
+  role: string;
+  mode: "admin" | "maid" | "fo_own_lane" | "fo_view_only" | "forbidden";
+  canRead: boolean;
+  canSelectMaid: boolean;
+  canOperateSelected: boolean;
+  selectedMaidName: string | null;
+  effectiveMaidName: string | null;
+  staffLaneName: string | null;
+  staffNickname: string | null;
+  departmentCode: string | null;
+  userEmail: string | null;
+  reason: string | null;
+}
+
 type TabType = "all" | "dirty" | "in_progress" | "done";
 type NetworkQuality = "good" | "poor" | "unknown";
 
 const CHECKLIST_CLOSE_MS = 320;
 const THEME_STORAGE_KEY = "maidAppDarkMode";
+const FALLBACK_MAIDS = ["Jan", "Tan", "Others"];
 
 async function readJsonSafe(response: Response): Promise<any> {
   try {
@@ -43,6 +59,33 @@ async function ensureApiSuccess(response: Response, fallbackMessage: string): Pr
     throw new Error(json?.error || fallbackMessage);
   }
   return json;
+}
+
+function mapMaidAuth(json: any): MaidAuthState | null {
+  if (!json || json.success === false) return null;
+  return {
+    role: String(json.role ?? ""),
+    mode: String(json.mode ?? "forbidden") as MaidAuthState["mode"],
+    canRead: Boolean(json.can_read),
+    canSelectMaid: Boolean(json.can_select_maid),
+    canOperateSelected: Boolean(json.can_operate_selected),
+    selectedMaidName: json.selected_maid_name ? String(json.selected_maid_name) : null,
+    effectiveMaidName: json.effective_maid_name ? String(json.effective_maid_name) : null,
+    staffLaneName: json.staff_lane_name ? String(json.staff_lane_name) : null,
+    staffNickname: json.staff_nickname ? String(json.staff_nickname) : null,
+    departmentCode: json.department_code ? String(json.department_code) : null,
+    userEmail: json.user_email ? String(json.user_email) : null,
+    reason: json.reason ? String(json.reason) : null,
+  };
+}
+
+function getPermissionLabel(auth: MaidAuthState | null): string {
+  if (!auth) return "Checking permission";
+  if (auth.mode === "admin") return auth.role === "supervisor" ? "Supervisor" : "Admin";
+  if (auth.mode === "maid") return "Maid";
+  if (auth.mode === "fo_own_lane") return "FO Own lane";
+  if (auth.mode === "fo_view_only") return "FO View only";
+  return "No lane";
 }
 
 function getThailandDateString(date = new Date()): string {
@@ -150,9 +193,10 @@ function getRoomSortWeight(room: MaidRoom): number {
 }
 
 export default function MaidPage() {
-  const fallbackMaids = ["Jan", "Tan", "Others"];
-  const [maidName, setMaidName] = useState<string>("Jan");
-  const [maidLaneNames, setMaidLaneNames] = useState<string[]>(fallbackMaids);
+  const [maidName, setMaidName] = useState<string>("");
+  const [maidLaneNames, setMaidLaneNames] = useState<string[]>(FALLBACK_MAIDS);
+  const [maidAuth, setMaidAuth] = useState<MaidAuthState | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [data, setData] = useState<MaidData | null>(null);
   const [extraTasks, setExtraTasks] = useState<ExtraTaskAssignment[]>([]);
@@ -173,6 +217,8 @@ export default function MaidPage() {
   const [timeStr, setTimeStr] = useState("");
   const checklistCloseTimerRef = useRef<number | null>(null);
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
+  const canOperateSelected = Boolean(maidAuth?.canOperateSelected);
+  const operationDisabledReason = maidAuth?.reason ?? "View only. This user cannot operate this lane.";
 
   const clearChecklistCloseTimer = () => {
     if (checklistCloseTimerRef.current !== null) {
@@ -220,7 +266,17 @@ export default function MaidPage() {
     []
   );
 
+  const ensureCanOperate = useCallback(() => {
+    if (canOperateSelected) return true;
+    alert(operationDisabledReason);
+    return false;
+  }, [canOperateSelected, operationDisabledReason]);
+
   const fetchData = useCallback(async () => {
+    if (!maidName || !maidAuth) {
+      setIsLoading(false);
+      return;
+    }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setIsOffline(true);
       setIsLoading(false);
@@ -241,6 +297,12 @@ export default function MaidPage() {
       ]);
 
       const [roomsJson, extraJson] = await Promise.all([roomsRes.json(), extraRes.json()]);
+      if (!roomsRes.ok || roomsJson?.success === false) {
+        throw new Error(roomsJson?.error || "Cannot load rooms");
+      }
+      if (!extraRes.ok || extraJson?.success === false) {
+        throw new Error(extraJson?.error || "Cannot load extra tasks");
+      }
       if (roomsJson.success) {
         setData(roomsJson);
       }
@@ -254,7 +316,7 @@ export default function MaidPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [maidName]);
+  }, [maidAuth, maidName]);
 
   const refreshNow = useCallback(async () => {
     if (refreshPromiseRef.current) {
@@ -330,32 +392,94 @@ export default function MaidPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadMaidLanes() {
+    async function bootstrapMaidAccess() {
+      setIsAuthLoading(true);
       try {
-        const res = await fetch("/api/staff/housekeeping-lanes", { cache: "no-store" });
-        const json = await readJsonSafe(res);
-        if (!res.ok || json?.success === false) return;
-        const names = Array.isArray(json?.data)
-          ? json.data
+        const [lanesRes, authRes] = await Promise.all([
+          fetch("/api/staff/housekeeping-lanes", { cache: "no-store" }),
+          fetch("/api/housekeeping/maid-session", { cache: "no-store" }),
+        ]);
+        const [lanesJson, authJson] = await Promise.all([readJsonSafe(lanesRes), readJsonSafe(authRes)]);
+
+        if (!authRes.ok || authJson?.success === false) {
+          throw new Error(authJson?.error || "Maid app permission failed");
+        }
+
+        const auth = mapMaidAuth(authJson);
+        if (!auth) throw new Error("Maid app permission failed");
+
+        const names = Array.isArray(lanesJson?.data)
+          ? lanesJson.data
               .map((row: { display_name?: string }) => String(row.display_name ?? "").trim())
               .filter((name: string) => name.length > 0)
           : [];
-        if (!cancelled && names.length > 0) {
-          setMaidLaneNames(names);
-          setMaidName((prev) => (names.includes(prev) ? prev : names[0]));
+        const nextNames = names.length > 0 ? names : FALLBACK_MAIDS;
+        const lockedName = auth.effectiveMaidName ?? auth.staffLaneName;
+        const nextMaidName = auth.canSelectMaid
+          ? nextNames.includes(maidName)
+            ? maidName
+            : nextNames[0]
+          : lockedName ?? "";
+
+        if (!cancelled) {
+          setMaidLaneNames(nextNames);
+          setMaidAuth(auth);
+          setMaidName(nextMaidName);
+          setLastFetchError(null);
         }
-      } catch {
-        // keep fallback
+      } catch (error) {
+        if (!cancelled) {
+          setLastFetchError(error instanceof Error ? error.message : "Maid app permission failed");
+        }
+      } finally {
+        if (!cancelled) setIsAuthLoading(false);
       }
     }
 
-    void loadMaidLanes();
+    void bootstrapMaidAccess();
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
+    if (isAuthLoading || !maidName) return;
+    let cancelled = false;
+
+    async function refreshMaidPermission() {
+      try {
+        const res = await fetch(
+          `/api/housekeeping/maid-session?maid_name=${encodeURIComponent(maidName)}`,
+          { cache: "no-store" }
+        );
+        const json = await readJsonSafe(res);
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.error || "Maid app permission failed");
+        }
+        const auth = mapMaidAuth(json);
+        if (!auth) return;
+
+        if (!cancelled) {
+          setMaidAuth(auth);
+          if (!auth.canSelectMaid && auth.effectiveMaidName && auth.effectiveMaidName !== maidName) {
+            setMaidName(auth.effectiveMaidName);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLastFetchError(error instanceof Error ? error.message : "Maid app permission failed");
+        }
+      }
+    }
+
+    void refreshMaidPermission();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthLoading, maidName]);
+
+  useEffect(() => {
+    if (isAuthLoading || !maidName || !maidAuth) return;
     setIsLoading(true);
     void fetchData();
 
@@ -366,7 +490,7 @@ export default function MaidPage() {
     }, 30000);
 
     return () => window.clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, isAuthLoading, maidAuth, maidName]);
 
   useEffect(() => {
     return () => clearChecklistCloseTimer();
@@ -378,6 +502,7 @@ export default function MaidPage() {
     isNoService = false,
     manageLoading = true
   ) => {
+    if (!ensureCanOperate()) return null;
     if (manageLoading) setIsActionLoading(true);
     try {
       let currentTaskId = taskId;
@@ -391,7 +516,7 @@ export default function MaidPage() {
             room_id: roomId,
             stay_date: stayDate,
             trigger_source: "manual",
-            requested_by: maidName,
+            requested_by: maidAuth?.effectiveMaidName ?? maidName,
           }),
         });
         const pushJson = await ensureApiSuccess(pushRes, "Failed to push dirty");
@@ -435,9 +560,14 @@ export default function MaidPage() {
   };
 
   const handlePause = async (taskId: string) => {
+    if (!ensureCanOperate()) return;
     setIsActionLoading(true);
     try {
-      const res = await fetch(`/api/housekeeping/tasks/${taskId}/pause`, { method: "POST" });
+      const res = await fetch(`/api/housekeeping/tasks/${taskId}/pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maid_name: maidName }),
+      });
       const json = await ensureApiSuccess(res, "Cannot pause task");
       patchRoomByTaskId(taskId, (room) => ({
         ...room,
@@ -454,6 +584,7 @@ export default function MaidPage() {
   };
 
   const handleResume = async (taskId: string) => {
+    if (!ensureCanOperate()) return;
     setIsActionLoading(true);
     try {
       const res = await fetch(`/api/housekeeping/tasks/${taskId}/start`, {
@@ -482,6 +613,7 @@ export default function MaidPage() {
     returnedStock?: Array<{ product_id: string; quantity: number }>
   ) => {
     if (!selectedChecklistRoom || !selectedChecklistRoom.task_id) return;
+    if (!ensureCanOperate()) return;
 
     setIsActionLoading(true);
     try {
@@ -522,6 +654,7 @@ export default function MaidPage() {
 
   const handleNoServiceSubmit = async (note: string) => {
     if (!activeNsRoom) return;
+    if (!ensureCanOperate()) return;
 
     setIsActionLoading(true);
     try {
@@ -549,6 +682,7 @@ export default function MaidPage() {
   };
 
   const handleExtraTaskStart = async (assignmentId: string) => {
+    if (!ensureCanOperate()) return;
     setIsActionLoading(true);
     try {
       const res = await fetch(`/api/housekeeping/extra-tasks/assignments/${assignmentId}/start`, {
@@ -572,6 +706,7 @@ export default function MaidPage() {
   };
 
   const handleExtraTaskPause = async (assignmentId: string) => {
+    if (!ensureCanOperate()) return;
     setIsActionLoading(true);
     try {
       const res = await fetch(`/api/housekeeping/extra-tasks/assignments/${assignmentId}/pause`, {
@@ -624,6 +759,7 @@ export default function MaidPage() {
   };
 
   const handleExtraTaskFinish = async (assignmentId: string) => {
+    if (!ensureCanOperate()) return;
     setIsActionLoading(true);
     try {
       const res = await fetch(`/api/housekeeping/extra-tasks/assignments/${assignmentId}/finish`, {
@@ -686,6 +822,18 @@ export default function MaidPage() {
   const selectedLaneName = maidLaneNames.includes(selectedDisplayName)
     ? selectedDisplayName
     : data?.maid_name || selectedDisplayName;
+  const permissionLabel = getPermissionLabel(maidAuth);
+  const permissionBadgeClass = useMemo(() => {
+    if (!maidAuth) return "border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300";
+    if (maidAuth.mode === "admin") {
+      return "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300";
+    }
+    if (maidAuth.mode === "maid" || maidAuth.mode === "fo_own_lane") {
+      return "border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300";
+    }
+    return "border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300";
+  }, [maidAuth]);
+  const showLaneSelector = maidAuth?.mode !== "maid";
 
   if (!isMounted) return null;
 
@@ -740,22 +888,33 @@ export default function MaidPage() {
             </div>
           </div>
 
-          <div className="mx-auto mt-4 flex w-full max-w-screen-2xl justify-end">
-            <div className="w-full lg:max-w-[320px]">
-              <select
-                value={maidName}
-                onChange={(e) => setMaidName(e.target.value)}
-                aria-label="เลือกแม่บ้าน"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-black text-slate-900 outline-none transition focus:border-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:focus:border-white/20"
-              >
-                {maidLaneNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+          {showLaneSelector && (
+            <div className="mx-auto mt-4 flex w-full max-w-screen-2xl justify-end">
+              <div className="w-full lg:max-w-[320px]">
+                <div className={`mb-2 inline-flex rounded-full border px-3 py-1 text-xs font-black ${permissionBadgeClass}`}>
+                  {permissionLabel}
+                </div>
+                {maidAuth?.canSelectMaid ? (
+                  <select
+                    value={maidName}
+                    onChange={(e) => setMaidName(e.target.value)}
+                    aria-label="เลือกแม่บ้าน"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-black text-slate-900 outline-none transition focus:border-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:focus:border-white/20"
+                  >
+                    {maidLaneNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-black text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                    {maidAuth?.effectiveMaidName || maidAuth?.staffLaneName || "No active lane"}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {(lastFetchError || (networkQuality === "poor" && !isOffline)) && (
             <div className="mx-auto mt-4 flex w-full max-w-screen-2xl flex-wrap gap-2">
@@ -789,7 +948,7 @@ export default function MaidPage() {
             </TabButton>
           </div>
 
-          {isLoading && !data ? (
+          {(isAuthLoading || (isLoading && !data)) ? (
             <div className="flex min-h-[50vh] items-center justify-center">
               <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-slate-900 dark:border-slate-700 dark:border-t-white" />
             </div>
@@ -810,6 +969,8 @@ export default function MaidPage() {
                         onResume={handleExtraTaskResume}
                         onFinish={handleExtraTaskFinish}
                         isActionLoading={isActionLoading}
+                        canOperate={canOperateSelected}
+                        disabledReason={operationDisabledReason}
                       />
                     ))}
                   </div>
@@ -836,6 +997,8 @@ export default function MaidPage() {
                         }}
                         onNoServiceClick={(selectedRoom) => setActiveNsRoom(selectedRoom)}
                         isActionLoading={isActionLoading}
+                        canOperate={canOperateSelected}
+                        disabledReason={operationDisabledReason}
                       />
                     ))}
                   </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ExtraTaskAssignment } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { PlayIcon, PauseIcon, CheckIcon, XIcon, ClockIcon } from "lucide-react";
+import { PlayIcon, PauseIcon, CheckIcon, XIcon, ClockIcon, EditIcon, Trash2Icon } from "lucide-react";
 
 interface ExtraTaskCardProps {
     assignment: ExtraTaskAssignment;
@@ -12,6 +12,8 @@ interface ExtraTaskCardProps {
         action: "start" | "pause" | "finish" | "cancel",
         notes?: string
     ) => Promise<void>;
+    onEdit?: (assignment: ExtraTaskAssignment) => void;
+    onDelete?: (assignment: ExtraTaskAssignment) => void;
     disabled?: boolean;
 }
 
@@ -23,7 +25,7 @@ const STATUS_STYLES: Record<string, { border: string; badge: string; label: stri
     cancelled: { border: "border-l-red-400", badge: "bg-red-100 text-red-600", label: "Cancelled" },
 };
 
-export function ExtraTaskCard({ assignment, onStatusChange, disabled }: ExtraTaskCardProps) {
+export function ExtraTaskCard({ assignment, onStatusChange, onEdit, onDelete, disabled }: ExtraTaskCardProps) {
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [elapsedMs, setElapsedMs] = useState(assignment.accumulated_ms);
 
@@ -81,9 +83,37 @@ export function ExtraTaskCard({ assignment, onStatusChange, disabled }: ExtraTas
                         )}
                     </div>
                 </div>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${style.badge}`}>
-                    {style.label}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${style.badge}`}>
+                        {style.label}
+                    </span>
+                    {onEdit && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-[var(--text-muted)] hover:text-sky-600 hover:bg-sky-50"
+                            onClick={() => onEdit(assignment)}
+                            disabled={disabled || isLoading}
+                            title="Edit task"
+                        >
+                            <EditIcon className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    {onDelete && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50"
+                            onClick={() => onDelete(assignment)}
+                            disabled={disabled || isLoading}
+                            title="Delete task"
+                        >
+                            <Trash2Icon className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Timer row — only show when relevant */}

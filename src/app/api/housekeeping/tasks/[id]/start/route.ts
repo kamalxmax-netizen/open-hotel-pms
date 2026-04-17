@@ -1,6 +1,7 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { maidAuthErrorResponse, requireMaidOperation } from "@/lib/maid-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 const startSchema = z.object({
@@ -9,7 +10,7 @@ const startSchema = z.object({
 });
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -23,8 +24,10 @@ export async function POST(
       );
     }
 
-    const { maid_name, is_no_service } = parsed.data;
+    const { is_no_service } = parsed.data;
     const supabase = createServerSupabaseClient();
+    const maidAuth = await requireMaidOperation(supabase, request, parsed.data.maid_name);
+    const maid_name = maidAuth.effectiveMaidName ?? parsed.data.maid_name;
 
     // 1. Get the task by id
     const { data: task, error: taskError } = await supabase
@@ -108,7 +111,13 @@ export async function POST(
         entity_type: "housekeeping_task",
         entity_id: params.id,
         before_json: { status: task.status },
-        after_json: { status: "in_progress", assigned_maid_name: maid_name, is_no_service },
+        after_json: {
+          status: "in_progress",
+          assigned_maid_name: maid_name,
+          is_no_service,
+          maid_auth: maidAuth.audit,
+        },
+        actor_user_id: maidAuth.audit.actor_user_id,
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
       }),
@@ -134,6 +143,8 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

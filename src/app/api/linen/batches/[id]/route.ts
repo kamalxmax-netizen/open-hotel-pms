@@ -1,9 +1,17 @@
-import { getLaundryBatchDetail } from "@/lib/linen/batch-service";
+import { getLaundryBatchDetail, updateLaundryBatchDirtyItems } from "@/lib/linen/batch-service";
 import { linenApiError, requireLinenAccess } from "@/lib/linen/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
+
+const dirtyItemsSchema = z.array(z.object({
+  linen_item_id: z.coerce.number().int().positive(),
+  is_dayuse: z.boolean().optional(),
+  estimated_qty: z.coerce.number().int().min(0),
+  sent_by_hotel: z.coerce.number().int().min(0),
+})).min(1);
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -21,6 +29,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   try {
     const { supabase } = await requireLinenAccess(request);
     const body = await request.json().catch(() => ({}));
+
+    if (Array.isArray(body.items)) {
+      const parsed = dirtyItemsSchema.safeParse(body.items);
+      if (!parsed.success) {
+        return NextResponse.json({ success: false, error: "Invalid items payload.", details: parsed.error.flatten() }, { status: 400 });
+      }
+      const data = await updateLaundryBatchDirtyItems(supabase, params.id, { items: parsed.data });
+      return NextResponse.json({ success: true, data });
+    }
+
     const allowed: Record<string, unknown> = {};
     if (typeof body.vendor_name === "string" || body.vendor_name === null) allowed.vendor_name = body.vendor_name;
     if (typeof body.notes === "string" || body.notes === null) allowed.notes = body.notes;

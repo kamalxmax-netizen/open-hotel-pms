@@ -23,12 +23,22 @@ export type CreateBatchItemInput = {
   sent_by_hotel: number;
 };
 
+export type CreateBatchRewashItemInput = {
+  linen_item_id: number;
+  is_dayuse?: boolean;
+  qty: number;
+  photo_keys: string[];
+  note?: string | null;
+};
+
 export type CreateBatchInput = {
   business_date: string;
   pickup_round: number;
   vendor_name?: string | null;
   created_by?: string | null;
+  notes?: string | null;
   items: CreateBatchItemInput[];
+  rewash_items?: CreateBatchRewashItemInput[];
 };
 
 export type StepInput = {
@@ -78,7 +88,16 @@ async function logEvent(
 
 export async function listLaundryBatches(
   supabase: SupabaseClient,
-  options: { dateFrom?: string; dateTo?: string; status?: string | null } = {}
+  options: {
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string | null;
+    linenItemId?: number | null;
+    hasExtras?: boolean | null;
+    hasRewash?: boolean | null;
+    hasEdits?: boolean | null;
+    search?: string | null;
+  } = {}
 ) {
   let query = supabase
     .from("laundry_batches")
@@ -88,11 +107,91 @@ export async function listLaundryBatches(
 
   if (options.dateFrom) query = query.gte("business_date", options.dateFrom);
   if (options.dateTo) query = query.lte("business_date", options.dateTo);
-  if (options.status) query = query.eq("status", options.status);
+  if (options.status) {
+    const statuses = options.status.split(",").map((status) => status.trim()).filter(Boolean);
+    query = statuses.length > 1 ? query.in("status", statuses) : query.eq("status", options.status);
+  }
+  if (options.search) {
+    const search = options.search.trim();
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search)) {
+      query = query.or(`id.eq.${search},notes.ilike.%${search}%`);
+    } else {
+      query = query.ilike("notes", `%${search}%`);
+    }
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data ?? [];
+  let rows = data ?? [];
+
+  if (options.linenItemId || options.hasExtras != null) {
+    const batchIds = rows.map((row: any) => String(row.id));
+    if (batchIds.length === 0) return [];
+    let itemQuery = supabase
+      .from("laundry_batch_items")
+      .select("batch_id, linen_item_id, linen_items(is_active)")
+      .in("batch_id", batchIds);
+    if (options.linenItemId) itemQuery = itemQuery.eq("linen_item_id", options.linenItemId);
+    const { data: itemRows, error: itemError } = await itemQuery;
+    if (itemError) throw new Error(itemError.message);
+    let matchedBatchIds = new Set((itemRows ?? []).map((row: any) => String(row.batch_id)));
+    if (options.hasExtras != null) {
+      const extraBatchIds = new Set(
+        (itemRows ?? [])
+          .filter((row: any) => Boolean(row.linen_items?.is_active) === false)
+          .map((row: any) => String(row.batch_id))
+      );
+      matchedBatchIds = options.hasExtras ? extraBatchIds : new Set(batchIds.filter((id) => !extraBatchIds.has(id)));
+    }
+    rows = rows.filter((row: any) => matchedBatchIds.has(String(row.id)));
+  }
+
+  if (options.hasRewash != null) {
+    const batchIds = rows.map((row: any) => String(row.id));
+    if (batchIds.length === 0) return [];
+    const { data: rewashRows, error: rewashError } = await supabase
+      .from("laundry_rewash_events")
+      .select("sent_in_batch_id")
+      .in("sent_in_batch_id", batchIds);
+    if (rewashError) throw new Error(rewashError.message);
+    const rewashBatchIds = new Set((rewashRows ?? []).map((row: any) => String(row.sent_in_batch_id)));
+    rows = rows.filter((row: any) => options.hasRewash ? rewashBatchIds.has(String(row.id)) : !rewashBatchIds.has(String(row.id)));
+  }
+
+  if (options.hasEdits != null) {
+    const batchIds = rows.map((row: any) => String(row.id));
+    if (batchIds.length === 0) return [];
+    const { data: editRows, error: editError } = await supabase
+      .from("linen_edit_audit_log")
+      .select("batch_id")
+      .in("batch_id", batchIds);
+    if (editError && editError.code !== "42P01") throw new Error(editError.message);
+    const editBatchIds = new Set((editRows ?? []).map((row: any) => String(row.batch_id)));
+    rows = rows.filter((row: any) => options.hasEdits ? editBatchIds.has(String(row.id)) : !editBatchIds.has(String(row.id)));
+  }
+
+  const batchIds = rows.map((row: any) => String(row.id));
+  if (batchIds.length === 0) return rows;
+
+  const { data: totalRows, error: totalError } = await supabase
+    .from("laundry_batch_items")
+    .select("batch_id, sent_by_hotel, received_back")
+    .in("batch_id", batchIds);
+  if (totalError) throw new Error(totalError.message);
+
+  const totalsByBatch = new Map<string, { total_sent: number; total_received: number }>();
+  for (const item of totalRows ?? []) {
+    const batchId = String((item as any).batch_id);
+    const totals = totalsByBatch.get(batchId) ?? { total_sent: 0, total_received: 0 };
+    totals.total_sent += Number((item as any).sent_by_hotel ?? 0);
+    totals.total_received += Number((item as any).received_back ?? 0);
+    totalsByBatch.set(batchId, totals);
+  }
+
+  return rows.map((row: any) => ({
+    ...row,
+    ...(totalsByBatch.get(String(row.id)) ?? { total_sent: 0, total_received: 0 }),
+  }));
 }
 
 export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: string) {
@@ -104,7 +203,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
   if (batchError) throw new Error(batchError.message);
   if (!batch) throw new LinenBatchError("Batch not found.", 404);
 
-  const [itemsRes, eventsRes, tokensRes, returnSourcesRes] = await Promise.all([
+  const [itemsRes, eventsRes, tokensRes, returnSourcesRes, rewashRes, editLogRes] = await Promise.all([
     supabase
       .from("laundry_batch_items")
       .select("*, linen_items(item_number, name_th)")
@@ -117,11 +216,23 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
       .select("*, linen_items(item_number, name_th), laundry_batches!inner(id, business_date, pickup_round, status)")
       .neq("batch_id", batchId)
       .lte("laundry_batches.business_date", (batch as any).business_date),
+    supabase
+      .from("laundry_rewash_events")
+      .select("*, linen_items(item_number, name_th)")
+      .eq("sent_in_batch_id", batchId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("linen_edit_audit_log")
+      .select("*")
+      .eq("batch_id", batchId)
+      .order("edited_at", { ascending: true }),
   ]);
   if (itemsRes.error) throw new Error(itemsRes.error.message);
   if (eventsRes.error) throw new Error(eventsRes.error.message);
   if (tokensRes.error) throw new Error(tokensRes.error.message);
   if (returnSourcesRes.error) throw new Error(returnSourcesRes.error.message);
+  if (rewashRes.error && rewashRes.error.code !== "42P01") throw new Error(rewashRes.error.message);
+  if (editLogRes.error && editLogRes.error.code !== "42P01") throw new Error(editLogRes.error.message);
 
   const returnSources = (returnSourcesRes.data ?? [])
     .map((row: any) => {
@@ -154,6 +265,12 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
     events: eventsRes.data ?? [],
     tokens: tokensRes.data ?? [],
     return_sources: returnSources,
+    rewash_events: (rewashRes.data ?? []).map((row: any) => ({
+      ...row,
+      item_number: row.linen_items?.item_number,
+      name_th: row.linen_items?.name_th,
+    })),
+    edit_audit_log: editLogRes.data ?? [],
   };
 }
 
@@ -161,20 +278,51 @@ export async function createLaundryBatch(supabase: SupabaseClient, input: Create
   assertDate(input.business_date);
   if (!Array.isArray(input.items) || input.items.length === 0) throw new LinenBatchError("items are required.", 400);
 
-  const { data: batch, error: batchError } = await supabase
-    .from("laundry_batches")
-    .insert({
+  const { data: rpcData, error: rpcError } = await (supabase as any).rpc("fn_create_laundry_batch_with_rewash", {
+    p_batch: {
       business_date: input.business_date,
       pickup_round: input.pickup_round,
       vendor_name: input.vendor_name ?? null,
-      status: "fo_dirty_counted",
       created_by: input.created_by ?? null,
-    })
-    .select()
-    .single();
-  if (batchError) throw new Error(batchError.message);
+      notes: input.notes ?? null,
+    },
+    p_items: input.items.map((item) => ({
+      linen_item_id: item.linen_item_id,
+      is_dayuse: Boolean(item.is_dayuse),
+      estimated_qty: item.estimated_qty,
+      sent_by_hotel: item.sent_by_hotel,
+    })),
+    p_rewash: (input.rewash_items ?? []).map((item) => ({
+      linen_item_id: item.linen_item_id,
+      is_dayuse: Boolean(item.is_dayuse),
+      qty: item.qty,
+      photo_keys: item.photo_keys,
+      note: item.note ?? null,
+    })),
+  });
+  if (rpcError) throw new Error(rpcError.message);
 
-  const batchId = String((batch as any).id);
+  const batchId = String((rpcData as any)?.batch_id ?? "");
+  if (!batchId) throw new Error("Batch creation did not return batch_id.");
+  const detail = await getLaundryBatchDetail(supabase, batchId);
+  return { ...detail, rewash_event_ids: (rpcData as any)?.rewash_event_ids ?? [] };
+}
+
+export async function updateLaundryBatchDirtyItems(supabase: SupabaseClient, batchId: string, input: { items: CreateBatchItemInput[] }) {
+  if (!Array.isArray(input.items) || input.items.length === 0) throw new LinenBatchError("items are required.", 400);
+
+  const detail = await getLaundryBatchDetail(supabase, batchId);
+  const currentStatus = String((detail.batch as any).status) as LaundryBatchStatus;
+  if (currentStatus !== "fo_dirty_counted") {
+    throw new LinenBatchError("Batch must be reopened to Step 1 before editing sent linen.", 409);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("laundry_batch_items")
+    .delete()
+    .eq("batch_id", batchId);
+  if (deleteError) throw new Error(deleteError.message);
+
   const rows = input.items.map((item) => ({
     batch_id: batchId,
     linen_item_id: item.linen_item_id,
@@ -189,10 +337,13 @@ export async function createLaundryBatch(supabase: SupabaseClient, input: Create
     .select();
   if (itemsError) throw new Error(itemsError.message);
 
-  await logEvent(supabase, batchId, "created", { actorRole: "fo", data: { pickup_round: input.pickup_round } });
-  await logEvent(supabase, batchId, "fo_dirty_counted", { actorRole: "fo", data: { item_count: rows.length } });
+  await logEvent(supabase, batchId, "fo_dirty_counted", {
+    actorRole: "fo",
+    data: { item_count: rows.length, edited: true },
+  });
 
-  return { batch, items: items ?? [] };
+  const nextDetail = await getLaundryBatchDetail(supabase, batchId);
+  return { ...nextDetail, items: items ?? nextDetail.items };
 }
 
 export async function advanceLaundryBatchStep(supabase: SupabaseClient, batchId: string, input: StepInput) {
@@ -291,7 +442,12 @@ export async function reopenLaundryBatch(supabase: SupabaseClient, batchId: stri
 
   const { error } = await supabase
     .from("laundry_batches")
-    .update({ status: "fo_dirty_counted" })
+    .update({
+      status: "fo_dirty_counted",
+      vendor_name: null,
+      vendor_pickup_signature_url: null,
+      fo_return_signature_url: null,
+    })
     .eq("id", batchId);
   if (error) throw new Error(error.message);
 

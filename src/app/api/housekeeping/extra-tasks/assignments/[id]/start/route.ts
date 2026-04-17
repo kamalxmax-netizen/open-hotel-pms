@@ -1,4 +1,5 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { maidAuthErrorResponse, requireMaidOperation } from "@/lib/maid-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -33,7 +34,7 @@ export async function POST(
 
     const { data: assignment, error: fetchError } = await supabase
       .from("extra_task_assignments")
-      .select("id, status, accumulated_ms")
+      .select("id, status, accumulated_ms, assigned_maid")
       .eq("id", assignmentId)
       .maybeSingle();
 
@@ -50,6 +51,8 @@ export async function POST(
         { status: 409 }
       );
     }
+
+    const maidAuth = await requireMaidOperation(supabase, request, assignment.assigned_maid ?? null);
 
     const updates: Record<string, unknown> = {
       status: "in_progress",
@@ -80,7 +83,8 @@ export async function POST(
         entity_type: "extra_task",
         entity_id: assignmentId,
         before_json: { status: assignment.status },
-        after_json: { status: "in_progress" },
+        after_json: { status: "in_progress", maid_auth: maidAuth.audit },
+        actor_user_id: maidAuth.audit.actor_user_id,
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
       });
@@ -90,6 +94,8 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     console.error("extra-tasks/assignments/[id]/start POST unexpected", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

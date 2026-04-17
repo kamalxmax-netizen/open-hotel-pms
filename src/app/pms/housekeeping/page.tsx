@@ -1036,12 +1036,13 @@ export default function HousekeepingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="btn btn-secondary btn-sm"
+            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-[#1a1f26] border border-[#2d3640] rounded-lg text-[#c0c8d4] font-bold text-xs hover:bg-[#242a33] transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => void openDueMaintenanceModal()}
             disabled={loadingDueTasks || assigningDueTasks || hasDraftChanges || savingDraft}
             title={hasDraftChanges ? "Save or Discard draft changes first" : undefined}
           >
-            {loadingDueTasks ? "Loading..." : "➕ Add Maintenance Due"}
+            <span className="text-base leading-none">+</span>
+            {loadingDueTasks ? "Loading..." : "Add Maintenance Due"}
           </button>
           <input
             type="date"
@@ -1128,20 +1129,36 @@ export default function HousekeepingPage() {
           }}
         >
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
+            <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-[var(--text-primary)]">Dirty &amp; Task Pool</h3>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">
-                Drag dirty room or pending extra task to a maid lane. Drag assigned timeline bar back here to return room to pool.
-              </p>
+              <span className="text-xs rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 font-bold dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
+                {dirtyRoomPool.length} Dirty · {dirtyPoolCollectCount} HK Collect · {extraTaskPool.length} Extra
+              </span>
             </div>
-            <span className="text-xs rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 font-semibold dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
-              {dirtyRoomPool.length} Dirty · {dirtyPoolCollectCount} HK Collect · {extraTaskPool.length} Extra
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={discardDraftAssignments}
+                disabled={!hasDraftChanges || savingDraft}
+                className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1 text-xs font-semibold text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-30 disabled:grayscale transition-all"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveDraftAssignments()}
+                disabled={!hasDraftChanges || savingDraft}
+                className="rounded-md border border-emerald-300 bg-emerald-500 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-600 disabled:opacity-30 disabled:grayscale transition-all dark:border-emerald-500/50 shadow-sm"
+              >
+                {savingDraft ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </div>
           <div
             className={`mt-3 min-h-10 rounded-xl border border-dashed p-3 transition ${showPoolDragHint
-                ? "border-rose-400 bg-rose-100/60 dark:border-rose-500/40 dark:bg-rose-500/10"
-                : "border-[var(--border-default)] bg-[var(--bg-surface)]"
+              ? "border-rose-400 bg-rose-100/60 dark:border-rose-500/40 dark:bg-rose-500/10"
+              : "border-[var(--border-default)] bg-[var(--bg-surface)]"
               }`}
           >
             <div
@@ -1181,8 +1198,8 @@ export default function HousekeepingPage() {
                           setPoolDropActive(false);
                         }}
                         className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isDragging
-                            ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
-                            : chipClass
+                          ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
+                          : chipClass
                           } ${isAssigning ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
                       >
                         {room.is_no_service && <span>NS</span>}
@@ -1214,8 +1231,8 @@ export default function HousekeepingPage() {
                           setPoolDropActive(false);
                         }}
                         className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isDragging
-                            ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
-                            : "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60"
+                          ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-400 dark:border-brand-500/30"
+                          : "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60"
                           } ${isAssigning || isCancelling ? "opacity-60 cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
                         title={`${task.task_name} • ${task.duration_min} min`}
                       >
@@ -1243,36 +1260,6 @@ export default function HousekeepingPage() {
                   })}
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(filter === "all" || filter === "dirty" || filter === "in_progress" || filter === "due_out" || filter === "back_to_back" || filter === "in_house") && (
-        <div className={`card p-3 border ${hasDraftChanges ? "border-amber-300 bg-amber-50/60 dark:bg-amber-900/20 dark:border-amber-500/30" : "border-[var(--border-default)] bg-[var(--bg-surface)]"}`}>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-xs font-semibold text-[var(--text-table-cell)]">
-              {hasDraftChanges
-                ? `${totalDraftChangeCount} unsaved assignment change${totalDraftChangeCount > 1 ? "s" : ""}`
-                : "No unsaved assignment changes"}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={discardDraftAssignments}
-                disabled={!hasDraftChanges || savingDraft}
-                className="rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-50"
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveDraftAssignments()}
-                disabled={!hasDraftChanges || savingDraft}
-                className="rounded-md border border-emerald-300 bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 disabled:opacity-50 dark:border-emerald-500/50"
-              >
-                {savingDraft ? "Saving..." : "Save Changes"}
-              </button>
             </div>
           </div>
         </div>
@@ -1410,10 +1397,10 @@ export default function HousekeepingPage() {
                   <label
                     key={key}
                     className={`flex items-start gap-3 rounded-lg border px-3 py-2 transition ${task.already_assigned
-                        ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
-                        : isChecked
-                          ? "border-indigo-300 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40"
-                          : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:bg-[var(--bg-body)]"
+                      ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
+                      : isChecked
+                        ? "border-indigo-300 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40"
+                        : "border-[var(--border-default)] bg-[var(--bg-surface)] hover:bg-[var(--bg-body)]"
                       }`}
                   >
                     <input

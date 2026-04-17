@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MaintenanceTask } from "@/lib/types";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/Label";
@@ -44,7 +44,7 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
     const [name, setName] = useState(task?.name || "");
     const [description, setDescription] = useState(task?.description || "");
     const [thresholdCount, setThresholdCount] = useState<number>(task?.threshold_count || 100);
-    const [warningCount, setWarningCount] = useState<number>(task?.warning_count || 80);
+    const [warningCount, setWarningCount] = useState<number>(task?.warning_count ?? 0);
     const [applicableTypes, setApplicableTypes] = useState<string[]>(
         Array.isArray(task?.applicable_room_types) && task.applicable_room_types.length > 0
             ? task.applicable_room_types
@@ -63,7 +63,7 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
         setName(task?.name || "");
         setDescription(task?.description || "");
         setThresholdCount(task?.threshold_count || 100);
-        setWarningCount(task?.warning_count || 80);
+        setWarningCount(task?.warning_count ?? 0);
         setApplicableTypes(
             Array.isArray(task?.applicable_room_types) && task.applicable_room_types.length > 0
                 ? task.applicable_room_types
@@ -153,70 +153,95 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
     };
     const taskNameInvalid = showValidation && !name.trim();
     const thresholdInvalid = showValidation && thresholdCount <= 0;
-    const warningInvalid = showValidation && Boolean(warningCount && warningCount >= thresholdCount);
+    const warningInvalid = Boolean(warningCount && warningCount >= thresholdCount);
+    const selectedAllRoomTypes = normalizedApplicableTypes.length === ROOM_TYPES.length;
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+            <DialogContent className="!w-[min(92vw,760px)] !max-w-none max-h-[86vh] overflow-hidden p-0 flex flex-col">
+                <DialogHeader className="border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-6 py-4">
                     <DialogTitle>{isEditing ? "Edit Maintenance Task" : "Create New Maintenance Task"}</DialogTitle>
+                    <DialogDescription>
+                        Configure room rules, overdue thresholds, and optional housekeeping checklist sync.
+                    </DialogDescription>
                 </DialogHeader>
 
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-md flex items-center gap-2 text-sm border border-red-200">
-                        <AlertCircleIcon className="w-4 h-4" /> {error}
-                    </div>
-                )}
-
-                <div className="space-y-6 py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b pb-6">
-                        <div className="space-y-2 md:col-span-2">
-                            <Label>Task Name <span className="text-red-500">*</span></Label>
-                            <Input
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                placeholder="e.g., AC Cleaning, Pipe Flushing"
-                                required
-                                aria-invalid={taskNameInvalid}
-                            />
-                            {taskNameInvalid && <p className="text-xs text-rose-600">Task name is required.</p>}
+                <div className="px-6 py-4 space-y-5 overflow-y-auto">
+                    {error && (
+                        <div className="bg-red-500/10 text-red-600 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-400/30">
+                            <AlertCircleIcon className="w-4 h-4" /> {error}
                         </div>
+                    )}
 
-                        <div className="space-y-2 md:col-span-2">
-                            <Label>Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
-                            <Textarea value={description} onChange={e => setDescription(e.target.value)} />
+                    <section className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-4">
+                        <div>
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Basics</h3>
+                            <p className="text-xs text-muted-foreground mt-1">Name and staff-facing description for this maintenance rule.</p>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Task Name <span className="text-red-500">*</span></Label>
+                                <Input
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    placeholder="e.g., AC Cleaning, Pipe Flushing"
+                                    required
+                                    aria-invalid={taskNameInvalid}
+                                />
+                                {taskNameInvalid && <p className="text-xs text-rose-600">Task name is required.</p>}
+                            </div>
 
-                        <div className="space-y-2">
-                            <Label>Overdue Threshold (Stays) <span className="text-red-500">*</span></Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={thresholdCount}
-                                onChange={e => setThresholdCount(Number(e.target.value))}
-                                required
-                                aria-invalid={thresholdInvalid}
-                            />
-                            {thresholdInvalid && <p className="text-xs text-rose-600">Overdue threshold must be greater than 0.</p>}
-                            <p className="text-xs text-muted-foreground">Maximum number of stays before overdue</p>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+                                <Textarea value={description} onChange={e => setDescription(e.target.value)} className="min-h-[84px]" />
+                            </div>
                         </div>
+                    </section>
 
-                        <div className="space-y-2">
-                            <Label>Warning Threshold (Stays)</Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={warningCount}
-                                onChange={e => setWarningCount(Number(e.target.value))}
-                                aria-invalid={warningInvalid}
-                            />
-                            {warningInvalid && (
-                                <p className="text-xs text-rose-600">Warning threshold must be less than overdue threshold.</p>
-                            )}
-                            <p className="text-xs text-muted-foreground">Alerts before Overdue (must be less than Overdue threshold)</p>
+                    <section className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-4">
+                        <div>
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Rules</h3>
+                            <p className="text-xs text-muted-foreground mt-1">Warning must stay below overdue. Use 0 to disable warning.</p>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Overdue Threshold (Stays) <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={thresholdCount}
+                                    onChange={e => setThresholdCount(Number(e.target.value))}
+                                    required
+                                    aria-invalid={thresholdInvalid}
+                                />
+                                {thresholdInvalid && <p className="text-xs text-rose-600">Overdue threshold must be greater than 0.</p>}
+                                <p className="text-xs text-muted-foreground">Maximum number of stays before overdue.</p>
+                            </div>
 
-                        <div className="space-y-3 md:col-span-2">
+                            <div className="space-y-2">
+                                <Label>Warning Threshold (Stays)</Label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    value={warningCount}
+                                    onChange={e => setWarningCount(Number(e.target.value))}
+                                    aria-invalid={warningInvalid}
+                                />
+                                {warningInvalid ? (
+                                    <p className="text-xs text-rose-600">Warning threshold must be less than overdue threshold.</p>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">Set 0 to disable warning for this task.</p>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-3">
+                        <div>
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">Applies To</h3>
+                            <p className="text-xs text-muted-foreground mt-1">Select room types that should receive this task.</p>
+                        </div>
+                        <div className="space-y-3">
                             <Label>Applicable Room Types</Label>
                             <div className="flex flex-wrap gap-2 mt-2">
                                 {ROOM_TYPES.map(code => (
@@ -234,14 +259,14 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                                 size="sm"
                                 className="mt-1 min-h-[44px] text-xs px-2"
                                 onClick={() => setApplicableTypes([...ROOM_TYPES])}
-                                disabled={normalizedApplicableTypes.length === ROOM_TYPES.length}
+                                disabled={selectedAllRoomTypes}
                             >
-                                Select all rooms (Default)
+                                {selectedAllRoomTypes ? "All room types selected" : "Select all room types"}
                             </Button>
                         </div>
-                    </div>
+                    </section>
 
-                    <div className="space-y-4">
+                    <section className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 space-y-4">
                         <div className="flex flex-row items-center justify-between border rounded-lg p-4 bg-[var(--bg-body)]">
                             <div className="space-y-0.5">
                                 <Label className="text-base">Housekeeping Sync</Label>
@@ -298,12 +323,12 @@ export function MaintenanceTaskFormModal({ task, isOpen, onOpenChange, onSave }:
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </section>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="border-t border-[var(--border-default)] bg-[var(--bg-surface)] px-6 py-3">
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="min-h-[44px]">Cancel</Button>
-                    <Button onClick={handleSave} disabled={isSubmitting} className="bg-primary min-h-[44px]">
+                    <Button onClick={handleSave} disabled={isSubmitting || warningInvalid} className="bg-primary min-h-[44px]">
                         {isSubmitting ? "Saving..." : "Save"}
                     </Button>
                 </DialogFooter>
@@ -321,7 +346,7 @@ function BadgeButton({ active, onClick, children }: { active: boolean, onClick: 
             aria-pressed={active}
             className={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold border rounded-full transition-colors ${
                 active
-                    ? "bg-red-600 text-white border-red-600 shadow-sm"
+                    ? "bg-[var(--text-primary)] text-[var(--bg-surface)] border-[var(--text-primary)] shadow-sm"
                     : "bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] border-[var(--border-input)]"
             }`}
         >

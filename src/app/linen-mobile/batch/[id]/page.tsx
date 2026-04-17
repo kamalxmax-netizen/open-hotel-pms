@@ -9,6 +9,8 @@ import { MobileBatchStepVendorSign } from "@/components/linen/mobile-batch-step-
 import { MobileBatchStepFoSign } from "@/components/linen/mobile-batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 
+type ReturnSummaryItem = { name: string; qty: number };
+
 export default function MobileBatchWizardPage() {
     const params = useParams();
     const searchParams = useSearchParams();
@@ -20,6 +22,9 @@ export default function MobileBatchWizardPage() {
     const [currentStep, setCurrentStep] = useState<number | null>(null);
     const [draftData, setDraftData] = useState<any>(null);
     const [finalToken, setFinalToken] = useState<string | null>(null);
+    const [returnSummary, setReturnSummary] = useState<ReturnSummaryItem[]>([]);
+    const [returnQtyDraft, setReturnQtyDraft] = useState<Record<string, string>>({});
+    const [isReopening, setIsReopening] = useState(false);
 
     useEffect(() => {
         if (params.id === "new") {
@@ -51,16 +56,49 @@ export default function MobileBatchWizardPage() {
         }
     };
 
-    const handleBack = () => {
-        // Logic to move back a step if possible
-        if (currentStep === 3) {
-            // Need an API to rollback or just set state if we want to support editing
-            // Brief says: Step 3/4 signature cleared when back.
-            // For simplicity in Step 3/4, we just let them go back to previous logical states.
-            // But since statuses are DB-driven, we might need a "Reopen" or similar.
-            // Actually, for Step 3/4, FO often wants to fix a number in Step 2.
-            alert("ต้องการแก้ไขข้อมูลย้อนหลัง? กรุณาแจ้ง Admin เพื่อ Reopen Batch หรือเริ่มนับใหม่ (ใน v1)");
+    const handleReturnNext = (summary: ReturnSummaryItem[] = [], qtys: Record<string, string> = {}) => {
+        setReturnSummary(summary);
+        setReturnQtyDraft(qtys);
+        setCurrentStep(3);
+        handleNext();
+    };
+
+    const reopenForEdit = async (targetStep: 1 | 2) => {
+        if (!batchId || !batchDetail?.batch) return;
+        const status = String(batchDetail.batch.status ?? "");
+        if (["fo_return_signed", "closed", "partial"].includes(status)) {
+            alert("รอบนี้จบงานแล้ว ถ้าต้องแก้ไขย้อนหลังให้ Admin Reopen ครับ");
+            return;
         }
+        setIsReopening(true);
+        try {
+            if (status !== "fo_dirty_counted") {
+                const res = await fetch(`/api/linen/batches/${batchId}/reopen`, { method: "POST" });
+                const result = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(result?.error || "Failed to reopen batch");
+                setFinalToken(null);
+            }
+            await mutate();
+            setCurrentStep(targetStep);
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            alert(`ย้อนกลับเพื่อแก้ไขไม่สำเร็จ: ${message}`);
+        } finally {
+            setIsReopening(false);
+        }
+    };
+
+    const handleHeaderBack = () => {
+        if (!currentStep || currentStep <= 1) {
+            router.push("/linen-mobile");
+            return;
+        }
+        if (currentStep === 2) {
+            setCurrentStep(1);
+            return;
+        }
+        reopenForEdit(2);
     };
 
     const summaryText = useMemo(() => {
@@ -68,7 +106,9 @@ export default function MobileBatchWizardPage() {
         const items = batchDetail.items;
         const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
-        const returns = items.filter(i => i.received_back > 0);
+        const returns = returnSummary.length > 0
+            ? returnSummary
+            : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
         let text = `สรุปรายการผ้า [รอบ ${batchDetail.batch.pickup_round}]\nวันที่: ${batchDetail.batch.business_date}\n`;
         
@@ -79,11 +119,32 @@ export default function MobileBatchWizardPage() {
             text += `\n\n--- ผ้าเก่า ---\n` + dayuse.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name_th}: ${i.received_back} ชิ้น`).join("\n");
+            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
         }
         
         return text;
+    }, [batchDetail, returnSummary]);
+
+    const eventReturnSummary = useMemo<ReturnSummaryItem[]>(() => {
+        const events = batchDetail?.events ?? [];
+        const latestReturnEvent = [...events].reverse().find((event: any) => event.event_type === "fo_return_counted");
+        const returns = Array.isArray((latestReturnEvent as any)?.data?.returns) ? (latestReturnEvent as any).data.returns : [];
+        if (!returns.length) return [];
+
+        const nameByItemId = new Map<number, string>();
+        for (const item of batchDetail?.items ?? []) {
+            nameByItemId.set(Number(item.linen_item_id), item.name_th ?? `Item ${item.linen_item_id}`);
+        }
+
+        return returns
+            .map((item: any) => ({
+                name: nameByItemId.get(Number(item.linen_item_id)) ?? `Item ${item.linen_item_id}`,
+                qty: Number(item.received_qty ?? 0),
+            }))
+            .filter((item: ReturnSummaryItem) => item.qty > 0);
     }, [batchDetail]);
+
+    const activeReturnSummary = returnSummary.length > 0 ? returnSummary : eventReturnSummary;
 
     if (isLoading && params.id !== "new") {
         return <div className="p-10 text-center text-slate-400 font-thai">กำลังโหลดข้อมูลรอบ...</div>;
@@ -93,7 +154,8 @@ export default function MobileBatchWizardPage() {
         <div className="min-h-screen bg-slate-50 flex flex-col p-4">
             <header className="flex items-center justify-between mb-4">
                 <button 
-                    onClick={() => router.push("/linen-mobile")}
+                    onClick={handleHeaderBack}
+                    disabled={isReopening}
                     className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm border border-slate-100 active:scale-90 transition-all"
                 >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M15 18l-6-6 6-6"/></svg>
@@ -108,33 +170,42 @@ export default function MobileBatchWizardPage() {
 
             <div className="flex-1">
                 {currentStep === 1 && (
-                    <MobileBatchStepDirty initialData={draftData} onNext={handleNext} />
+                    <MobileBatchStepDirty
+                        initialData={draftData}
+                        batchId={batchId}
+                        batchDetail={batchDetail}
+                        onNext={handleNext}
+                    />
                 )}
                 {currentStep === 2 && batchDetail && (
                     <MobileBatchStepReturn 
                         batchId={batchId!} 
                         items={batchDetail.items} 
                         returnSources={batchDetail.return_sources || []} 
-                        onNext={() => handleNext()} 
+                        initialReturnQtys={returnQtyDraft}
+                        onBack={() => setCurrentStep(1)}
+                        onNext={handleReturnNext} 
                     />
                 )}
                 {currentStep === 3 && batchDetail && (
                     <MobileBatchStepVendorSign 
                         batchId={batchId!} 
                         items={batchDetail.items} 
+                        returnSummary={activeReturnSummary}
                         onNext={() => handleNext()}
-                        onBack={() => setCurrentStep(2)} // Allow going back to Step 2 locally if no DB change yet
+                        onBack={() => reopenForEdit(2)}
                     />
                 )}
                 {currentStep === 4 && batchDetail && (
                     <MobileBatchStepFoSign 
                         batchId={batchId!} 
                         items={batchDetail.items} 
+                        returnSummary={activeReturnSummary}
                         onDone={(token) => {
                             setFinalToken(token);
                             setCurrentStep(5);
                         }}
-                        onBack={() => setCurrentStep(3)}
+                        onBack={() => reopenForEdit(2)}
                     />
                 )}
                 {currentStep === 5 && (

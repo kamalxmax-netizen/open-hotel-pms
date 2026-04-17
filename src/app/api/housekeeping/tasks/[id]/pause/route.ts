@@ -1,14 +1,16 @@
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { maidAuthErrorResponse, requireMaidOperation } from "@/lib/maid-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 const pauseTaskSchema = z.object({
+  maid_name: z.string().trim().min(1).optional(),
   note: z.string().trim().max(500).optional(),
 });
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -35,7 +37,7 @@ export async function POST(
     // 1. Fetch the task by ID
     const { data: task, error: fetchError } = await supabase
       .from("housekeeping_tasks")
-      .select("id, status, started_at, accumulated_ms")
+      .select("id, status, started_at, accumulated_ms, assigned_maid_name")
       .eq("id", id)
       .single();
 
@@ -45,6 +47,12 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    const maidAuth = await requireMaidOperation(
+      supabase,
+      request,
+      task.assigned_maid_name ?? parsedBody.data.maid_name ?? null
+    );
 
     // 2. Ensure the task is currently in_progress
     if (task.status !== "in_progress") {
@@ -100,7 +108,12 @@ export async function POST(
         entity_type: "housekeeping_task",
         entity_id: id,
         before_json: { status: "in_progress" },
-        after_json: { status: "paused", accumulated_ms: newAccumulated },
+        after_json: {
+          status: "paused",
+          accumulated_ms: newAccumulated,
+          maid_auth: maidAuth.audit,
+        },
+        actor_user_id: maidAuth.audit.actor_user_id,
         business_date: toBangkokDateString(),
         source: normalizeAuditSource("manual"),
         note: pauseNote || null,
@@ -124,6 +137,8 @@ export async function POST(
       accumulated_ms: newAccumulated,
     });
   } catch (err: unknown) {
+    const authResponse = maidAuthErrorResponse(err);
+    if (authResponse) return authResponse;
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

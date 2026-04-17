@@ -9,12 +9,32 @@ import { TemplatePicker } from "@/components/pms/housekeeping/extra-tasks/templa
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/Label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 type ApiResponse<T extends Record<string, unknown> = Record<string, unknown>> = {
     success?: boolean;
     error?: string;
 } & T;
+
+type AssignmentEditDraft = {
+    id: string;
+    assignment_date: string;
+    task_name: string;
+    assigned_maid: string;
+    duration_min: number;
+    priority: number;
+    notes: string;
+};
 
 async function readJsonSafe<T extends Record<string, unknown>>(response: Response): Promise<ApiResponse<T>> {
     try {
@@ -49,6 +69,9 @@ export default function ExtraTasksPage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [draggingAssignmentId, setDraggingAssignmentId] = useState<string | null>(null);
     const [dropMaid, setDropMaid] = useState<string | null>(null);
+    const [editingAssignment, setEditingAssignment] = useState<AssignmentEditDraft | null>(null);
+    const [deletingAssignment, setDeletingAssignment] = useState<ExtraTaskAssignment | null>(null);
+    const [assignmentActionBusy, setAssignmentActionBusy] = useState(false);
     const { toast } = useToast();
 
     const fetchData = useCallback(async (isRefresh = false) => {
@@ -150,6 +173,106 @@ export default function ExtraTasksPage() {
         } catch (error: any) {
             toast({ title: "Failed", description: error.message, variant: "destructive" });
             throw error;
+        }
+    };
+
+    const handleUpdateTemplate = async (id: string, data: { name: string; duration_min: number; category: string; is_active: boolean }) => {
+        try {
+            const res = await fetch(`/api/housekeeping/extra-tasks/templates/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+            });
+            const json = await readJsonSafe(res);
+            ensureApiSuccess(res, json, "Update template failed");
+            toast({ title: "Success", description: `Template "${data.name}" updated.` });
+            await fetchData(true);
+        } catch (error: any) {
+            toast({ title: "Failed", description: error.message, variant: "destructive" });
+            throw error;
+        }
+    };
+
+    const handleDeleteTemplate = async (template: ExtraTaskTemplate) => {
+        try {
+            const res = await fetch(`/api/housekeeping/extra-tasks/templates/${template.id}`, { method: "DELETE" });
+            const json = await readJsonSafe<{ deactivated?: boolean }>(res);
+            ensureApiSuccess(res, json, "Delete template failed");
+            toast({
+                title: "Success",
+                description: json.deactivated
+                    ? `Template "${template.name}" is in use, so it was deactivated.`
+                    : `Template "${template.name}" deleted.`,
+            });
+            await fetchData(true);
+        } catch (error: any) {
+            toast({ title: "Failed", description: error.message, variant: "destructive" });
+            throw error;
+        }
+    };
+
+    const openEditAssignment = (assignment: ExtraTaskAssignment) => {
+        setEditingAssignment({
+            id: assignment.id,
+            assignment_date: assignment.assignment_date,
+            task_name: assignment.task_name,
+            assigned_maid: assignment.assigned_maid || POOL_MAID,
+            duration_min: assignment.duration_min || 30,
+            priority: assignment.priority || 1,
+            notes: assignment.notes ?? "",
+        });
+    };
+
+    const handleUpdateAssignment = async () => {
+        if (!editingAssignment) return;
+        const taskName = editingAssignment.task_name.trim();
+        if (!taskName || editingAssignment.duration_min <= 0 || editingAssignment.priority < 1) {
+            toast({ title: "Missing info", description: "Task name, duration, and priority are required.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            setAssignmentActionBusy(true);
+            const res = await fetch(`/api/housekeeping/extra-tasks/assignments/${editingAssignment.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    assignment_date: editingAssignment.assignment_date,
+                    task_name: taskName,
+                    assigned_maid: editingAssignment.assigned_maid,
+                    duration_min: editingAssignment.duration_min,
+                    priority: editingAssignment.priority,
+                    notes: editingAssignment.notes.trim() || null,
+                }),
+            });
+            const json = await readJsonSafe(res);
+            ensureApiSuccess(res, json, "Update task failed");
+            toast({ title: "Success", description: `Task "${taskName}" updated.` });
+            setEditingAssignment(null);
+            await fetchData(true);
+        } catch (error: any) {
+            toast({ title: "Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setAssignmentActionBusy(false);
+        }
+    };
+
+    const handleDeleteAssignment = async () => {
+        if (!deletingAssignment) return;
+        try {
+            setAssignmentActionBusy(true);
+            const res = await fetch(`/api/housekeeping/extra-tasks/assignments/${deletingAssignment.id}`, {
+                method: "DELETE",
+            });
+            const json = await readJsonSafe(res);
+            ensureApiSuccess(res, json, "Delete task failed");
+            toast({ title: "Success", description: `Task "${deletingAssignment.task_name}" deleted.` });
+            setDeletingAssignment(null);
+            await fetchData(true);
+        } catch (error: any) {
+            toast({ title: "Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setAssignmentActionBusy(false);
         }
     };
 
@@ -264,6 +387,8 @@ export default function ExtraTasksPage() {
                         maidNames={maidLaneNames}
                         onAssign={handleAssignTask}
                         onCreateTemplate={handleCreateTemplate}
+                        onUpdateTemplate={handleUpdateTemplate}
+                        onDeleteTemplate={handleDeleteTemplate}
                         disabled={isLoading || isRefreshing}
                     />
 
@@ -342,6 +467,8 @@ export default function ExtraTasksPage() {
                                                                 <ExtraTaskCard
                                                                     assignment={task}
                                                                     onStatusChange={handleStatusChange}
+                                                                    onEdit={openEditAssignment}
+                                                                    onDelete={setDeletingAssignment}
                                                                     disabled={isLoading || isRefreshing}
                                                                 />
                                                             </div>
@@ -357,6 +484,111 @@ export default function ExtraTasksPage() {
                     </div>
                 </>
             )}
+
+            <Dialog open={!!editingAssignment} onOpenChange={(open) => !open && setEditingAssignment(null)}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Edit Extra Task</DialogTitle>
+                        <DialogDescription>
+                            Update the task details, lane, date, or note. Existing timer history is kept.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {editingAssignment && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs">Task Name</Label>
+                                    <Input
+                                        value={editingAssignment.task_name}
+                                        onChange={(e) => setEditingAssignment((prev) => prev ? { ...prev, task_name: e.target.value } : prev)}
+                                        disabled={assignmentActionBusy}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Date</Label>
+                                    <Input
+                                        type="date"
+                                        value={editingAssignment.assignment_date}
+                                        onChange={(e) => setEditingAssignment((prev) => prev ? { ...prev, assignment_date: e.target.value } : prev)}
+                                        disabled={assignmentActionBusy}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Assign to</Label>
+                                    <Select
+                                        value={editingAssignment.assigned_maid}
+                                        onValueChange={(value) => setEditingAssignment((prev) => prev ? { ...prev, assigned_maid: value } : prev)}
+                                        disabled={assignmentActionBusy}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select lane" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={POOL_MAID}>POOL (assign later)</SelectItem>
+                                            {maidLaneNames.map((name) => (
+                                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Duration (min)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={editingAssignment.duration_min}
+                                        onChange={(e) => setEditingAssignment((prev) => prev ? { ...prev, duration_min: Number(e.target.value) } : prev)}
+                                        disabled={assignmentActionBusy}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Priority</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={editingAssignment.priority}
+                                        onChange={(e) => setEditingAssignment((prev) => prev ? { ...prev, priority: Number(e.target.value) } : prev)}
+                                        disabled={assignmentActionBusy}
+                                    />
+                                </div>
+                                <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs">Notes</Label>
+                                    <Textarea
+                                        value={editingAssignment.notes}
+                                        onChange={(e) => setEditingAssignment((prev) => prev ? { ...prev, notes: e.target.value } : prev)}
+                                        placeholder="Optional note"
+                                        disabled={assignmentActionBusy}
+                                        className="min-h-20"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setEditingAssignment(null)} disabled={assignmentActionBusy}>Cancel</Button>
+                        <Button className="bg-sky-600 hover:bg-sky-700 text-white" onClick={handleUpdateAssignment} disabled={assignmentActionBusy}>
+                            {assignmentActionBusy ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deletingAssignment} onOpenChange={(open) => !open && setDeletingAssignment(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Delete Extra Task</DialogTitle>
+                        <DialogDescription>
+                            Delete &ldquo;{deletingAssignment?.task_name}&rdquo; permanently from this board?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setDeletingAssignment(null)} disabled={assignmentActionBusy}>Cancel</Button>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleDeleteAssignment} disabled={assignmentActionBusy}>
+                            {assignmentActionBusy ? "Deleting..." : "Delete"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -618,7 +618,7 @@ export default function TimelineView({
 
       <div ref={timelineScrollRef} className="overflow-x-auto p-4 hide-scrollbar">
         <div className="min-w-[1800px] relative">
-          <div className="flex border-b border-[var(--border-subtle)] pb-2 mb-4">
+          <div className="flex pb-2 mb-4">
             <div className="w-24 shrink-0" />
             <div className="relative" style={{ width: TRACK_WIDTH_PX }}>
               {workHours.map((hour) => (

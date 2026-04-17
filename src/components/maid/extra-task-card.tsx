@@ -11,6 +11,8 @@ interface ExtraTaskCardProps {
   onResume: (id: string) => void;
   onFinish: (id: string) => void;
   isActionLoading: boolean;
+  canOperate?: boolean;
+  disabledReason?: string;
 }
 
 function formatCountdown(valueMs: number) {
@@ -36,6 +38,8 @@ export default function ExtraTaskCard({
   onResume,
   onFinish,
   isActionLoading,
+  canOperate = true,
+  disabledReason = "View only",
 }: ExtraTaskCardProps) {
   const [elapsedMs, setElapsedMs] = useState<number>(0);
   const palette = getExtraTaskPalette(task.status);
@@ -59,6 +63,7 @@ export default function ExtraTaskCard({
   const isInProgress = task.status === "in_progress";
   const isPaused = task.status === "paused";
   const isDone = task.status === "done";
+  const operationDisabled = isActionLoading || !canOperate;
   const targetMs = Math.max(Number(task.duration_min ?? 0), 1) * 60_000;
   const remainingMs = targetMs - elapsedMs;
   const locationLabel = task.assigned_maid || "งานส่วนกลาง";
@@ -116,7 +121,8 @@ export default function ExtraTaskCard({
             <button
               type="button"
               onClick={() => onStart(task.id)}
-              disabled={isActionLoading}
+              disabled={operationDisabled}
+              title={!canOperate ? disabledReason : undefined}
               className="flex min-h-[68px] min-w-[150px] flex-1 items-center justify-center gap-3 rounded-[20px] bg-rose-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(225,29,72,0.2)] transition-all active:scale-95 disabled:opacity-50 hover:bg-rose-600"
             >
               <Play size={28} fill="currentColor" />
@@ -129,7 +135,8 @@ export default function ExtraTaskCard({
               <button
                 type="button"
                 onClick={() => onPause(task.id)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex h-[68px] w-[84px] shrink-0 items-center justify-center rounded-[20px] border border-slate-300 bg-slate-100 text-slate-700 transition-all active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                 aria-label="พัก"
               >
@@ -138,7 +145,8 @@ export default function ExtraTaskCard({
               <button
                 type="button"
                 onClick={() => onFinish(task.id)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[150px] flex-1 items-center justify-center gap-2 rounded-[20px] bg-emerald-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(5,150,105,0.22)] transition-all active:scale-95 disabled:opacity-50 hover:bg-emerald-600"
               >
                 <Check size={28} strokeWidth={3} />
@@ -152,7 +160,8 @@ export default function ExtraTaskCard({
               <button
                 type="button"
                 onClick={() => onResume(task.id)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[130px] flex-1 items-center justify-center gap-2 rounded-[20px] bg-purple-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(147,51,234,0.2)] transition-all active:scale-95 disabled:opacity-50 hover:bg-purple-600"
               >
                 <Play size={28} fill="currentColor" />
@@ -161,7 +170,8 @@ export default function ExtraTaskCard({
               <button
                 type="button"
                 onClick={() => onFinish(task.id)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[130px] flex-[1.4] items-center justify-center gap-2 rounded-[20px] bg-emerald-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(5,150,105,0.22)] transition-all active:scale-95 disabled:opacity-50 hover:bg-emerald-600"
               >
                 <Check size={28} strokeWidth={3} />

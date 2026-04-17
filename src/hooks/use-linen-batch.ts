@@ -1,5 +1,13 @@
 import useSWR from "@/hooks/use-simple-swr";
-import type { LaundryBatch, LaundryBatchEvent, LaundryBatchItem, LaundryReturnSourceItem, LaundryVendorToken, LinenExpectedResult } from "@/lib/types";
+import type {
+    LaundryBatch,
+    LaundryBatchEvent,
+    LaundryBatchItem,
+    LaundryReturnSourceItem,
+    LaundryVendorToken,
+    LinenEditAuditLog,
+    LinenExpectedResult,
+} from "@/lib/types";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
 
 type LinenBatchDetail = {
@@ -37,11 +45,30 @@ export function useLinenExpected() {
    };
 }
 
-export function useLinenBatches() {
-    const { data, error, mutate, isValidating } = useSWR<LaundryBatch[]>("/api/linen/batches", apiDataFetcher);
+export function useLinenBatches(filters?: any) {
+    const query = filters ? new URLSearchParams(Object.entries(filters).filter(([_, v]) => v !== undefined && v !== "").reduce((acc, [k, v]) => ({ ...acc, [k]: String(v) }), {})).toString() : "";
+    const { data, error, mutate, isValidating } = useSWR<LaundryBatch[]>(
+        query ? `/api/linen/batches?${query}` : "/api/linen/batches", 
+        apiDataFetcher
+    );
     
     return {
         batches: data || [],
+        isLoading: !error && !data,
+        isError: error,
+        mutate,
+        isValidating,
+    };
+}
+
+export function useLinenAuditLogs(batchId?: string | null) {
+    const { data, error, mutate, isValidating } = useSWR<LinenEditAuditLog[]>(
+        batchId ? `/api/linen/batches/${batchId}/audit` : null,
+        apiDataFetcher
+    );
+    
+    return {
+        logs: data || [],
         isLoading: !error && !data,
         isError: error,
         mutate,

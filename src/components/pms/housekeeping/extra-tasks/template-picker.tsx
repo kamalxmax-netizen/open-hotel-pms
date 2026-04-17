@@ -12,7 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { PlusIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon } from "lucide-react";
+import { PlusIcon, ChevronUpIcon, SparklesIcon, EditIcon, Trash2Icon, XIcon } from "lucide-react";
 
 interface TemplatePickerProps {
     templates: ExtraTaskTemplate[];
@@ -28,10 +28,17 @@ interface TemplatePickerProps {
         duration_min: number;
         category: string;
     }) => Promise<void>;
+    onUpdateTemplate: (id: string, data: {
+        name: string;
+        duration_min: number;
+        category: string;
+        is_active: boolean;
+    }) => Promise<void>;
+    onDeleteTemplate: (template: ExtraTaskTemplate) => Promise<void>;
     disabled?: boolean;
 }
 
-export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplate, disabled }: TemplatePickerProps) {
+export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplate, onUpdateTemplate, onDeleteTemplate, disabled }: TemplatePickerProps) {
     const POOL_MAID = "POOL";
     const [isExpanded, setIsExpanded] = useState(false);
     const [isCustom, setIsCustom] = useState(false);
@@ -45,6 +52,15 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
     const [newTemplateDuration, setNewTemplateDuration] = useState<number>(30);
     const [newTemplateCategory, setNewTemplateCategory] = useState("General");
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
+    const [showManageTemplates, setShowManageTemplates] = useState(false);
+    const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+    const [templateDraft, setTemplateDraft] = useState({
+        name: "",
+        duration_min: 30,
+        category: "General",
+        is_active: true,
+    });
+    const [templateProcessingId, setTemplateProcessingId] = useState<string | null>(null);
 
     const handleTemplateChange = (value: string) => {
         setSelectedTemplateId(value);
@@ -93,6 +109,48 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
         }
     };
 
+    const startEditTemplate = (template: ExtraTaskTemplate) => {
+        setEditingTemplateId(template.id);
+        setTemplateDraft({
+            name: template.name,
+            duration_min: template.duration_min,
+            category: template.category,
+            is_active: template.is_active,
+        });
+    };
+
+    const handleSaveTemplate = async (templateId: string) => {
+        if (!templateDraft.name.trim() || templateDraft.duration_min <= 0 || !templateDraft.category.trim()) return;
+        try {
+            setTemplateProcessingId(templateId);
+            await onUpdateTemplate(templateId, {
+                name: templateDraft.name.trim(),
+                duration_min: templateDraft.duration_min,
+                category: templateDraft.category.trim(),
+                is_active: templateDraft.is_active,
+            });
+            setEditingTemplateId(null);
+        } finally {
+            setTemplateProcessingId(null);
+        }
+    };
+
+    const handleDeleteTemplate = async (template: ExtraTaskTemplate) => {
+        if (!window.confirm(`Delete template "${template.name}"?`)) return;
+        try {
+            setTemplateProcessingId(template.id);
+            await onDeleteTemplate(template);
+            if (editingTemplateId === template.id) setEditingTemplateId(null);
+            if (selectedTemplateId === template.id) {
+                setSelectedTemplateId("");
+                setTaskName("");
+                setDurationMin(30);
+            }
+        } finally {
+            setTemplateProcessingId(null);
+        }
+    };
+
     const isValid = taskName.trim().length > 0 && assignedMaid.trim().length > 0 && durationMin > 0;
     const isTemplateValid = newTemplateName.trim().length > 0 && newTemplateDuration > 0 && newTemplateCategory.trim().length > 0;
 
@@ -130,15 +188,15 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                 {/* Mode toggle */}
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => { setIsCustom(false); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
+                        onClick={() => { setIsCustom(false); setShowCreateTemplate(false); setShowManageTemplates(false); }}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${!isCustom && !showCreateTemplate && !showManageTemplates ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
                         disabled={disabled || isSubmitting}
                     >
                         From Template
                     </button>
                     <button
-                        onClick={() => { setIsCustom(true); setShowCreateTemplate(false); }}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
+                        onClick={() => { setIsCustom(true); setShowCreateTemplate(false); setShowManageTemplates(false); }}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isCustom && !showCreateTemplate && !showManageTemplates ? "bg-sky-100 text-sky-700" : "bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)]"}`}
                         disabled={disabled || isSubmitting}
                     >
                         Custom Task
@@ -147,9 +205,16 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                     <button
                         onClick={() => setShowCreateTemplate((prev) => !prev)}
                         className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${showCreateTemplate ? "bg-amber-100 text-amber-700" : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-hover)]"}`}
-                        disabled={disabled || isSubmitting || isCreatingTemplate}
+                        disabled={disabled || isSubmitting || isCreatingTemplate || showManageTemplates}
                     >
                         {showCreateTemplate ? "Close" : "+ New Template"}
+                    </button>
+                    <button
+                        onClick={() => { setShowManageTemplates((prev) => !prev); setShowCreateTemplate(false); }}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${showManageTemplates ? "bg-slate-900 text-white" : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-hover)]"}`}
+                        disabled={disabled || isSubmitting || isCreatingTemplate}
+                    >
+                        {showManageTemplates ? "Close Manage" : "Manage Templates"}
                     </button>
                 </div>
 
@@ -179,8 +244,72 @@ export function TemplatePicker({ templates, maidNames, onAssign, onCreateTemplat
                     </div>
                 )}
 
+                {showManageTemplates && (
+                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)]/70 p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Templates</p>
+                            <span className="text-[11px] text-[var(--text-muted)]">{templates.length} total</span>
+                        </div>
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                            {templates.length === 0 ? (
+                                <div className="rounded-md border border-dashed border-[var(--border-default)] px-3 py-4 text-center text-xs text-[var(--text-muted)]">
+                                    No templates yet.
+                                </div>
+                            ) : templates.map((template) => {
+                                const isEditing = editingTemplateId === template.id;
+                                const isBusy = templateProcessingId === template.id;
+                                return (
+                                    <div key={template.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5">
+                                        {isEditing ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px_auto] gap-2 items-end">
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px]">Name</Label>
+                                                    <Input value={templateDraft.name} onChange={(e) => setTemplateDraft((prev) => ({ ...prev, name: e.target.value }))} className="h-8" disabled={isBusy || disabled} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px]">Minutes</Label>
+                                                    <Input type="number" min={1} value={templateDraft.duration_min} onChange={(e) => setTemplateDraft((prev) => ({ ...prev, duration_min: Number(e.target.value) }))} className="h-8" disabled={isBusy || disabled} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px]">Category</Label>
+                                                    <Input value={templateDraft.category} onChange={(e) => setTemplateDraft((prev) => ({ ...prev, category: e.target.value }))} className="h-8" disabled={isBusy || disabled} />
+                                                </div>
+                                                <div className="flex gap-1 justify-end">
+                                                    <Button type="button" size="sm" className="h-8 bg-sky-600 hover:bg-sky-700 text-white" onClick={() => handleSaveTemplate(template.id)} disabled={isBusy || disabled}>
+                                                        Save
+                                                    </Button>
+                                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingTemplateId(null)} disabled={isBusy}>
+                                                        <XIcon className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{template.name}</p>
+                                                    <p className="text-[11px] text-[var(--text-muted)] truncate">
+                                                        {template.duration_min}m &middot; {template.category}{!template.is_active ? " · inactive" : ""}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => startEditTemplate(template)} disabled={disabled || isBusy}>
+                                                        <EditIcon className="h-3.5 w-3.5 mr-1" /> Edit
+                                                    </Button>
+                                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteTemplate(template)} disabled={disabled || isBusy}>
+                                                        <Trash2Icon className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* Assignment Form */}
-                {!showCreateTemplate && (
+                {!showCreateTemplate && !showManageTemplates && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                         {!isCustom ? (
                             <div className="space-y-1 md:col-span-2">

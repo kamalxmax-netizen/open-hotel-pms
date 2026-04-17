@@ -22,6 +22,8 @@ interface RoomCardProps {
   onFinishClick: (room: MaidRoom) => void;
   onNoServiceClick: (room: MaidRoom) => void;
   isActionLoading: boolean;
+  canOperate?: boolean;
+  disabledReason?: string;
 }
 
 function formatCountdown(valueMs: number) {
@@ -41,6 +43,8 @@ export default function RoomCard({
   onFinishClick,
   onNoServiceClick,
   isActionLoading,
+  canOperate = true,
+  disabledReason = "View only",
 }: RoomCardProps) {
   const [elapsedMs, setElapsedMs] = useState<number>(0);
   const palette = getRoomPalette(room);
@@ -82,6 +86,7 @@ export default function RoomCard({
   const isInProgress = room.status === "in_progress";
   const isPaused = room.status === "paused";
   const isDone = room.status === "cleaned" || room.status === "approved";
+  const operationDisabled = isActionLoading || !canOperate;
   const remainingMs = targetDurationMs - elapsedMs;
   const isOvertime = remainingMs < 0;
   const guestName = room.guest_name || "ไม่มีชื่อผู้เข้าพัก";
@@ -210,7 +215,8 @@ export default function RoomCard({
               <button
                 type="button"
                 onClick={() => onStart(room.room_id, room.task_id, room.is_no_service)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className={`flex min-h-[68px] min-w-[150px] flex-1 items-center justify-center gap-3 rounded-[20px] border-transparent text-2xl font-black text-white transition-all active:scale-95 disabled:opacity-50 ${
                   room.is_no_service
                     ? "bg-sky-500 shadow-[0_4px_16px_rgba(2,132,199,0.22)] hover:bg-sky-600"
@@ -225,7 +231,8 @@ export default function RoomCard({
                 <button
                   type="button"
                   onClick={() => onNoServiceClick(room)}
-                  disabled={isActionLoading}
+                  disabled={operationDisabled}
+                  title={!canOperate ? disabledReason : undefined}
                   className="flex min-h-[68px] items-center justify-center gap-2 rounded-[20px] border border-slate-300 bg-slate-100 px-5 text-lg font-black text-slate-700 transition-all active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                 >
                   <Ban size={22} />
@@ -240,7 +247,8 @@ export default function RoomCard({
               <button
                 type="button"
                 onClick={() => room.task_id && onPause(room.task_id)}
-                disabled={isActionLoading || !room.task_id}
+                disabled={operationDisabled || !room.task_id}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex h-[68px] w-[84px] shrink-0 items-center justify-center rounded-[20px] border border-slate-300 bg-slate-100 text-slate-700 transition-all active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
                 aria-label="พัก"
               >
@@ -250,7 +258,8 @@ export default function RoomCard({
               <button
                 type="button"
                 onClick={() => onFinishClick(room)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[150px] flex-1 items-center justify-center gap-2 rounded-[20px] bg-emerald-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(5,150,105,0.22)] transition-all active:scale-95 disabled:opacity-50 hover:bg-emerald-600"
               >
                 <Check size={28} strokeWidth={3} />
@@ -264,7 +273,8 @@ export default function RoomCard({
               <button
                 type="button"
                 onClick={() => room.task_id && onResume(room.task_id)}
-                disabled={isActionLoading || !room.task_id}
+                disabled={operationDisabled || !room.task_id}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[130px] flex-1 items-center justify-center gap-2 rounded-[20px] bg-purple-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(147,51,234,0.2)] transition-all active:scale-95 disabled:opacity-50 hover:bg-purple-600"
               >
                 <Play size={28} fill="currentColor" />
@@ -274,7 +284,8 @@ export default function RoomCard({
               <button
                 type="button"
                 onClick={() => onFinishClick(room)}
-                disabled={isActionLoading}
+                disabled={operationDisabled}
+                title={!canOperate ? disabledReason : undefined}
                 className="flex min-h-[68px] min-w-[130px] flex-[1.4] items-center justify-center gap-2 rounded-[20px] bg-emerald-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(5,150,105,0.22)] transition-all active:scale-95 disabled:opacity-50 hover:bg-emerald-600"
               >
                 <Check size={28} strokeWidth={3} />

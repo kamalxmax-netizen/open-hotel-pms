@@ -81,6 +81,10 @@ const NAV_ITEMS = [
             { href: "/pms/housekeeping/extra-tasks", label: "Extra Tasks", icon: ListIcon },
             { href: "/pms/lost-found", label: "Lost & Found", icon: PackageIcon },
             { href: "/pms/linen", label: "Linen & Laundry", icon: PackageIcon },
+            { href: "/pms/linen/monthly", label: "Linen Monthly", icon: FileTextIcon },
+            { href: "/pms/linen/history", label: "Linen History", icon: ListIcon },
+            { href: "/pms/linen/settings/rates", label: "Linen Vendor Rates", icon: RatesIcon },
+            { href: "/pms/linen/settings/variance", label: "Linen Variance Settings", icon: SettingsIcon },
             { href: "/maid", label: "Maid App", icon: BroomIcon },
         ]
     },
