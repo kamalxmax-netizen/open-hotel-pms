@@ -42,6 +42,9 @@ interface MaidAuthState {
 
 type TabType = "all" | "dirty" | "in_progress" | "done";
 type NetworkQuality = "good" | "poor" | "unknown";
+type VisibleLaneItem =
+  | { type: "room"; id: string; room: MaidRoom }
+  | { type: "extra"; id: string; task: ExtraTaskAssignment };
 
 const CHECKLIST_CLOSE_MS = 320;
 const THEME_STORAGE_KEY = "maidAppDarkMode";
@@ -192,6 +195,27 @@ function getRoomSortWeight(room: MaidRoom): number {
   if (room.status === "dirty") return 2;
   if (room.status === "cleaned" || room.status === "approved") return 3;
   return 2;
+}
+
+function getExtraTaskSortWeight(task: ExtraTaskAssignment): number {
+  if (task.status === "in_progress") return 0;
+  if (task.status === "paused") return 1;
+  if (task.status === "pending") return 2;
+  if (task.status === "done") return 3;
+  return 2;
+}
+
+function getLaneItemSortWeight(item: VisibleLaneItem): number {
+  return item.type === "room" ? getRoomSortWeight(item.room) : getExtraTaskSortWeight(item.task);
+}
+
+function getLaneItemPriority(item: VisibleLaneItem): number {
+  const priority = item.type === "room" ? item.room.priority : item.task.priority;
+  return Number(priority ?? 9999);
+}
+
+function getLaneItemLabel(item: VisibleLaneItem): string {
+  return item.type === "room" ? String(item.room.room_number ?? "") : String(item.task.task_name ?? "");
 }
 
 export default function MaidPage() {
@@ -833,7 +857,18 @@ export default function MaidPage() {
       });
     });
 
-  const hasVisibleItems = filteredRooms.length > 0 || filteredExtraTasks.length > 0;
+  const visibleLaneItems: VisibleLaneItem[] = [
+    ...filteredRooms.map((room) => ({ type: "room" as const, id: `room-${room.room_id}`, room })),
+    ...filteredExtraTasks.map((task) => ({ type: "extra" as const, id: `extra-${task.id}`, task })),
+  ].sort((a, b) => {
+    const weightDiff = getLaneItemSortWeight(a) - getLaneItemSortWeight(b);
+    if (weightDiff !== 0) return weightDiff;
+    const priorityDiff = getLaneItemPriority(a) - getLaneItemPriority(b);
+    if (priorityDiff !== 0) return priorityDiff;
+    return getLaneItemLabel(a).localeCompare(getLaneItemLabel(b), undefined, { numeric: true });
+  });
+
+  const hasVisibleItems = visibleLaneItems.length > 0;
   const networkStatusText = isOffline ? "OFFLINE" : networkQuality === "poor" ? "WEAK INTERNET" : "ONLINE";
   const selectedDisplayName = maidName || data?.maid_name || "Maid";
   const selectedLaneName = maidLaneNames.includes(selectedDisplayName)
@@ -986,55 +1021,43 @@ export default function MaidPage() {
           ) : !hasVisibleItems ? (
             <EmptyState message="ไม่มีรายการในหมวดนี้" />
           ) : (
-            <div className="space-y-8">
-              {filteredExtraTasks.length > 0 && (
-                <section>
-                  <h3 className="mb-4 text-xl font-black text-indigo-500 dark:text-indigo-400">งานพิเศษ / งานเสริม</h3>
-                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredExtraTasks.map((task) => (
-                      <ExtraTaskCard
-                        key={`extra-${task.id}`}
-                        task={task}
-                        onStart={handleExtraTaskStart}
-                        onPause={handleExtraTaskPause}
-                        onResume={handleExtraTaskResume}
-                        onFinish={handleExtraTaskFinish}
-                        isActionLoading={isActionLoading}
-                        canOperate={canOperateSelected}
-                        disabledReason={operationDisabledReason}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {visibleLaneItems.map((item) => {
+                if (item.type === "extra") {
+                  const task = item.task;
+                  return (
+                    <ExtraTaskCard
+                      key={item.id}
+                      task={task}
+                      onStart={handleExtraTaskStart}
+                      onPause={handleExtraTaskPause}
+                      onResume={handleExtraTaskResume}
+                      onFinish={handleExtraTaskFinish}
+                      isActionLoading={isActionLoading}
+                      canOperate={canOperateSelected}
+                      disabledReason={operationDisabledReason}
+                    />
+                  );
+                }
 
-              {filteredExtraTasks.length > 0 && filteredRooms.length > 0 && (
-                <hr className="mx-auto w-1/2 border-t-2 border-slate-200 dark:border-white/5" />
-              )}
-
-              {filteredRooms.length > 0 && (
-                <section>
-                  <h3 className="mb-4 text-xl font-black text-slate-500 dark:text-slate-400">รายการห้องในกะ</h3>
-                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredRooms.map((room) => (
-                      <RoomCard
-                        key={room.room_id}
-                        room={room}
-                        onStart={handleStart}
-                        onPause={handlePause}
-                        onResume={handleResume}
-                        onFinishClick={(selectedRoom) => {
-                          void openChecklistForRoom(selectedRoom);
-                        }}
-                        onNoServiceClick={(selectedRoom) => setActiveNsRoom(selectedRoom)}
-                        isActionLoading={isActionLoading}
-                        canOperate={canOperateSelected}
-                        disabledReason={operationDisabledReason}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+                const room = item.room;
+                return (
+                  <RoomCard
+                    key={item.id}
+                    room={room}
+                    onStart={handleStart}
+                    onPause={handlePause}
+                    onResume={handleResume}
+                    onFinishClick={(selectedRoom) => {
+                      void openChecklistForRoom(selectedRoom);
+                    }}
+                    onNoServiceClick={(selectedRoom) => setActiveNsRoom(selectedRoom)}
+                    isActionLoading={isActionLoading}
+                    canOperate={canOperateSelected}
+                    disabledReason={operationDisabledReason}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

@@ -157,7 +157,7 @@ body {
 /* Sidebar nav */
 :root {
   --sidebar-collapsed-w: 68px;
-  --sidebar-expanded-w: 240px;
+  --sidebar-expanded-w: 220px;
 }
 
 .sidebar {

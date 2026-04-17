@@ -5,6 +5,7 @@ import {
   normalizeOperatorPaymentMethod,
   resolveBusinessDate,
 } from "@/lib/folio-fees";
+import { appendReservationNoteLine } from "@/lib/planned-room-moves";
 import {
   computePrepaidNetAmount,
   computeShortenOverpaidAmount,
@@ -52,7 +53,7 @@ export async function POST(
     }
 
     const newCheckoutDate = parsed.data.new_checkout_date;
-    const updatePayload = { ...parsed.data.update_payload, checkout_date: newCheckoutDate };
+    const updatePayload: Record<string, unknown> = { ...parsed.data.update_payload, checkout_date: newCheckoutDate };
     const feeAmount = normalizeAmount(Number(parsed.data.fee_amount ?? 0));
     const feeCollectMethod = parsed.data.fee_collect_method
       ? normalizeOperatorPaymentMethod(parsed.data.fee_collect_method)
@@ -210,33 +211,124 @@ export async function POST(
       }
     }
 
-    const origin = new URL(request.url).origin;
-    const updateResponse = await fetch(`${origin}/api/bookings/${reservationId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        cookie: request.headers.get("cookie") ?? "",
-      },
-      body: JSON.stringify(updatePayload),
-      cache: "no-store",
-    });
-    const updateData = await updateResponse.json().catch(() => null);
-    if (!updateResponse.ok || !updateData?.success) {
+    const cancelTimestamp = new Date().toISOString();
+    const { error: cancelNightsError } = await supabase
+      .from("reservation_nights")
+      .update({ cancelled_at: cancelTimestamp })
+      .eq("reservation_id", reservationId)
+      .is("cancelled_at", null)
+      .gte("stay_date", newCheckoutDate)
+      .lt("stay_date", oldCheckoutDate);
+    if (cancelNightsError) {
       return NextResponse.json(
         {
-          error: updateData?.error || "Failed to update reservation dates after settlement.",
+          error: cancelNightsError.message,
           settlement_recorded: settlementRows.length > 0,
           warning: settlementRows.length > 0
-            ? "Settlement rows were recorded, but shorten action failed. Retry shorten without charging again."
+            ? "Settlement rows were recorded, but shorten action failed while cancelling nights. Retry shorten without charging again."
             : null,
         },
-        { status: updateResponse.status || 500 }
+        { status: 500 }
       );
+    }
+
+    const optionalPatch: Record<string, unknown> = {};
+    if (typeof updatePayload.guest_name === "string" && updatePayload.guest_name.trim()) {
+      optionalPatch.guest_name = updatePayload.guest_name.trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "phone")) {
+      optionalPatch.phone = typeof updatePayload.phone === "string" && updatePayload.phone.trim()
+        ? updatePayload.phone.trim()
+        : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "note")) {
+      optionalPatch.note = typeof updatePayload.note === "string" && updatePayload.note.trim()
+        ? updatePayload.note.trim()
+        : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "specials")) {
+      optionalPatch.specials = typeof updatePayload.specials === "string" && updatePayload.specials.trim()
+        ? updatePayload.specials.trim()
+        : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "expected_arrival_time")) {
+      optionalPatch.expected_arrival_time = typeof updatePayload.expected_arrival_time === "string" && updatePayload.expected_arrival_time.trim()
+        ? updatePayload.expected_arrival_time.trim()
+        : null;
+    }
+
+    const { data: updatedReservation, error: updateReservationError } = await supabase
+      .from("reservations")
+      .update({
+        ...optionalPatch,
+        checkout_date: newCheckoutDate,
+        total_price: projectedNewTotal,
+      })
+      .eq("id", reservationId)
+      .select("id, booking_code, guest_name, source, checkin_date, checkout_date, total_price")
+      .maybeSingle();
+    if (updateReservationError || !updatedReservation) {
+      const { error: rollbackCancelError } = await supabase
+        .from("reservation_nights")
+        .update({ cancelled_at: null })
+        .eq("reservation_id", reservationId)
+        .eq("cancelled_at", cancelTimestamp);
+      if (rollbackCancelError) {
+        console.error("[shorten] Failed to rollback cancelled nights after reservation update failure:", rollbackCancelError);
+      }
+      return NextResponse.json(
+        {
+          error: updateReservationError?.message || "Failed to update reservation dates after settlement.",
+          settlement_recorded: settlementRows.length > 0,
+          warning: settlementRows.length > 0
+            ? "Settlement rows were recorded, but shorten action failed after cancelling nights. Retry shorten without charging again."
+            : null,
+        },
+        { status: 500 }
+      );
+    }
+
+    const removedDates = (nights ?? [])
+      .map((night: any) => String(night?.stay_date ?? ""))
+      .filter((stayDate) => stayDate >= newCheckoutDate && stayDate < oldCheckoutDate);
+    const removedTotal = normalizeAmount(
+      (nights ?? [])
+        .filter((night: any) => String(night?.stay_date ?? "") >= newCheckoutDate && String(night?.stay_date ?? "") < oldCheckoutDate)
+        .reduce((sum: number, night: any) => sum + Number(night?.nightly_price ?? 0), 0)
+    );
+    try {
+      await appendReservationNoteLine(
+        supabase as any,
+        reservationId,
+        `[SHORTEN ${businessDate}] ${checkinDate}→${oldCheckoutDate} => ${checkinDate}→${newCheckoutDate} | -${removedDates.length} nights | -฿${removedTotal.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      );
+      await supabase.from("audit_logs").insert({
+        action: "reservation_shortened",
+        entity_type: "reservation",
+        entity_id: reservationId,
+        before_json: {
+          reservation_id: reservationId,
+          checkin_date: checkinDate,
+          checkout_date: oldCheckoutDate,
+          total_price: normalizeAmount(Number(reservation.total_price ?? 0)),
+        },
+        after_json: {
+          reservation_id: reservationId,
+          checkin_date: checkinDate,
+          checkout_date: newCheckoutDate,
+          total_price: projectedNewTotal,
+          cancelled_stay_dates: removedDates,
+          settlement_rows: settlementRows.length,
+        },
+        change_reason: "shorten_stay",
+      });
+    } catch (auditError) {
+      console.error("[shorten] Core shorten succeeded but audit/note write failed:", auditError);
     }
 
     return NextResponse.json({
       success: true,
-      reservation: updateData.reservation,
+      reservation: updatedReservation,
       settlement: {
         old_total: normalizeAmount(Number(reservation.total_price ?? 0)),
         new_total: projectedNewTotal,

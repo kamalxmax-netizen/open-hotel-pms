@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Check, CheckCircle2, Clock, Pause, Play, Sparkles } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Pause, Play } from "lucide-react";
 import { computeElapsedMs } from "@/lib/timer";
 import type { ExtraTaskAssignment } from "@/lib/types";
 import { getExtraTaskPalette } from "@/components/maid/maid-ui";
@@ -73,12 +73,7 @@ export default function ExtraTaskCard({
       <div className="flex flex-1 flex-col p-5 pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-300/60 bg-indigo-100 px-2.5 py-1 text-[11px] font-black text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-300">
-              <Sparkles size={12} strokeWidth={2.5} />
-              งานพิเศษ
-            </div>
-
-            <h3 className={`mt-3 break-words pr-2 text-3xl font-black leading-snug tracking-tight sm:text-[32px] ${palette.accentText}`}>
+            <h3 className={`break-words pr-2 text-3xl font-black leading-snug tracking-tight sm:text-[32px] ${palette.accentText}`}>
               {task.task_name}
             </h3>
           </div>
@@ -126,7 +121,7 @@ export default function ExtraTaskCard({
               className="flex min-h-[68px] min-w-[150px] flex-1 items-center justify-center gap-3 rounded-[20px] bg-rose-500 text-2xl font-black text-white shadow-[0_4px_16px_rgba(225,29,72,0.2)] transition-all active:scale-95 disabled:opacity-50 hover:bg-rose-600"
             >
               <Play size={28} fill="currentColor" />
-              เริ่มงานพิเศษ
+              เริ่มงาน
             </button>
           )}
 
@@ -186,7 +181,7 @@ export default function ExtraTaskCard({
         <div className="border-t border-slate-200/70 px-5 py-4 text-sm font-bold text-slate-500 dark:border-white/5 dark:text-slate-400">
           <span className="inline-flex items-center gap-2">
             <CheckCircle2 size={14} />
-            ทำงานพิเศษเรียบร้อย
+            ทำงานเรียบร้อย
           </span>
         </div>
       )}
