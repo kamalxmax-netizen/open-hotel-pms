@@ -57,7 +57,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
     const businessDate = await getBusinessDate(supabase, parsed.data.date);
-    const [{ rooms, suggestions }, existingBatch, oldestOpenBatch] = await Promise.all([
+    const [
+      { rooms, suggestions, dirty_carryover_rooms, dirty_carryover_suggestions },
+      existingBatch,
+      oldestOpenBatch,
+    ] = await Promise.all([
       buildFoPrepareSuggestions(supabase, businessDate),
       getFoPrepareBatchByDate(supabase, businessDate),
       getOldestOpenFoPrepareBatch(supabase, businessDate),
@@ -84,6 +88,8 @@ export async function GET(request: NextRequest) {
       business_date: businessDate,
       target_rooms_count: rooms.length,
       suggestions,
+      dirty_carryover_rooms,
+      dirty_carryover_suggestions,
       existing_batch: existingBatch,
       return_target_batch: returnTargetBatch,
       batch_detail: batchDetail,

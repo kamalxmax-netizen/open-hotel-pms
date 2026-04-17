@@ -119,9 +119,6 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
 
                     {data.pending_items.length > 0 && (
                         <div className="bg-slate-900 dark:bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl border border-slate-800 dark:border-slate-800 mt-6 relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-4 opacity-20 rotate-12">
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-20 h-20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                             </div>
                              <div className="relative z-10">
                                 <h3 className="font-bold flex items-center gap-2 mb-4 text-sm uppercase tracking-widest text-amber-400">
                                     ยอดค้างส่งคืนโรงแรม

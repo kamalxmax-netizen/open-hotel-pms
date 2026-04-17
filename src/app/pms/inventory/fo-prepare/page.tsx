@@ -15,6 +15,15 @@ type FoSuggestion = {
   suggested_qty: number;
 };
 
+type FoDirtyCarryoverRoom = {
+  room_id: string;
+  room_number: string;
+  floor_number: number;
+  room_type_code: string;
+  task_date: string;
+  task_status: "dirty" | "in_progress" | "paused";
+};
+
 type FoBatch = {
   id: string;
   business_date: string;
@@ -86,6 +95,24 @@ function todayBangkok(): string {
   return `${year ?? "2026"}-${month ?? "01"}-${day ?? "01"}`;
 }
 
+function mergeFoSuggestions(rows: FoSuggestion[]): FoSuggestion[] {
+  const byKey = new Map<string, FoSuggestion>();
+  for (const row of rows) {
+    const key = `${row.floor_number}:${row.product_id}`;
+    const current = byKey.get(key);
+    if (!current) {
+      byKey.set(key, { ...row });
+      continue;
+    }
+    current.room_count += row.room_count;
+    current.suggested_qty += row.suggested_qty;
+  }
+  return Array.from(byKey.values()).sort((a, b) => {
+    if (a.floor_number !== b.floor_number) return a.floor_number - b.floor_number;
+    return a.product_name.localeCompare(b.product_name, undefined, { sensitivity: "base" });
+  });
+}
+
 type TabKey = "prepare" | "return";
 type ReturnFeedback = { kind: "info" | "success" | "error"; message: string } | null;
 type PrepareFeedback = { kind: "info" | "success" | "error"; message: string } | null;
@@ -104,6 +131,9 @@ export default function FoPreparePage() {
 
   const [targetRoomsCount, setTargetRoomsCount] = useState<number>(0);
   const [suggestions, setSuggestions] = useState<FoSuggestion[]>([]);
+  const [dirtyCarryoverRooms, setDirtyCarryoverRooms] = useState<FoDirtyCarryoverRoom[]>([]);
+  const [dirtyCarryoverSuggestions, setDirtyCarryoverSuggestions] = useState<FoSuggestion[]>([]);
+  const [includeDirtyCarryover, setIncludeDirtyCarryover] = useState<boolean>(false);
   const [existingBatch, setExistingBatch] = useState<FoBatch | null>(null);
   const [returnTargetBatch, setReturnTargetBatch] = useState<FoBatch | null>(null);
   const [batchDetail, setBatchDetail] = useState<FoBatchDetail | null>(null);
@@ -130,6 +160,8 @@ export default function FoPreparePage() {
           business_date?: string;
           target_rooms_count?: number;
           suggestions?: FoSuggestion[];
+          dirty_carryover_rooms?: FoDirtyCarryoverRoom[];
+          dirty_carryover_suggestions?: FoSuggestion[];
           existing_batch?: FoBatch | null;
           return_target_batch?: FoBatch | null;
           batch_detail?: FoBatchDetail | null;
@@ -145,6 +177,9 @@ export default function FoPreparePage() {
         setTargetRoomsCount(Number(data.target_rooms_count ?? 0));
         const nextSuggestions = (data.suggestions ?? []) as FoSuggestion[];
         setSuggestions(nextSuggestions);
+        setDirtyCarryoverRooms((data.dirty_carryover_rooms ?? []) as FoDirtyCarryoverRoom[]);
+        setDirtyCarryoverSuggestions((data.dirty_carryover_suggestions ?? []) as FoSuggestion[]);
+        setIncludeDirtyCarryover(false);
 
         const nextPrepareQtyMap: Record<string, number> = {};
         for (const row of nextSuggestions) {
@@ -192,21 +227,49 @@ export default function FoPreparePage() {
     });
   }, [businessDate, loadPrepareData, toast]);
 
+  const effectiveSuggestions = useMemo(
+    () =>
+      includeDirtyCarryover
+        ? mergeFoSuggestions([...suggestions, ...dirtyCarryoverSuggestions])
+        : suggestions,
+    [dirtyCarryoverSuggestions, includeDirtyCarryover, suggestions]
+  );
+
+  const effectiveTargetRoomsCount = targetRoomsCount + (includeDirtyCarryover ? dirtyCarryoverRooms.length : 0);
+
   const totalSuggestedQty = useMemo(
-    () => suggestions.reduce((sum, row) => sum + Math.max(Number(row.suggested_qty ?? 0), 0), 0),
-    [suggestions]
+    () => effectiveSuggestions.reduce((sum, row) => sum + Math.max(Number(row.suggested_qty ?? 0), 0), 0),
+    [effectiveSuggestions]
   );
 
   const totalPrepareQty = useMemo(
     () =>
-      suggestions.reduce((sum, row) => {
+      effectiveSuggestions.reduce((sum, row) => {
         const key = prepareKey(row);
         return sum + Math.max(Number(prepareQtyMap[key] ?? 0), 0);
       }, 0),
-    [suggestions, prepareQtyMap]
+    [effectiveSuggestions, prepareQtyMap]
   );
 
   const canPrepareNow = !existingBatch;
+
+  const handleDirtyCarryoverToggle = (checked: boolean) => {
+    setIncludeDirtyCarryover(checked);
+    setPrepareQtyMap((prev) => {
+      const nextMap = { ...prev };
+      const nextRows = checked
+        ? mergeFoSuggestions([...suggestions, ...dirtyCarryoverSuggestions])
+        : suggestions;
+      const validKeys = new Set(nextRows.map((row) => prepareKey(row)));
+      for (const row of nextRows) {
+        nextMap[prepareKey(row)] = row.suggested_qty;
+      }
+      for (const key of Object.keys(nextMap)) {
+        if (!validKeys.has(key)) delete nextMap[key];
+      }
+      return nextMap;
+    });
+  };
 
   const handlePrepareSubmit = async () => {
     if (!canPrepareNow) {
@@ -218,7 +281,7 @@ export default function FoPreparePage() {
       return;
     }
 
-    const items = suggestions
+    const items = effectiveSuggestions
       .map((row) => {
         const key = prepareKey(row);
         return {
@@ -519,7 +582,12 @@ export default function FoPreparePage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="card p-4">
           <p className="text-xs text-[var(--text-secondary)] font-medium">Target Rooms</p>
-          <p className="text-2xl font-extrabold text-[var(--text-primary)]">{targetRoomsCount}</p>
+          <p className="text-2xl font-extrabold text-[var(--text-primary)]">{effectiveTargetRoomsCount}</p>
+          {includeDirtyCarryover && dirtyCarryoverRooms.length > 0 && (
+            <p className="mt-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+              includes {dirtyCarryoverRooms.length} dirty carryover
+            </p>
+          )}
         </div>
         <div className="card p-4">
           <p className="text-xs text-[var(--text-secondary)] font-medium">Suggested Qty</p>
@@ -582,6 +650,38 @@ export default function FoPreparePage() {
             </div>
           )}
 
+          {!isLoading && dirtyCarryoverRooms.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="flex-1 text-sm">
+                  <p className="font-semibold">
+                    Dirty rooms carried over from previous day: {dirtyCarryoverRooms.length} room(s).
+                  </p>
+                  <p className="mt-1 text-xs">
+                    Rooms: {dirtyCarryoverRooms.map((room) => room.room_number).slice(0, 14).join(", ")}
+                    {dirtyCarryoverRooms.length > 14 ? " ..." : ""}
+                  </p>
+                  <label className="mt-3 inline-flex items-center gap-2 text-sm font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={includeDirtyCarryover}
+                      disabled={!canPrepareNow || dirtyCarryoverSuggestions.length === 0}
+                      onChange={(event) => handleDirtyCarryoverToggle(event.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--border-input)]"
+                    />
+                    Add Water / Coffee for these dirty rooms to FO Prepare
+                  </label>
+                  {dirtyCarryoverSuggestions.length === 0 && (
+                    <p className="mt-2 text-xs">
+                      No Water/Coffee checklist item found for these room types, so nothing can be added automatically.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="card p-4">
               <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Prepared By</label>
@@ -612,7 +712,7 @@ export default function FoPreparePage() {
                   <div key={idx} className="h-11 rounded-md bg-[var(--bg-muted)] animate-pulse" />
                 ))}
               </div>
-            ) : suggestions.length === 0 ? (
+            ) : effectiveSuggestions.length === 0 ? (
               <div className="p-10 text-center text-[var(--text-secondary)] text-sm">
                 No daily-prepare suggestions found for this date.
               </div>
@@ -629,7 +729,7 @@ export default function FoPreparePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-subtle)]">
-                    {suggestions.map((row) => {
+                    {effectiveSuggestions.map((row) => {
                       const key = prepareKey(row);
                       return (
                         <tr key={key}>
@@ -667,7 +767,7 @@ export default function FoPreparePage() {
           <div className="flex justify-end">
             <Button
               onClick={handlePrepareSubmit}
-              disabled={!canPrepareNow || isPreparing || isLoading || suggestions.length === 0}
+              disabled={!canPrepareNow || isPreparing || isLoading || effectiveSuggestions.length === 0}
               className="bg-brand-600 hover:bg-brand-700 text-white"
             >
               <SaveIcon className="w-4 h-4 mr-1.5" />

@@ -9,6 +9,11 @@ export type FoTargetRoom = {
   room_type_code: string;
 };
 
+export type FoDirtyCarryoverRoom = FoTargetRoom & {
+  task_date: string;
+  task_status: "dirty" | "in_progress" | "paused";
+};
+
 export type FoPrepareSuggestionRow = {
   floor_number: number;
   product_id: string;
@@ -145,6 +150,16 @@ function shiftDate(dateStr: string, diffDays: number): string {
   if (Number.isNaN(d.getTime())) return dateStr;
   d.setUTCDate(d.getUTCDate() + diffDays);
   return d.toISOString().slice(0, 10);
+}
+
+function isDirtyCarryoverPrepareProduct(productName: string): boolean {
+  const raw = String(productName ?? "").trim().toLowerCase();
+  if (raw.includes("น้ำ") || raw.includes("กาแฟ")) return true;
+  const normalized = normalizeTemplateProductName(productName);
+  return (
+    normalized.includes("water") ||
+    normalized.includes("coffee")
+  );
 }
 
 export async function getBusinessDate(
@@ -310,19 +325,157 @@ export async function listFoTargetRooms(
   return rooms;
 }
 
+export async function listFoDirtyCarryoverRooms(
+  supabase: SupabaseServerClient,
+  businessDate: string,
+  excludeRoomIds: Set<string> = new Set()
+): Promise<FoDirtyCarryoverRoom[]> {
+  const previousBusinessDate = shiftDate(businessDate, -1);
+  const { data: taskRows, error: taskError } = await supabase
+    .from("housekeeping_tasks")
+    .select("room_id, stay_date, status, is_no_service, finished_at, approved_at")
+    .gte("stay_date", previousBusinessDate)
+    .lt("stay_date", businessDate)
+    .in("status", ["dirty", "in_progress", "paused"]);
+
+  if (taskError) {
+    throw new Error(taskError.message);
+  }
+
+  const latestOpenTaskByRoom = new Map<
+    string,
+    { task_date: string; task_status: "dirty" | "in_progress" | "paused" }
+  >();
+
+  for (const row of taskRows ?? []) {
+    const roomId = String((row as any).room_id ?? "");
+    const taskDate = String((row as any).stay_date ?? "");
+    const taskStatus = String((row as any).status ?? "") as "dirty" | "in_progress" | "paused";
+    if (!roomId || !taskDate || excludeRoomIds.has(roomId)) continue;
+    if ((row as any).finished_at || (row as any).approved_at) continue;
+    if (Boolean((row as any).is_no_service)) continue;
+
+    const current = latestOpenTaskByRoom.get(roomId);
+    if (!current || taskDate > current.task_date) {
+      latestOpenTaskByRoom.set(roomId, { task_date: taskDate, task_status: taskStatus });
+    }
+  }
+
+  const roomIds = Array.from(latestOpenTaskByRoom.keys());
+  if (roomIds.length === 0) return [];
+
+  const { data: roomRows, error: roomError } = await supabase
+    .from("rooms")
+    .select("id, room_number, floor_number, room_types(code)")
+    .in("id", roomIds)
+    .eq("is_dayuse", false);
+
+  if (roomError) {
+    throw new Error(roomError.message);
+  }
+
+  const rooms: FoDirtyCarryoverRoom[] = (roomRows ?? [])
+    .map((row: any) => {
+      const roomId = String(row.id ?? "");
+      const task = latestOpenTaskByRoom.get(roomId);
+      if (!task) return null;
+      return {
+        room_id: roomId,
+        room_number: String(row.room_number ?? ""),
+        floor_number: normalizeFloorNumber(row.room_number, row.floor_number),
+        room_type_code: String(row.room_types?.code ?? ""),
+        task_date: task.task_date,
+        task_status: task.task_status,
+      };
+    })
+    .filter((room): room is FoDirtyCarryoverRoom => room !== null);
+
+  rooms.sort((a, b) =>
+    toRoomSortKey(a.room_number).localeCompare(toRoomSortKey(b.room_number), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    })
+  );
+
+  return rooms;
+}
+
+function buildSuggestionsForRooms(
+  rooms: FoTargetRoom[],
+  templatesByRoomType: Map<string, Array<{ product_id: string; quantity: number }>>,
+  productMap: Map<string, { name: string; unit: string }>,
+  productFilter?: (product: { name: string; unit: string }) => boolean
+): FoPrepareSuggestionRow[] {
+  const aggregate = new Map<
+    string,
+    {
+      floor_number: number;
+      product_id: string;
+      product_name: string;
+      unit: string;
+      room_count: number;
+      suggested_qty: number;
+    }
+  >();
+
+  for (const room of rooms) {
+    const templates = templatesByRoomType.get(room.room_type_code) ?? [];
+    if (templates.length === 0) continue;
+
+    const perRoomProductQty = new Map<string, number>();
+    for (const template of templates) {
+      perRoomProductQty.set(
+        template.product_id,
+        (perRoomProductQty.get(template.product_id) ?? 0) + template.quantity
+      );
+    }
+
+    for (const [productId, quantity] of perRoomProductQty.entries()) {
+      if (quantity <= 0) continue;
+      const product = productMap.get(productId);
+      if (!product) continue;
+      if (productFilter && !productFilter(product)) continue;
+
+      const key = `${room.floor_number}:${productId}`;
+      const current = aggregate.get(key) ?? {
+        floor_number: room.floor_number,
+        product_id: productId,
+        product_name: product.name,
+        unit: product.unit,
+        room_count: 0,
+        suggested_qty: 0,
+      };
+      current.room_count += 1;
+      current.suggested_qty += quantity;
+      aggregate.set(key, current);
+    }
+  }
+
+  return Array.from(aggregate.values()).sort((a, b) => {
+    if (a.floor_number !== b.floor_number) return a.floor_number - b.floor_number;
+    return a.product_name.localeCompare(b.product_name, undefined, { sensitivity: "base" });
+  });
+}
+
 export async function buildFoPrepareSuggestions(
   supabase: SupabaseServerClient,
   businessDate: string
 ): Promise<{
   rooms: FoTargetRoom[];
   suggestions: FoPrepareSuggestionRow[];
+  dirty_carryover_rooms: FoDirtyCarryoverRoom[];
+  dirty_carryover_suggestions: FoPrepareSuggestionRow[];
 }> {
   const rooms = await listFoTargetRooms(supabase, businessDate);
-  if (rooms.length === 0) {
-    return { rooms, suggestions: [] };
-  }
+  const dirtyCarryoverRooms = await listFoDirtyCarryoverRooms(
+    supabase,
+    businessDate,
+    new Set(rooms.map((room) => room.room_id))
+  );
 
-  const roomTypeCodes = Array.from(new Set(rooms.map((room) => room.room_type_code).filter(Boolean)));
+  const roomTypeCodes = Array.from(
+    new Set([...rooms, ...dirtyCarryoverRooms].map((room) => room.room_type_code).filter(Boolean))
+  );
 
   const { data: productRows, error: productError } = await supabase
     .from("products")
@@ -364,7 +517,12 @@ export async function buildFoPrepareSuggestions(
   }
 
   if (productMap.size === 0 || roomTypeCodes.length === 0) {
-    return { rooms, suggestions: [] };
+    return {
+      rooms,
+      suggestions: [],
+      dirty_carryover_rooms: dirtyCarryoverRooms,
+      dirty_carryover_suggestions: [],
+    };
   }
 
   const { data: templateRows, error: templateError } = await supabase
@@ -401,56 +559,20 @@ export async function buildFoPrepareSuggestions(
     });
   }
 
-  const aggregate = new Map<
-    string,
-    {
-      floor_number: number;
-      product_id: string;
-      product_name: string;
-      unit: string;
-      room_count: number;
-      suggested_qty: number;
-    }
-  >();
+  const suggestions = buildSuggestionsForRooms(rooms, templatesByRoomType, productMap);
+  const dirtyCarryoverSuggestions = buildSuggestionsForRooms(
+    dirtyCarryoverRooms,
+    templatesByRoomType,
+    productMap,
+    (product) => isDirtyCarryoverPrepareProduct(product.name)
+  );
 
-  for (const room of rooms) {
-    const templates = templatesByRoomType.get(room.room_type_code) ?? [];
-    if (templates.length === 0) continue;
-
-    const perRoomProductQty = new Map<string, number>();
-    for (const template of templates) {
-      perRoomProductQty.set(
-        template.product_id,
-        (perRoomProductQty.get(template.product_id) ?? 0) + template.quantity
-      );
-    }
-
-    for (const [productId, quantity] of perRoomProductQty.entries()) {
-      if (quantity <= 0) continue;
-      const product = productMap.get(productId);
-      if (!product) continue;
-
-      const key = `${room.floor_number}:${productId}`;
-      const current = aggregate.get(key) ?? {
-        floor_number: room.floor_number,
-        product_id: productId,
-        product_name: product.name,
-        unit: product.unit,
-        room_count: 0,
-        suggested_qty: 0,
-      };
-      current.room_count += 1;
-      current.suggested_qty += quantity;
-      aggregate.set(key, current);
-    }
-  }
-
-  const suggestions = Array.from(aggregate.values()).sort((a, b) => {
-    if (a.floor_number !== b.floor_number) return a.floor_number - b.floor_number;
-    return a.product_name.localeCompare(b.product_name, undefined, { sensitivity: "base" });
-  });
-
-  return { rooms, suggestions };
+  return {
+    rooms,
+    suggestions,
+    dirty_carryover_rooms: dirtyCarryoverRooms,
+    dirty_carryover_suggestions: dirtyCarryoverSuggestions,
+  };
 }
 
 export async function checkFoCanReturn(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     PackageIcon, RefreshCwIcon, PlusIcon, EditIcon,
     MinusIcon, AlertTriangleIcon, CheckCircle2Icon, XCircleIcon,
@@ -206,6 +206,43 @@ export function StockManagementTab() {
 
     const lowCount = mainStock.filter(i => i.is_low_stock || i.quantity <= i.reorder_level).length;
     const outCount = mainStock.filter(i => i.quantity === 0).length;
+    const floorAdjustOptions = useMemo(
+        () =>
+            mainStock
+                .filter((item) => String(item.category ?? "").trim().toLowerCase() !== "pos")
+                .map((item) => ({
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                })),
+        [mainStock]
+    );
+
+    const getAdjustLocationItems = useCallback(
+        (location: "main" | number) => {
+            if (location === "main") {
+                return mainStock.map((item) => ({
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    quantity: item.quantity,
+                }));
+            }
+
+            return floorAdjustOptions.map((item) => {
+                const floorRow = (floorStocks[location] ?? []).find((row) => row.product_id === item.product_id);
+                return {
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    quantity: floorRow?.quantity ?? 0,
+                };
+            });
+        },
+        [floorAdjustOptions, floorStocks, mainStock]
+    );
+
+    const activeAdjustItems = useMemo(
+        () => getAdjustLocationItems(adjustLocation),
+        [adjustLocation, getAdjustLocationItems]
+    );
 
     return (
         <div className="space-y-6">
@@ -331,7 +368,7 @@ export function StockManagementTab() {
 
             {/* Floor Stocks */}
             <div className="space-y-4">
-                <h3 className="text-lg font-bold text-[var(--text-primary)]">Floor Stocks (Read-only)</h3>
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Floor Stocks</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[1, 2, 3].map(floor => (
                         <div key={floor} className="card border border-[var(--border-subtle)] overflow-hidden">
@@ -340,7 +377,7 @@ export function StockManagementTab() {
                                 <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => {
                                     setAdjustOpen(true);
                                     setAdjustLocation(floor);
-                                    const items = floorStocks[floor] ?? [];
+                                    const items = getAdjustLocationItems(floor);
                                     setAdjustProduct(items[0]?.product_id ?? "");
                                     setAdjustNewQuantity(items[0]?.quantity ?? 0);
                                 }}>
@@ -428,7 +465,9 @@ export function StockManagementTab() {
             <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Manual Adjustment</DialogTitle>
+                        <DialogTitle>
+                            Manual Adjustment {adjustLocation === "main" ? "· Main Stock" : `· Floor ${adjustLocation}`}
+                        </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div>
@@ -438,17 +477,22 @@ export function StockManagementTab() {
                                 onChange={(e) => {
                                     const nextProductId = e.target.value;
                                     setAdjustProduct(nextProductId);
-                                    const selected = mainStock.find((item) => item.product_id === nextProductId);
+                                    const selected = activeAdjustItems.find((item) => item.product_id === nextProductId);
                                     setAdjustNewQuantity(selected?.quantity ?? 0);
                                 }}
                                 className="mt-1 w-full rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm"
                             >
-                                {mainStock.map(item => (
+                                {activeAdjustItems.map(item => (
                                     <option key={item.product_id} value={item.product_id}>
                                         {item.product_name} (Current: {item.quantity})
                                     </option>
                                 ))}
                             </select>
+                            {adjustLocation !== "main" && (
+                                <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                                    Floor adjustment uses this floor's live quantity. Products not stocked yet start at 0.
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">New Quantity (absolute)</label>
