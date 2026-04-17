@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LaundryBatchStatus } from "@/lib/types";
+import { deleteR2Objects } from "@/lib/r2";
 import {
   applyReturnsToSourceBatches,
   resolvePendingItems,
@@ -84,6 +85,97 @@ async function logEvent(
     data: options.data ?? null,
   });
   if (error) throw new Error(error.message);
+}
+
+async function rollbackReturnEffects(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
+  const batchId = String((detail.batch as any).id);
+  const returnEvents = (detail.events as any[]).filter((event) => event.event_type === "fo_return_counted");
+  for (const event of returnEvents) {
+    const returns = Array.isArray(event.data?.returns) ? event.data.returns : [];
+    for (const item of returns) {
+      const { data: sourceItem, error: sourceError } = await supabase
+        .from("laundry_batch_items")
+        .select("id, received_back")
+        .eq("batch_id", item.source_batch_id)
+        .eq("linen_item_id", item.linen_item_id)
+        .maybeSingle();
+      if (sourceError) throw new Error(sourceError.message);
+      if (!sourceItem) continue;
+
+      const nextReceived = Math.max(0, Number((sourceItem as any).received_back ?? 0) - Number(item.received_qty ?? 0));
+      const { error: rollbackError } = await supabase
+        .from("laundry_batch_items")
+        .update({ received_back: nextReceived })
+        .eq("id", (sourceItem as any).id);
+      if (rollbackError) throw new Error(rollbackError.message);
+    }
+
+    const resolved = Array.isArray(event.data?.resolved) ? event.data.resolved : [];
+    for (const item of resolved) {
+      const { data: sourceItem, error: sourceError } = await supabase
+        .from("laundry_batch_items")
+        .select("id, received_back")
+        .eq("batch_id", item.source_batch_id)
+        .eq("linen_item_id", item.linen_item_id)
+        .maybeSingle();
+      if (sourceError) throw new Error(sourceError.message);
+      if (sourceItem) {
+        const nextReceived = Math.max(0, Number((sourceItem as any).received_back ?? 0) - Number(item.qty ?? 0));
+        const { error: rollbackError } = await supabase
+          .from("laundry_batch_items")
+          .update({ received_back: nextReceived })
+          .eq("id", (sourceItem as any).id);
+        if (rollbackError) throw new Error(rollbackError.message);
+      }
+
+      const { error: unresolveError } = await supabase
+        .from("laundry_pending_items")
+        .update({ resolved_batch_id: null, resolved_at: null })
+        .eq("id", item.pending_item_id);
+      if (unresolveError) throw new Error(unresolveError.message);
+    }
+  }
+
+  const { error: pendingError } = await supabase
+    .from("laundry_pending_items")
+    .delete()
+    .eq("created_by_batch_id", batchId)
+    .is("resolved_at", null);
+  if (pendingError) throw new Error(pendingError.message);
+}
+
+async function restoreDayuseAccumulator(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
+  const dayuseItems = (detail.items as any[]).filter((item) => Boolean(item.is_dayuse) && Number(item.sent_by_hotel ?? 0) > 0);
+  for (const item of dayuseItems) {
+    const itemId = Number(item.linen_item_id);
+    const qty = Number(item.sent_by_hotel ?? 0);
+    const { data: existing, error: existingError } = await supabase
+      .from("linen_dayuse_pending")
+      .select("id, qty_accumulated")
+      .eq("linen_item_id", itemId)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+
+    if (existing) {
+      const { error } = await supabase
+        .from("linen_dayuse_pending")
+        .update({
+          qty_accumulated: Number((existing as any).qty_accumulated ?? 0) + qty,
+          sent_in_batch_id: null,
+          sent_at: null,
+        })
+        .eq("id", (existing as any).id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("linen_dayuse_pending").insert({
+        linen_item_id: itemId,
+        qty_accumulated: qty,
+        sent_in_batch_id: null,
+        sent_at: null,
+      });
+      if (error) throw new Error(error.message);
+    }
+  }
 }
 
 export async function listLaundryBatches(
@@ -346,6 +438,64 @@ export async function updateLaundryBatchDirtyItems(supabase: SupabaseClient, bat
   return { ...nextDetail, items: items ?? nextDetail.items };
 }
 
+export async function deleteLaundryBatch(supabase: SupabaseClient, batchId: string) {
+  const detail = await getLaundryBatchDetail(supabase, batchId);
+  const currentStatus = String((detail.batch as any).status) as LaundryBatchStatus;
+  const deletableStatuses: LaundryBatchStatus[] = ["draft", "fo_dirty_counted", "fo_return_counted", "vendor_signed"];
+  if (!deletableStatuses.includes(currentStatus)) {
+    throw new LinenBatchError("Only unfinished linen batches can be deleted.", 409);
+  }
+
+  await rollbackReturnEffects(supabase, detail);
+  await restoreDayuseAccumulator(supabase, detail);
+
+  const signatureKeys = [
+    String((detail.batch as any).vendor_pickup_signature_url ?? ""),
+    String((detail.batch as any).fo_return_signature_url ?? ""),
+  ].filter((key) => key.startsWith("signatures/linen/"));
+  const rewashPhotoKeys = (detail.rewash_events as any[] ?? []).flatMap((event) => ((event.photo_keys ?? []) as string[]));
+  try {
+    await deleteR2Objects([...signatureKeys, ...rewashPhotoKeys]);
+  } catch (error) {
+    console.error("Failed to delete linen batch R2 objects", error);
+  }
+
+  const { error: resolvedRewashError } = await supabase
+    .from("laundry_rewash_events")
+    .update({ status: "pending", resolved_batch_id: null, resolved_qty: null, resolved_at: null })
+    .eq("resolved_batch_id", batchId);
+  if (resolvedRewashError) throw new Error(resolvedRewashError.message);
+
+  const { count: linkedPendingCount, error: linkedPendingError } = await supabase
+    .from("laundry_pending_items")
+    .select("id", { count: "exact", head: true })
+    .eq("created_by_batch_id", batchId);
+  if (linkedPendingError) throw new Error(linkedPendingError.message);
+  if ((linkedPendingCount ?? 0) > 0) {
+    throw new LinenBatchError("This batch has pending items already resolved by a later batch.", 409);
+  }
+
+  const { error: pendingResolvedError } = await supabase
+    .from("laundry_pending_items")
+    .update({ resolved_batch_id: null, resolved_at: null })
+    .eq("resolved_batch_id", batchId);
+  if (pendingResolvedError) throw new Error(pendingResolvedError.message);
+
+  const { error: dayuseRefError } = await supabase
+    .from("linen_dayuse_pending")
+    .update({ sent_in_batch_id: null, sent_at: null })
+    .eq("sent_in_batch_id", batchId);
+  if (dayuseRefError) throw new Error(dayuseRefError.message);
+
+  const { error } = await supabase
+    .from("laundry_batches")
+    .delete()
+    .eq("id", batchId);
+  if (error) throw new Error(error.message);
+
+  return { deleted: true, id: batchId };
+}
+
 export async function advanceLaundryBatchStep(supabase: SupabaseClient, batchId: string, input: StepInput) {
   const detail = await getLaundryBatchDetail(supabase, batchId);
   const currentStatus = String((detail.batch as any).status) as LaundryBatchStatus;
@@ -384,59 +534,7 @@ export async function reopenLaundryBatch(supabase: SupabaseClient, batchId: stri
   const currentStatus = String((detail.batch as any).status) as LaundryBatchStatus;
   if (currentStatus === "draft") throw new LinenBatchError("Draft batch does not need reopen.", 409);
 
-  const returnEvents = (detail.events as any[]).filter((event) => event.event_type === "fo_return_counted");
-  for (const event of returnEvents) {
-    const returns = Array.isArray(event.data?.returns) ? event.data.returns : [];
-    for (const item of returns) {
-      const { data: sourceItem, error: sourceError } = await supabase
-        .from("laundry_batch_items")
-        .select("id, received_back")
-        .eq("batch_id", item.source_batch_id)
-        .eq("linen_item_id", item.linen_item_id)
-        .maybeSingle();
-      if (sourceError) throw new Error(sourceError.message);
-      if (!sourceItem) continue;
-
-      const nextReceived = Math.max(0, Number((sourceItem as any).received_back ?? 0) - Number(item.received_qty ?? 0));
-      const { error: rollbackError } = await supabase
-        .from("laundry_batch_items")
-        .update({ received_back: nextReceived })
-        .eq("id", (sourceItem as any).id);
-      if (rollbackError) throw new Error(rollbackError.message);
-    }
-
-    const resolved = Array.isArray(event.data?.resolved) ? event.data.resolved : [];
-    for (const item of resolved) {
-      const { data: sourceItem, error: sourceError } = await supabase
-        .from("laundry_batch_items")
-        .select("id, received_back")
-        .eq("batch_id", item.source_batch_id)
-        .eq("linen_item_id", item.linen_item_id)
-        .maybeSingle();
-      if (sourceError) throw new Error(sourceError.message);
-      if (sourceItem) {
-        const nextReceived = Math.max(0, Number((sourceItem as any).received_back ?? 0) - Number(item.qty ?? 0));
-        const { error: rollbackError } = await supabase
-          .from("laundry_batch_items")
-          .update({ received_back: nextReceived })
-          .eq("id", (sourceItem as any).id);
-        if (rollbackError) throw new Error(rollbackError.message);
-      }
-
-      const { error: unresolveError } = await supabase
-        .from("laundry_pending_items")
-        .update({ resolved_batch_id: null, resolved_at: null })
-        .eq("id", item.pending_item_id);
-      if (unresolveError) throw new Error(unresolveError.message);
-    }
-  }
-
-  const { error: pendingError } = await supabase
-    .from("laundry_pending_items")
-    .delete()
-    .eq("created_by_batch_id", batchId)
-    .is("resolved_at", null);
-  if (pendingError) throw new Error(pendingError.message);
+  await rollbackReturnEffects(supabase, detail);
 
   await supabase.from("laundry_vendor_tokens").update({ revoked: true }).eq("batch_id", batchId);
 

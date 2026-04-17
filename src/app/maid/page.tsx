@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, Moon, RotateCw, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Clock3, LogOut, Moon, RotateCw, Sun } from "lucide-react";
 import RoomCard from "@/components/maid/room-card";
 import ExtraTaskCard from "@/components/maid/extra-task-card";
 import ChecklistModal from "@/components/maid/checklist-modal";
 import NoServiceModal from "@/components/maid/no-service-modal";
 import EmptyState from "@/components/maid/empty-state";
 import LfReportSheet from "@/components/maid/lf-report-sheet";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type {
   ChecklistItem,
   ExtraTaskAssignment,
@@ -193,10 +195,12 @@ function getRoomSortWeight(room: MaidRoom): number {
 }
 
 export default function MaidPage() {
+  const router = useRouter();
   const [maidName, setMaidName] = useState<string>("");
   const [maidLaneNames, setMaidLaneNames] = useState<string[]>(FALLBACK_MAIDS);
   const [maidAuth, setMaidAuth] = useState<MaidAuthState | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [data, setData] = useState<MaidData | null>(null);
   const [extraTasks, setExtraTasks] = useState<ExtraTaskAssignment[]>([]);
@@ -271,6 +275,19 @@ export default function MaidPage() {
     alert(operationDisabledReason);
     return false;
   }, [canOperateSelected, operationDisabledReason]);
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      await supabase.auth.signOut();
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, router]);
 
   const fetchData = useCallback(async () => {
     if (!maidName || !maidAuth) {
@@ -877,14 +894,28 @@ export default function MaidPage() {
               </button>
             </div>
 
-            <div className="text-right">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                {selectedLaneName}
-              </p>
-              <div className="mt-1 flex items-center justify-end gap-1.5 text-sm font-black text-slate-800 dark:text-slate-100">
-                <Clock3 size={14} className="text-slate-500 dark:text-slate-400" />
-                {timeStr}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                <span>{selectedLaneName}</span>
+                <span className="opacity-30">|</span>
+                <div className="flex items-center gap-1 text-sm font-black text-slate-800 dark:text-slate-100">
+                  <Clock3 size={14} className="text-slate-500 dark:text-slate-400" />
+                  {timeStr}
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                disabled={isLoggingOut}
+                className="inline-flex items-center justify-center rounded-xl bg-rose-500 p-2.5 text-white transition hover:bg-rose-600 active:scale-95 shadow-lg shadow-rose-500/20 disabled:cursor-wait disabled:opacity-50 dark:bg-rose-600 dark:hover:bg-rose-700"
+                aria-label="Log out"
+              >
+                {isLoggingOut ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <LogOut size={16} />
+                )}
+              </button>
             </div>
           </div>
 

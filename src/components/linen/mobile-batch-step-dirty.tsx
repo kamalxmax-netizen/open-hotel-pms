@@ -34,11 +34,13 @@ const dayuseFetcher = async (url: string) => {
 interface MobileBatchStepDirtyProps {
     onNext: (batchId?: string) => void;
     initialData?: any; // from draft
+    draftKey?: string | null;
     batchId?: string | null;
     batchDetail?: any;
+    onDeleteDraft?: () => void;
 }
 
-export function MobileBatchStepDirty({ onNext, initialData, batchId, batchDetail }: MobileBatchStepDirtyProps) {
+export function MobileBatchStepDirty({ onNext, initialData, draftKey, batchId, batchDetail, onDeleteDraft }: MobileBatchStepDirtyProps) {
     const router = useRouter();
     const { expected, isLoading: isExpectedLoading } = useLinenExpected();
     const { dashboard, isLoading: isDashboardLoading } = useLinenDashboard();
@@ -342,6 +344,16 @@ export function MobileBatchStepDirty({ onNext, initialData, batchId, batchDetail
             </div>
 
             <div className="p-5 bg-white border-t border-slate-100 flex gap-3 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] fixed bottom-0 left-0 right-0 max-w-lg mx-auto z-40">
+                {draftKey && onDeleteDraft && (
+                    <button
+                        type="button"
+                        onClick={onDeleteDraft}
+                        disabled={isSubmitting}
+                        className="py-4 px-4 bg-rose-50 text-rose-600 font-bold rounded-2xl active:scale-95 transition-all text-sm border border-rose-100 font-thai disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        ลบร่าง
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={handleSaveDraft}

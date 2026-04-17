@@ -1,4 +1,4 @@
-import { getLaundryBatchDetail, updateLaundryBatchDirtyItems } from "@/lib/linen/batch-service";
+import { deleteLaundryBatch, getLaundryBatchDetail, updateLaundryBatchDirtyItems } from "@/lib/linen/batch-service";
 import { linenApiError, requireLinenAccess } from "@/lib/linen/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -52,6 +52,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   } catch (error) {
     console.error("api/linen/batches/[id] PATCH failed", error);
     const { status, message } = linenApiError(error, "Failed to update linen batch.");
+    return NextResponse.json({ success: false, error: message }, { status });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const { supabase } = await requireLinenAccess(request);
+    const data = await deleteLaundryBatch(supabase, params.id);
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error("api/linen/batches/[id] DELETE failed", error);
+    const { status, message } = linenApiError(error, "Failed to delete linen batch.");
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }

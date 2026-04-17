@@ -81,10 +81,10 @@ const NAV_ITEMS = [
             { href: "/pms/housekeeping/extra-tasks", label: "Extra Tasks", icon: ListIcon },
             { href: "/pms/lost-found", label: "Lost & Found", icon: PackageIcon },
             { href: "/pms/linen", label: "Linen & Laundry", icon: PackageIcon },
+            { href: "/linen-mobile", label: "Linen App", icon: MobileCheckinIcon, permissionHrefs: ["/pms/linen"] },
             { href: "/pms/linen/monthly", label: "Linen Monthly", icon: FileTextIcon },
             { href: "/pms/linen/history", label: "Linen History", icon: ListIcon },
-            { href: "/pms/linen/settings/rates", label: "Linen Vendor Rates", icon: RatesIcon },
-            { href: "/pms/linen/settings/variance", label: "Linen Variance Settings", icon: SettingsIcon },
+            { href: "/pms/linen/settings", label: "Linen Setting", icon: SettingsIcon },
             { href: "/maid", label: "Maid App", icon: BroomIcon },
         ]
     },
@@ -148,6 +148,10 @@ function isAllowed(href: string, allowedPages: string[]): boolean {
         if (EXACT_PERMISSION_PATHS.has(p)) return href === p;
         return href === p || href.startsWith(`${p}/`);
     });
+}
+
+function isNavItemAllowed(item: { href: string; permissionHrefs?: string[] }, allowedPages: string[]): boolean {
+    return [item.href, ...(item.permissionHrefs ?? [])].some((href) => isAllowed(href, allowedPages));
 }
 
 function normalizeAllowedPages(value: unknown): string[] {
@@ -270,7 +274,7 @@ export default function Sidebar() {
             {/* Nav */}
             <nav className="sidebar-nav">
                 {NAV_ITEMS.map((group) => {
-                    const visibleItems = group.items.filter((item) => isAllowed(item.href, allowedPages));
+                    const visibleItems = group.items.filter((item) => isNavItemAllowed(item, allowedPages));
                     if (visibleItems.length === 0) return null;
                     return (
                         <div key={group.section}>

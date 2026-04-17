@@ -1036,12 +1036,12 @@ export default function HousekeepingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-[#1a1f26] border border-[#2d3640] rounded-lg text-[#c0c8d4] font-bold text-xs hover:bg-[#242a33] transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 px-4 py-1.5 bg-white dark:bg-[#1a1f26] border border-[var(--border-input)] rounded-xl text-[var(--text-primary)] dark:text-slate-100 font-bold text-xs hover:bg-gray-100 dark:hover:bg-[#242a33] transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => void openDueMaintenanceModal()}
             disabled={loadingDueTasks || assigningDueTasks || hasDraftChanges || savingDraft}
             title={hasDraftChanges ? "Save or Discard draft changes first" : undefined}
           >
-            <span className="text-base leading-none">+</span>
+            <span className="text-lg leading-none font-bold">+</span>
             {loadingDueTasks ? "Loading..." : "Add Maintenance Due"}
           </button>
           <input
@@ -1135,7 +1135,7 @@ export default function HousekeepingPage() {
                 {dirtyRoomPool.length} Dirty · {dirtyPoolCollectCount} HK Collect · {extraTaskPool.length} Extra
               </span>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <button
                 type="button"

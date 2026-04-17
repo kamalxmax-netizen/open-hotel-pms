@@ -21,17 +21,24 @@ export default function MobileBatchWizardPage() {
     const { data: batchDetail, isLoading, mutate } = useLinenBatchDetail(batchId);
     const [currentStep, setCurrentStep] = useState<number | null>(null);
     const [draftData, setDraftData] = useState<any>(null);
+    const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null);
     const [finalToken, setFinalToken] = useState<string | null>(null);
     const [returnSummary, setReturnSummary] = useState<ReturnSummaryItem[]>([]);
     const [returnQtyDraft, setReturnQtyDraft] = useState<Record<string, string>>({});
     const [isReopening, setIsReopening] = useState(false);
+    const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
     useEffect(() => {
         if (params.id === "new") {
             setCurrentStep(1);
+            setDraftData(null);
+            setActiveDraftKey(null);
             if (draftKey) {
                 const saved = localStorage.getItem(draftKey);
-                if (saved) setDraftData(JSON.parse(saved));
+                if (saved) {
+                    setDraftData(JSON.parse(saved));
+                    setActiveDraftKey(draftKey);
+                }
             }
         } else if (batchDetail?.batch) {
             const status = batchDetail.batch.status;
@@ -53,6 +60,38 @@ export default function MobileBatchWizardPage() {
             router.replace(`/linen-mobile/batch/${newBatchId}`);
         } else {
             mutate();
+        }
+    };
+
+    const handleDeleteDraft = () => {
+        if (!activeDraftKey) return;
+        if (!confirm("ลบรายการร่างนี้หรือไม่?")) return;
+        localStorage.removeItem(activeDraftKey);
+        setDraftData(null);
+        setActiveDraftKey(null);
+        router.replace("/linen-mobile");
+    };
+
+    const batchStatus = String(batchDetail?.batch?.status ?? "");
+    const canDeleteBatch = Boolean(batchId && ["fo_dirty_counted", "fo_return_counted", "vendor_signed"].includes(batchStatus));
+
+    const handleDeleteBatch = async () => {
+        if (!batchId || !canDeleteBatch) return;
+        if (!confirm("ลบ Batch นี้หรือไม่? ข้อมูลรอบนี้จะถูกลบออกและย้อนยอดรับคืนที่บันทึกไว้แล้ว")) return;
+        setIsDeletingBatch(true);
+        try {
+            const res = await fetch(`/api/linen/batches/${batchId}`, { method: "DELETE" });
+            const result = await res.json().catch(() => null);
+            if (!res.ok || result?.success === false) {
+                throw new Error(result?.error || "Failed to delete batch");
+            }
+            router.replace("/linen-mobile");
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            alert(`ลบ Batch ไม่สำเร็จ: ${message}`);
+        } finally {
+            setIsDeletingBatch(false);
         }
     };
 
@@ -165,15 +204,28 @@ export default function MobileBatchWizardPage() {
                         {currentStep && currentStep < 5 ? `Step ${currentStep} / 4` : "Completed"}
                     </span>
                 </div>
-                <div className="w-10" />
+                {canDeleteBatch ? (
+                    <button
+                        type="button"
+                        onClick={handleDeleteBatch}
+                        disabled={isDeletingBatch || isReopening}
+                        className="rounded-full border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isDeletingBatch ? "..." : "ลบ Batch"}
+                    </button>
+                ) : (
+                    <div className="w-10" />
+                )}
             </header>
 
             <div className="flex-1">
                 {currentStep === 1 && (
                     <MobileBatchStepDirty
                         initialData={draftData}
+                        draftKey={activeDraftKey}
                         batchId={batchId}
                         batchDetail={batchDetail}
+                        onDeleteDraft={handleDeleteDraft}
                         onNext={handleNext}
                     />
                 )}

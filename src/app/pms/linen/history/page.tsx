@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useLinenBatches, useLinenAuditLogs } from "@/hooks/use-linen-batch";
 import { LinenHistoryFilterBar } from "./_components/LinenHistoryFilterBar";
 import { LinenHistoryTable } from "./_components/LinenHistoryTable";
@@ -11,15 +12,17 @@ import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
 import type { LaundryBatch } from "@/lib/types";
 
-export default function LinenHistoryPage() {
-    const [filters, setFilters] = useState<any>({
+function LinenHistoryPageInner() {
+    const searchParams = useSearchParams();
+    const [filters, setFilters] = useState<any>(() => ({
         date_from: "",
         date_to: "",
         status: "",
         has_rewash: false,
         has_extras: false,
+        has_edits: searchParams.get("has_edits") === "1" || searchParams.get("has_edits") === "true",
         search: ""
-    });
+    }));
 
     const { batches, isLoading, mutate } = useLinenBatches(filters);
     const [selectedBatch, setSelectedBatch] = useState<LaundryBatch | null>(null);
@@ -172,6 +175,14 @@ export default function LinenHistoryPage() {
                 />
             )}
         </div>
+    );
+}
+
+export default function LinenHistoryPage() {
+    return (
+        <Suspense fallback={<div className="p-4 md:p-8 max-w-7xl mx-auto pb-20" />}>
+            <LinenHistoryPageInner />
+        </Suspense>
     );
 }
 

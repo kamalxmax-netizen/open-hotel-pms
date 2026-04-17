@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Filter, Calendar, Tag, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { Search, Calendar, Tag, AlertCircle, Image as ImageIcon, ClipboardList } from "lucide-react";
 
 interface LinenHistoryFilterBarProps {
     filters: any;
@@ -96,6 +96,19 @@ export function LinenHistoryFilterBar({ filters, setFilters }: LinenHistoryFilte
                     />
                     <span className="text-xs font-bold text-slate-500 group-hover:text-emerald-600 transition-colors flex items-center gap-1 font-thai">
                         <ImageIcon className="w-3 h-3" /> มีรูปภาพ/รายการพิเศษ
+                    </span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        name="has_edits"
+                        checked={filters.has_edits || false}
+                        onChange={handleChange}
+                        className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 transition-all"
+                    />
+                    <span className="text-xs font-bold text-slate-500 group-hover:text-purple-600 transition-colors flex items-center gap-1 font-thai">
+                        <ClipboardList className="w-3 h-3" /> มีรายการแก้ไข
                     </span>
                 </label>
             </div>

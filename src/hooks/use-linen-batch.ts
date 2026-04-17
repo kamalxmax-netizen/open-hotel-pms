@@ -46,7 +46,13 @@ export function useLinenExpected() {
 }
 
 export function useLinenBatches(filters?: any) {
-    const query = filters ? new URLSearchParams(Object.entries(filters).filter(([_, v]) => v !== undefined && v !== "").reduce((acc, [k, v]) => ({ ...acc, [k]: String(v) }), {})).toString() : "";
+    const query = filters
+        ? new URLSearchParams(
+            Object.entries(filters)
+                .filter(([_, v]) => v !== undefined && v !== null && v !== "" && (typeof v !== "boolean" || v))
+                .reduce((acc, [k, v]) => ({ ...acc, [k]: String(v) }), {})
+        ).toString()
+        : "";
     const { data, error, mutate, isValidating } = useSWR<LaundryBatch[]>(
         query ? `/api/linen/batches?${query}` : "/api/linen/batches", 
         apiDataFetcher
