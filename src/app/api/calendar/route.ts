@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         // ── Batch 1: Independent queries (no data dependencies) ──
         const [
             { data: rooms, error: roomsErr },
-            { data: nights, error: nightsErr },
+            { data: rawNights, error: nightsErr },
             { data: blocks, error: blocksErr },
             { data: plannedMoves, error: plannedMovesError },
             { data: hkTasks },
@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
                     stay_date,
                     nightly_price,
                     is_ota,
+                    cancelled_at,
                     reservation_id,
                     room_type_id,
                     reservations!inner(
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
                       phone,
                       source,
                       status,
+                      is_dayuse,
                       checked_in_at,
                       checkin_date,
                       checkout_date,
@@ -66,7 +68,6 @@ export async function GET(request: NextRequest) {
                 `)
                 .gte("stay_date", startDate)
                 .lte("stay_date", endDate)
-                .is("cancelled_at", null)
                 .in("reservations.status", ["active", "checked_out", "draft_checkin"]),
 
             // Fetch Room Blocks
@@ -95,6 +96,12 @@ export async function GET(request: NextRequest) {
         if (nightsErr) return NextResponse.json({ error: nightsErr.message }, { status: 500 });
         if (blocksErr) return NextResponse.json({ error: blocksErr.message }, { status: 500 });
         if (plannedMovesError) return NextResponse.json({ error: plannedMovesError.message }, { status: 500 });
+
+        const nights = (rawNights ?? []).filter((row: any) => {
+            if (!row?.cancelled_at) return true;
+            const reservation = row?.reservations as { status?: string | null; is_dayuse?: boolean | null } | null;
+            return Boolean(reservation?.is_dayuse) && String(reservation?.status ?? "") === "checked_out";
+        });
 
         const plannedMoveRows = plannedMoves ?? [];
         const plannedMoveReservationIds = Array.from(
