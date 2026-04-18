@@ -85,6 +85,7 @@ const TYPE_ICONS: Record<string, string> = {
 const NEXT_STATUS: Record<string, string> = {
     pending: "confirmed", confirmed: "driver_assigned", driver_assigned: "in_progress", in_progress: "completed",
 };
+const CANCELLABLE_STATUSES = new Set(["pending", "confirmed", "driver_assigned", "in_progress"]);
 const IN_PROGRESS_LEAD_MINUTES = 30;
 
 // ─── Helpers ──────────────────────────────────────────
@@ -237,6 +238,19 @@ async function updateStatus(transferId: string, newStatus: string): Promise<{ su
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
+    });
+    const json = await res.json();
+    return {
+        success: json.success === true,
+        error: json.error,
+    };
+}
+
+async function cancelTransferBooking(transferId: string, reason: string): Promise<{ success: boolean; error?: string }> {
+    const res = await fetch(`/api/transportation/transfers/${transferId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled", cancel_reason: reason }),
     });
     const json = await res.json();
     return {
@@ -918,10 +932,12 @@ function EditTransferModal({
     transfer,
     onClose,
     onSaved,
+    onRequestCancel,
 }: {
     transfer: TransferRow;
     onClose: () => void;
     onSaved: () => Promise<void>;
+    onRequestCancel: (transfer: TransferRow) => void;
 }) {
     const [loadingDrivers, setLoadingDrivers] = useState(false);
     const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -974,8 +990,8 @@ function EditTransferModal({
             setError("Pickup date/time is required.");
             return;
         }
-        const pickup = new Date(pickupDatetime);
-        if (Number.isNaN(pickup.getTime())) {
+        const pickupIso = bangkokLocalDateTimeToIso(pickupDatetime);
+        if (!pickupIso) {
             setError("Pickup date/time is invalid.");
             return;
         }
@@ -987,7 +1003,7 @@ function EditTransferModal({
         setSaving(true);
         try {
             const payload = {
-                pickup_datetime: pickup.toISOString(),
+                pickup_datetime: pickupIso,
                 driver_id: driverId || null,
                 selling_price: parseMoneyInput("Selling price", sellingPrice, null),
                 cost_price: parseMoneyInput("Cost price", costPrice, null),
@@ -1022,6 +1038,7 @@ function EditTransferModal({
     const fieldCls = "w-full px-3 py-2 border border-[var(--border-input)] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
     const fieldInvalidCls = "border-rose-300 bg-rose-50 focus:ring-rose-200 focus:border-rose-400";
     const pickupDatetimeInvalid = showValidation && !pickupDatetime;
+    const canCancelTransfer = CANCELLABLE_STATUSES.has(transfer.status) && !transfer.is_business_day_closed;
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1147,12 +1164,122 @@ function EditTransferModal({
                     {error && <p className="text-sm text-red-600 dark:text-rose-400 bg-red-50 dark:bg-rose-500/10 rounded-lg px-3 py-2">{error}</p>}
                 </div>
 
-                <div className="sticky bottom-0 bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
+                <div className="sticky bottom-0 bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex items-center gap-3 rounded-b-2xl">
+                    {canCancelTransfer && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onClose();
+                                onRequestCancel(transfer);
+                            }}
+                            disabled={saving}
+                            className="px-4 py-2 border border-rose-200 bg-rose-50 text-rose-600 rounded-xl text-sm font-semibold hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 disabled:opacity-50"
+                        >
+                            Cancel Transfer
+                        </button>
+                    )}
+                    <div className="flex-1" />
                     <button onClick={onClose} disabled={saving} className="px-4 py-2 border border-[var(--border-input)] rounded-xl text-[var(--text-table-cell)] hover:bg-[var(--bg-body)]">
-                        Cancel
+                        Close
                     </button>
                     <button onClick={saveChanges} disabled={saving} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50">
                         {saving ? "Saving…" : "Save"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CancelTransferModal({
+    transfer,
+    onClose,
+    onCancelled,
+}: {
+    transfer: TransferRow;
+    onClose: () => void;
+    onCancelled: () => Promise<void>;
+}) {
+    const [reason, setReason] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
+
+    const isBoat = Boolean(transfer.boat_route_id || transfer.boat_company_id || transfer.boat_company_name);
+
+    async function submitCancel() {
+        const trimmedReason = reason.trim();
+        if (!trimmedReason) {
+            setError("Cancel reason is required.");
+            return;
+        }
+
+        setSubmitting(true);
+        setError("");
+        try {
+            const result = await cancelTransferBooking(transfer.id, trimmedReason);
+            if (!result.success) {
+                setError(result.error ?? "Failed to cancel transfer.");
+                return;
+            }
+            await onCancelled();
+            onClose();
+        } catch {
+            setError("Network error while cancelling transfer.");
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+            <div
+                className="w-full max-w-md rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="border-b border-[var(--border-default)] px-6 py-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-rose-500">Cancel Transfer</p>
+                    <h2 className="mt-1 text-lg font-bold text-[var(--text-primary)]">
+                        {isBoat ? "Boat" : "Car"} · {transfer.guest_name}
+                    </h2>
+                    <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                        {formatTime(transfer.pickup_datetime)} · {transfer.pickup_location} → {transfer.dropoff_location}
+                    </p>
+                </div>
+
+                <div className="space-y-4 px-6 py-5">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                        Cancellation will update status, remove related alert lines, close linked traces, and reverse transfer ledger/commission when needed.
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Reason *</label>
+                        <textarea
+                            autoFocus
+                            rows={3}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="e.g. Guest cancelled boat ticket / car transfer cancelled"
+                            className="w-full rounded-lg border border-[var(--border-input)] px-3 py-2 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-200"
+                        />
+                    </div>
+                    {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
+                </div>
+
+                <div className="flex justify-end gap-3 border-t border-[var(--border-default)] px-6 py-4">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={submitting}
+                        className="rounded-xl border border-[var(--border-input)] px-4 py-2 text-sm text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] disabled:opacity-50"
+                    >
+                        Keep Transfer
+                    </button>
+                    <button
+                        type="button"
+                        onClick={submitCancel}
+                        disabled={submitting}
+                        className="rounded-xl bg-rose-600 px-5 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                    >
+                        {submitting ? "Cancelling…" : "Confirm Cancel"}
                     </button>
                 </div>
             </div>
@@ -1168,6 +1295,7 @@ export default function TransportationDailyBoard() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTransfer, setEditingTransfer] = useState<TransferRow | null>(null);
+    const [cancellingTransfer, setCancellingTransfer] = useState<TransferRow | null>(null);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
@@ -1249,6 +1377,14 @@ export default function TransportationDailyBoard() {
                     transfer={editingTransfer}
                     onClose={() => setEditingTransfer(null)}
                     onSaved={fetchData}
+                    onRequestCancel={setCancellingTransfer}
+                />
+            )}
+            {cancellingTransfer && (
+                <CancelTransferModal
+                    transfer={cancellingTransfer}
+                    onClose={() => setCancellingTransfer(null)}
+                    onCancelled={fetchData}
                 />
             )}
 
@@ -1386,6 +1522,21 @@ export default function TransportationDailyBoard() {
                                                         className="px-2 py-1 text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-400 dark:hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         {updatingId === t.id ? "…" : nextStatus.replace(/_/g, " ") + " →"}
+                                                    </button>
+                                                );
+                                            })()}
+                                            {(() => {
+                                                const blockedByNightAudit = Boolean(t.is_business_day_closed);
+                                                const canCancel = CANCELLABLE_STATUSES.has(t.status);
+                                                if (!canCancel) return null;
+                                                return (
+                                                    <button
+                                                        disabled={updatingId === t.id || blockedByNightAudit}
+                                                        onClick={() => setCancellingTransfer(t)}
+                                                        title={blockedByNightAudit ? "Night Audit already closed this transfer date" : "Cancel transfer"}
+                                                        className="px-2 py-1 text-xs bg-rose-50 border border-rose-200 text-rose-600 rounded-lg hover:bg-rose-100 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400 dark:hover:bg-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        Cancel
                                                     </button>
                                                 );
                                             })()}

@@ -166,10 +166,15 @@ export async function getCurrentBusinessDate(supabase: SupabaseClient): Promise<
 
 export async function calculateExpectedLinen(
   supabase: SupabaseClient,
-  options: { businessDate?: string; cutoffTime?: string } = {}
+  options: { businessDate?: string; cutoffTime?: string; roomTypeCodes?: string[] } = {}
 ): Promise<LinenExpectedResult> {
   const businessDate = options.businessDate ?? await getCurrentBusinessDate(supabase);
   const cutoffTime = options.cutoffTime ?? DEFAULT_CUTOFF_TIME;
+  const roomTypeFilter = new Set(
+    (options.roomTypeCodes ?? [])
+      .map((code) => String(code ?? "").trim())
+      .filter(Boolean)
+  );
   const previousDate = addDays(businessDate, -1);
   // Checkout tasks dated yesterday often point to the reservation night from
   // the night before checkout, so include one extra night for room/date lookup.
@@ -276,6 +281,7 @@ export async function calculateExpectedLinen(
     if (!category) continue;
 
     const roomTypeCode = String(room?.room_types?.code ?? "");
+    if (roomTypeFilter.size > 0 && !roomTypeFilter.has(roomTypeCode)) continue;
     const estimateKey = `${category}:${reservation.id ?? `${task.room_id}:${task.stay_date}`}`;
     if (countedTaskKeys.has(estimateKey)) continue;
     countedTaskKeys.add(estimateKey);
@@ -307,7 +313,9 @@ export async function calculateExpectedLinen(
     const reservation = night.reservations ?? null;
     const room = night.rooms ?? null;
     const roomId = String(night.room_id ?? room?.id ?? "");
+    const roomTypeCode = String(room?.room_types?.code ?? "");
     if (!roomId || taskRoomIdsForBusinessDate.has(roomId) || reservation?.is_dayuse || room?.is_dayuse) continue;
+    if (roomTypeFilter.size > 0 && !roomTypeFilter.has(roomTypeCode)) continue;
     if (reservation?.status !== "active") continue;
     if (!reservation.checkout_date || reservation.checkout_date <= businessDate) continue;
 
@@ -315,7 +323,7 @@ export async function calculateExpectedLinen(
     rooms.push({
       room_id: roomId,
       room_number: String(room?.room_number ?? ""),
-      room_type_code: String(room?.room_types?.code ?? ""),
+      room_type_code: roomTypeCode,
       category: "inhouse_no_task",
       guest_name: reservation.guest_name ?? null,
     });

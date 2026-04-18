@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AnalyticsWindow } from "@/lib/analytics/types";
 
 const WINDOWS: AnalyticsWindow[] = ["day", "week", "month"];
@@ -20,11 +20,17 @@ const DEFAULT_CATEGORY_OPTIONS = [
     { value: "amenity.shampoo", label: "Shampoo" },
 ];
 
-const ROOM_TYPE_OPTIONS = [
-    { value: "STD", label: "Standard" },
-    { value: "DLX", label: "Deluxe" },
-    { value: "STE", label: "Suite" },
+const FALLBACK_ROOM_TYPE_OPTIONS = [
+    { value: "TS", label: "TS" },
+    { value: "DS", label: "DS" },
+    { value: "DQ", label: "DQ" },
+    { value: "DT", label: "DT" },
+    { value: "JS", label: "JS" },
+    { value: "TB", label: "TB" },
+    { value: "FR", label: "FR" },
 ];
+
+type FilterOption = { value: string; label: string };
 
 function parseList(raw: string | null): string[] {
     if (!raw) return [];
@@ -38,7 +44,7 @@ function summarize(selected: string[], options: { value: string; label: string }
 }
 
 type FilterBarProps = {
-    categoryOptions?: { value: string; label: string }[];
+    categoryOptions?: FilterOption[];
     showCategory?: boolean;
     showRoomType?: boolean;
 };
@@ -51,6 +57,7 @@ export function FilterBar({
     const router = useRouter();
     const pathname = usePathname();
     const params = useSearchParams();
+    const [roomTypeOptions, setRoomTypeOptions] = useState<FilterOption[]>(FALLBACK_ROOM_TYPE_OPTIONS);
 
     const window = (params.get("window") as AnalyticsWindow) || "month";
     const start = params.get("start") || defaultStart();
@@ -77,6 +84,31 @@ export function FilterBar({
     );
 
     const rangeLabel = useMemo(() => `${start} → ${end}`, [start, end]);
+
+    useEffect(() => {
+        if (!showRoomType) return;
+        let cancelled = false;
+
+        fetch("/api/analytics/room-types")
+            .then((response) => response.json())
+            .then((body) => {
+                if (cancelled || !body?.success || !Array.isArray(body.data)) return;
+                const next = body.data
+                    .map((row: any) => ({
+                        value: String(row.value ?? "").trim(),
+                        label: String(row.label ?? row.value ?? "").trim(),
+                    }))
+                    .filter((row: FilterOption) => row.value && row.label);
+                if (next.length > 0) setRoomTypeOptions(next);
+            })
+            .catch(() => {
+                // Keep fallback room types if the setup lookup is unavailable.
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showRoomType]);
 
     return (
         <div className="a-card sticky top-0 z-10 px-4 py-3 flex flex-wrap items-center gap-3">
@@ -128,11 +160,11 @@ export function FilterBar({
             {showRoomType && (
                 <MultiSelect
                     label="Room Type"
-                    options={ROOM_TYPE_OPTIONS}
+                    options={roomTypeOptions}
                     selected={room_type}
                     onToggle={(v) => toggleInList("room_type", room_type, v)}
                     onClear={() => updateParam("room_type", null)}
-                    summary={summarize(room_type, ROOM_TYPE_OPTIONS)}
+                    summary={summarize(room_type, roomTypeOptions)}
                 />
             )}
 
@@ -143,7 +175,7 @@ export function FilterBar({
 
 type MultiSelectProps = {
     label: string;
-    options: { value: string; label: string }[];
+    options: FilterOption[];
     selected: string[];
     onToggle: (value: string) => void;
     onClear: () => void;

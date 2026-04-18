@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculateExpectedLinen } from "@/lib/linen/expected-calc";
 import { computeBucket } from "@/lib/analytics/variance";
 import type { AnalyticsMetric, AnalyticsQuery, AnalyticsTrendPoint } from "@/lib/analytics/types";
+import type { LinenExpectedResult } from "@/lib/types";
 
 type LinenVarianceRpcRow = {
   linen_item_id: number;
@@ -30,6 +31,14 @@ type ExpectedItem = {
   name_th: string;
   estimated_qty: number;
 };
+
+type ExpectedDailyRow = {
+  businessDate: string;
+  expected: LinenExpectedResult;
+};
+
+const EXPECTED_CACHE_TTL_MS = 60_000;
+const expectedCache = new Map<string, { expiresAt: number; promise: Promise<ExpectedDailyRow[]> }>();
 
 function toNumber(value: unknown): number {
   const parsed = Number(value ?? 0);
@@ -81,18 +90,51 @@ function categoryAllowed(item: ExpectedItem, categories?: string[]): boolean {
   return categories.includes(key) || categories.includes(String(item.item_number));
 }
 
+async function loadExpectedDailyUncached(
+  supabase: SupabaseClient,
+  query: AnalyticsQuery
+): Promise<ExpectedDailyRow[]> {
+  const rows: ExpectedDailyRow[] = [];
+  for (const businessDate of listDates(query.start, query.end)) {
+    rows.push({
+      businessDate,
+      expected: await calculateExpectedLinen(supabase, { businessDate, roomTypeCodes: query.room_type }),
+    });
+  }
+  return rows;
+}
+
+async function loadExpectedDaily(
+  supabase: SupabaseClient,
+  query: AnalyticsQuery
+): Promise<ExpectedDailyRow[]> {
+  const now = Date.now();
+  const cacheKey = `${query.start}:${query.end}:${(query.room_type ?? []).join(",")}`;
+  const cached = expectedCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  if (expectedCache.size > 20) expectedCache.clear();
+
+  const promise = loadExpectedDailyUncached(supabase, query);
+  expectedCache.set(cacheKey, { expiresAt: now + EXPECTED_CACHE_TTL_MS, promise });
+
+  try {
+    return await promise;
+  } catch (err) {
+    expectedCache.delete(cacheKey);
+    throw err;
+  }
+}
+
 async function expectedByItem(
   supabase: SupabaseClient,
   query: AnalyticsQuery
 ): Promise<Map<number, number>> {
   const totals = new Map<number, number>();
-  const days = listDates(query.start, query.end);
-  const results = await Promise.all(
-    days.map((businessDate) => calculateExpectedLinen(supabase, { businessDate }))
-  );
+  const results = await loadExpectedDaily(supabase, query);
 
   for (const result of results) {
-    for (const item of result.items) {
+    for (const item of result.expected.items) {
       if (!categoryAllowed(item, query.category)) continue;
       totals.set(item.linen_item_id, (totals.get(item.linen_item_id) ?? 0) + toNumber(item.estimated_qty));
     }
@@ -105,13 +147,7 @@ async function expectedTrend(
   query: AnalyticsQuery
 ): Promise<Map<string, number>> {
   const totals = new Map<string, number>();
-  const days = listDates(query.start, query.end);
-  const results = await Promise.all(
-    days.map(async (businessDate) => ({
-      businessDate,
-      expected: await calculateExpectedLinen(supabase, { businessDate }),
-    }))
-  );
+  const results = await loadExpectedDaily(supabase, query);
 
   for (const row of results) {
     const bucket = periodStart(row.businessDate, query.window);
@@ -127,40 +163,43 @@ export async function fetchLinenVariance(
   supabase: SupabaseClient,
   query: AnalyticsQuery
 ): Promise<AnalyticsMetric> {
-  const [{ data, error }, predictMap] = await Promise.all([
-    supabase.rpc("fn_linen_analytics_variance", {
-      p_start: query.start,
-      p_end: query.end,
-      p_categories: query.category ?? null,
-      p_room_types: null,
-    } as any),
-    expectedByItem(supabase, query),
-  ]);
+  const { data, error } = await supabase.rpc("fn_linen_analytics_variance", {
+    p_start: query.start,
+    p_end: query.end,
+    p_categories: query.category ?? null,
+    p_room_types: query.room_type ?? null,
+  } as any);
 
   if (error) throw new Error(error.message);
+
+  const predictMap = await expectedByItem(supabase, query);
+  const actualSource: "direct" | "allocated" = query.room_type && query.room_type.length > 0 ? "allocated" : "direct";
 
   const buckets = ((data ?? []) as LinenVarianceRpcRow[]).map((row) => {
     const actual = toNumber(row.actual_qty);
     const predict = toNumber(predictMap.get(Number(row.linen_item_id)));
     const max = toNumber(row.max_qty);
-    return computeBucket({
-      category: String(row.category_key ?? categoryKey(Number(row.item_number), row.name_en)),
-      label: String(row.name_en || row.name_th || row.item_number),
-      actual,
-      baselines: {
-        predict: {
-          source: "predict",
-          value: predict,
-          computed_from: { start_date: query.start, end_date: query.end, sample_size: toNumber(row.days_in_period) },
+    return {
+      ...computeBucket({
+        category: String(row.category_key ?? categoryKey(Number(row.item_number), row.name_en)),
+        label: String(row.name_en || row.name_th || row.item_number),
+        actual,
+        baselines: {
+          predict: {
+            source: "predict",
+            value: predict,
+            computed_from: { start_date: query.start, end_date: query.end, sample_size: toNumber(row.days_in_period) },
+          },
+          statistical: null,
+          max: {
+            source: "max",
+            value: max,
+            computed_from: { start_date: query.start, end_date: query.end, sample_size: toNumber(row.active_rooms) },
+          },
         },
-        statistical: null,
-        max: {
-          source: "max",
-          value: max,
-          computed_from: { start_date: query.start, end_date: query.end, sample_size: toNumber(row.active_rooms) },
-        },
-      },
-    });
+      }),
+      actual_source: actualSource,
+    };
   });
 
   buckets.sort((a, b) => {
@@ -182,18 +221,17 @@ export async function fetchLinenTrend(
   supabase: SupabaseClient,
   query: AnalyticsQuery
 ): Promise<AnalyticsTrendPoint[]> {
-  const [{ data, error }, predictMap] = await Promise.all([
-    supabase.rpc("fn_linen_analytics_trend", {
-      p_start: query.start,
-      p_end: query.end,
-      p_window: query.window,
-      p_categories: query.category ?? null,
-      p_room_types: null,
-    } as any),
-    expectedTrend(supabase, query),
-  ]);
+  const { data, error } = await supabase.rpc("fn_linen_analytics_trend", {
+    p_start: query.start,
+    p_end: query.end,
+    p_window: query.window,
+    p_categories: query.category ?? null,
+    p_room_types: query.room_type ?? null,
+  } as any);
 
   if (error) throw new Error(error.message);
+
+  const predictMap = await expectedTrend(supabase, query);
 
   return ((data ?? []) as LinenTrendRpcRow[]).map((row) => {
     const period = String(row.period_start).slice(0, 10);

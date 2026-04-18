@@ -20,6 +20,8 @@ function varianceText(actual: number, baseline: number): string {
 }
 
 export function LinenVarianceTable({ buckets }: { buckets: VarianceBucket[] }) {
+    const actualIsAllocated = buckets.some((bucket) => bucket.actual_source === "allocated");
+
     if (buckets.length === 0) {
         return (
             <div className="a-card p-8 text-center">
@@ -36,7 +38,11 @@ export function LinenVarianceTable({ buckets }: { buckets: VarianceBucket[] }) {
             <div className="px-4 py-3 border-b border-[var(--a-border)] flex items-center justify-between gap-3">
                 <div>
                     <h3 className="text-sm font-semibold tracking-wide">Variance by Linen Item</h3>
-                    <p className="a-muted text-[11px] mt-1">Sorted by alert severity, then actual usage.</p>
+                    <p className="a-muted text-[11px] mt-1">
+                        {actualIsAllocated
+                            ? "Actual is allocated by selected room type. Sorted by alert severity, then usage."
+                            : "Sorted by alert severity, then actual usage."}
+                    </p>
                 </div>
                 <span className="a-muted a-mono text-[11px]">{buckets.length} buckets</span>
             </div>

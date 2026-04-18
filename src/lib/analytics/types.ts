@@ -17,6 +17,7 @@ export interface VarianceBucket {
     category: string;
     label: string;
     actual: number;
+    actual_source?: "direct" | "allocated";
     baselines: {
         predict: AnalyticsBaseline;
         statistical: AnalyticsBaseline | null;

@@ -14,10 +14,8 @@ export async function GET(request: NextRequest) {
     try {
         const { supabase } = await requireAnalyticsAccess(request);
         const query = parseAnalyticsQuery(request.nextUrl.searchParams);
-        const [linen, linenTrend] = await Promise.all([
-            fetchLinenVariance(supabase, query),
-            fetchLinenTrend(supabase, query),
-        ]);
+        const linen = await fetchLinenVariance(supabase, query);
+        const linenTrend = await fetchLinenTrend(supabase, query);
         const amenity = mockAmenityMetric(query);
 
         const linenActual = linen.buckets.reduce((sum, bucket) => sum + bucket.actual, 0);

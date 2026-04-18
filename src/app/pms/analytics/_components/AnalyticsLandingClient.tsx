@@ -25,11 +25,15 @@ export default function AnalyticsLandingClient() {
     const window = (params.get("window") as AnalyticsWindow) || "month";
     const start = params.get("start") || defaultStart();
     const end = params.get("end") || defaultEnd();
+    const category = params.get("category") || "";
+    const roomType = params.get("room_type") || "";
 
     useEffect(() => {
         let cancelled = false;
         setError(null);
         const qs = new URLSearchParams({ window, start, end });
+        if (category) qs.set("category", category);
+        if (roomType) qs.set("room_type", roomType);
         fetch(`/api/analytics/summary?${qs.toString()}`)
             .then((r) => r.json())
             .then((body) => {
@@ -49,7 +53,7 @@ export default function AnalyticsLandingClient() {
         return () => {
             cancelled = true;
         };
-    }, [window, start, end]);
+    }, [category, roomType, window, start, end]);
 
     return (
         <div className="max-w-[1400px] mx-auto p-6 space-y-5 pb-24">

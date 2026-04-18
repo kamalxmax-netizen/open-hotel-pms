@@ -33,8 +33,20 @@ function defaultEnd() {
 
 async function fetchJson<T>(url: string): Promise<T> {
     const response = await fetch(url);
-    const body = await response.json().catch(() => null);
+    const text = await response.text();
+    let body: { success?: boolean; data?: T; error?: string } | null = null;
+
+    try {
+        body = text ? JSON.parse(text) : null;
+    } catch {
+        body = null;
+    }
+
     if (!response.ok || !body?.success) {
+        const lower = text.toLowerCase();
+        if (response.status === 502 || lower.includes("bad gateway")) {
+            throw new Error("Supabase gateway returned 502 while loading Linen Analytics. The app now throttles the heavy expected-linen calculation; please retry in a moment.");
+        }
         throw new Error(body?.error ?? `Request failed (${response.status})`);
     }
     return body.data as T;
@@ -51,22 +63,27 @@ export default function LinenAnalyticsClient() {
     const start = params.get("start") || defaultStart();
     const end = params.get("end") || defaultEnd();
     const category = params.get("category") || "";
+    const roomType = params.get("room_type") || "";
 
     const queryString = useMemo(() => {
         const qs = new URLSearchParams({ window, start, end });
         if (category) qs.set("category", category);
+        if (roomType) qs.set("room_type", roomType);
         return qs.toString();
-    }, [category, end, start, window]);
+    }, [category, end, roomType, start, window]);
 
     useEffect(() => {
         let cancelled = false;
         setIsLoading(true);
         setError(null);
 
-        Promise.all([
-            fetchJson<AnalyticsMetric>(`/api/analytics/material/linen?${queryString}`),
-            fetchJson<AnalyticsTrendPoint[]>(`/api/analytics/material/linen/trend?${queryString}`),
-        ])
+        async function load() {
+            const nextMetric = await fetchJson<AnalyticsMetric>(`/api/analytics/material/linen?${queryString}`);
+            const nextTrend = await fetchJson<AnalyticsTrendPoint[]>(`/api/analytics/material/linen/trend?${queryString}`);
+            return [nextMetric, nextTrend] as const;
+        }
+
+        load()
             .then(([nextMetric, nextTrend]) => {
                 if (cancelled) return;
                 setMetric(nextMetric);
@@ -87,6 +104,10 @@ export default function LinenAnalyticsClient() {
         };
     }, [queryString]);
 
+    const needsMigrationHint = error
+        ? /function|rpc|schema cache|does not exist/i.test(error)
+        : false;
+
     return (
         <div className="max-w-[1400px] mx-auto p-6 space-y-5 pb-24">
             <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
@@ -105,12 +126,12 @@ export default function LinenAnalyticsClient() {
             <FilterBar
                 categoryOptions={LINEN_CATEGORY_OPTIONS}
                 showCategory
-                showRoomType={false}
+                showRoomType
             />
 
             <div className="a-card p-3 border-l-2 border-[var(--a-accent-cyan)]">
                 <p className="a-secondary text-xs">
-                    Room Type filter is intentionally disabled for Linen 68.1 because actual laundry batches do not store room-type dimensions.
+                    Max uses sold room nights from the previous stay date. When Room Type is filtered, Actual becomes an allocated estimate because laundry batches store item totals, not room-type splits.
                 </p>
             </div>
 
@@ -118,9 +139,11 @@ export default function LinenAnalyticsClient() {
                 <div className="a-card p-4 border-l-2 border-[var(--a-accent-rose)] text-sm">
                     <div className="font-semibold">Unable to load Linen Analytics</div>
                     <p className="a-secondary mt-1">{error}</p>
-                    <p className="a-muted text-[11px] mt-2">
-                        If this says the RPC function does not exist, apply migration 202604180001_phase68_1_linen_analytics.sql.
-                    </p>
+                    {needsMigrationHint && (
+                        <p className="a-muted text-[11px] mt-2">
+                            If this says the RPC function does not exist, apply migration 202604180001_phase68_1_linen_analytics.sql.
+                        </p>
+                    )}
                 </div>
             )}
 

@@ -21,9 +21,10 @@ export function LinenKpiRow({ metric }: { metric: AnalyticsMetric | null }) {
     const alerts = buckets.filter((b) => b.alert).length;
     const usagePct = pct(totalActual, totalMax);
     const tier = worstTier(buckets);
+    const actualIsAllocated = buckets.some((b) => b.actual_source === "allocated");
 
     const cards = [
-        { label: "Total Actual", value: compact(totalActual), hint: "Sent by hotel", tier },
+        { label: "Total Actual", value: compact(totalActual), hint: actualIsAllocated ? "Allocated by selected room type" : "Sent by hotel", tier },
         { label: "Total Predict", value: compact(totalPredict), hint: "Expected linen engine", tier: "na" as const },
         { label: "Total Max", value: compact(totalMax), hint: usagePct === null ? "No max baseline" : `${usagePct}% of max`, tier: "na" as const },
         { label: "Alerts", value: compact(alerts), hint: "Buckets outside threshold", tier: alerts > 0 ? "red" as const : "green" as const },
