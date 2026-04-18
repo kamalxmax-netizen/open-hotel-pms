@@ -27,6 +27,7 @@ export type FoPrepareBatchHeader = {
   id: string;
   business_date: string;
   status: "prepared" | "returned" | "cancelled";
+  return_status?: "pending" | "reconciled" | "legacy";
   prepared_at: string;
   prepared_by: string | null;
   prepare_note: string | null;
@@ -658,7 +659,7 @@ export async function getFoPrepareBatchByDate(
   const { data, error } = await supabase
     .from("fo_prepare_batches")
     .select(
-      "id, business_date, status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
+      "id, business_date, status, return_status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
     )
     .eq("business_date", businessDate)
     .maybeSingle();
@@ -673,6 +674,7 @@ export async function getFoPrepareBatchByDate(
     id: String((data as any).id),
     business_date: String((data as any).business_date),
     status: String((data as any).status) as FoPrepareBatchHeader["status"],
+    return_status: ((data as any).return_status ?? undefined) as FoPrepareBatchHeader["return_status"],
     prepared_at: String((data as any).prepared_at),
     prepared_by: (data as any).prepared_by ?? null,
     prepare_note: (data as any).prepare_note ?? null,
@@ -693,7 +695,7 @@ export async function getOldestOpenFoPrepareBatch(
   let query = supabase
     .from("fo_prepare_batches")
     .select(
-      "id, business_date, status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
+      "id, business_date, status, return_status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
     )
     .eq("status", "prepared")
     .order("business_date", { ascending: true })
@@ -714,6 +716,7 @@ export async function getOldestOpenFoPrepareBatch(
     id: String((data as any).id),
     business_date: String((data as any).business_date),
     status: String((data as any).status) as FoPrepareBatchHeader["status"],
+    return_status: ((data as any).return_status ?? undefined) as FoPrepareBatchHeader["return_status"],
     prepared_at: String((data as any).prepared_at),
     prepared_by: (data as any).prepared_by ?? null,
     prepare_note: (data as any).prepare_note ?? null,
@@ -734,7 +737,7 @@ export async function getFoPrepareBatchDetail(
   const { data: batchRow, error: batchError } = await supabase
     .from("fo_prepare_batches")
     .select(
-      "id, business_date, status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
+      "id, business_date, status, return_status, prepared_at, prepared_by, prepare_note, insufficient_warning, returned_at, returned_by, return_note, return_override_note, created_at, updated_at"
     )
     .eq("id", batchId)
     .maybeSingle();
@@ -748,6 +751,7 @@ export async function getFoPrepareBatchDetail(
     id: String((batchRow as any).id),
     business_date: String((batchRow as any).business_date),
     status: String((batchRow as any).status) as FoPrepareBatchHeader["status"],
+    return_status: ((batchRow as any).return_status ?? undefined) as FoPrepareBatchHeader["return_status"],
     prepared_at: String((batchRow as any).prepared_at),
     prepared_by: (batchRow as any).prepared_by ?? null,
     prepare_note: (batchRow as any).prepare_note ?? null,

@@ -53,7 +53,7 @@ export async function logGuestProfileConflictEvent(
   const businessDate = sanitizeText(context.businessDate) ?? toBangkokDateString();
   const documentType = sanitizeText(context.documentType);
   const documentMasked = maskGuestDocumentNumber(context.documentNumber);
-  const retryCount = Number.isFinite(Number(context.retryCount)) && Number(context.retryCount) > 0
+  const retryCount = Number.isFinite(Number(context.retryCount)) && Number(context.retryCount) >= 0
     ? Math.trunc(Number(context.retryCount))
     : 1;
   const note = sanitizeText(context.note) ?? "Guest profile rerouted after duplicate document conflict.";

@@ -106,6 +106,15 @@ const NAV_ITEMS = [
         ]
     },
     {
+        section: "Analytics",
+        items: [
+            { href: "/pms/analytics", label: "Data Analysis", icon: AnalyticsIcon, exact: true },
+            { href: "/pms/analytics/material", label: "Material", icon: AnalyticsIcon },
+            { href: "/pms/analytics/material/linen", label: "Linen", icon: AnalyticsIcon },
+            { href: "/pms/analytics/material/amenity", label: "Amenity", icon: AnalyticsIcon },
+        ]
+    },
+    {
         section: "Reports",
         items: [
             { href: "/pms/reports/tm30", label: "TM.30", icon: FileTextIcon },
@@ -572,6 +581,17 @@ function BackupIcon() {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 100-2 1 1 0 000 2zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+        </svg>
+    );
+}
+
+function AnalyticsIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="20" x2="4" y2="12" />
+            <line x1="10" y1="20" x2="10" y2="6" />
+            <line x1="16" y1="20" x2="16" y2="14" />
+            <line x1="22" y1="20" x2="22" y2="9" />
         </svg>
     );
 }

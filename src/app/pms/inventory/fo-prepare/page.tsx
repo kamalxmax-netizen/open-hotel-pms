@@ -28,6 +28,7 @@ type FoBatch = {
   id: string;
   business_date: string;
   status: "prepared" | "returned" | "cancelled";
+  return_status?: "pending" | "reconciled" | "legacy";
   prepared_at: string;
   prepared_by: string | null;
   prepare_note: string | null;
@@ -141,6 +142,7 @@ export default function FoPreparePage() {
 
   const [prepareQtyMap, setPrepareQtyMap] = useState<Record<string, number>>({});
   const [returnQtyMap, setReturnQtyMap] = useState<Record<string, number>>({});
+  const [damagedQtyMap, setDamagedQtyMap] = useState<Record<string, number>>({});
   const [lineNoteMap, setLineNoteMap] = useState<Record<string, string>>({});
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -195,17 +197,21 @@ export default function FoPreparePage() {
           setBatchDetail(data.batch_detail as FoBatchDetail);
           setCanReturn((data.can_return as FoCanReturn) ?? null);
           const nextReturnQtyMap: Record<string, number> = {};
+          const nextDamagedQtyMap: Record<string, number> = {};
           const nextLineNotes: Record<string, string> = {};
           for (const row of (data.batch_detail as FoBatchDetail).items ?? []) {
             nextReturnQtyMap[row.id] = row.returned_qty > 0 ? row.returned_qty : row.returnable_max;
+            nextDamagedQtyMap[row.id] = 0;
             nextLineNotes[row.id] = row.return_note ?? "";
           }
           setReturnQtyMap(nextReturnQtyMap);
+          setDamagedQtyMap(nextDamagedQtyMap);
           setLineNoteMap(nextLineNotes);
         } else {
           setBatchDetail(null);
           setCanReturn(null);
           setReturnQtyMap({});
+          setDamagedQtyMap({});
           setLineNoteMap({});
         }
         setPrepareFeedback(null);
@@ -416,6 +422,7 @@ export default function FoPreparePage() {
       .map((row) => ({
         item_id: row.id,
         return_qty: Math.max(Number(returnQtyMap[row.id] ?? 0), 0),
+        damaged_qty: Math.max(Number(damagedQtyMap[row.id] ?? 0), 0),
         note: (lineNoteMap[row.id] ?? "").trim() || undefined,
         product_name: row.product_name,
         floor_number: row.floor_number,
@@ -432,26 +439,38 @@ export default function FoPreparePage() {
     for (const item of items) {
       const row = batchDetail.items.find((it) => it.id === item.item_id);
       if (!row) continue;
-      if (item.return_qty > row.prepared_qty) {
+      if (item.return_qty + item.damaged_qty > row.prepared_qty) {
         setReturnFeedback({
           kind: "error",
-          message: `${item.product_name} floor ${item.floor_number}: return qty cannot exceed prepared qty.`,
+          message: `${item.product_name} floor ${item.floor_number}: return + damaged qty cannot exceed prepared qty.`,
         });
         toast({
           title: "Invalid return qty",
-          description: `${item.product_name} floor ${item.floor_number}: return qty cannot exceed prepared qty.`,
+          description: `${item.product_name} floor ${item.floor_number}: return + damaged qty cannot exceed prepared qty.`,
           variant: "destructive",
         });
         return;
       }
-      if (item.return_qty !== row.suggested_remaining && !item.note) {
+      if (item.damaged_qty > 0 && !item.note) {
         setReturnFeedback({
           kind: "error",
-          message: `${item.product_name} floor ${item.floor_number}: note required when qty differs from system.`,
+          message: `${item.product_name} floor ${item.floor_number}: note required when damaged qty is entered.`,
+        });
+        toast({
+          title: "Damage note required",
+          description: `${item.product_name} floor ${item.floor_number}: add note for damaged qty.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (item.return_qty + item.damaged_qty !== row.suggested_remaining && !item.note) {
+        setReturnFeedback({
+          kind: "error",
+          message: `${item.product_name} floor ${item.floor_number}: note required when return/damage differs from system.`,
         });
         toast({
           title: "Note required",
-          description: `${item.product_name} floor ${item.floor_number}: add note when return qty differs from system.`,
+          description: `${item.product_name} floor ${item.floor_number}: add note when return/damage differs from system.`,
           variant: "destructive",
         });
         return;
@@ -498,6 +517,7 @@ export default function FoPreparePage() {
           items: items.map((item) => ({
             item_id: item.item_id,
             return_qty: item.return_qty,
+            damaged_qty: item.damaged_qty,
             note: item.note,
           })),
         }),
@@ -515,7 +535,9 @@ export default function FoPreparePage() {
         title: isEmptyBatchClose ? "Batch closed" : "Returned",
         description: isEmptyBatchClose
           ? "No prepared items found. Batch is closed successfully."
-          : "Remaining floor stock has been returned to main stock.",
+          : items.some((item) => item.damaged_qty > 0)
+            ? "Remaining stock returned; damaged stock written off."
+            : "Remaining floor stock has been returned to main stock.",
       });
       setReturnFeedback({
         kind: "success",
@@ -881,6 +903,7 @@ export default function FoPreparePage() {
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">System Remaining</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor Current</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Return Qty</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Damaged</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Line Note</th>
                         </tr>
                       </thead>
@@ -913,6 +936,21 @@ export default function FoPreparePage() {
                                 className="h-8 w-24 ml-auto text-right"
                               />
                             </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={String(damagedQtyMap[row.id] ?? 0)}
+                                disabled={batchDetail.batch.status !== "prepared"}
+                                onChange={(e) =>
+                                  setDamagedQtyMap((prev) => ({
+                                    ...prev,
+                                    [row.id]: Math.max(Number(e.target.value || 0), 0),
+                                  }))
+                                }
+                                className="h-8 w-24 ml-auto text-right"
+                              />
+                            </td>
                             <td className="px-4 py-2.5">
                               <Input
                                 value={lineNoteMap[row.id] ?? ""}
@@ -923,8 +961,8 @@ export default function FoPreparePage() {
                                   }))
                                 }
                                 placeholder={
-                                  Number(returnQtyMap[row.id] ?? row.returnable_max) !== row.suggested_remaining
-                                    ? "Required when qty differs"
+                                  Number(returnQtyMap[row.id] ?? row.returnable_max) + Number(damagedQtyMap[row.id] ?? 0) !== row.suggested_remaining
+                                    ? "Required when qty differs/damaged"
                                     : "Optional"
                                 }
                                 disabled={batchDetail.batch.status !== "prepared"}

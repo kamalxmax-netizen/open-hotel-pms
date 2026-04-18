@@ -18,6 +18,8 @@ type GuestProfileMutationResult = {
   rerouted: boolean;
 };
 
+type ResolutionStage = "pre_mutation_document_match" | "db_duplicate_conflict";
+
 function isBlank(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === "string") return value.trim().length === 0;
@@ -186,8 +188,20 @@ async function resolveConflictProfile(params: {
   document: { idType: GuestDocumentType; idNumber: string };
   attemptedProfileId?: string | null;
   logContext?: Omit<GuestProfileConflictLogContext, "attemptedProfileId" | "resolvedProfileId" | "documentType" | "documentNumber" | "retryCount">;
+  resolutionStage?: ResolutionStage;
+  retryCount?: number;
+  note?: string;
 }): Promise<GuestProfileMutationResult> {
-  const { supabase, normalizedPayload, document, attemptedProfileId, logContext } = params;
+  const {
+    supabase,
+    normalizedPayload,
+    document,
+    attemptedProfileId,
+    logContext,
+    resolutionStage = "db_duplicate_conflict",
+    retryCount = 1,
+    note,
+  } = params;
   const existing = await findExistingGuestProfileByDocument(supabase as any, {
     idType: document.idType,
     idNumber: document.idNumber,
@@ -229,8 +243,13 @@ async function resolveConflictProfile(params: {
       resolvedProfileId,
       documentType: document.idType,
       documentNumber: document.idNumber,
-      retryCount: 1,
+      retryCount,
+      note: note ?? logContext.note,
       resolvedProfileSnapshot: buildResolvedProfileSnapshot(profile, document.idNumber),
+      metadata: {
+        ...(logContext.metadata ?? {}),
+        resolution_stage: resolutionStage,
+      },
     });
   }
 
@@ -247,6 +266,27 @@ export async function createGuestProfileWithConflictHandling(params: {
 }): Promise<GuestProfileMutationResult> {
   const { supabase, payload, logContext } = params;
   const { normalizedPayload, document } = normalizeGuestProfilePayload(payload);
+
+  if (document) {
+    const existing = await findExistingGuestProfileByDocument(supabase as any, {
+      idType: document.idType,
+      idNumber: document.idNumber,
+      select: "id",
+    });
+
+    if (existing?.id) {
+      return resolveConflictProfile({
+        supabase,
+        normalizedPayload,
+        document,
+        attemptedProfileId: null,
+        logContext,
+        resolutionStage: "pre_mutation_document_match",
+        retryCount: 0,
+        note: "Guest profile rerouted before write by document source-of-truth.",
+      });
+    }
+  }
 
   if (!document) {
     const identityMatch = await findExistingGuestProfileByIdentity(supabase as any, {
@@ -304,6 +344,8 @@ export async function createGuestProfileWithConflictHandling(params: {
       document,
       attemptedProfileId: null,
       logContext,
+      resolutionStage: "db_duplicate_conflict",
+      retryCount: 1,
     });
   }
 
@@ -318,6 +360,28 @@ export async function updateGuestProfileWithConflictHandling(params: {
 }): Promise<GuestProfileMutationResult> {
   const { supabase, profileId, payload, logContext } = params;
   const { normalizedPayload, document } = normalizeGuestProfilePayload(payload);
+
+  if (document) {
+    const existing = await findExistingGuestProfileByDocument(supabase as any, {
+      idType: document.idType,
+      idNumber: document.idNumber,
+      select: "id",
+    });
+    const resolvedProfileId = String(existing?.id ?? "").trim();
+
+    if (resolvedProfileId && resolvedProfileId !== String(profileId).trim()) {
+      return resolveConflictProfile({
+        supabase,
+        normalizedPayload,
+        document,
+        attemptedProfileId: profileId,
+        logContext,
+        resolutionStage: "pre_mutation_document_match",
+        retryCount: 0,
+        note: "Guest profile rerouted before update by document source-of-truth.",
+      });
+    }
+  }
 
   const { data, error } = await supabase
     .from("guest_profiles")
@@ -340,6 +404,8 @@ export async function updateGuestProfileWithConflictHandling(params: {
       document,
       attemptedProfileId: profileId,
       logContext,
+      resolutionStage: "db_duplicate_conflict",
+      retryCount: 1,
     });
   }
 

@@ -2344,3 +2344,96 @@ export interface LinenBatchStepDirtyRewashItem {
   photo_keys: string[];
   note?: string;
 }
+
+// ─── Phase 68.1: Linen Analytics ───────────────────────────────────────────────
+// Pre-merged by Lead 2026-04-18. Agent B reads only. WA: WORK_ASSIGNMENT_PHASE68_1_LINEN_ANALYTICS.md
+
+export interface LinenAnalyticsQuery {
+  start: string;                        // YYYY-MM-DD
+  end: string;                          // YYYY-MM-DD
+  window: "day" | "week" | "month";
+  categories?: string[];                // e.g. ["linen.bath_towel"]
+  // room_type intentionally omitted for 68.1 (actual has no room_type dimension)
+}
+
+export interface LinenAnalyticsVarianceRow {
+  category: string;                     // "linen.bath_towel" etc.
+  label: string;                        // human-readable linen_item name
+  actual: number;                       // sent_by_hotel, excludes is_dayuse=true
+  predict: number;                      // from calculateExpectedLinen() TS loop
+  max: number;                          // SUM(room_linen_setups.qty) × active_rooms × days
+  statistical: number | null;           // null until Phase 67 ships raw 15-month data
+  pct_vs_predict: number | null;
+  pct_vs_max: number | null;
+  pct_vs_statistical: number | null;
+  tier: "green" | "yellow" | "red" | "na";
+  alert: boolean;
+}
+
+export interface LinenAnalyticsTrendPoint {
+  period: string;                       // ISO date of period start
+  actual: number;
+  predict: number;
+  max: number;
+  statistical: number | null;
+}
+
+export interface LinenAnalyticsResponse {
+  query: LinenAnalyticsQuery;
+  buckets: LinenAnalyticsVarianceRow[];
+  trend: LinenAnalyticsTrendPoint[];
+}
+
+// ─── Phase 68.2a: Amenity Reconciliation ───────────────────────────────────────
+// Pre-merged by Lead 2026-04-18. Agent B reads only. WA: WORK_ASSIGNMENT_PHASE68_2A_AMENITY_RECONCILIATION.md
+
+export type FoPrepareReturnStatus = "pending" | "reconciled" | "legacy";
+
+export interface FoPrepareBatchReturnItem {
+  id: string;
+  batch_id: string;
+  product_id: string;
+  product_name: string;
+  prepared_qty: number;
+  returned_qty: number;
+  damaged_qty: number;
+  consumed_qty: number;                 // GENERATED: prepared - returned - damaged
+  note: string | null;
+  recorded_by: string | null;
+  recorded_at: string;
+}
+
+export interface FoPrepareReturnSubmitItem {
+  product_id: string;
+  prepared_qty: number;
+  returned_qty: number;
+  damaged_qty?: number;
+  note?: string;
+}
+
+export interface FoPrepareReturnSubmitRequest {
+  items: FoPrepareReturnSubmitItem[];
+}
+
+export interface FoPrepareReturnSubmitResponse {
+  success: true;
+  batch_id: string;
+  consumed_total: number;
+  returned_total: number;
+  damaged_total: number;
+  return_status: FoPrepareReturnStatus;
+}
+
+export interface AmenityConsumptionDailyRow {
+  business_date: string;                // YYYY-MM-DD
+  product_id: string;
+  product_name: string;
+  consumed_qty: number;
+  prepared_qty: number;
+  returned_qty: number;
+  damaged_qty: number;
+  batch_count: number;
+}
+
+export type AmenityDataSource = "fo_reconciled" | "audit_adjusted" | "all";
+

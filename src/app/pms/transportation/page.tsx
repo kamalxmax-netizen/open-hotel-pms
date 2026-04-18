@@ -158,12 +158,77 @@ function earliestInProgressLabel(pickupDatetime: string): string {
 function toDateTimeLocalValue(iso: string): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Bangkok",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        hourCycle: "h23",
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === "year")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    const day = parts.find((part) => part.type === "day")?.value;
+    const hour = parts.find((part) => part.type === "hour")?.value;
+    const minute = parts.find((part) => part.type === "minute")?.value;
+    if (!year || !month || !day || !hour || !minute) return "";
     return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+const DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_INPUT_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_TIME_LOCAL_RE = /^(\d{4}-\d{2}-\d{2})T(([01]\d|2[0-3]):[0-5]\d)$/;
+
+function isValidDateInput(value: string): boolean {
+    if (!DATE_INPUT_RE.test(value)) return false;
+    const date = new Date(`${value}T00:00:00+07:00`);
+    return !Number.isNaN(date.getTime()) && toBangkokDateOnly(date.toISOString()) === value;
+}
+
+function normalizeDateInputValue(value: string): string | null {
+    return isValidDateInput(value) ? value : null;
+}
+
+function normalizeTimeInputValue(value: string): string | null {
+    const trimmed = value.trim();
+    if (TIME_INPUT_RE.test(trimmed)) return trimmed;
+    const loose = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (!loose) return null;
+    const hour = Number(loose[1]);
+    const minute = Number(loose[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function localDateTimeParts(value: string): { date: string; time: string } | null {
+    const match = value.match(DATE_TIME_LOCAL_RE);
+    if (!match) return null;
+    const date = normalizeDateInputValue(match[1]);
+    const time = normalizeTimeInputValue(match[2]);
+    if (!date || !time) return null;
+    return { date, time };
+}
+
+function combineDateAndTime(datePart: string, timePart: string): string | null {
+    const date = normalizeDateInputValue(datePart);
+    const time = normalizeTimeInputValue(timePart);
+    if (!date || !time) return null;
+    return `${date}T${time}`;
+}
+
+function bangkokLocalDateTimeToIso(value: string): string | null {
+    const parts = localDateTimeParts(value);
+    if (!parts) return null;
+    const date = new Date(`${parts.date}T${parts.time}:00+07:00`);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+}
+
+function datePartFromLocalDateTime(value: string): string {
+    const parts = localDateTimeParts(value);
+    return parts?.date ?? "";
 }
 
 // ─── Status updater ───────────────────────────────────
@@ -213,7 +278,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
     const [serviceMode, setServiceMode] = useState("hotel_arrange");
     const [pickupDatetime, setPickupDatetime] = useState(() => {
         const d = new Date(); d.setHours(d.getHours() + 2, 0, 0, 0);
-        return d.toISOString().slice(0, 16);
+        return toDateTimeLocalValue(d.toISOString());
     });
     const [pickupLocation, setPickupLocation] = useState("");
     const [dropoffLocation, setDropoffLocation] = useState("");
@@ -337,14 +402,14 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
             setDropoffLocation(route.destination ?? "");
             if (route.ticket_price != null) setSellingPrice(String(route.ticket_price));
             if (route.cost_price != null) setCostPrice(String(route.cost_price));
-            const firstTime = route.departure_times?.[0] ?? "";
+            const firstTime = normalizeTimeInputValue(route.departure_times?.[0] ?? "") ?? "";
             setSelectedDepartureTime(firstTime);
             if (tripMode === "boat") {
                 setTransferType(route.includes_pickup ? "bus_ferry_pickup" : "ticket_only");
                 setServiceMode(route.includes_pickup ? "company_pickup" : "ticket_only");
                 if (firstTime) {
-                    const datePart = pickupDatetime?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-                    setPickupDatetime(`${datePart}T${firstTime}`);
+                    const datePart = datePartFromLocalDateTime(pickupDatetime) || toBangkokDateOnly(new Date().toISOString());
+                    setPickupDatetime(combineDateAndTime(datePart, firstTime) ?? pickupDatetime);
                 }
             }
         }
@@ -397,13 +462,13 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
             if (isBoatType) {
                 if (!selectedRoute) throw new Error("Please select boat route.");
                 if (!selectedDepartureTime) throw new Error("Please select departure time.");
-                const datePart = pickupDatetime?.slice(0, 10);
+                const datePart = datePartFromLocalDateTime(pickupDatetime);
                 if (!datePart) throw new Error("Please select travel date.");
-                const composedLocal = `${datePart}T${selectedDepartureTime}`;
-                const composedDate = new Date(composedLocal);
-                if (Number.isNaN(composedDate.getTime())) throw new Error("Boat departure date/time is invalid.");
+                const composedLocal = combineDateAndTime(datePart, selectedDepartureTime);
+                const composedIso = composedLocal ? bangkokLocalDateTimeToIso(composedLocal) : null;
+                if (!composedLocal || !composedIso) throw new Error("Boat departure date/time is invalid.");
 
-                resolvedPickupDatetimeIso = composedDate.toISOString();
+                resolvedPickupDatetimeIso = composedIso;
                 resolvedPickupLocation = selectedRoute.origin;
                 resolvedDropoffLocation = selectedRoute.destination;
                 resolvedTransferType = selectedRoute.includes_pickup ? "bus_ferry_pickup" : "ticket_only";
@@ -412,12 +477,12 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                 resolvedBoatCompanyId = selectedRoute.company_id;
                 resolvedBoatRouteId = selectedRoute.id;
             } else {
-                const manualDate = new Date(pickupDatetime);
-                if (Number.isNaN(manualDate.getTime())) throw new Error("Pickup date/time is invalid.");
+                const manualIso = bangkokLocalDateTimeToIso(pickupDatetime);
+                if (!manualIso) throw new Error("Pickup date/time is invalid.");
                 if (!resolvedPickupLocation || !resolvedDropoffLocation) {
                     throw new Error("Pickup and drop-off locations are required.");
                 }
-                resolvedPickupDatetimeIso = manualDate.toISOString();
+                resolvedPickupDatetimeIso = manualIso;
                 resolvedBoatCompanyId = null;
                 resolvedBoatRouteId = null;
             }
@@ -460,10 +525,10 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
     const invalidCls = "border-rose-300 bg-rose-50 focus:ring-rose-200 focus:border-rose-400";
     const canNext1 = selectedRes !== null;
     const canNext2 = isBoatType
-        ? Boolean(pickupDatetime?.slice(0, 10))
+        ? Boolean(datePartFromLocalDateTime(pickupDatetime))
         : Boolean(pickupLocation.trim() && dropoffLocation.trim() && pickupDatetime);
     const canSubmit = canNext1 && canNext2 && (!isBoatType || Boolean(selectedRouteId && selectedDepartureTime));
-    const boatTravelDateInvalid = showValidation && isBoatType && !pickupDatetime?.slice(0, 10);
+    const boatTravelDateInvalid = showValidation && isBoatType && !datePartFromLocalDateTime(pickupDatetime);
     const boatRouteInvalid = showValidation && isBoatType && !selectedRouteId;
     const boatDepartureInvalid = showValidation && isBoatType && !selectedDepartureTime;
     const carPickupDatetimeInvalid = showValidation && !isBoatType && !pickupDatetime;
@@ -501,7 +566,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 <div className="mt-2 border border-[var(--border-default)] rounded-xl overflow-hidden">
                                     {resResults.map(r => (
                                         <button key={r.id} type="button" onClick={() => setSelectedRes(r)}
-                                            className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-[var(--border-subtle)] last:border-0 ${selectedRes?.id === r.id ? "bg-blue-50" : ""}`}>
+                                            className={`w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors border-b border-[var(--border-subtle)] last:border-0 ${selectedRes?.id === r.id ? "bg-blue-50 dark:bg-blue-500/20" : ""}`}>
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="font-medium text-[var(--text-primary)]">{r.guest_name}</p>
@@ -517,8 +582,8 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 </div>
                             )}
                             {selectedRes && (
-                                <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
-                                    <p className="text-xs font-semibold text-blue-700">Selected Guest</p>
+                                <div className="mt-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30">
+                                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Selected Guest</p>
                                     <p className="font-bold text-[var(--text-primary)]">{selectedRes.guest_name}</p>
                                     <p className="text-xs font-mono text-[var(--text-secondary)]">{selectedRes.booking_code}</p>
                                 </div>
@@ -533,7 +598,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
                                 <p className="text-xs font-semibold text-[var(--text-secondary)]">Transport Mode</p>
                                 <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "car" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
+                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "car" ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/20 dark:text-blue-400" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
                                         <input
                                             type="radio"
                                             name="trip-mode"
@@ -542,7 +607,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         />
                                         Car
                                     </label>
-                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "boat" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
+                                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${tripMode === "boat" ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/20 dark:text-blue-400" : "border-[var(--border-input)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"}`}>
                                         <input
                                             type="radio"
                                             name="trip-mode"
@@ -560,11 +625,11 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Travel Date *</label>
                                         <input
                                             type="date"
-                                            value={pickupDatetime?.slice(0, 10) ?? ""}
+                                            value={datePartFromLocalDateTime(pickupDatetime)}
                                             onChange={(e) => {
-                                                const datePart = e.target.value;
+                                                const datePart = normalizeDateInputValue(e.target.value);
                                                 const timePart = selectedDepartureTime || "08:00";
-                                                setPickupDatetime(datePart ? `${datePart}T${timePart}` : "");
+                                                setPickupDatetime(datePart ? (combineDateAndTime(datePart, timePart) ?? "") : "");
                                             }}
                                             className={`${inputCls} ${boatTravelDateInvalid ? invalidCls : ""}`}
                                             required
@@ -572,10 +637,10 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                         />
                                         {boatTravelDateInvalid && <p className="mt-1 text-xs text-rose-600">Please select travel date.</p>}
                                     </div>
-                                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                                    <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-400">
                                         Boat route/time will be selected in Step 3 from saved ticket schedules.
                                         {selectedRouteId && (
-                                            <div className="mt-1 text-blue-800">
+                                            <div className="mt-1 text-blue-800 dark:text-blue-300">
                                                 {(() => {
                                                     const route = routes.find((r) => r.id === selectedRouteId);
                                                     if (!route) return null;
@@ -675,7 +740,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 <p className="text-xs text-[var(--text-secondary)]">Loading provider data…</p>
                             )}
                             {providersError && (
-                                <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                                <p className="text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg px-3 py-2">
                                     {providersError}
                                 </p>
                             )}
@@ -720,10 +785,10 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                                 <select
                                                     value={selectedDepartureTime}
                                                     onChange={e => {
-                                                        const nextTime = e.target.value;
+                                                        const nextTime = normalizeTimeInputValue(e.target.value) ?? "";
                                                         setSelectedDepartureTime(nextTime);
-                                                        const datePart = pickupDatetime?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-                                                        setPickupDatetime(`${datePart}T${nextTime}`);
+                                                        const datePart = datePartFromLocalDateTime(pickupDatetime) || toBangkokDateOnly(new Date().toISOString());
+                                                        setPickupDatetime(combineDateAndTime(datePart, nextTime) ?? pickupDatetime);
                                                     }}
                                                     className={`${inputCls} ${boatDepartureInvalid ? invalidCls : ""}`}
                                                     required
@@ -787,10 +852,10 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                                 <p><span className="text-[var(--text-secondary)]">Pickup:</span> {pickupDatetime ? new Date(pickupDatetime).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : "—"}</p>
                                 <p><span className="text-[var(--text-secondary)]">Route:</span> {pickupLocation} → {dropoffLocation}</p>
                                 <p><span className="text-[var(--text-secondary)]">Pax:</span> {pax} · Luggage: {luggage}</p>
-                                {sellingPrice && <p><span className="text-[var(--text-secondary)]">Sell:</span> <strong className="text-green-700">฿{parseFloat(sellingPrice).toLocaleString()}</strong></p>}
-                                {costPrice && <p><span className="text-[var(--text-secondary)]">Net commission:</span> <strong className="text-blue-700">฿{(parseFloat(sellingPrice || "0") - parseFloat(costPrice || "0")).toLocaleString()}</strong></p>}
+                                {sellingPrice && <p><span className="text-[var(--text-secondary)]">Sell:</span> <strong className="text-emerald-600 dark:text-emerald-400">฿{parseFloat(sellingPrice).toLocaleString()}</strong></p>}
+                                {costPrice && <p><span className="text-[var(--text-secondary)]">Net commission:</span> <strong className="text-blue-600 dark:text-blue-400">฿{(parseFloat(sellingPrice || "0") - parseFloat(costPrice || "0")).toLocaleString()}</strong></p>}
                             </div>
-                            {submitError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{submitError}</p>}
+                            {submitError && <p className="text-sm text-red-600 dark:text-rose-400 bg-red-50 dark:bg-rose-500/10 rounded-lg px-3 py-2">{submitError}</p>}
                         </div>
                     )}
 
@@ -800,9 +865,9 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
                             <div className="text-5xl mb-4">✅</div>
                             <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1">Transfer Booked!</h3>
                             {voucherNumber && (
-                                <div className="mt-3 inline-block px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl">
-                                    <p className="text-xs text-blue-500 font-semibold">VOUCHER</p>
-                                    <p className="text-lg font-mono font-bold text-blue-700">{voucherNumber}</p>
+                                <div className="mt-3 inline-block px-4 py-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
+                                    <p className="text-xs text-blue-500 dark:text-blue-400 font-semibold">VOUCHER</p>
+                                    <p className="text-lg font-mono font-bold text-blue-700 dark:text-blue-300">{voucherNumber}</p>
                                 </div>
                             )}
                             <p className="text-sm text-[var(--text-secondary)] mt-3">
@@ -1079,7 +1144,7 @@ function EditTransferModal({
                         <textarea rows={3} value={staffNote} onChange={(e) => setStaffNote(e.target.value)} className={fieldCls} />
                     </div>
 
-                    {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+                    {error && <p className="text-sm text-red-600 dark:text-rose-400 bg-red-50 dark:bg-rose-500/10 rounded-lg px-3 py-2">{error}</p>}
                 </div>
 
                 <div className="sticky bottom-0 bg-[var(--bg-surface)] border-t border-[var(--border-default)] px-6 py-4 flex justify-end gap-3 rounded-b-2xl">

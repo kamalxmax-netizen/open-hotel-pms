@@ -23,6 +23,8 @@ type TaskRow = {
   stay_date: string;
   status: string;
   started_at: string | null;
+  finished_at?: string | null;
+  approved_at?: string | null;
   is_no_service?: boolean | null;
   checklist_snapshot?: unknown;
   rooms?: {
@@ -133,12 +135,21 @@ function classifyTask(
   if (reservation?.is_dayuse || room?.is_dayuse) return null;
   if (task.is_no_service) return "inhouse_no_service";
 
-  const startedAt = task.started_at;
-  if (!startedAt) return reservation?.checkout_date === businessDate ? "checkout_towel_only" : "inhouse_not_started";
-  if (startedAt >= windowEndIso) return "after_cutoff";
-  if (startedAt < windowStartIso) return null;
+  // HK finish flow clears started_at, so completed tasks need the persisted
+  // finish/approval timestamps to stay visible in the cutoff window.
+  const serviceAt = task.started_at ?? task.finished_at ?? task.approved_at ?? null;
+  const taskStayDate = String(task.stay_date ?? "");
 
-  return reservation?.checkout_date === businessDate ? "checkout_serviced" : "inhouse_serviced";
+  if (!serviceAt) {
+    if (taskStayDate !== businessDate) return null;
+    return reservation?.checkout_date === businessDate ? "checkout_towel_only" : "inhouse_not_started";
+  }
+  if (serviceAt >= windowEndIso) return "after_cutoff";
+  if (serviceAt < windowStartIso) return null;
+
+  // Carry-over tasks after yesterday's cutoff still belong to today's pickup,
+  // but checkout/stayover classification must use the task's service date.
+  return reservation?.checkout_date === taskStayDate ? "checkout_serviced" : "inhouse_serviced";
 }
 
 export async function getCurrentBusinessDate(supabase: SupabaseClient): Promise<string> {
@@ -160,6 +171,9 @@ export async function calculateExpectedLinen(
   const businessDate = options.businessDate ?? await getCurrentBusinessDate(supabase);
   const cutoffTime = options.cutoffTime ?? DEFAULT_CUTOFF_TIME;
   const previousDate = addDays(businessDate, -1);
+  // Checkout tasks dated yesterday often point to the reservation night from
+  // the night before checkout, so include one extra night for room/date lookup.
+  const previousNightDate = addDays(businessDate, -2);
   const windowStartIso = bangkokCutoffIso(previousDate, cutoffTime);
   const windowEndIso = bangkokCutoffIso(businessDate, cutoffTime);
 
@@ -176,6 +190,8 @@ export async function calculateExpectedLinen(
         stay_date,
         status,
         started_at,
+        finished_at,
+        approved_at,
         is_no_service,
         checklist_snapshot,
         rooms(id, room_number, is_dayuse, room_types(code)),
@@ -186,7 +202,7 @@ export async function calculateExpectedLinen(
     supabase
       .from("reservation_nights")
       .select("id, room_id, stay_date, cancelled_at, rooms(id, room_number, is_dayuse, room_types(code)), reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse)")
-      .gte("stay_date", previousDate)
+      .gte("stay_date", previousNightDate)
       .lte("stay_date", businessDate)
       .is("cancelled_at", null),
   ]);

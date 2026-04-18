@@ -1,0 +1,79 @@
+/* Phase 68.0 Analytics scoped tokens — dark-only, English UI (D8/D12) */
+.analytics-scope {
+    --a-bg-0: #0a0b0e;
+    --a-bg-1: #12141a;
+    --a-bg-2: #1a1d26;
+    --a-border: #242834;
+    --a-text-0: #e6e8ef;
+    --a-text-1: #9aa0ae;
+    --a-text-2: #5d6476;
+
+    --a-accent-cyan: #22d3ee;
+    --a-accent-amber: #f59e0b;
+    --a-accent-rose: #f43f5e;
+    --a-accent-green: #10b981;
+    --a-accent-violet: #a78bfa;
+
+    --a-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --a-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    background-color: var(--a-bg-0);
+    color: var(--a-text-0);
+    font-family: var(--a-font-body);
+    min-height: 100vh;
+}
+
+.analytics-scope * {
+    font-feature-settings: "cv11", "ss03";
+}
+
+.analytics-scope .a-mono {
+    font-family: var(--a-font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.analytics-scope .a-card {
+    background-color: var(--a-bg-1);
+    border: 1px solid var(--a-border);
+    border-radius: 6px;
+}
+
+.analytics-scope .a-card:hover {
+    background-color: var(--a-bg-2);
+}
+
+.analytics-scope .a-muted { color: var(--a-text-2); }
+.analytics-scope .a-secondary { color: var(--a-text-1); }
+
+.analytics-scope .a-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+}
+
+.analytics-scope .a-badge-green {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: var(--a-accent-green);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+.analytics-scope .a-badge-yellow {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: var(--a-accent-amber);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+.analytics-scope .a-badge-red {
+    background-color: rgba(244, 63, 94, 0.12);
+    color: var(--a-accent-rose);
+    border-color: rgba(244, 63, 94, 0.3);
+}
+.analytics-scope .a-badge-na {
+    background-color: rgba(93, 100, 118, 0.12);
+    color: var(--a-text-2);
+    border-color: var(--a-border);
+}

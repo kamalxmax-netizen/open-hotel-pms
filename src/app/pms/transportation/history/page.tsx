@@ -46,13 +46,13 @@ interface Voucher {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-800",
-    confirmed: "bg-blue-100 text-blue-800",
-    driver_assigned: "bg-indigo-100 text-indigo-800",
-    in_progress: "bg-green-100 text-green-800",
-    completed: "bg-emerald-100 text-emerald-800",
-    cancelled: "bg-red-100 text-red-800",
-    no_show: "bg-gray-100 text-gray-800",
+    pending: "bg-yellow-100 text-yellow-800 dark:bg-amber-500/10 dark:text-amber-400",
+    confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400",
+    driver_assigned: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-400",
+    in_progress: "bg-green-100 text-green-800 dark:bg-emerald-500/10 dark:text-emerald-400",
+    completed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
+    cancelled: "bg-red-100 text-red-800 dark:bg-rose-500/10 dark:text-rose-400",
+    no_show: "bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/40",
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -213,13 +213,13 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                         <div className="flex flex-wrap gap-2 mt-2">
                             {COMPLETABLE.includes(transfer.status) && (
                                 <button onClick={() => setStatus("completed")} disabled={updatingStatus}
-                                    className="px-3 py-1 text-xs bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-200 disabled:opacity-50">
+                                    className="px-3 py-1 text-xs bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-emerald-500/20 disabled:opacity-50">
                                     ✓ Mark Completed
                                 </button>
                             )}
                             {CANCELLABLE.includes(transfer.status) && (
                                 <button onClick={() => setStatus("cancelled")} disabled={updatingStatus}
-                                    className="px-3 py-1 text-xs bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50">
+                                    className="px-3 py-1 text-xs bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 dark:hover:bg-rose-500/20 disabled:opacity-50">
                                     ✕ Cancel Transfer
                                 </button>
                             )}
@@ -228,14 +228,14 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                                     onClick={() => setStatus("in_progress")}
                                     disabled={updatingStatus || !canStartNow}
                                     title={canStartNow ? "Start now" : `Can start from ${earliestStart} (Asia/Bangkok)`}
-                                    className="px-3 py-1 text-xs bg-green-100 text-green-700 border border-green-300 rounded-lg hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-3 py-1 text-xs bg-green-100 text-green-700 border border-green-300 rounded-lg hover:bg-green-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     ▶ Start In Progress
                                 </button>
                             )}
                             {transfer.status === "in_progress" && (
                                 <button onClick={() => setStatus("no_show")} disabled={updatingStatus}
-                                    className="px-3 py-1 text-xs bg-gray-100 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50">
+                                    className="px-3 py-1 text-xs bg-gray-100 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-200 dark:bg-white/5 dark:text-white/40 dark:border-white/10 dark:hover:bg-white/10 disabled:opacity-50">
                                     No Show
                                 </button>
                             )}
@@ -244,7 +244,7 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                             Edit booking is available on Daily Board page as popup.
                         </p>
                         {showInProgressStartButton && !canStartNow && (
-                            <p className="text-[11px] text-amber-700">
+                            <p className="text-[11px] text-amber-700 dark:text-amber-500">
                                 In Progress allowed from {earliestStart} (Asia/Bangkok). If schedule changed, edit pickup time first.
                             </p>
                         )}
@@ -265,7 +265,7 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                         ) : (
                             <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl p-4 space-y-1 text-sm">
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="font-mono font-bold text-blue-700">{voucher.voucher_number}</p>
+                                    <p className="font-mono font-bold text-blue-700 dark:text-blue-400">{voucher.voucher_number}</p>
                                     <button onClick={() => window.print()} className="px-2 py-1 text-xs border border-[var(--border-input)] rounded-lg hover:bg-[var(--bg-body)]">🖨️ Print</button>
                                 </div>
                                 {voucher.route_description && <p><span className="text-[var(--text-muted)]">Route:</span> {voucher.route_description}</p>}
@@ -274,7 +274,7 @@ function ExpandedRow({ transfer, onRefresh }: { transfer: TransferRow; onRefresh
                                 {voucher.pickup_time && <p><span className="text-[var(--text-muted)]">Pickup:</span> {voucher.pickup_time}</p>}
                                 {voucher.driver_name && <p><span className="text-[var(--text-muted)]">Driver:</span> {voucher.driver_name}</p>}
                                 {voucher.vehicle_info && <p><span className="text-[var(--text-muted)]">Vehicle:</span> {voucher.vehicle_info}</p>}
-                                {voucher.special_instructions && <p className="text-xs text-amber-700 mt-2 bg-amber-50 rounded p-2">{voucher.special_instructions}</p>}
+                                {voucher.special_instructions && <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 bg-amber-50 dark:bg-amber-500/10 rounded p-2">{voucher.special_instructions}</p>}
                             </div>
                         )}
                     </div>
@@ -351,8 +351,8 @@ export default function TransferHistoryPage() {
             {/* Summary */}
             <div className="flex items-center gap-6 mb-4 px-4 py-3 bg-[var(--bg-body)] rounded-xl text-sm">
                 <span className="text-[var(--text-secondary)]">Results: <strong>{total}</strong></span>
-                <span className="text-[var(--text-secondary)]">Revenue: <strong className="text-emerald-700 font-mono">฿{totalRevenue.toLocaleString()}</strong></span>
-                <span className="text-[var(--text-secondary)]">Net Commission: <strong className="text-blue-700 font-mono">฿{totalCommission.toLocaleString()}</strong></span>
+                <span className="text-[var(--text-secondary)]">Revenue: <strong className="text-emerald-700 dark:text-emerald-400 font-mono">฿{totalRevenue.toLocaleString()}</strong></span>
+                <span className="text-[var(--text-secondary)]">Net Commission: <strong className="text-blue-700 dark:text-blue-400 font-mono">฿{totalCommission.toLocaleString()}</strong></span>
             </div>
 
             {loading ? (
@@ -384,7 +384,7 @@ export default function TransferHistoryPage() {
                             {transfers.map(t => (
                                 <Fragment key={t.id}>
                                     <tr
-                                        className={`border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)] transition-colors cursor-pointer ${expandedId === t.id ? "bg-blue-50" : ""}`}
+                                        className={`border-b border-[var(--border-subtle)] hover:bg-[var(--bg-body)] transition-colors cursor-pointer ${expandedId === t.id ? "bg-blue-50 dark:bg-blue-500/20" : ""}`}
                                         onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}>
                                         <td className="px-4 py-3 text-[var(--text-secondary)] text-xs">{formatDate(t.pickup_datetime)}</td>
                                         <td className="px-4 py-3 font-mono font-semibold">{formatTime(t.pickup_datetime)}</td>
@@ -397,7 +397,7 @@ export default function TransferHistoryPage() {
                                         <td className="px-4 py-3 text-[var(--text-secondary)]">{t.driver_name ?? <span className="text-[var(--text-muted)]">—</span>}</td>
                                         <td className="px-4 py-3 text-right font-mono">{t.selling_price != null ? t.selling_price.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3 text-right font-mono text-[var(--text-muted)]">{t.cost_price != null ? t.cost_price.toLocaleString() : "—"}</td>
-                                        <td className="px-4 py-3 text-right font-mono font-medium text-blue-700">{t.net_commission != null ? t.net_commission.toLocaleString() : "—"}</td>
+                                        <td className="px-4 py-3 text-right font-mono font-medium text-blue-700 dark:text-blue-400">{t.net_commission != null ? t.net_commission.toLocaleString() : "—"}</td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100"}`}>
                                                 {t.status.replace(/_/g, " ")}
