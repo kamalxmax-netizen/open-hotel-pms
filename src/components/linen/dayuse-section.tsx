@@ -17,6 +17,7 @@ interface DayuseSectionProps {
     // FO inputs
     editedDayuse: Record<number, string>;
     onDayuseChange: (linen_item_id: number, value: string) => void;
+    onSendAll: () => void;
 }
 
 export function DayuseSection({
@@ -26,9 +27,12 @@ export function DayuseSection({
     isOpen,
     onToggle,
     editedDayuse,
-    onDayuseChange
+    onDayuseChange,
+    onSendAll
 }: DayuseSectionProps) {
     const isReady = towelCount >= threshold;
+    const sendableCount = accumulatedItems.reduce((sum, item) => sum + Math.max(0, Number(item.qty ?? 0)), 0);
+    const hasSendableItems = sendableCount > 0;
 
     return (
         <div className="mt-8 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 transition-colors">
@@ -57,7 +61,22 @@ export function DayuseSection({
                     </div>
                 </div>
 
-                <div className="text-slate-400">
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            if (hasSendableItems) onSendAll();
+                        }}
+                        disabled={!hasSendableItems}
+                        className={`rounded-lg px-3 py-2 text-xs font-black transition-colors ${
+                            hasSendableItems
+                                ? "bg-amber-500 text-white hover:bg-amber-600"
+                                : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600"
+                        }`}
+                    >
+                        {hasSendableItems ? `ส่งทั้งหมด ${sendableCount}` : "ไม่มีให้ส่ง"}
+                    </button>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}>
                         <polyline points="6 9 12 15 18 9"/>
                     </svg>

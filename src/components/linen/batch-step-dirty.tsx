@@ -31,6 +31,18 @@ const dayuseFetcher = async (url: string): Promise<DayuseViewData> => {
     };
 };
 
+function toPositiveInteger(value: unknown) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function isFullDayuseSelection(dayuseData: DayuseViewData | undefined, editedDayuse: Record<number, string>) {
+    const accumulated = dayuseData?.accumulated ?? [];
+    const sendable = accumulated.filter((item) => Number(item.qty ?? 0) > 0);
+    if (sendable.length === 0) return false;
+    return sendable.every((item) => toPositiveInteger(editedDayuse[item.linen_item_id]) === Number(item.qty ?? 0));
+}
+
 interface BatchStepDirtyProps {
     onNext: (batchId: string) => void;
 }
@@ -63,8 +75,24 @@ export function BatchStepDirty({ onNext }: BatchStepDirtyProps) {
         setEditedDayuse(prev => ({ ...prev, [id]: val }));
     };
 
+    const handleSendAllDayuse = () => {
+        const accumulated = dayuseData?.accumulated ?? [];
+        const sendable = accumulated.filter((item) => Number(item.qty ?? 0) > 0);
+        setIsDayuseOpen(true);
+        if (sendable.length === 0) return;
+
+        setEditedDayuse(prev => {
+            const next = { ...prev };
+            for (const item of sendable) {
+                next[item.linen_item_id] = String(Number(item.qty ?? 0));
+            }
+            return next;
+        });
+    };
+
     const handleSubmit = async () => {
         if (!isComplete || !expected) return;
+        const shouldClearDayuseAccumulator = isFullDayuseSelection(dayuseData, editedDayuse);
         setIsSubmitting(true);
         try {
             const itemsToSubmit = expected.items.map(item => ({
@@ -106,6 +134,18 @@ export function BatchStepDirty({ onNext }: BatchStepDirtyProps) {
             }
 
             const result = await res.json();
+            const submittedBatchId = result?.data?.batch?.id;
+            if (shouldClearDayuseAccumulator && submittedBatchId) {
+                const dayuseRes = await fetch("/api/linen/dayuse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "add_to_batch", batch_id: submittedBatchId }),
+                });
+                const dayuseResult = await dayuseRes.json().catch(() => null);
+                if (!dayuseRes.ok) {
+                    throw new Error(dayuseResult?.error || "Failed to send accumulated dayuse linen");
+                }
+            }
             onNext(result.data.batch.id);
         } catch (error) {
             console.error(error);
@@ -167,14 +207,22 @@ export function BatchStepDirty({ onNext }: BatchStepDirtyProps) {
                     </div>
 
                     {dayuseData && !isDayuseOpen && (
-                        <div className="mt-4 text-center">
+                        <div className="mt-4 flex justify-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => setIsDayuseOpen(true)}
                                 className="text-sm font-semibold text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 px-4 py-2 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors inline-flex items-center gap-2"
                             >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M12 5v14M5 12h14"/></svg>
-                                เพิ่มผ้าเก่า {dayuseData.towel_count >= dayuseData.threshold && <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1">{dayuseData.towel_count}</span>}
+                                ส่งผ้าเก่า {dayuseData.towel_count >= dayuseData.threshold && <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1">{dayuseData.towel_count}</span>}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSendAllDayuse}
+                                disabled={!dayuseData.accumulated.some((item) => Number(item.qty ?? 0) > 0)}
+                                className="text-sm font-black text-white border border-amber-500 bg-amber-500 px-4 py-2 rounded-lg hover:bg-amber-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:border-slate-800 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 transition-colors inline-flex items-center gap-2"
+                            >
+                                ส่งทั้งหมด
                             </button>
                         </div>
                     )}
@@ -188,6 +236,7 @@ export function BatchStepDirty({ onNext }: BatchStepDirtyProps) {
                             onToggle={() => setIsDayuseOpen(!isDayuseOpen)}
                             editedDayuse={editedDayuse}
                             onDayuseChange={handleDayuseChange}
+                            onSendAll={handleSendAllDayuse}
                         />
                     )}
                 </div>

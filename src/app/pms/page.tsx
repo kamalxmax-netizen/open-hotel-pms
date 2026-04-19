@@ -102,7 +102,7 @@ export default function DashboardPage() {
     if (pct >= 40) return "border-amber-400 text-amber-700 bg-amber-50";
     return "border-rose-400 text-rose-700 bg-rose-50";
   };
-  
+
   const getOccSimpleColor = (pct: number) => {
     if (pct >= 70) return "border-emerald-500";
     if (pct >= 40) return "border-amber-500";
@@ -184,7 +184,7 @@ export default function DashboardPage() {
               color={getOccSimpleColor(data.live.occupancy_pct)}
               sub={`${data.live.in_house} / ${data.live.sellable_rooms} sellable rooms`}
             />
-             <StatTile
+            <StatTile
               label="ADR"
               value={formatB(data.revenue.adr)}
               color="border-sky-400"
@@ -209,25 +209,25 @@ export default function DashboardPage() {
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3">Live Front Desk Operations</h2>
             <div className="flex flex-wrap gap-2 md:gap-4">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 rounded-lg border border-brand-200 text-sm dark:bg-brand-500/10 dark:text-brand-400 dark:border-brand-500/20">
-                 <span className="font-semibold">Arrivals:</span> 
-                 <span className="font-bold">{data.live.arrivals_checked_in}/{data.live.arrivals}</span>
+                <span className="font-semibold">Arrivals:</span>
+                <span className="font-bold">{data.live.arrivals_checked_in}/{data.live.arrivals}</span>
               </div>
-               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200 text-sm dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20">
-                 <span className="font-semibold">Departures:</span> 
-                 <span className="font-bold">{data.live.departures_checked_out}/{data.live.departures}</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200 text-sm dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20">
+                <span className="font-semibold">Departures:</span>
+                <span className="font-bold">{data.live.departures_checked_out}/{data.live.departures}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-table-cell)] rounded-lg border border-[var(--border-default)] text-sm dark:bg-white/5 dark:border-white/10">
-                 <span className="font-semibold">In-house:</span> 
-                 <span className="font-bold">{data.live.in_house}</span>
+                <span className="font-semibold">In-house:</span>
+                <span className="font-bold">{data.live.in_house}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg border border-rose-200 text-sm dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
-                 <span className="font-semibold">No-show Pending:</span> 
-                 <span className="font-bold">{data.live.no_show_pending}</span>
+                <span className="font-semibold">No-show Pending:</span>
+                <span className="font-bold">{data.live.no_show_pending}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-sm dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
-                 <span className="font-semibold">Dirty Rooms:</span> 
-                 <span className="font-bold">{data.live.dirty_rooms}</span>
-                 <Link href="/pms/board" className="ml-1 text-[10px] uppercase text-amber-600 dark:text-amber-400 hover:underline">View</Link>
+                <span className="font-semibold">Dirty Rooms:</span>
+                <span className="font-bold">{data.live.dirty_rooms}</span>
+                <Link href="/pms/board" className="ml-1 text-[10px] uppercase text-amber-600 dark:text-amber-400 hover:underline">View</Link>
               </div>
             </div>
           </div>
@@ -238,15 +238,15 @@ export default function DashboardPage() {
             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
               <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Cash Received (Business Date)</h2>
               <div className="space-y-4">
-                 {[
-                   { label: 'Bank Transfer', val: data.payments.transfer || 0, key: 'transfer' },
-                   { label: 'Cash', val: data.payments.cash || 0, key: 'cash' },
-                   { label: 'Credit Card', val: data.payments.credit_card || 0, key: 'credit_card' },
-                   { label: 'Other', val: data.payments.other || 0, key: 'other' },
-                 ]
-                 .sort((a,b) => b.val - a.val)
-                 .filter(item => item.val > 0)
-                 .map(item => {
+                {[
+                  { label: 'Bank Transfer', val: data.payments.transfer || 0, key: 'transfer' },
+                  { label: 'Cash', val: data.payments.cash || 0, key: 'cash' },
+                  { label: 'Credit Card', val: data.payments.credit_card || 0, key: 'credit_card' },
+                  { label: 'Other', val: data.payments.other || 0, key: 'other' },
+                ]
+                  .sort((a, b) => b.val - a.val)
+                  .filter(item => item.val > 0)
+                  .map(item => {
                     const max = Math.max(0.01, data.payments.total || 0.01); // Prevent division by zero
                     const pct = Math.round((item.val / max) * 100);
                     return (
@@ -260,22 +260,22 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )
-                 })}
-                 {(data.payments.total || 0) === 0 && (
-                   <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
-                     No payments received yet.
-                   </div>
-                 )}
+                  })}
+                {(data.payments.total || 0) === 0 && (
+                  <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
+                    No payments received yet.
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Revenue By Source */}
             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
               <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Revenue by Source</h2>
-               <div className="space-y-4">
-                 {Object.entries(data.revenue.by_source || {})
-                 .sort(([, a], [, b]) => b.revenue - a.revenue)
-                 .map(([source, stats]) => {
+              <div className="space-y-4">
+                {Object.entries(data.revenue.by_source || {})
+                  .sort(([, a], [, b]) => b.revenue - a.revenue)
+                  .map(([source, stats]) => {
                     return (
                       <div key={source}>
                         <div className="flex justify-between text-xs mb-1">
@@ -287,12 +287,12 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )
-                 })}
-                 {(!data.revenue.by_source || Object.keys(data.revenue.by_source).length === 0) && (
-                   <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
-                     No revenue recorded yet.
-                   </div>
-                 )}
+                  })}
+                {(!data.revenue.by_source || Object.keys(data.revenue.by_source).length === 0) && (
+                  <div className="text-sm text-[var(--text-muted)] py-6 text-center italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
+                    No revenue recorded yet.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -300,7 +300,7 @@ export default function DashboardPage() {
           {/* Row 5: 7-Day Trend */}
           <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-5">
             <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-6">7-Day Revenue Trend</h2>
-            
+
             {(!data.trend || data.trend.length === 0) ? (
               <div className="h-40 flex items-center justify-center text-[var(--text-muted)] text-sm italic border border-dashed border-[var(--border-default)] rounded-lg bg-[var(--bg-body)]">
                 No data yet
@@ -309,32 +309,32 @@ export default function DashboardPage() {
               <div className="flex items-end gap-2 h-48 mt-4 pt-4 border-t border-[var(--border-subtle)]">
                 {data.trend.map((day, i) => {
                   // Find max revenue for scaling. Fallback to 1 if all 0 to avoid division by zero
-                   const maxRev = Math.max(1, ...data.trend.map(d => d.revenue));
-                   const heightPct = Math.max(5, (day.revenue / maxRev) * 100); // Give min height of 5% if > 0
-                   const isWeekend = new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6;
-                   
-                   return (
-                     <div key={day.date} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-crosshair">
-                       {/* Tooltip on hover */}
-                       <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none shadow-lg">
-                         <p className="font-bold">{formatB(day.revenue)}</p>
-                         <p>Occ: {day.occupancy_pct.toFixed(0)}%</p>
-                       </div>
-                       
-                       {/* Bar */}
-                       <div 
+                  const maxRev = Math.max(1, ...data.trend.map(d => d.revenue));
+                  const heightPct = Math.max(5, (day.revenue / maxRev) * 100); // Give min height of 5% if > 0
+                  const isWeekend = new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6;
+
+                  return (
+                    <div key={day.date} className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-crosshair">
+                      {/* Tooltip on hover */}
+                      <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none shadow-lg">
+                        <p className="font-bold">{formatB(day.revenue)}</p>
+                        <p>Occ: {day.occupancy_pct.toFixed(0)}%</p>
+                      </div>
+
+                      {/* Bar */}
+                      <div
                         className={`w-full max-w-[48px] rounded-t-sm transition-all duration-300 ease-out 
                                   ${isWeekend ? 'bg-brand-500' : 'bg-brand-400'} 
                                   group-hover:opacity-80 group-hover:scale-y-105 origin-bottom`}
                         style={{ height: `${heightPct}%` }}
-                       />
-                       
-                       {/* Label */}
-                       <div className="mt-2 text-[10px] text-[var(--text-secondary)] font-medium rotate-[-45deg] origin-top-left translate-y-2 translate-x-3 w-12 whitespace-nowrap">
-                         {formatDateDisplay(day.date, { withYear: false })}
-                       </div>
-                     </div>
-                   )
+                      />
+
+                      {/* Label */}
+                      <div className="mt-2 text-[10px] text-[var(--text-secondary)] font-medium rotate-[-45deg] origin-top-left translate-y-2 translate-x-3 w-12 whitespace-nowrap">
+                        {formatDateDisplay(day.date, { withYear: false })}
+                      </div>
+                    </div>
+                  )
                 })}
               </div>
             )}
@@ -346,41 +346,41 @@ export default function DashboardPage() {
 
           {/* Row 6: Extras  */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 flex justify-between items-center group">
-               <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Transfer Services</p>
-                  <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.transfer_revenue)}</p>
-               </div>
-               <div className="text-right">
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Margin</p>
-                 <p className="text-sm font-bold text-emerald-700">{formatB(data.extras.transfer_margin)}</p>
-               </div>
-             </div>
-             
-             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
-               <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">POS Revenue</p>
-               <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.pos_revenue)}</p>
-             </div>
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 flex justify-between items-center group">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Transfer Services</p>
+                <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.transfer_revenue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Margin</p>
+                <p className="text-sm font-bold text-emerald-700">{formatB(data.extras.transfer_margin)}</p>
+              </div>
+            </div>
 
-             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
-               <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Tips Logged</p>
-               <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.tip_total)}</p>
-             </div>
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">POS Revenue</p>
+              <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.pos_revenue)}</p>
+            </div>
 
-             <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-rose-200 p-4 flex items-center justify-between group">
-               <div>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-rose-600 transition-colors">Day Use Revenue</p>
-                 <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.dayuse_revenue)}</p>
-               </div>
-               <div className="text-right">
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Sessions</p>
-                 <p className="text-lg font-bold text-rose-700">{fmt(data.extras.dayuse_sessions)}</p>
-               </div>
-             </div>
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-[var(--border-default)] p-4 group">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-brand-600 transition-colors">Tips Logged</p>
+              <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.tip_total)}</p>
+            </div>
+
+            <div className="bg-[var(--bg-surface)] rounded-xl shadow-sm border border-rose-200 p-4 flex items-center justify-between group">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-rose-600 transition-colors">Day Use Revenue</p>
+                <p className="text-xl font-bold text-[var(--text-primary)] mt-0.5">{formatB(data.extras.dayuse_revenue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Sessions</p>
+                <p className="text-lg font-bold text-rose-700">{fmt(data.extras.dayuse_sessions)}</p>
+              </div>
+            </div>
           </div>
 
-           {/* Quick lists (Arrivals/Departures/Traces from original UI down here now) */}
-           <div className="grid gap-4 lg:grid-cols-3 pt-6 border-t mt-6">
+          {/* Quick lists (Arrivals/Departures/Traces from original UI down here now) */}
+          <div className="grid gap-4 lg:grid-cols-3 pt-6 border-t mt-6">
             {/* Arrivals preview */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
@@ -427,14 +427,14 @@ export default function DashboardPage() {
                     <div key={item.id} className="flex items-center justify-between rounded-lg bg-[var(--bg-body)] px-3 py-2.5">
                       <p className="text-sm font-semibold text-[var(--text-primary)]">{item.guest_name}</p>
                       <span className="text-sm font-semibold text-[var(--text-table-cell)]">
-                         {formatB(item.total_price)}
+                        {formatB(item.total_price)}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            
+
             {/* Open Traces on Business Date */}
             <div className="card p-4 border-amber-200 bg-amber-50/20 dark:border-amber-500/20 dark:bg-amber-500/5">
               <div className="flex items-center justify-between mb-3">

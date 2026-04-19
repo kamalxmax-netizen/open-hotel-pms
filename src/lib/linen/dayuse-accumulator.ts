@@ -2,17 +2,44 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const DAYUSE_TOWEL_THRESHOLD = 30;
 
-export async function getDayuseAccumulator(supabase: SupabaseClient) {
+export async function getDayuseAccumulator(supabase: SupabaseClient, options: { includeSetupRows?: boolean } = {}) {
   const { data, error } = await supabase
     .from("linen_dayuse_pending")
     .select("*, linen_items(item_number, name_th)")
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row: any) => ({
+  const rows = (data ?? []).map((row: any) => ({
     ...row,
     item_number: row.linen_items?.item_number,
     name_th: row.linen_items?.name_th,
   }));
+
+  if (!options.includeSetupRows) return rows;
+
+  const { data: setupRows, error: setupError } = await supabase
+    .from("linen_dayuse_setup")
+    .select("linen_item_id, qty_per_room, linen_items(item_number, name_th)");
+  if (setupError) throw new Error(setupError.message);
+
+  const rowsByItem = new Map(rows.map((row: any) => [Number(row.linen_item_id), row]));
+  for (const setup of setupRows ?? []) {
+    const itemId = Number((setup as any).linen_item_id);
+    if (rowsByItem.has(itemId)) continue;
+    const linenItem = Array.isArray((setup as any).linen_items) ? (setup as any).linen_items[0] : (setup as any).linen_items;
+    rows.push({
+      id: `setup-${itemId}`,
+      linen_item_id: itemId,
+      qty_accumulated: 0,
+      qty_per_room: Number((setup as any).qty_per_room ?? 0),
+      last_added_date: null,
+      sent_in_batch_id: null,
+      sent_at: null,
+      item_number: linenItem?.item_number,
+      name_th: linenItem?.name_th,
+    });
+  }
+
+  return rows.sort((a: any, b: any) => Number(a.item_number ?? 9999) - Number(b.item_number ?? 9999));
 }
 
 export async function addDayuseRoomsToAccumulator(

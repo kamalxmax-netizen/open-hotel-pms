@@ -30,6 +30,76 @@ function normalizeCategory(input: string): string {
   return "Amenity";
 }
 
+async function syncAmenityAnalyticsSetup(roomTypeCode: string) {
+  const { data: roomType, error: roomTypeError } = await supabase
+    .from("room_types")
+    .select("id, code, name_en")
+    .eq("code", roomTypeCode)
+    .maybeSingle();
+
+  if (roomTypeError) throw roomTypeError;
+  if (!roomType?.id) return 0;
+
+  const roomTypeName = String((roomType as any).name_en ?? "");
+  if (String((roomType as any).code ?? "").toUpperCase() === "CLOSED" || roomTypeName.toLowerCase().includes("closed")) {
+    return 0;
+  }
+
+  const { data: amenityProducts, error: productsError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("is_active", true)
+    .in("stock_tracking_mode", ["amenity_prepare", "amenity_direct"]);
+
+  if (productsError) throw productsError;
+
+  const productIds = (amenityProducts ?? []).map((row: any) => String(row.id)).filter(Boolean);
+  if (productIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("room_type_amenity_setups")
+      .delete()
+      .eq("room_type_id", Number((roomType as any).id))
+      .in("product_id", productIds);
+
+    if (deleteError) throw deleteError;
+  }
+
+  const { data: activeTemplates, error: templatesError } = await supabase
+    .from("checklist_templates")
+    .select("product_id, default_quantity")
+    .eq("room_type_code", roomTypeCode)
+    .eq("is_active", true)
+    .not("product_id", "is", null);
+
+  if (templatesError) throw templatesError;
+
+  const allowedProductIds = new Set(productIds);
+  const byProduct = new Map<string, number>();
+  for (const item of activeTemplates ?? []) {
+    const productId = String((item as any).product_id ?? "");
+    if (!productId || !allowedProductIds.has(productId)) continue;
+    const qty = Math.max(0, Number((item as any).default_quantity ?? 0));
+    if (qty <= 0) continue;
+    byProduct.set(productId, Math.max(byProduct.get(productId) ?? 0, qty));
+  }
+
+  const rows = Array.from(byProduct.entries()).map(([product_id, units_per_occupied_night]) => ({
+    room_type_id: Number((roomType as any).id),
+    product_id,
+    units_per_occupied_night,
+  }));
+
+  if (rows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from("room_type_amenity_setups")
+      .upsert(rows, { onConflict: "room_type_id,product_id" });
+
+    if (upsertError) throw upsertError;
+  }
+
+  return rows.length;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const roomTypeCode = request.nextUrl.searchParams.get("room_type_code");
@@ -136,6 +206,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: refreshError.message }, { status: 500 });
     }
 
+    const syncedSetupRows = await syncAmenityAnalyticsSetup(roomTypeCode);
+
     return NextResponse.json({
       success: true,
       items: (refreshed ?? []).map((row) => ({
@@ -143,6 +215,7 @@ export async function PUT(request: NextRequest) {
         category: normalizeCategory(String(row.category ?? "Amenity")),
       })),
       allowed_categories: ALLOWED_AMENITY_CATEGORIES,
+      analytics_setup_synced: syncedSetupRows,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message ?? String(err) }, { status: 500 });

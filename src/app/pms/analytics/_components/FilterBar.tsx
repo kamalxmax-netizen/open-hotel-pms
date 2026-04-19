@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AnalyticsWindow } from "@/lib/analytics/types";
+import type { AmenityAnalyticsSource, AnalyticsWindow } from "@/lib/analytics/types";
 
 const WINDOWS: AnalyticsWindow[] = ["day", "week", "month"];
 
@@ -47,12 +47,14 @@ type FilterBarProps = {
     categoryOptions?: FilterOption[];
     showCategory?: boolean;
     showRoomType?: boolean;
+    showSource?: boolean;
 };
 
 export function FilterBar({
     categoryOptions = DEFAULT_CATEGORY_OPTIONS,
     showCategory = true,
     showRoomType = true,
+    showSource = false,
 }: FilterBarProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -64,6 +66,7 @@ export function FilterBar({
     const end = params.get("end") || defaultEnd();
     const category = parseList(params.get("category"));
     const room_type = parseList(params.get("room_type"));
+    const source = (params.get("source") as AmenityAnalyticsSource) || "all";
 
     const updateParam = useCallback(
         (key: string, value: string | null) => {
@@ -155,6 +158,27 @@ export function FilterBar({
                     onClear={() => updateParam("category", null)}
                     summary={summarize(category, categoryOptions)}
                 />
+            )}
+
+            {showSource && (
+                <div className="flex items-center gap-2">
+                    <span className="a-muted text-[11px] uppercase tracking-[0.15em]">Source</span>
+                    <div className="flex border border-[var(--a-border)] rounded overflow-hidden">
+                        {[
+                            { value: "all", label: "All" },
+                            { value: "fo_reconciled", label: "FO" },
+                            { value: "audit_adjusted", label: "Audit" },
+                        ].map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => updateParam("source", option.value === "all" ? null : option.value)}
+                                className={`a-mono px-3 py-1 text-xs ${source === option.value ? "bg-[var(--a-bg-2)] text-[var(--a-text-0)]" : "a-secondary"}`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             )}
 
             {showRoomType && (

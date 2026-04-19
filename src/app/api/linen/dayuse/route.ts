@@ -19,7 +19,7 @@ const schema = z.discriminatedUnion("action", [
 export async function GET(request: NextRequest) {
   try {
     const { supabase } = await requireLinenAccess(request);
-    const rows = await getDayuseAccumulator(supabase);
+    const rows = await getDayuseAccumulator(supabase, { includeSetupRows: true });
     const towel = rows.find((row: any) => Number(row.item_number) === 2);
     return NextResponse.json({
       success: true,

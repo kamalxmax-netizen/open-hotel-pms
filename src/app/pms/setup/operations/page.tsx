@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AmenityPerRoomSetupSection } from "./AmenityPerRoomSetupSection";
 
 const MODULES = [
   {
@@ -53,6 +54,8 @@ export default function OperationsSetupPage() {
           </Link>
         ))}
       </div>
+
+      <AmenityPerRoomSetupSection />
     </div>
   );
 }

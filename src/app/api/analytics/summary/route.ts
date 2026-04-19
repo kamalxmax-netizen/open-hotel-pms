@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyticsApiError, requireAnalyticsAccess } from "@/lib/analytics/api-auth";
 import { AnalyticsQueryError, parseAnalyticsQuery } from "@/lib/analytics/query";
-import { mockAmenityMetric } from "@/lib/analytics/mock";
 import { worstTier } from "@/lib/analytics/variance";
+import { fetchAmenityVariance } from "@/lib/analytics/amenity/service";
 import { fetchLinenTrend, fetchLinenVariance } from "@/lib/analytics/linen/service";
 
 function percent(actual: number, baseline: number): number {
@@ -16,13 +16,23 @@ export async function GET(request: NextRequest) {
         const query = parseAnalyticsQuery(request.nextUrl.searchParams);
         const linen = await fetchLinenVariance(supabase, query);
         const linenTrend = await fetchLinenTrend(supabase, query);
-        const amenity = mockAmenityMetric(query);
+        const amenity = await fetchAmenityVariance(supabase, query);
 
         const linenActual = linen.buckets.reduce((sum, bucket) => sum + bucket.actual, 0);
         const linenMax = linen.buckets.reduce((sum, bucket) => sum + bucket.baselines.max.value, 0);
         const amenityActual = amenity.buckets.reduce((sum, bucket) => sum + bucket.actual, 0);
-        const amenityMax = amenity.buckets.reduce((sum, bucket) => sum + bucket.baselines.max.value, 0);
+        const amenityMax = amenity.buckets.reduce((sum, bucket) => sum + (bucket.baselines.max?.value ?? 0), 0);
         const alerts = [...linen.buckets, ...amenity.buckets].filter((bucket) => bucket.alert).length;
+        const amenityTier = worstTier(
+            amenity.buckets.map((bucket) => ({
+                ...bucket,
+                baselines: {
+                    predict: bucket.baselines.predict ?? { source: "predict" as const, value: 0 },
+                    statistical: bucket.baselines.statistical,
+                    max: bucket.baselines.max ?? { source: "max" as const, value: 0 },
+                },
+            }))
+        );
 
         return NextResponse.json({
             success: true,
@@ -42,7 +52,7 @@ export async function GET(request: NextRequest) {
                         label: "Amenity Usage",
                         value: percent(amenityActual, amenityMax),
                         unit: "%",
-                        tier: worstTier(amenity.buckets),
+                        tier: amenityTier,
                         delta_pct: null,
                     },
                     {

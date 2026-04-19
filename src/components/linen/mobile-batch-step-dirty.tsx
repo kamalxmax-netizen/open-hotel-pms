@@ -31,6 +31,18 @@ const dayuseFetcher = async (url: string) => {
     };
 };
 
+function toPositiveInteger(value: unknown) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function isFullDayuseSelection(dayuseData: Awaited<ReturnType<typeof dayuseFetcher>> | undefined, editedDayuse: Record<number, string>) {
+    const accumulated = dayuseData?.accumulated ?? [];
+    const sendable = accumulated.filter((item) => Number(item.qty ?? 0) > 0);
+    if (sendable.length === 0) return false;
+    return sendable.every((item) => toPositiveInteger(editedDayuse[item.linen_item_id]) === Number(item.qty ?? 0));
+}
+
 interface MobileBatchStepDirtyProps {
     onNext: (batchId?: string) => void;
     initialData?: any; // from draft
@@ -121,6 +133,21 @@ export function MobileBatchStepDirty({ onNext, initialData, draftKey, batchId, b
         setActualData(prev => ({ ...prev, [id]: val }));
     };
 
+    const handleSendAllDayuse = () => {
+        const accumulated = dayuseData?.accumulated ?? [];
+        const sendable = accumulated.filter((item) => Number(item.qty ?? 0) > 0);
+        setIsDayuseOpen(true);
+        if (sendable.length === 0) return;
+
+        setEditedDayuse(prev => {
+            const next = { ...prev };
+            for (const item of sendable) {
+                next[item.linen_item_id] = String(Number(item.qty ?? 0));
+            }
+            return next;
+        });
+    };
+
     const handleExtraAdd = (newItems: { linen_item_id: number; name_th: string; qty: number }[]) => {
         setExtraItems(prev => {
             const next = [...prev];
@@ -159,6 +186,7 @@ export function MobileBatchStepDirty({ onNext, initialData, draftKey, batchId, b
 
     const handleSubmit = async () => {
         if (!isComplete || !expected) return;
+        const shouldClearDayuseAccumulator = isFullDayuseSelection(dayuseData, editedDayuse);
         setIsSubmitting(true);
         try {
             const itemsToSubmit = expected.items.map(item => ({
@@ -209,6 +237,19 @@ export function MobileBatchStepDirty({ onNext, initialData, draftKey, batchId, b
             const result = await res.json().catch(() => null);
             if (!res.ok) {
                 throw new Error(result?.error || "Failed to create batch");
+            }
+
+            const submittedBatchId = batchId ?? result?.data?.batch?.id;
+            if (shouldClearDayuseAccumulator && submittedBatchId) {
+                const dayuseRes = await fetch("/api/linen/dayuse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "add_to_batch", batch_id: submittedBatchId }),
+                });
+                const dayuseResult = await dayuseRes.json().catch(() => null);
+                if (!dayuseRes.ok) {
+                    throw new Error(dayuseResult?.error || "Failed to send accumulated dayuse linen");
+                }
             }
 
             // Clear draft on success
@@ -339,6 +380,7 @@ export function MobileBatchStepDirty({ onNext, initialData, draftKey, batchId, b
                         onToggle={() => setIsDayuseOpen(!isDayuseOpen)}
                         editedDayuse={editedDayuse}
                         onDayuseChange={(id, val) => setEditedDayuse(prev => ({ ...prev, [id]: val }))}
+                        onSendAll={handleSendAllDayuse}
                     />
                 </div>
             </div>
