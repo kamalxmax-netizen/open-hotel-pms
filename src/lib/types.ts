@@ -1971,6 +1971,7 @@ export interface LinenDashboard {
 export interface LinenVendorView {
   batch: LaundryBatch;
   items: LaundryBatchItem[];           // dirty sent today
+  rewash_items: LaundryRewashEvent[];  // rewash sent today
   return_items: LaundryBatchItem[];    // clean returned today
   pending_items: LaundryPendingItem[];
   today_received_total: number;        // ผ้าวันนี้ที่เพิ่งรับ (คืนรอบถัดไป)
@@ -2151,6 +2152,8 @@ export interface LaundryRewashEvent {
   created_by: string;                   // uuid
   created_at: string;
   note: string | null;
+  item_number?: number;
+  name_th?: string;
 }
 
 export interface LaundryRewashEventExpanded extends LaundryRewashEvent {
@@ -2436,4 +2439,3 @@ export interface AmenityConsumptionDailyRow {
 }
 
 export type AmenityDataSource = "fo_reconciled" | "audit_adjusted" | "all";
-

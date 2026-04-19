@@ -3,50 +3,36 @@
 import React from "react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
+import useSWR from "@/hooks/use-simple-swr";
 import { useLinenDashboard } from "@/hooks/use-linen-dashboard";
+import { useLinenMonthlySummary } from "@/hooks/use-linen-monthly";
+import { apiDataFetcher } from "@/lib/client/api-fetcher";
+import type { LaundryRewashPendingResponse, LinenEditAuditLog } from "@/lib/types";
 import { LinenSummaryCards } from "@/components/linen/linen-summary-cards";
 import { LinenQuickLinks } from "@/components/linen/linen-quick-links";
 import { LinenRecentActivity } from "@/components/linen/linen-recent-activity";
 
 export default function LinenDashboardPage() {
     const { dashboard, isLoading } = useLinenDashboard();
+    const { data: rewashData, isLoading: isRewashLoading } = useSWR<LaundryRewashPendingResponse>("/api/linen/rewash/pending", apiDataFetcher);
+    const { data: editData, isLoading: isEditsLoading } = useSWR<LinenEditAuditLog[]>("/api/linen/edits/recent", apiDataFetcher);
+    const now = new Date();
+    const { data: monthlySummary, isLoading: isMonthlyLoading } = useLinenMonthlySummary(now.getFullYear(), now.getMonth() + 1);
 
     const todayDate = format(new Date(), "dd MMMM yyyy", { locale: th });
+    const recentRewash = rewashData?.events ?? [];
 
     // Use dashboard-level totals instead of manual calculation to avoid type errors
     const summaryData = {
         today_sent_count: dashboard?.batches_today?.length || 0,
         today_sent_qty: dashboard?.total_sent || 0,
         pending_return_count: dashboard?.total_pending || 0,
-        open_rewash_count: 2,    // mock
-        mtd_baht: 18989          // mock
+        open_rewash_count: recentRewash.length,
+        mtd_baht: monthlySummary?.total_baht || 0
     };
 
-    const recentEdits = [
-        {
-            id: '1',
-            batch_id: 'abc12345',
-            entity_label: 'ปลอกหมอน',
-            field_label: 'qty_sent',
-            old_value: '20',
-            new_value: '25',
-            editor_name: 'น้ำ (FO)',
-            edited_at: new Date().toISOString(),
-            reason: 'ร้านแจ้ง'
-        }
-    ];
-
-    const recentRewash = [
-        {
-            id: '1',
-            item_name_th: 'ปลอกหมอน',
-            qty: 3,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            sent_batch_business_date: '2026-04-14',
-            sent_batch_pickup_round: 1
-        }
-    ];
+    const recentEdits = editData ?? [];
+    const combinedLoading = isLoading || isRewashLoading || isMonthlyLoading || isEditsLoading;
 
     return (
         <div className="max-w-[1600px] mx-auto p-6 space-y-6 pb-24">
@@ -63,7 +49,7 @@ export default function LinenDashboardPage() {
                 </div>
             </header>
 
-            <LinenSummaryCards data={summaryData} isLoading={isLoading} />
+            <LinenSummaryCards data={summaryData} isLoading={combinedLoading} />
             
             <LinenQuickLinks />
 
@@ -77,7 +63,7 @@ export default function LinenDashboardPage() {
                         batches={dashboard?.batches_today || []} 
                         edits={recentEdits}
                         rewash={recentRewash}
-                        isLoading={isLoading} 
+                        isLoading={combinedLoading} 
                     />
                 </div>
             </div>

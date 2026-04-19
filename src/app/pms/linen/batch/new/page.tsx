@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { BatchStepDirty } from "@/components/linen/batch-step-dirty";
 import { BatchStepReturn } from "@/components/linen/batch-step-return";
@@ -8,21 +8,49 @@ import { BatchStepVendorSign } from "@/components/linen/batch-step-vendor-sign";
 import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { useLinenBatchDetail } from "@/hooks/use-linen-batch";
+import { formatLinenSummaryLines, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 export default function NewBatchWizardPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [batchId, setBatchId] = useState<string | null>(null);
     const [vendorToken, setVendorToken] = useState<string | null>(null);
+    const [returnSummary, setReturnSummary] = useState<{ name: string; qty: number }[]>([]);
 
     // Fetch batch detail from Step 2 onwards
     const { data, isLoading } = useLinenBatchDetail(batchId);
+
+    const summaryText = useMemo(() => {
+        if (!data?.batch || !data.items) return "";
+        const dirty = data.items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
+        const dayuse = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
+        const rewash = toRewashSummaryRows(data.rewash_events ?? []);
+        const returns = returnSummary.length > 0
+            ? returnSummary
+            : data.items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+
+        let text = `สรุปรายการผ้า [รอบ ${data.batch.pickup_round}]\nวันที่: ${data.batch.business_date}\n`;
+        if (dirty.length > 0) {
+            text += `\n--- ผ้าวันนี้ ---\n` + dirty.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
+        }
+        if (dayuse.length > 0) {
+            text += `\n\n--- ผ้าเก่า ---\n` + dayuse.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
+        }
+        if (rewash.length > 0) {
+            text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
+        }
+        if (returns.length > 0) {
+            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+        }
+        return text;
+    }, [data, returnSummary]);
 
     const handleStep1Done = (newBatchId: string) => {
         setBatchId(newBatchId);
         setStep(2);
     };
 
-    const handleStep2Done = () => {
+    const handleStep2Done = (summary: { name: string; qty: number }[] = []) => {
+        setReturnSummary(summary);
         setStep(3);
     };
 
@@ -81,17 +109,18 @@ export default function NewBatchWizardPage() {
                     <BatchStepVendorSign 
                         batchId={batchId} 
                         items={data.items} 
+                        rewashEvents={data.rewash_events ?? []}
                         pendingItems={[]} 
                         onNext={handleStep3Done} 
                     />
                 )}
 
                 {step === 4 && batchId && data && !isLoading && (
-                    <BatchStepFoSign batchId={batchId} items={data.items} onDone={handleStep4Done} />
+                    <BatchStepFoSign batchId={batchId} items={data.items} rewashEvents={data.rewash_events ?? []} onDone={handleStep4Done} />
                 )}
 
                 {step === 5 && vendorToken && (
-                    <BatchQrShare token={vendorToken} />
+                    <BatchQrShare token={vendorToken} summaryText={summaryText} />
                 )}
 
                 {step > 1 && step < 5 && isLoading && (

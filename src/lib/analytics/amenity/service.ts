@@ -63,8 +63,10 @@ function source(query: AnalyticsQuery): AmenityAnalyticsSource {
 
 export async function fetchAmenityVariance(
   supabase: SupabaseClient,
-  query: AnalyticsQuery
+  query: AnalyticsQuery,
+  options: { includeExtras?: boolean } = {}
 ): Promise<AmenityAnalyticsResponse> {
+  const includeExtras = options.includeExtras ?? true;
   const sourceFilter = source(query);
   const { data, error } = await supabase.rpc("fn_amenity_analytics_variance", {
     p_start: query.start,
@@ -135,10 +137,12 @@ export async function fetchAmenityVariance(
     return b.actual - a.actual || a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
   });
 
-  const [trend, reconciliationNotes] = await Promise.all([
-    fetchAmenityTrend(supabase, query),
-    sourceFilter === "audit_adjusted" ? Promise.resolve([]) : fetchAmenityReconciliationNotes(supabase, query),
-  ]);
+  const [trend, reconciliationNotes] = includeExtras
+    ? await Promise.all([
+        fetchAmenityTrend(supabase, query),
+        sourceFilter === "audit_adjusted" ? Promise.resolve([]) : fetchAmenityReconciliationNotes(supabase, query),
+      ])
+    : [[], []];
 
   return {
     window: query.window,
@@ -155,13 +159,18 @@ export async function fetchAmenityTrend(
   query: AnalyticsQuery
 ): Promise<AmenityAnalyticsTrendPoint[]> {
   const sourceFilter = source(query);
-  const { data, error } = await supabase.rpc("fn_amenity_analytics_trend", {
+  const rpcArgs: Record<string, unknown> = {
     p_start: query.start,
     p_end: query.end,
     p_window: query.window,
     p_source: sourceFilter,
     p_room_type_codes: query.room_type ?? null,
-  } as any);
+  };
+  if (query.category && query.category.length > 0) {
+    rpcArgs.p_categories = query.category;
+  }
+
+  const { data, error } = await supabase.rpc("fn_amenity_analytics_trend", rpcArgs as any);
 
   if (error) throw new Error(error.message);
 

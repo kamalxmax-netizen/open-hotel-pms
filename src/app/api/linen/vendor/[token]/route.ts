@@ -29,6 +29,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       data: {
         batch: detail.batch,
         items,
+        rewash_items: detail.rewash_events.filter((item: any) => Number(item.qty ?? 0) > 0),
         return_items: detail.items.filter((item: any) => Number(item.received_back ?? 0) > 0),
         pending_items: pendingItems,
         today_received_total: todayReceivedTotal,

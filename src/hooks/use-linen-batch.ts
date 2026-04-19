@@ -3,6 +3,7 @@ import type {
     LaundryBatch,
     LaundryBatchEvent,
     LaundryBatchItem,
+    LaundryRewashEvent,
     LaundryReturnSourceItem,
     LaundryVendorToken,
     LinenEditAuditLog,
@@ -13,6 +14,7 @@ import { apiDataFetcher } from "@/lib/client/api-fetcher";
 type LinenBatchDetail = {
   batch: LaundryBatch;
   items: LaundryBatchItem[];
+  rewash_events?: LaundryRewashEvent[];
   events?: LaundryBatchEvent[];
   tokens?: LaundryVendorToken[];
   return_sources?: LaundryReturnSourceItem[];

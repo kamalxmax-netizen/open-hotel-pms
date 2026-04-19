@@ -8,6 +8,7 @@ import { MobileBatchStepReturn } from "@/components/linen/mobile-batch-step-retu
 import { MobileBatchStepVendorSign } from "@/components/linen/mobile-batch-step-vendor-sign";
 import { MobileBatchStepFoSign } from "@/components/linen/mobile-batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
+import { formatLinenSummaryLines, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 type ReturnSummaryItem = { name: string; qty: number };
 
@@ -145,9 +146,16 @@ export default function MobileBatchWizardPage() {
         const items = batchDetail.items;
         const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
+        const rewash = toRewashSummaryRows(batchDetail.rewash_events ?? []);
+        const eventReturns = toReturnSummaryRows(batchDetail.events ?? [], [
+            ...items,
+            ...(batchDetail.return_sources ?? []),
+        ]);
         const returns = returnSummary.length > 0
             ? returnSummary
-            : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+            : eventReturns.length > 0
+                ? eventReturns
+                : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
         let text = `สรุปรายการผ้า [รอบ ${batchDetail.batch.pickup_round}]\nวันที่: ${batchDetail.batch.business_date}\n`;
         
@@ -157,6 +165,9 @@ export default function MobileBatchWizardPage() {
         if (dayuse.length > 0) {
             text += `\n\n--- ผ้าเก่า ---\n` + dayuse.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
         }
+        if (rewash.length > 0) {
+            text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
+        }
         if (returns.length > 0) {
             text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
         }
@@ -165,22 +176,10 @@ export default function MobileBatchWizardPage() {
     }, [batchDetail, returnSummary]);
 
     const eventReturnSummary = useMemo<ReturnSummaryItem[]>(() => {
-        const events = batchDetail?.events ?? [];
-        const latestReturnEvent = [...events].reverse().find((event: any) => event.event_type === "fo_return_counted");
-        const returns = Array.isArray((latestReturnEvent as any)?.data?.returns) ? (latestReturnEvent as any).data.returns : [];
-        if (!returns.length) return [];
-
-        const nameByItemId = new Map<number, string>();
-        for (const item of batchDetail?.items ?? []) {
-            nameByItemId.set(Number(item.linen_item_id), item.name_th ?? `Item ${item.linen_item_id}`);
-        }
-
-        return returns
-            .map((item: any) => ({
-                name: nameByItemId.get(Number(item.linen_item_id)) ?? `Item ${item.linen_item_id}`,
-                qty: Number(item.received_qty ?? 0),
-            }))
-            .filter((item: ReturnSummaryItem) => item.qty > 0);
+        return toReturnSummaryRows(batchDetail?.events ?? [], [
+            ...(batchDetail?.items ?? []),
+            ...(batchDetail?.return_sources ?? []),
+        ]);
     }, [batchDetail]);
 
     const activeReturnSummary = returnSummary.length > 0 ? returnSummary : eventReturnSummary;
@@ -243,6 +242,7 @@ export default function MobileBatchWizardPage() {
                     <MobileBatchStepVendorSign 
                         batchId={batchId!} 
                         items={batchDetail.items} 
+                        rewashEvents={batchDetail.rewash_events ?? []}
                         returnSummary={activeReturnSummary}
                         onNext={() => handleNext()}
                         onBack={() => reopenForEdit(2)}
@@ -252,6 +252,7 @@ export default function MobileBatchWizardPage() {
                     <MobileBatchStepFoSign 
                         batchId={batchId!} 
                         items={batchDetail.items} 
+                        rewashEvents={batchDetail.rewash_events ?? []}
                         returnSummary={activeReturnSummary}
                         onDone={(token) => {
                             setFinalToken(token);

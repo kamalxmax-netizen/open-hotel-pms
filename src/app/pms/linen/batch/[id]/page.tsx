@@ -11,6 +11,7 @@ import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { SignatureDisplay } from "@/components/linen/signature-display";
 import { StatusBadge } from "@/components/linen/status-badge";
+import { formatLinenSummaryLines, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 export default function BatchDetailPage({ params }: { params: { id: string } }) {
     const { data, isLoading, mutate } = useLinenBatchDetail(params.id);
@@ -26,6 +27,31 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     }
 
     const { batch, items, return_sources: returnSources = [] } = data;
+    const rewashRows = toRewashSummaryRows(data.rewash_events ?? []);
+    const rewashTotal = rewashRows.reduce((sum, item) => sum + item.qty, 0);
+    const returnRows = toReturnSummaryRows(data.events ?? [], [...items, ...returnSources]);
+    const summaryText = (() => {
+        const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
+        const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
+        const returns = returnRows.length > 0
+            ? returnRows
+            : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+
+        let text = `สรุปรายการผ้า [รอบ ${batch.pickup_round}]\nวันที่: ${batch.business_date}\n`;
+        if (dirty.length > 0) {
+            text += `\n--- ผ้าวันนี้ ---\n` + dirty.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
+        }
+        if (dayuse.length > 0) {
+            text += `\n\n--- ผ้าเก่า ---\n` + dayuse.map(i => `${i.name_th}: ${i.sent_by_hotel} ชิ้น`).join("\n");
+        }
+        if (rewashRows.length > 0) {
+            text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashRows);
+        }
+        if (returns.length > 0) {
+            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+        }
+        return text;
+    })();
     
     // Admin Reopen
     const handleReopen = async () => {
@@ -60,7 +86,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     if (token && batch.status === "fo_return_signed") {
          return (
             <div className="p-4 md:p-8 max-w-lg mx-auto pb-20">
-                <BatchQrShare token={token} />
+                <BatchQrShare token={token} summaryText={summaryText} />
                 <div className="mt-4 text-center">
                     <button onClick={() => setToken(null)} className="text-sm text-slate-500 underline">ไปหน้าสรุปข้อมูล</button>
                 </div>
@@ -92,7 +118,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">ร้านซักเซ็นรับ</h1></div>
                 </div>
-                <BatchStepVendorSign batchId={batch.id} items={items} pendingItems={[]} onNext={handleNext} />
+                <BatchStepVendorSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} pendingItems={[]} onNext={handleNext} />
             </div>
         );
     }
@@ -106,7 +132,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">FO เซ็นรับจบ</h1></div>
                 </div>
-                <BatchStepFoSign batchId={batch.id} items={items} onDone={handleDone} />
+                <BatchStepFoSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} onDone={handleDone} />
             </div>
         );
     }
@@ -114,7 +140,10 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     // Detail View (fo_return_signed, closed, partial, disputed)
     const dirtyTotal = items.filter(i => !i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
     const dayuseTotal = items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
-    const returnTotal = items.reduce((sum, item) => sum + item.received_back, 0);
+    const detailReturnRows = returnRows.length > 0
+        ? returnRows
+        : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+    const returnTotal = detailReturnRows.reduce((sum, item) => sum + item.qty, 0);
 
     return (
         <div className="p-4 md:p-8 max-w-2xl mx-auto pb-20">
@@ -148,7 +177,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     <h3 className="font-semibold text-slate-800 dark:text-slate-200">สรุปจำนวนผ้า</h3>
                 </div>
                 <div className="p-0 border-b border-slate-100 dark:border-slate-800">
-                    <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
+                    <div className={`grid ${rewashTotal > 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-3"} divide-x divide-slate-100 dark:divide-slate-800`}>
                         <div className="p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">ส่งซัก</p>
                             <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{dirtyTotal}</p>
@@ -157,6 +186,12 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                             <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">ผ้าเก่า (Day Use)</p>
                             <p className="text-2xl font-bold text-amber-700 dark:text-amber-500">{dayuseTotal}</p>
                         </div>
+                        {rewashTotal > 0 && (
+                            <div className="p-4 text-center bg-purple-50/30 dark:bg-purple-500/5">
+                                <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">ผ้าซักใหม่</p>
+                                <p className="text-2xl font-bold text-purple-700 dark:text-purple-500">{rewashTotal}</p>
+                            </div>
+                        )}
                         <div className="p-4 text-center bg-emerald-50/30 dark:bg-emerald-500/5">
                             <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">รับคืน</p>
                             <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{returnTotal}</p>
@@ -177,6 +212,32 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                             </div>
                         </div>
                     ))}
+                    {rewashRows.length > 0 && (
+                        <div className="mt-3 rounded-lg border border-purple-100 bg-purple-50/50 p-3 dark:border-purple-900/40 dark:bg-purple-950/20">
+                            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-purple-600 dark:text-purple-300">
+                                ผ้าซักใหม่
+                            </div>
+                            {rewashRows.map(item => (
+                                <div key={`detail-rewash-${item.id}`} className="flex justify-between items-center py-1 text-sm">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                                    <span className="font-bold text-purple-700 dark:text-purple-300">{item.qty}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {detailReturnRows.length > 0 && (
+                        <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+                                ผ้ารับคืน
+                            </div>
+                            {detailReturnRows.map((item, index) => (
+                                <div key={`detail-return-${index}`} className="flex justify-between items-center py-1 text-sm">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                                    <span className="font-bold text-emerald-700 dark:text-emerald-300">{item.qty}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -225,4 +286,3 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
         </div>
     );
 }
-

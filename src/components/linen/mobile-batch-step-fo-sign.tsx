@@ -3,21 +3,24 @@
 import React, { useState } from "react";
 import { MobileBatchStepSummary } from "./mobile-batch-step-summary";
 import { SignatureCanvas } from "./signature-canvas";
+import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 interface MobileBatchStepFoSignProps {
     batchId: string;
     items: any[];
+    rewashEvents?: any[];
     returnSummary?: { name: string; qty: number }[];
     onDone: (token: string) => void;
     onBack: () => void;
 }
 
-export function MobileBatchStepFoSign({ batchId, items, returnSummary, onDone, onBack }: MobileBatchStepFoSignProps) {
+export function MobileBatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary, onDone, onBack }: MobileBatchStepFoSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const dirtyItems = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
+    const rewashItems = toRewashSummaryRows(rewashEvents).map(i => ({ name: i.name, qty: i.qty }));
     const returnItems = returnSummary?.length
         ? returnSummary
         : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
@@ -82,6 +85,7 @@ export function MobileBatchStepFoSign({ batchId, items, returnSummary, onDone, o
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 <MobileBatchStepSummary title="ผ้าวันนี้" items={dirtyItems} />
                 <MobileBatchStepSummary title="ผ้าเก่า" items={dayuseItems} />
+                <MobileBatchStepSummary title="ผ้าซักใหม่" items={rewashItems} />
                 <MobileBatchStepSummary title="ผ้ารับคืน" items={returnItems} />
 
                 <div className="pt-6 border-t border-slate-100">

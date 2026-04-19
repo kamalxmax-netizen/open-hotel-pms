@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
 import { History, Edit3, RefreshCw, ChevronRight } from "lucide-react";
@@ -36,7 +37,11 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {batches.length > 0 ? (
                             batches.map((batch) => (
-                                <div key={batch.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                                <Link
+                                    key={batch.id}
+                                    href={`/pms/linen/batch/${batch.id}`}
+                                    className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                >
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full bg-[#1B4038]/10 text-[#1B4038] dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
                                             R{batch.pickup_round}
@@ -54,7 +59,7 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                                         </div>
                                     </div>
                                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors" />
-                                </div>
+                                </Link>
                             ))
                         ) : (
                             <div className="py-12 text-center text-slate-400 font-thai">ไม่มีรายการ Batch</div>
@@ -65,8 +70,17 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                 return (
                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {edits.length > 0 ? (
-                            edits.map((edit) => (
-                                <div key={edit.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                            edits.map((edit) => {
+                                const batchId = edit.batch_id ? String(edit.batch_id) : "";
+                                const href = batchId
+                                    ? `/pms/linen/history?batch_id=${encodeURIComponent(batchId)}&has_edits=1&open_edit=1`
+                                    : "/pms/linen/history?has_edits=1";
+                                const entityLabel = edit.entity_label ?? edit.entity_type ?? "รายการ";
+                                const fieldLabel = edit.field_label ?? edit.field_name ?? "field";
+                                const editorName = edit.editor_name ?? edit.edited_by ?? "Admin";
+
+                                return (
+                                <Link key={edit.id} href={href} className="block p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
                                     <div className="flex items-start gap-4">
                                         <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                                             <Edit3 className="w-4 h-4" />
@@ -74,27 +88,28 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                                         <div className="flex-1">
                                             <div className="flex items-center justify-between mb-1">
                                                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-thai">
-                                                    แก้ไข Batch #{edit.batch_id.substring(0, 8)}
+                                                    แก้ไข Batch #{batchId ? batchId.substring(0, 8) : "-"}
                                                 </p>
                                                 <span className="text-[10px] text-slate-400 font-medium">
                                                     {format(new Date(edit.edited_at), 'HH:mm • d MMM', { locale: th })}
                                                 </span>
                                             </div>
                                             <p className="text-sm text-slate-600 dark:text-slate-400 font-thai leading-relaxed">
-                                                <span className="font-bold text-slate-800 dark:text-slate-200">{edit.entity_label}</span>: {edit.field_label}
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">{entityLabel}</span>: {fieldLabel}
                                                 <span className="mx-1 text-slate-400">→</span>
                                                 <span className="text-emerald-600 dark:text-emerald-400 font-bold">{edit.new_value}</span>
                                             </p>
                                             <div className="mt-2 flex items-center justify-between">
                                                 <p className="text-[11px] text-slate-400 font-thai">
-                                                    โดย {edit.editor_name} • <span className="italic">{edit.reason || 'ไม่ระบุเหตุผล'}</span>
+                                                    โดย {editorName} • <span className="italic">{edit.reason || 'ไม่ระบุเหตุผล'}</span>
                                                 </p>
                                                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                </Link>
+                                );
+                            })
                         ) : (
                             <div className="py-12 text-center text-slate-400 font-thai">ไม่มีประวัติการแก้ไข</div>
                         )}
@@ -104,8 +119,18 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                 return (
                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {rewash.length > 0 ? (
-                            rewash.map((rw) => (
-                                <div key={rw.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                            rewash.map((rw) => {
+                                const batchId = rw.sent_in_batch_id ? String(rw.sent_in_batch_id) : "";
+                                const href = batchId
+                                    ? `/pms/linen/history?batch_id=${encodeURIComponent(batchId)}&has_rewash=1&open_edit=1`
+                                    : "/pms/linen/history?has_rewash=1";
+
+                                return (
+                                <Link
+                                    key={rw.id}
+                                    href={href}
+                                    className="block p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                >
                                     <div className="flex items-start gap-4">
                                         <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
                                             <RefreshCw className="w-4 h-4" />
@@ -130,10 +155,16 @@ export function LinenRecentActivity({ batches, edits, rewash, isLoading }: Linen
                                                 </p>
                                             </div>
                                         </div>
-                                        <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500" />
+                                        <div className="flex items-center gap-2">
+                                            <span className="rounded-lg border border-purple-100 px-2 py-1 text-[10px] font-bold text-purple-600 opacity-0 transition-opacity group-hover:opacity-100 dark:border-purple-900/40 dark:text-purple-300">
+                                                Edit
+                                            </span>
+                                            <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500" />
+                                        </div>
                                     </div>
-                                </div>
-                            ))
+                                </Link>
+                                );
+                            })
                         ) : (
                             <div className="py-12 text-center text-slate-400 font-thai">ไม่มีรายการ Rewash</div>
                         )}

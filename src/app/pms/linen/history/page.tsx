@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLinenBatches, useLinenAuditLogs } from "@/hooks/use-linen-batch";
@@ -14,14 +14,20 @@ import type { LaundryBatch } from "@/lib/types";
 
 function LinenHistoryPageInner() {
     const searchParams = useSearchParams();
+    const batchIdParam = searchParams.get("batch_id");
+    const hasRewashQuery = searchParams.has("has_rewash");
+    const hasEditsQuery = searchParams.has("has_edits");
+    const hasRewashParam = searchParams.get("has_rewash") === "1" || searchParams.get("has_rewash") === "true";
+    const hasEditsParam = searchParams.get("has_edits") === "1" || searchParams.get("has_edits") === "true";
+    const shouldOpenEdit = searchParams.get("open_edit") === "1" || searchParams.get("action") === "edit";
     const [filters, setFilters] = useState<any>(() => ({
         date_from: "",
         date_to: "",
         status: "",
-        has_rewash: false,
+        has_rewash: hasRewashParam,
         has_extras: false,
-        has_edits: searchParams.get("has_edits") === "1" || searchParams.get("has_edits") === "true",
-        search: ""
+        has_edits: hasEditsParam,
+        search: batchIdParam ?? ""
     }));
 
     const { batches, isLoading, mutate } = useLinenBatches(filters);
@@ -30,6 +36,26 @@ function LinenHistoryPageInner() {
 
     // Fetch audit logs for the selected batch
     const { logs: auditLogs, mutate: mutateLogs } = useLinenAuditLogs(selectedBatch?.id);
+
+    useEffect(() => {
+        setFilters((current: any) => {
+            const next = {
+                ...current,
+                ...(batchIdParam ? { search: batchIdParam } : {}),
+                ...(hasRewashQuery ? { has_rewash: hasRewashParam } : {}),
+                ...(hasEditsQuery ? { has_edits: hasEditsParam } : {}),
+            };
+            return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+        });
+    }, [batchIdParam, hasRewashQuery, hasRewashParam, hasEditsQuery, hasEditsParam]);
+
+    useEffect(() => {
+        if (!batchIdParam || batches.length === 0) return;
+        const matched = batches.find((batch) => batch.id === batchIdParam);
+        if (!matched) return;
+        setSelectedBatch((current) => current?.id === matched.id ? current : matched);
+        if (shouldOpenEdit) setIsEditModalOpen(true);
+    }, [batchIdParam, batches, shouldOpenEdit]);
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto pb-20">

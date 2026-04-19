@@ -59,9 +59,16 @@ export function computeBucket(args: {
 }
 
 export function worstTier(buckets: VarianceBucket[]): VarianceTier {
-    const tiers = buckets.map((b) => b.tier).filter((t): t is Exclude<VarianceTier, "na"> => t !== "na");
-    if (tiers.length === 0) return "na";
-    return tiers.reduce<VarianceTier>(
+    return worstTierOfTiers(buckets.map((b) => b.tier));
+}
+
+// Phase 68.3: shape-agnostic helper for cross-group aggregation (Overview).
+// Accepts raw tiers from any source — useful when row shapes differ (Linen buckets
+// have non-null baselines, Amenity rows can have null baselines).
+export function worstTierOfTiers(tiers: VarianceTier[]): VarianceTier {
+    const concrete = tiers.filter((t): t is Exclude<VarianceTier, "na"> => t !== "na");
+    if (concrete.length === 0) return "na";
+    return concrete.reduce<VarianceTier>(
         (worst, t) => (rankTier(t) > rankTier(worst) ? t : worst),
         "green"
     );

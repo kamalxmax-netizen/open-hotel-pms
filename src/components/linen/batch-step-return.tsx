@@ -9,7 +9,7 @@ interface BatchStepReturnProps {
     batchId: string;
     items: LaundryBatchItem[];
     returnSources?: LaundryReturnSourceItem[];
-    onNext: () => void;
+    onNext: (summary?: { name: string; qty: number }[]) => void;
 }
 
 export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: BatchStepReturnProps) {
@@ -77,7 +77,13 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
             });
 
             if (!res.ok) throw new Error("Failed to submit return counts");
-            onNext();
+            const summary = returnSources
+                .map((item) => ({
+                    name: item.name_th ?? `Item ${item.linen_item_id}`,
+                    qty: parseInt(returnData[item.id] || "0", 10),
+                }))
+                .filter((item) => item.qty > 0);
+            onNext(summary);
         } catch (error) {
             console.error(error);
             alert("เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่");

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
 import type { LinenVendorView } from "@/lib/types";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
+import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 import { MobileBatchStepSummary } from "@/components/linen/mobile-batch-step-summary";
 
@@ -69,6 +70,7 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
 
     const dirtyItems = data.items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
+    const rewashItems = toRewashSummaryRows(data.rewash_items ?? []).map(i => ({ name: i.name, qty: i.qty }));
     const returnItems = data.return_items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
     return (
@@ -115,6 +117,7 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
                 <div className="space-y-4">
                     <MobileBatchStepSummary title="ผ้าวันนี้" items={dirtyItems} />
                     <MobileBatchStepSummary title="ผ้าเก่า" items={dayuseItems} />
+                    <MobileBatchStepSummary title="ผ้าซักใหม่" items={rewashItems} />
                     <MobileBatchStepSummary title="ผ้ารับคืน" items={returnItems} totalLabel="รวมรับคืน" />
 
                     {data.pending_items.length > 0 && (

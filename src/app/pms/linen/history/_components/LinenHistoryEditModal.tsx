@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useLinenBatchDetail } from "@/hooks/use-linen-batch";
-import type { LaundryBatch, LaundryBatchItem, LinenBatchEditChange } from "@/lib/types";
+import type { LinenBatchEditChange } from "@/lib/types";
 import { Loader2, Save, X, AlertTriangle, Edit3 } from "lucide-react";
 
 interface LinenHistoryEditModalProps {
@@ -15,6 +15,7 @@ export function LinenHistoryEditModal({ batchId, onClose, onSuccess }: LinenHist
     const { data, isLoading } = useLinenBatchDetail(batchId);
     const [reason, setReason] = useState("");
     const [edits, setEdits] = useState<Record<string, { sent: number; received: number }>>({});
+    const [rewashEdits, setRewashEdits] = useState<Record<string, { qty: number; note: string }>>({});
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -28,6 +29,19 @@ export function LinenHistoryEditModal({ batchId, onClose, onSuccess }: LinenHist
             });
             setEdits(initialEdits);
         }
+
+        if (data?.rewash_events) {
+            const initialRewashEdits: Record<string, { qty: number; note: string }> = {};
+            data.rewash_events.forEach(item => {
+                initialRewashEdits[String(item.id)] = {
+                    qty: Number(item.qty ?? 0),
+                    note: item.note ?? "",
+                };
+            });
+            setRewashEdits(initialRewashEdits);
+        } else {
+            setRewashEdits({});
+        }
     }, [data]);
 
     const handleQtyChange = (itemId: string, field: 'sent' | 'received', val: string) => {
@@ -35,6 +49,17 @@ export function LinenHistoryEditModal({ batchId, onClose, onSuccess }: LinenHist
         setEdits(prev => ({
             ...prev,
             [itemId]: { ...prev[itemId], [field]: num }
+        }));
+    };
+
+    const handleRewashChange = (itemId: string, field: 'qty' | 'note', val: string) => {
+        const qty = Math.max(1, parseInt(val, 10) || 1);
+        setRewashEdits(prev => ({
+            ...prev,
+            [itemId]: {
+                ...prev[itemId],
+                [field]: field === "qty" ? qty : val,
+            }
         }));
     };
 
@@ -63,6 +88,30 @@ export function LinenHistoryEditModal({ batchId, onClose, onSuccess }: LinenHist
                     field_name: "received_back",
                     old_value: String(item.received_back),
                     new_value: String(edit.received)
+                });
+            }
+        });
+
+        data?.rewash_events?.forEach(item => {
+            const itemId = String(item.id);
+            const edit = rewashEdits[itemId];
+            if (!edit) return;
+            if (edit.qty !== Number(item.qty ?? 0)) {
+                changes.push({
+                    entity_type: "rewash_event",
+                    entity_id: itemId,
+                    field_name: "qty",
+                    old_value: String(item.qty ?? 0),
+                    new_value: String(edit.qty)
+                });
+            }
+            if (edit.note !== (item.note ?? "")) {
+                changes.push({
+                    entity_type: "rewash_event",
+                    entity_id: itemId,
+                    field_name: "note",
+                    old_value: item.note ?? "",
+                    new_value: edit.note
                 });
             }
         });
@@ -168,6 +217,59 @@ export function LinenHistoryEditModal({ batchId, onClose, onSuccess }: LinenHist
                             ))}
                         </tbody>
                     </table>
+
+                    {(data?.rewash_events?.length ?? 0) > 0 && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                                <div className="h-px flex-1 bg-purple-100 dark:bg-purple-900/40" />
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-500">
+                                    Rewash / ผ้าซักใหม่
+                                </h3>
+                                <div className="h-px flex-1 bg-purple-100 dark:bg-purple-900/40" />
+                            </div>
+
+                            <table className="w-full text-sm font-thai border-separate border-spacing-y-2">
+                                <thead>
+                                    <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">
+                                        <th className="px-4">Items</th>
+                                        <th className="px-4 text-center w-32 font-black text-purple-600">Rewash Qty</th>
+                                        <th className="px-4 text-center w-56 font-black text-slate-500">Note</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data?.rewash_events?.map((item) => {
+                                        const itemId = String(item.id);
+                                        return (
+                                            <tr key={itemId} className="group hover:bg-purple-50/40 dark:hover:bg-purple-950/20 transition-colors">
+                                                <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 bg-purple-50/50 dark:bg-purple-950/20 rounded-l-2xl">
+                                                    {item.name_th ?? `Item ${item.linen_item_id}`}
+                                                    <span className="ml-2 text-[10px] font-black uppercase text-purple-500">{item.status}</span>
+                                                </td>
+                                                <td className="px-4 py-3 bg-purple-50/50 dark:bg-purple-950/20">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={rewashEdits[itemId]?.qty ?? 0}
+                                                        onChange={(e) => handleRewashChange(itemId, 'qty', e.target.value)}
+                                                        className="w-full bg-white dark:bg-slate-700 border-none rounded-xl px-4 py-2 text-center font-black text-purple-600 shadow-sm focus:ring-2 focus:ring-purple-500/20 transition-all"
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-r-2xl">
+                                                    <input
+                                                        type="text"
+                                                        value={rewashEdits[itemId]?.note ?? ""}
+                                                        onChange={(e) => handleRewashChange(itemId, 'note', e.target.value)}
+                                                        className="w-full bg-white dark:bg-slate-700 border-none rounded-xl px-4 py-2 text-sm text-slate-700 dark:text-slate-200 shadow-sm focus:ring-2 focus:ring-purple-500/20 transition-all"
+                                                        placeholder="หมายเหตุ..."
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
                     {/* Reason */}
                     <div className="space-y-3 pt-4">

@@ -2,31 +2,40 @@
 
 import React, { useState, useMemo } from "react";
 import { SignatureCanvas } from "./signature-canvas";
-import type { LaundryBatchItem, LaundryPendingItem } from "@/lib/types";
+import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import type { LaundryBatchItem, LaundryPendingItem, LaundryRewashEvent } from "@/lib/types";
 
 interface BatchStepVendorSignProps {
     batchId: string;
     items: LaundryBatchItem[];
+    rewashEvents?: LaundryRewashEvent[];
+    returnSummary?: { name: string; qty: number }[];
     pendingItems: LaundryPendingItem[]; // all active global pending, or specific to what's left? 
                                         // The backend will leave pending items unresolved if they weren't checked in step 2.
     onNext: () => void;
 }
 
-export function BatchStepVendorSign({ batchId, items, pendingItems, onNext }: BatchStepVendorSignProps) {
+export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnSummary = [], pendingItems, onNext }: BatchStepVendorSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [vendorName, setVendorName] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const dirtyTotal = useMemo(() => items.filter(i => !i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0), [items]);
     const dayuseTotal = useMemo(() => items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0), [items]);
-    const returnTotal = useMemo(() => items.reduce((sum, item) => sum + item.received_back, 0), [items]);
+    const rewashItemsList = useMemo(() => toRewashSummaryRows(rewashEvents), [rewashEvents]);
+    const rewashTotal = useMemo(() => rewashItemsList.reduce((sum, item) => sum + item.qty, 0), [rewashItemsList]);
+    const returnTotal = useMemo(() => {
+        if (returnSummary.length > 0) return returnSummary.reduce((sum, item) => sum + item.qty, 0);
+        return items.reduce((sum, item) => sum + item.received_back, 0);
+    }, [items, returnSummary]);
     // Note: If we just resolved some pending items in step 2, they will still be in pendingItems list unless we mutate SWR or wait for real backend state. 
     // We'll just show a count of any unresolved pending for simplicity or rely on server state.
     
     // Group return items
     const returnItemsList = useMemo(() => {
+        if (returnSummary.length > 0) return returnSummary.map((item, index) => ({ id: `summary-${index}`, name_th: item.name, received_back: item.qty }));
         return items.filter(i => i.received_back > 0);
-    }, [items]);
+    }, [items, returnSummary]);
 
     const handleSubmit = async () => {
         if (!signatureBlob || !vendorName.trim()) return;
@@ -97,6 +106,26 @@ export function BatchStepVendorSign({ batchId, items, pendingItems, onNext }: Ba
                                     ผ้าเก่ารับเข้าร้าน (Day Use)
                                 </h4>
                                 <span className="font-bold text-lg text-amber-700 dark:text-amber-400">{dayuseTotal} ชิ้น</span>
+                            </div>
+                        )}
+
+                        {rewashTotal > 0 && (
+                            <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                                        ผ้าซักใหม่รับเข้าร้าน
+                                    </h4>
+                                    <span className="font-bold text-lg text-purple-700 dark:text-purple-400">{rewashTotal} ชิ้น</span>
+                                </div>
+                                <div className="mt-2 pl-4 space-y-1">
+                                    {rewashItemsList.map(i => (
+                                        <div key={`rewash-${i.id}`} className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span>• {i.name}</span>
+                                            <span className="font-medium text-purple-700 dark:text-purple-300">{i.qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

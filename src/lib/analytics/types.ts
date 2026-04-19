@@ -143,3 +143,125 @@ export interface RoomTypeAmenitySetup {
     units_per_occupied_night: number;
     updated_at: string;
 }
+
+// ─── Phase 68.3: Unified Material Overview ────────────────────────────────────
+// D44: no quantity sum across groups; ribbon is dimensionless only
+// D45: 3 tiles at launch — Linen / Amenity FO / Amenity Audit
+export type MaterialGroupKey = "linen" | "amenity_fo_reconciled" | "amenity_audit_adjusted";
+
+export interface MaterialBucketCounts {
+    red: number;
+    yellow: number;
+    green: number;
+    na: number;
+}
+
+export interface MaterialGroupTile {
+    group: MaterialGroupKey;
+    label: string;
+    unit: string;
+    actual: number;
+    max: number | null;
+    usage_pct: number | null;
+    tier: VarianceTier;
+    alert_count: number;
+    bucket_counts: MaterialBucketCounts;
+    detail_href: string;
+    errored: boolean;
+}
+
+export interface MaterialOverviewRibbon {
+    total_alerts: number;
+    worst_tier: VarianceTier;
+    bucket_counts: MaterialBucketCounts;
+    coverage_days: number;
+}
+
+export interface MaterialOverviewResponse {
+    window: AnalyticsWindow;
+    period_start: string;
+    period_end: string;
+    ribbon: MaterialOverviewRibbon;
+    tiles: MaterialGroupTile[];
+    partial: boolean;
+    errors: Array<{ group: MaterialGroupKey; message: string }>;
+}
+
+// ─── Phase 69: Historical Consumption Analytics ──────────────────────────────
+// Snapshot rows imported from historical Excel ETL. These are read-only
+// baselines, not live operational facts.
+export type HistoricalBaselineType = "amenity" | "linen" | "roomtype" | "all";
+
+export interface AnalyticsHistoricalAmenity {
+    id: number;
+    period_start: string;
+    year: number;
+    month: number;
+    num_days: number;
+    total_room_nights: number;
+    thai_room_nights: number;
+    foreign_room_nights: number;
+    unknown_room_nights: number;
+    water_used: number;
+    water_max: number;
+    water_usage_pct: number | null;
+    water_per_room_night: number | null;
+    water_thai_allocated_qty: number;
+    water_foreign_allocated_qty: number;
+    water_unknown_allocated_qty: number;
+    water_thai_per_rn: number | null;
+    water_foreign_per_rn: number | null;
+    coffee_used: number;
+    coffee_max: number;
+    coffee_usage_pct: number | null;
+    coffee_thai_allocated_qty: number;
+    coffee_foreign_allocated_qty: number;
+    coffee_unknown_allocated_qty: number;
+    data_source: string | null;
+    created_at: string | null;
+}
+
+export interface AnalyticsHistoricalLinen {
+    id: number;
+    period_start: string;
+    year: number;
+    month: number;
+    linen_item_id: number;
+    linen_item_number: number | null;
+    linen_item_name_th: string | null;
+    linen_item_name_en: string | null;
+    total_sent: number;
+    max_capacity: number;
+    linen_usage_pct: number | null;
+    price_per_piece: number;
+    total_cost: number;
+    thai_allocated_qty: number;
+    foreign_allocated_qty: number;
+    unknown_allocated_qty: number;
+    data_source: string | null;
+    created_at: string | null;
+}
+
+export interface AnalyticsHistoricalRoomtype {
+    id: number;
+    period_start: string;
+    year: number;
+    month: number;
+    room_type_code: string;
+    room_nights: number;
+    thai_nights: number;
+    foreign_nights: number;
+    water_allocated_qty: number;
+    coffee_allocated_qty: number;
+    water_per_room_night: number | null;
+    coffee_per_room_night: number | null;
+    data_source: string | null;
+    created_at: string | null;
+}
+
+export interface AnalyticsHistoricalBaselineResponse {
+    success: true;
+    amenity: AnalyticsHistoricalAmenity[];
+    linen: AnalyticsHistoricalLinen[];
+    roomtype: AnalyticsHistoricalRoomtype[];
+}
