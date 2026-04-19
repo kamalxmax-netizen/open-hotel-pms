@@ -20,8 +20,9 @@ export default function AppShell({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const isMaidApp = 
-    pathname.startsWith("/maid") || 
+  const isStandaloneRoute =
+    pathname.startsWith("/maid") ||
+    pathname.startsWith("/pms/board/mockup") ||
     pathname.startsWith("/pms/mobile-checkin") ||
     pathname.startsWith("/linen-mobile") ||
     pathname.startsWith("/linen-vendor");
@@ -37,7 +38,7 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
-    if (isMaidApp || isStandalonePopup || isLoginPage) return;
+    if (isStandaloneRoute || isStandalonePopup || isLoginPage) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -62,9 +63,9 @@ export default function AppShell({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isMaidApp, isStandalonePopup, router]);
+  }, [isStandaloneRoute, isStandalonePopup, router]);
 
-  if (isMaidApp || isStandalonePopup || isLoginPage) {
+  if (isStandaloneRoute || isStandalonePopup || isLoginPage) {
     return <div className="bg-[var(--bg-body)] min-h-screen">{children}</div>;
   }
 

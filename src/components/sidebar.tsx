@@ -8,7 +8,12 @@ import { useTheme } from "@/components/theme-provider";
 
 const SIDEBAR_PERMISSION_CACHE_PREFIX = "pms.sidebar.allowed-pages.";
 const SIDEBAR_PERMISSION_CACHE_TTL_MS = 60_000;
-const EXACT_PERMISSION_PATHS = new Set(["/pms/inventory"]);
+const EXACT_PERMISSION_PATHS = new Set([
+    "/pms/inventory",
+    "/pms/housekeeping",
+    "/pms/lost-found",
+    "/pms/linen",
+]);
 
 type SidebarPermissionCache = {
     uid: string;
@@ -81,7 +86,7 @@ const NAV_ITEMS = [
             { href: "/pms/housekeeping/extra-tasks", label: "Extra Tasks", icon: ListIcon },
             { href: "/pms/lost-found", label: "Lost & Found", icon: PackageIcon },
             { href: "/pms/linen", label: "Linen & Laundry", icon: PackageIcon },
-            { href: "/linen-mobile", label: "Linen App", icon: MobileCheckinIcon, permissionHrefs: ["/pms/linen"] },
+            { href: "/linen-mobile", label: "Linen App", icon: MobileCheckinIcon },
             { href: "/pms/linen/monthly", label: "Linen Monthly", icon: FileTextIcon },
             { href: "/pms/linen/history", label: "Linen History", icon: ListIcon },
             { href: "/pms/linen/settings", label: "Linen Setting", icon: SettingsIcon },

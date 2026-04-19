@@ -9,7 +9,12 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/of
 const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
 const MAID_HOME_PATH = "/maid";
-const EXACT_PERMISSION_PATHS = new Set(["/pms/inventory"]);
+const EXACT_PERMISSION_PATHS = new Set([
+  "/pms/inventory",
+  "/pms/housekeeping",
+  "/pms/lost-found",
+  "/pms/linen",
+]);
 
 function resolvePostLoginPath(role: string | null | undefined): string {
   const normalizedRole = String(role ?? "").trim().toLowerCase();
@@ -91,7 +96,7 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/maid")
           ? MAID_HOME_PATH
         : pathname.startsWith("/linen-mobile")
-          ? "/pms/linen"
+          ? "/linen-mobile"
         : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
           ? "/pms/calendar"
           : pathname;

@@ -423,6 +423,21 @@ function scanSourceBadgeClass(source: ScanPoolSource): string {
   return "bg-[var(--bg-muted)] text-[var(--text-table-cell)]";
 }
 
+function upsertScannedPoolItem(pool: ScannedPoolItem[], item: ScannedPoolItem): ScannedPoolItem[] {
+  const existingIndex = pool.findIndex((entry) => entry.id === item.id);
+  if (existingIndex >= 0) {
+    const next = [...pool];
+    next[existingIndex] = {
+      ...next[existingIndex],
+      ...item,
+      source: item.source === "search" ? next[existingIndex].source : item.source,
+      scan_order: next[existingIndex].scan_order || item.scan_order,
+    };
+    return next.sort((a, b) => a.scan_order - b.scan_order);
+  }
+  return [...pool, item].sort((a, b) => a.scan_order - b.scan_order);
+}
+
 function formatWizardReason(reason: string, businessDate: string, checkinDate: string): string {
   if (reason === "room_not_assigned") return "Assign room first";
   if (reason === "hk_not_ready") return "Housekeeping not ready";
@@ -607,7 +622,11 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     };
   }
 
-  function hydrateScannedPoolFromDraft(rows: WizardReservation[], draftJson: Record<string, any>) {
+  function hydrateScannedPoolFromDraft(
+    rows: WizardReservation[],
+    draftJson: Record<string, any>,
+    preservedPool: ScannedPoolItem[] = []
+  ) {
     const draftStep2Pool = Array.isArray((draftJson as any)?.step2?.scanned_pool)
       ? (draftJson as any).step2.scanned_pool
       : [];
@@ -619,6 +638,9 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         ? (draftJson as any).step2.scanned_guest_profile_ids.map((value: unknown) => String(value))
         : [];
     const knownGuestMap = new Map<string, GuestSearchResult>();
+    preservedPool.forEach((guest) => {
+      knownGuestMap.set(guest.id, guest);
+    });
     rows.forEach((row) => {
       if (row.party.primary) {
         knownGuestMap.set(row.party.primary.guest_profile_id, {
@@ -661,8 +683,19 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       const snapshotName = String(item?.display_name ?? "").trim();
       if (snapshotName) displayById.set(profileId, snapshotName);
     });
+    preservedPool.forEach((item, idx) => {
+      sourceById.set(item.id, item.source);
+      orderById.set(item.id, Number.isFinite(Number(item.scan_order)) ? Number(item.scan_order) : idx + 1);
+      const displayName = String(item.display_name ?? guestDisplayName(item)).trim();
+      if (displayName) displayById.set(item.id, displayName);
+    });
 
-    const hydratedPool: ScannedPoolItem[] = draftStep2Ids
+    const mergedIds = Array.from(new Set([
+      ...draftStep2Ids,
+      ...preservedPool.map((guest) => guest.id),
+    ].filter(Boolean)));
+
+    const hydratedPool: ScannedPoolItem[] = mergedIds
       .map((id: string, idx: number) => {
         const known = knownGuestMap.get(id);
         return {
@@ -685,7 +718,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setScannedGuestPool(hydratedPool);
   }
 
-  async function reloadReservationSnapshot() {
+  async function reloadReservationSnapshot(options?: { preserveScannedPool?: ScannedPoolItem[] }) {
     const response = await fetch(
       `/api/booking-groups/${groupId}/checkin-wizard?business_date=${encodeURIComponent(businessDate || "")}`,
       { cache: "no-store" }
@@ -703,7 +736,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
     setWizardDraftJson(draftJson);
     const rows = buildReservationRows(data);
     setReservations(rows);
-    hydrateScannedPoolFromDraft(rows, draftJson);
+    hydrateScannedPoolFromDraft(rows, draftJson, options?.preserveScannedPool ?? scannedGuestPool);
   }
 
   async function refreshPricingSnapshot(options?: { syncDefaultPlans?: boolean }) {
@@ -1391,19 +1424,7 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
       display_name: entry.display_name ? String(entry.display_name) : null,
     };
 
-    setScannedGuestPool((prev) => {
-      const existingIndex = prev.findIndex((item) => item.id === poolItem.id);
-      if (existingIndex >= 0) {
-        const next = [...prev];
-        next[existingIndex] = {
-          ...next[existingIndex],
-          ...poolItem,
-          scan_order: next[existingIndex].scan_order || poolItem.scan_order,
-        };
-        return next.sort((a, b) => a.scan_order - b.scan_order);
-      }
-      return [...prev, poolItem].sort((a, b) => a.scan_order - b.scan_order);
-    });
+    setScannedGuestPool((prev) => upsertScannedPoolItem(prev, poolItem));
     return poolItem;
   }
 
@@ -1712,13 +1733,15 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
           guest_profile_id: guest.id,
         });
       }
-      if (!scannedGuestPool.some((item) => item.id === guest.id)) {
-        await ingestIdentityToPool({
+      let preservedPool = scannedGuestPool;
+      if (!preservedPool.some((item) => item.id === guest.id)) {
+        const item = await ingestIdentityToPool({
           source: "search",
           guestProfileId: guest.id,
         });
+        preservedPool = upsertScannedPoolItem(preservedPool, item);
       }
-      await reloadReservationSnapshot();
+      await reloadReservationSnapshot({ preserveScannedPool: preservedPool });
       setInfo(
         `${role === "primary" ? "Primary linked" : "Accompanying added"} for room ${selectedReservations.find((row) => row.id === targetReservationId)?.room_number ?? targetReservationId
         }.`
@@ -1761,11 +1784,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         throw new Error(unlinkData?.error || "Failed to remove primary guest.");
       }
 
-      await ingestIdentityToPool({
+      const restoredItem = await ingestIdentityToPool({
         source: "search",
         guestProfileId,
       });
-      await reloadReservationSnapshot();
+      await reloadReservationSnapshot({
+        preserveScannedPool: upsertScannedPoolItem(scannedGuestPool, restoredItem),
+      });
       setInfo("Primary guest moved back to pool.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to move primary guest back to pool.");
@@ -1783,11 +1808,13 @@ export default function GroupCheckinWizardPage({ params }: { params: { id: strin
         reservation_id: reservationId,
         guest_profile_id: guestProfileId,
       });
-      await ingestIdentityToPool({
+      const restoredItem = await ingestIdentityToPool({
         source: "search",
         guestProfileId,
       });
-      await reloadReservationSnapshot();
+      await reloadReservationSnapshot({
+        preserveScannedPool: upsertScannedPoolItem(scannedGuestPool, restoredItem),
+      });
       setInfo("Accompanying guest moved back to pool.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to move accompanying guest back to pool.");
