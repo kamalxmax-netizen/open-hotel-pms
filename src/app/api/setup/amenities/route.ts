@@ -1,11 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const upsertAmenitySchema = z.object({
   room_type_code: z.string().trim().min(1, "room_type_code is required"),
@@ -30,7 +25,10 @@ function normalizeCategory(input: string): string {
   return "Amenity";
 }
 
-async function syncAmenityAnalyticsSetup(roomTypeCode: string) {
+async function syncAmenityAnalyticsSetup(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  roomTypeCode: string
+) {
   const { data: roomType, error: roomTypeError } = await supabase
     .from("room_types")
     .select("id, code, name_en")
@@ -102,6 +100,7 @@ async function syncAmenityAnalyticsSetup(roomTypeCode: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createServerSupabaseClient();
     const roomTypeCode = request.nextUrl.searchParams.get("room_type_code");
 
     let query = supabase
@@ -136,6 +135,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = createServerSupabaseClient();
     const body = await request.json().catch(() => null);
     const parsed = upsertAmenitySchema.safeParse(body);
     if (!parsed.success) {
@@ -206,7 +206,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: refreshError.message }, { status: 500 });
     }
 
-    const syncedSetupRows = await syncAmenityAnalyticsSetup(roomTypeCode);
+    const syncedSetupRows = await syncAmenityAnalyticsSetup(supabase, roomTypeCode);
 
     return NextResponse.json({
       success: true,

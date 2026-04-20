@@ -1,11 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -23,6 +18,7 @@ function isMissingCleaningDurationColumn(error: { message?: string | null } | nu
 
 export async function GET() {
   try {
+    const supabase = createServerSupabaseClient();
     const { data, error } = await supabase
       .from("room_types")
       .select("id, code, name_en, cleaning_duration_min, max_guests")
@@ -58,6 +54,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const supabase = createServerSupabaseClient();
     const json = await req.json().catch(() => null);
     const parsed = updateSchema.safeParse(json);
     if (!parsed.success) {

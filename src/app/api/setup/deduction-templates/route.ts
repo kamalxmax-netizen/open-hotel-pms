@@ -1,14 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // GET /api/setup/deduction-templates — get all templates grouped by category
 export async function GET() {
     try {
+        const supabase = createServerSupabaseClient();
         const { data, error } = await supabase
             .from("condition_deduction_templates")
             .select("id, category, label, deduct_points")
@@ -33,6 +29,7 @@ export async function GET() {
 // POST /api/setup/deduction-templates — create a new template
 export async function POST(req: Request) {
     try {
+        const supabase = createServerSupabaseClient();
         const { category, label, deduct_points } = await req.json();
 
         if (!category || !label || !deduct_points) {

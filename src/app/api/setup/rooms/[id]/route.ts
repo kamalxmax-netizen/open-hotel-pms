@@ -1,11 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type Params = { params: { id: string } };
 
@@ -13,6 +8,7 @@ type Params = { params: { id: string } };
 export async function GET(_req: Request, { params }: Params) {
     const { id } = params;
     try {
+        const supabase = createServerSupabaseClient();
         const { data: room, error: rErr } = await supabase
             .from("rooms")
             .select(`
@@ -63,6 +59,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PUT(req: Request, { params }: Params) {
     const { id } = params;
     try {
+        const supabase = createServerSupabaseClient();
         const body = await req.json();
         const {
             beds,        // [{ bed_type_code, quantity }]

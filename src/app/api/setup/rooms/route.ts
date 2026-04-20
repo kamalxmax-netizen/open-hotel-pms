@@ -1,16 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // GET /api/setup/rooms — all rooms with features, beds, detail, total_nights, max_guests
 // Graceful: works both before and after migrations are applied
 export async function GET() {
     try {
+        const supabase = createServerSupabaseClient();
         // 1. Rooms with room type info (always available)
         const { data: rooms, error: rErr } = await supabase
             .from("rooms")
@@ -139,6 +135,7 @@ export async function GET() {
 // Body: { room_id: string, feature_code: string, action: 'add'|'remove' }
 export async function POST(req: Request) {
     try {
+        const supabase = createServerSupabaseClient();
         const { room_id, feature_code, action } = await req.json();
 
         if (!room_id || !feature_code) {

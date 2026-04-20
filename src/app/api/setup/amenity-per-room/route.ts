@@ -1,11 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -22,6 +17,7 @@ const postSchema = z.object({
 
 export async function GET() {
   try {
+    const supabase = createServerSupabaseClient();
     const [roomTypesResult, productsResult, setupsResult] = await Promise.all([
       supabase
         .from("room_types")
@@ -70,6 +66,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const supabase = createServerSupabaseClient();
     const json = await request.json().catch(() => null);
     const parsed = postSchema.safeParse(json);
     if (!parsed.success) {

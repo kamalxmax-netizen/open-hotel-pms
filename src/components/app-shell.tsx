@@ -23,6 +23,7 @@ export default function AppShell({
   const isStandaloneRoute =
     pathname.startsWith("/maid") ||
     pathname.startsWith("/pms/board/mockup") ||
+    pathname.startsWith("/pms/board/v2") ||
     pathname.startsWith("/pms/mobile-checkin") ||
     pathname.startsWith("/linen-mobile") ||
     pathname.startsWith("/linen-vendor");

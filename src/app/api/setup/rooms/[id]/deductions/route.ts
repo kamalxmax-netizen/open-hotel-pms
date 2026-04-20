@@ -1,10 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type Params = { params: { id: string } };
 
@@ -12,6 +7,7 @@ type Params = { params: { id: string } };
 export async function POST(req: Request, { params }: Params) {
     const { id: roomId } = params;
     try {
+        const supabase = createServerSupabaseClient();
         const { category, label, deduct_points, template_id } = await req.json();
 
         if (!category || !label || !deduct_points) {
@@ -49,6 +45,7 @@ export async function DELETE(req: Request, { params }: Params) {
     }
 
     try {
+        const supabase = createServerSupabaseClient();
         const { error } = await supabase
             .from("room_condition_deductions")
             .delete()

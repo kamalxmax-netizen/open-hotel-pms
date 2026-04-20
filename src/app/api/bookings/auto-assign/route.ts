@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { scoreRooms, DEFAULT_WEIGHTS, type CandidateRoom, type ReservationForAssign } from "@/lib/auto-assign";
 import { listOverlappingPlannedRoomHolds, syncReservationNightDependencyMetadata } from "@/lib/planned-room-moves";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function parseDateString(value: unknown): string | null {
     if (typeof value !== "string") return null;
@@ -19,7 +14,7 @@ function getBangkokToday(): string {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 }
 
-async function resolveTargetDate(requestedDate: unknown): Promise<string> {
+async function resolveTargetDate(supabase: ReturnType<typeof createServerSupabaseClient>, requestedDate: unknown): Promise<string> {
     const explicit = parseDateString(requestedDate);
     if (explicit) return explicit;
 
@@ -45,8 +40,9 @@ async function resolveTargetDate(requestedDate: unknown): Promise<string> {
  */
 export async function POST(request: Request) {
     try {
+        const supabase = createServerSupabaseClient();
         const json = await request.json().catch(() => ({}));
-        const targetDate: string = await resolveTargetDate((json as any).date);
+        const targetDate: string = await resolveTargetDate(supabase, (json as any).date);
         const dryRun: boolean = json.dry_run ?? false;
 
         // ── 1. Fetch scoring weights ───────────────────────────────────────
