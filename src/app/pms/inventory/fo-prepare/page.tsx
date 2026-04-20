@@ -439,14 +439,15 @@ export default function FoPreparePage() {
     for (const item of items) {
       const row = batchDetail.items.find((it) => it.id === item.item_id);
       if (!row) continue;
-      if (item.return_qty + item.damaged_qty > row.prepared_qty) {
+      const accountedQty = item.return_qty + item.damaged_qty;
+      if (accountedQty < row.suggested_remaining) {
         setReturnFeedback({
           kind: "error",
-          message: `${item.product_name} floor ${item.floor_number}: return + damaged qty cannot exceed prepared qty.`,
+          message: `${item.product_name} floor ${item.floor_number}: return + damaged qty must clear all floor stock.`,
         });
         toast({
           title: "Invalid return qty",
-          description: `${item.product_name} floor ${item.floor_number}: return + damaged qty cannot exceed prepared qty.`,
+          description: `${item.product_name} floor ${item.floor_number}: return + damaged qty must clear all floor stock.`,
           variant: "destructive",
         });
         return;
@@ -463,14 +464,14 @@ export default function FoPreparePage() {
         });
         return;
       }
-      if (item.return_qty + item.damaged_qty !== row.suggested_remaining && !item.note) {
+      if (accountedQty > row.suggested_remaining && !item.note) {
         setReturnFeedback({
           kind: "error",
-          message: `${item.product_name} floor ${item.floor_number}: note required when return/damage differs from system.`,
+          message: `${item.product_name} floor ${item.floor_number}: note required when return/damage exceeds system floor stock.`,
         });
         toast({
           title: "Note required",
-          description: `${item.product_name} floor ${item.floor_number}: add note when return/damage differs from system.`,
+          description: `${item.product_name} floor ${item.floor_number}: add note when return/damage exceeds system floor stock.`,
           variant: "destructive",
         });
         return;
@@ -961,8 +962,8 @@ export default function FoPreparePage() {
                                   }))
                                 }
                                 placeholder={
-                                  Number(returnQtyMap[row.id] ?? row.returnable_max) + Number(damagedQtyMap[row.id] ?? 0) !== row.suggested_remaining
-                                    ? "Required when qty differs/damaged"
+                                  Number(returnQtyMap[row.id] ?? row.returnable_max) + Number(damagedQtyMap[row.id] ?? 0) > row.suggested_remaining
+                                    ? "Required when qty exceeds system"
                                     : "Optional"
                                 }
                                 disabled={batchDetail.batch.status !== "prepared"}

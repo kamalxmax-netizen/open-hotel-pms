@@ -30,6 +30,13 @@ function str(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function channelDisplayLabel(actual: string, taxInvoice: string): string {
+  if (actual === "walkin" && taxInvoice === "ota") return "Walk-in(O)";
+  if (taxInvoice === "ota" || taxInvoice === "agent") return "OTA";
+  if (taxInvoice === "direct") return "Direct";
+  return "Walk-in";
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { year: string; month: string } }
@@ -111,6 +118,7 @@ export async function GET(
     // Load corrections for all entries
     const entryIds = ((entriesData ?? []) as any[]).map((e: any) => String(e.id));
     let correctionsMap = new Map<string, any[]>();
+    let channelFlagMap = new Map<string, any>();
 
     if (entryIds.length > 0) {
       const { data: corrections } = await supabase
@@ -133,6 +141,19 @@ export async function GET(
           corrected_at: String(c.corrected_at),
         });
       }
+
+      const { data: channelFlags, error: channelFlagError } = await supabase
+        .from("monthly_audit_channel_flag")
+        .select("*")
+        .in("entry_id", entryIds);
+
+      if (channelFlagError) {
+        return NextResponse.json({ success: false, error: channelFlagError.message }, { status: 500 });
+      }
+
+      channelFlagMap = new Map(
+        ((channelFlags ?? []) as any[]).map((flag: any) => [String(flag.entry_id), flag])
+      );
     }
 
     // Shape entries
@@ -166,6 +187,19 @@ export async function GET(
       passport_number: e.passport_number ?? null,
       id_card_number: e.id_card_number ?? null,
       guest_count: Number(e.guest_count ?? 1),
+      channel_flag: (() => {
+        const flag = channelFlagMap.get(String(e.id));
+        const actual = str(flag?.actual_channel || e.source);
+        const taxInvoice = str(flag?.tax_invoice_channel || actual);
+        return {
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          display_label: channelDisplayLabel(actual, taxInvoice),
+          reason: flag?.reason ?? null,
+          flagged_by_user_id: flag?.flagged_by_user_id ?? null,
+          flagged_at: flag?.flagged_at ? String(flag.flagged_at) : null,
+        };
+      })(),
       corrections: correctionsMap.get(String(e.id)) ?? [],
     }));
 

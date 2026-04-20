@@ -64,7 +64,17 @@ export interface MonthlyAuditEntry {
   passport_number: string | null;
   id_card_number: string | null;
   guest_count: number;
+  channel_flag?: MonthlyAuditEntryChannelFlag | null;
   corrections?: MonthlyAuditCorrection[];
+}
+
+export interface MonthlyAuditEntryChannelFlag {
+  actual_channel: string;
+  tax_invoice_channel: string;
+  display_label: string;
+  reason: string | null;
+  flagged_by_user_id: string | null;
+  flagged_at: string | null;
 }
 
 export interface MonthlyAuditCorrection {

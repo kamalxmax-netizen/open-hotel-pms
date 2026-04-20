@@ -791,10 +791,9 @@ export async function getFoPrepareBatchDetail(
   if (productIds.length > 0 && floorNumbers.length > 0) {
     const { data: usedRows, error: usedError } = await supabase
       .from("stock_transactions_v2")
-      .select("product_id, floor_number, quantity_change")
+      .select("product_id, floor_number, action, quantity_change, reference_type")
       .eq("transaction_date", batch.business_date)
-      .eq("action", "use")
-      .eq("reference_type", "housekeeping_task")
+      .in("action", ["use", "adjust"])
       .in("product_id", productIds)
       .in("floor_number", floorNumbers);
 
@@ -803,9 +802,19 @@ export async function getFoPrepareBatchDetail(
     }
 
     for (const row of usedRows ?? []) {
+      const action = String((row as any).action ?? "");
+      const referenceType = String((row as any).reference_type ?? "");
+      const quantityChange = Number((row as any).quantity_change ?? 0);
       const key = `${Number((row as any).floor_number ?? 0)}:${String((row as any).product_id ?? "")}`;
-      const qty = Math.abs(Number((row as any).quantity_change ?? 0));
-      usedMap.set(key, (usedMap.get(key) ?? 0) + qty);
+      const delta =
+        action === "use" && referenceType === "housekeeping_task"
+          ? Math.abs(quantityChange)
+          : action === "adjust" && referenceType === "admin_correction" && quantityChange > 0
+            ? -quantityChange
+            : 0;
+      if (delta !== 0) {
+        usedMap.set(key, Math.max((usedMap.get(key) ?? 0) + delta, 0));
+      }
     }
   }
 
@@ -834,9 +843,11 @@ export async function getFoPrepareBatchDetail(
       const key = `${floor}:${productId}`;
       const preparedQty = Number(row.prepared_qty ?? 0);
       const usedQty = Math.max(usedMap.get(key) ?? Number(row.used_qty ?? 0), 0);
-      const suggestedRemaining = Math.max(preparedQty - usedQty, 0);
       const floorCurrentQty = Math.max(floorCurrentMap.get(key) ?? 0, 0);
-      const returnableMax = Math.max(Math.min(preparedQty, floorCurrentQty), 0);
+      // End-of-day return should clear all FO prepare floor stock, including
+      // items returned from Maid app back to the floor after the morning prepare.
+      const suggestedRemaining = floorCurrentQty;
+      const returnableMax = floorCurrentQty;
 
       return {
         id: String(row.id),

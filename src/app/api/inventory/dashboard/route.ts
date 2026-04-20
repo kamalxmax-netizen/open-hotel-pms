@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from("stock_transactions_v2")
         .select(
-          "id, transaction_date, product_id, action, quantity_change, floor_number, room_number, note, products(name, category, unit, is_active)"
+          "id, transaction_date, product_id, action, quantity_change, floor_number, room_number, reference_type, note, products(name, category, unit, is_active)"
         )
         .gte("transaction_date", dateFrom)
         .lte("transaction_date", dateTo)
@@ -196,6 +196,7 @@ export async function GET(request: NextRequest) {
       quantity_change: Number(row.quantity_change ?? 0),
       floor_number: row.floor_number ?? null,
       room_number: row.room_number ?? null,
+      reference_type: row.reference_type ?? null,
       note: row.note ?? null,
     }));
 
@@ -223,24 +224,43 @@ export async function GET(request: NextRequest) {
       {}
     );
 
+    const usageDelta = (row: (typeof visibleTxList)[number]) => {
+      if (row.action === "use") return Math.abs(Number(row.quantity_change ?? 0));
+      if (
+        row.action === "adjust" &&
+        String(row.reference_type ?? "") === "admin_correction" &&
+        Number(row.quantity_change ?? 0) > 0
+      ) {
+        return -Number(row.quantity_change ?? 0);
+      }
+      return 0;
+    };
+
     const usageByRoom = visibleTxList
-      .filter((row) => row.action === "use" && row.room_number)
+      .filter((row) => row.room_number && usageDelta(row) !== 0)
       .reduce<Record<string, { room_number: string; usage_count: number; units_used: number }>>((acc, tx) => {
         const roomNumber = String(tx.room_number);
         if (!acc[roomNumber]) {
           acc[roomNumber] = { room_number: roomNumber, usage_count: 0, units_used: 0 };
         }
-        acc[roomNumber].usage_count += 1;
-        acc[roomNumber].units_used += Math.abs(Number(tx.quantity_change ?? 0));
+        const delta = usageDelta(tx);
+        acc[roomNumber].usage_count += delta > 0 ? 1 : -1;
+        acc[roomNumber].units_used += delta;
         return acc;
       }, {});
 
     const roomUsageTop = Object.values(usageByRoom)
+      .map((row) => ({
+        ...row,
+        usage_count: Math.max(row.usage_count, 0),
+        units_used: Math.max(row.units_used, 0),
+      }))
+      .filter((row) => row.units_used > 0)
       .sort((a, b) => b.units_used - a.units_used)
       .slice(0, 10);
 
     const usageByProductAndRoom = visibleTxList
-      .filter((row) => row.action === "use" && row.room_number)
+      .filter((row) => row.room_number && usageDelta(row) !== 0)
       .reduce<
         Record<
           string,
@@ -282,21 +302,29 @@ export async function GET(request: NextRequest) {
           };
         }
 
-        acc[key].usage_count += 1;
-        acc[key].units_used += Math.abs(Number(tx.quantity_change ?? 0));
+        const delta = usageDelta(tx);
+        acc[key].usage_count += delta > 0 ? 1 : -1;
+        acc[key].units_used += delta;
         return acc;
       }, {});
 
-    const productUsageEntries = Object.values(usageByProductAndRoom).sort((a, b) => {
-      const catA = String(a.category ?? "").toLowerCase();
-      const catB = String(b.category ?? "").toLowerCase();
-      if (catA !== catB) return catA.localeCompare(catB);
-      const nameA = String(a.product_name ?? "").toLowerCase();
-      const nameB = String(b.product_name ?? "").toLowerCase();
-      if (nameA !== nameB) return nameA.localeCompare(nameB);
-      if (b.units_used !== a.units_used) return b.units_used - a.units_used;
-      return String(a.room_number).localeCompare(String(b.room_number), undefined, { numeric: true });
-    });
+    const productUsageEntries = Object.values(usageByProductAndRoom)
+      .map((row) => ({
+        ...row,
+        usage_count: Math.max(row.usage_count, 0),
+        units_used: Math.max(row.units_used, 0),
+      }))
+      .filter((row) => row.units_used > 0)
+      .sort((a, b) => {
+        const catA = String(a.category ?? "").toLowerCase();
+        const catB = String(b.category ?? "").toLowerCase();
+        if (catA !== catB) return catA.localeCompare(catB);
+        const nameA = String(a.product_name ?? "").toLowerCase();
+        const nameB = String(b.product_name ?? "").toLowerCase();
+        if (nameA !== nameB) return nameA.localeCompare(nameB);
+        if (b.units_used !== a.units_used) return b.units_used - a.units_used;
+        return String(a.room_number).localeCompare(String(b.room_number), undefined, { numeric: true });
+      });
 
     const lowStockItems = visibleMainRows.filter((row) => row.is_low_stock);
     const floorStockDetails = visibleFloorRows

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { FileText } from "lucide-react";
 
 // ============================================================
 // Types
@@ -57,6 +58,12 @@ type AuditEntry = {
   passport_number: string | null;
   id_card_number: string | null;
   guest_count: number;
+  channel_flag?: {
+    actual_channel: string;
+    tax_invoice_channel: string;
+    display_label: string;
+    reason: string | null;
+  } | null;
   corrections?: AuditCorrection[];
 };
 
@@ -352,6 +359,53 @@ export default function MonthlyAuditPage() {
   };
 
   // ============================================================
+  // Inline Channel Flag Editor
+  // ============================================================
+  const [savingChannelFlagId, setSavingChannelFlagId] = useState<string | null>(null);
+
+  const handleChannelFlagSave = async (entryId: string, actual: string, taxInvoice: string, reason?: string) => {
+    setSavingChannelFlagId(entryId);
+    try {
+      const res = await fetch("/api/monthly-audit/channel-flag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entry_id: entryId,
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          reason,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      
+      // Update local state instead of full reload for snappy UX
+      setEntries(entries.map(e => e.id === entryId ? {
+        ...e,
+        channel_flag: {
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          display_label: json.display_label || (actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : SOURCE_LABELS[taxInvoice] || taxInvoice),
+          reason: reason || null
+        }
+      } : e));
+      setPreviewEntries(previewEntries.map(e => e.id === entryId ? {
+        ...e,
+        channel_flag: {
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          display_label: json.display_label || (actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : SOURCE_LABELS[taxInvoice] || taxInvoice),
+          reason: reason || null
+        }
+      } : e));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Save channel flag failed");
+    } finally {
+      setSavingChannelFlagId(null);
+    }
+  };
+
+  // ============================================================
   // Derived
   // ============================================================
 
@@ -481,6 +535,13 @@ export default function MonthlyAuditPage() {
             Export CSV
           </button>
         )}
+        <Link
+          href={`/pms/tax-invoice/abbreviated/preview/${selectedYear}/${selectedMonth}`}
+          className="rounded-lg flex items-center gap-2 border bg-blue-50 border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors ml-auto"
+        >
+          <FileText className="h-4 w-4" />
+          ใบกำกับภาษีอย่างย่อ
+        </Link>
       </div>
 
       {isPreviewMode && (
@@ -668,14 +729,52 @@ export default function MonthlyAuditPage() {
                           {hasCorrected && <span className="ml-1 text-amber-500" title="Corrected">*</span>}
                         </td>
                         <td className="p-2">
-                          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                            entry.source === "ota" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                            : entry.source === "walkin" ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                            : entry.source === "direct" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                          }`}>
-                            {SOURCE_LABELS[entry.source] ?? entry.source}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            {canCorrect ? (
+                              <div className="flex items-center gap-1">
+                                <select 
+                                  value={entry.channel_flag?.actual_channel ?? entry.source}
+                                  onChange={(e) => handleChannelFlagSave(entry.id, e.target.value, entry.channel_flag?.tax_invoice_channel ?? entry.source, entry.channel_flag?.reason ?? undefined)}
+                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)]"
+                                  title="Actual Channel"
+                                >
+                                  <option value="ota">OTA (Act)</option>
+                                  <option value="walkin">Walk-in (Act)</option>
+                                  <option value="direct">Direct (Act)</option>
+                                  <option value="agent">Agent (Act)</option>
+                                </select>
+                                <span className="text-[10px] text-[var(--text-muted)]">&rarr;</span>
+                                <select 
+                                  value={entry.channel_flag?.tax_invoice_channel ?? entry.source}
+                                  onChange={(e) => handleChannelFlagSave(entry.id, entry.channel_flag?.actual_channel ?? entry.source, e.target.value, entry.channel_flag?.reason ?? undefined)}
+                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)]"
+                                  title="Tax Invoice Channel"
+                                >
+                                  <option value="ota">OTA (Tax)</option>
+                                  <option value="walkin">Walk-in (Tax)</option>
+                                  <option value="direct">Direct (Tax)</option>
+                                  <option value="agent">Agent (Tax)</option>
+                                </select>
+                                {savingChannelFlagId === entry.id && <span className="text-[10px] text-[var(--text-muted)] animate-pulse">...</span>}
+                              </div>
+                            ) : null}
+                            <div>
+                              <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                (entry.channel_flag?.display_label === "Walk-in(O)") ? "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
+                                : (entry.channel_flag?.tax_invoice_channel ?? entry.source) === "ota" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                : (entry.channel_flag?.tax_invoice_channel ?? entry.source) === "walkin" ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                                : (entry.channel_flag?.tax_invoice_channel ?? entry.source) === "direct" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                                : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                              }`}>
+                                {entry.channel_flag?.display_label ?? SOURCE_LABELS[entry.source] ?? entry.source}
+                              </span>
+                              {entry.channel_flag?.reason && (
+                                <span className="ml-1 text-[9px] text-[var(--text-muted)] italic max-w-[80px] inline-block truncate align-bottom" title={entry.channel_flag.reason}>
+                                  ({entry.channel_flag.reason})
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="p-2 text-[var(--text-secondary)]">{entry.room_number ?? "-"}</td>
                         <td className="p-2 text-center text-[var(--text-muted)]">
