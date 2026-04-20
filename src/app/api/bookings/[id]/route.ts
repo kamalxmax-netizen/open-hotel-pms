@@ -31,6 +31,7 @@ import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { findPossibleReturnCandidatesByBookingNames } from "@/lib/guest-booking-names";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { cleanBookingNameInput } from "@/lib/text-normalization";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -520,6 +521,10 @@ export async function PUT(
   }
 
   const payload = parsed.data;
+  const normalizedGuestName = cleanBookingNameInput(payload.guest_name);
+  if (!normalizedGuestName) {
+    return NextResponse.json({ error: "Guest Name is required." }, { status: 400 });
+  }
   const responseWarnings: string[] = [];
   const hasSpecialsField = Object.prototype.hasOwnProperty.call(json ?? {}, "specials");
   const hasExpectedArrivalField = Object.prototype.hasOwnProperty.call(json ?? {}, "expected_arrival_time");
@@ -911,7 +916,7 @@ export async function PUT(
     const { data: metadataOnlyReservation, error: metadataOnlyError } = await supabase
       .from("reservations")
       .update({
-        guest_name: payload.guest_name.trim(),
+        guest_name: normalizedGuestName,
         phone: payload.phone?.trim() || null,
         ...(checkedOutMetadataOnlyUpdate ? {} : {
           source: payload.source,
@@ -936,7 +941,7 @@ export async function PUT(
   } else {
     let { data, error } = await supabase.rpc("booking_update_reservation", {
       p_reservation_id: reservationId,
-      p_guest_name: payload.guest_name.trim(),
+      p_guest_name: normalizedGuestName,
       p_room_id: effectiveRoomId || null,
       p_room_type_id: capacityRoomTypeId,
       p_checkin_date: payload.checkin_date,
@@ -966,7 +971,7 @@ export async function PUT(
           ? requestedCheckinTime || null
           : String(currentReservation.checkin_time ?? "").trim() || null,
         p_checkout_date: payload.checkout_date,
-        p_guest_name: payload.guest_name.trim(),
+        p_guest_name: normalizedGuestName,
         p_note: payload.note?.trim() || null,
         p_ota_prices: normalizedOtaPrices,
         p_phone: payload.phone?.trim() || null,

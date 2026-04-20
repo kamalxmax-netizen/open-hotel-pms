@@ -25,6 +25,7 @@ import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/ex
 import { loadReservationSheetSyncGroups, pushToGoogleSheet } from "@/lib/google-sheet-sync";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { cleanBookingNameInput } from "@/lib/text-normalization";
 
 function isLegacyCreateRpcMismatch(message?: string | null): boolean {
   if (!message) return false;
@@ -245,6 +246,10 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = parsed.data;
+  const normalizedGuestName = cleanBookingNameInput(payload.guest_name);
+  if (!normalizedGuestName) {
+    return NextResponse.json({ error: "Guest Name is required." }, { status: 400 });
+  }
   let normalizedExpectedArrivalTime: string | null = null;
   try {
     normalizedExpectedArrivalTime = normalizeExpectedArrivalTime(payload.expected_arrival_time);
@@ -396,7 +401,7 @@ export async function POST(request: NextRequest) {
   }
 
   let { data: reservation, error } = await supabase.rpc("booking_create_reservation", {
-    p_guest_name: payload.guest_name.trim(),
+    p_guest_name: normalizedGuestName,
     p_room_id: payload.room_id || null,
     p_room_type_id: normalizedRoomTypeId,
     p_checkin_date: payload.checkin_date,
@@ -422,7 +427,7 @@ export async function POST(request: NextRequest) {
       p_checkin_date: payload.checkin_date,
       p_checkin_time: payload.checkin_time?.trim() || null,
       p_checkout_date: payload.checkout_date,
-      p_guest_name: payload.guest_name.trim(),
+      p_guest_name: normalizedGuestName,
       p_note: payload.note?.trim() || null,
       p_ota_prices: normalizedOtaPrices,
       p_phone: payload.phone?.trim() || null,
@@ -588,7 +593,7 @@ export async function POST(request: NextRequest) {
         before_json: null,
         after_json: {
           booking_code: (reservation as any)?.booking_code ?? null,
-          guest_name: payload.guest_name.trim(),
+          guest_name: normalizedGuestName,
           source: payload.source,
           checkin_date: payload.checkin_date,
           checkout_date: payload.checkout_date,

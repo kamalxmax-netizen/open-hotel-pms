@@ -31,6 +31,7 @@ import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
+import { cleanBookingNameInput, cleanFloatingThaiMarks } from "@/lib/text-normalization";
 import { logUiEvent } from "@/lib/ui-event-log-client";
 import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -3628,6 +3629,14 @@ export default function ReservationDetailPage({
             setError("Expected arrival time must be HH:mm.");
             return;
         }
+        const normalizedGuestName = cleanBookingNameInput(guestName);
+        if (normalizedGuestName !== guestName) {
+            setGuestName(normalizedGuestName);
+        }
+        if (!normalizedGuestName) {
+            setError("Guest Name is required.");
+            return;
+        }
         setLoading(true);
         setError("");
         setSuccessMessage("");
@@ -3791,7 +3800,7 @@ export default function ReservationDetailPage({
                 }
 
                 const payload: any = {
-                    guest_name: guestName.trim(),
+                    guest_name: normalizedGuestName,
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
@@ -3860,7 +3869,7 @@ export default function ReservationDetailPage({
                 setLoading(false);
                 setCreatedSummary({
                     bookingCode: String(created?.booking_code || created?.id || "N/A"),
-                    guestName: guestName.trim() || String(created?.guest_name || "Guest"),
+                    guestName: normalizedGuestName || String(created?.guest_name || "Guest"),
                     source,
                     roomTypeName: selectedRoomType?.name_en || "Unspecified",
                     roomNumber: selectedRoom?.room_number || created?.room_number || null,
@@ -3878,7 +3887,7 @@ export default function ReservationDetailPage({
                 const checkedOutMetadataOnlyEdit = canEditCheckedOutReservation;
 
                 const payload: any = {
-                    guest_name: guestName.trim(),
+                    guest_name: normalizedGuestName,
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
@@ -3949,7 +3958,7 @@ export default function ReservationDetailPage({
                 const checkinTimestampChanged = checkedInAt !== initialCheckedInAt;
 
                 const payload: any = {
-                    guest_name: guestName.trim(),
+                    guest_name: normalizedGuestName,
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
@@ -4067,7 +4076,7 @@ export default function ReservationDetailPage({
                 }
 
                 const updatePayload: any = {
-                    guest_name: guestName.trim(),
+                    guest_name: normalizedGuestName,
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
@@ -4907,7 +4916,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             className={`form-input text-[15px] font-medium ${checkinFieldErrorClass(["first_name", "last_name"])}`}
                                                             value={guestName}
-                                                            onChange={(e) => setGuestName(e.target.value)}
+                                                            onChange={(e) => setGuestName(cleanFloatingThaiMarks(e.target.value))}
                                                             onFocus={() => setGuestMatchEnabled(true)}
                                                             disabled={isReadonly}
                                                             required
