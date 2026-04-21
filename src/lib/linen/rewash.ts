@@ -109,16 +109,22 @@ export async function listPendingRewashEvents(
   return (data ?? [])
     .filter((row: any) => !options.asOf || String(row.laundry_batches?.business_date ?? "") <= options.asOf)
     .map((row: any) => {
+    const qty = Number(row.qty ?? 0);
+    const resolvedQty = Number(row.resolved_qty ?? 0);
+    const remainingQty = Math.max(0, qty - resolvedQty);
     const createdAt = new Date(row.created_at);
     const daysWaiting = Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / 86_400_000));
     return {
       ...row,
+      resolved_qty: resolvedQty,
       item_name_th: row.linen_items?.name_th ?? "",
       sent_batch_business_date: row.laundry_batches?.business_date ?? null,
       sent_batch_pickup_round: row.laundry_batches?.pickup_round ?? null,
       days_waiting: daysWaiting,
+      remaining_qty: remainingQty,
     };
-  });
+  })
+    .filter((row: any) => Number(row.remaining_qty ?? 0) > 0);
 }
 
 export async function resolveRewashEvent(
@@ -138,16 +144,22 @@ export async function resolveRewashEvent(
 
   const resolvedQty = Math.max(0, Number(input.resolvedQty));
   const maxQty = Number((existing as any).qty ?? 0);
-  if (resolvedQty > maxQty) {
+  const currentResolvedQty = Math.max(0, Number((existing as any).resolved_qty ?? 0));
+  const nextResolvedQty = currentResolvedQty + resolvedQty;
+  if (resolvedQty <= 0) {
+    throw new LinenBatchError("resolved_qty must be greater than zero.", 400);
+  }
+  if (nextResolvedQty > maxQty) {
     throw new LinenBatchError("resolved_qty cannot exceed rewash qty.", 400);
   }
+  const isFullyResolved = nextResolvedQty >= maxQty;
 
   const { data: event, error } = await supabase
     .from("laundry_rewash_events")
     .update({
-      status: "resolved",
+      status: isFullyResolved ? "resolved" : "pending",
       resolved_batch_id: input.resolvedBatchId,
-      resolved_qty: resolvedQty,
+      resolved_qty: nextResolvedQty,
       resolved_at: new Date().toISOString(),
     })
     .eq("id", input.id)
@@ -157,11 +169,13 @@ export async function resolveRewashEvent(
 
   const photoKeys = ((existing as any).photo_keys ?? []) as string[];
   let deleted = false;
-  try {
-    await deleteR2Objects(photoKeys);
-    deleted = true;
-  } catch (deleteError) {
-    console.error("Failed to delete rewash photos", deleteError);
+  if (isFullyResolved && photoKeys.length > 0) {
+    try {
+      await deleteR2Objects(photoKeys);
+      deleted = true;
+    } catch (deleteError) {
+      console.error("Failed to delete rewash photos", deleteError);
+    }
   }
 
   if (deleted) {
@@ -179,7 +193,13 @@ export async function resolveRewashEvent(
     batch_id: input.resolvedBatchId,
     event_type: "rewash_resolved",
     actor_role: "fo",
-    data: { rewash_event_id: input.id, resolved_qty: resolvedQty, photos_deleted: deleted },
+    data: {
+      rewash_event_id: input.id,
+      resolved_qty: resolvedQty,
+      total_resolved_qty: nextResolvedQty,
+      remaining_qty: Math.max(0, maxQty - nextResolvedQty),
+      photos_deleted: deleted,
+    },
   });
 
   return event;

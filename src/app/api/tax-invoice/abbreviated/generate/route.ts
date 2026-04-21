@@ -12,6 +12,7 @@ export const fetchCache = "force-no-store";
 const bodySchema = z.object({
   year: z.coerce.number().int().min(2025).max(2035),
   month: z.coerce.number().int().min(1).max(12),
+  source_type: z.enum(["room", "dayuse", "pos"]).optional().default("room"),
 });
 
 export async function POST(request: NextRequest) {
@@ -32,7 +33,8 @@ export async function POST(request: NextRequest) {
       actor.supabase,
       parsed.data.year,
       parsed.data.month,
-      actor.user.id
+      actor.user.id,
+      parsed.data.source_type
     );
     return NextResponse.json({ success: true, data: result, ...result });
   } catch (err) {

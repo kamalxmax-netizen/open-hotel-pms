@@ -246,8 +246,9 @@ export async function closeMonth(params: {
   year: number;
   month: number;
   closedByUserId: string | null;
+  filterDayuse?: "only" | "exclude";
 }): Promise<{ period: MonthlyAuditPeriod; entries: MonthlyAuditEntry[]; summary: MonthlyAuditSummary }> {
-  const { supabase, year, month, closedByUserId } = params;
+  const { supabase, year, month, closedByUserId, filterDayuse } = params;
 
   // 1. Check existing period state
   const { data: existing, error: existingError } = await supabase
@@ -287,7 +288,7 @@ export async function closeMonth(params: {
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
     .select(
-      "id, booking_code, guest_name, source, checkin_date, checkout_date, total_price, tax_invoice_requested, guest_profile_id"
+      "id, booking_code, guest_name, source, checkin_date, checkout_date, total_price, tax_invoice_requested, guest_profile_id, is_dayuse"
     )
     .eq("status", "checked_out")
     .gte("checkout_date", dateFrom)
@@ -298,7 +299,11 @@ export async function closeMonth(params: {
     throw new MonthlyAuditError(`Failed to load reservations: ${resError.message}`, 500);
   }
 
-  const reservationRows = (reservations ?? []) as any[];
+  const reservationRows = ((reservations ?? []) as any[]).filter((row) => {
+    if (filterDayuse === "only") return Boolean(row.is_dayuse);
+    if (filterDayuse === "exclude") return !Boolean(row.is_dayuse);
+    return true;
+  });
   if (reservationRows.length === 0) {
     throw new MonthlyAuditError(
       `No checked-out reservations found for ${year}-${String(month).padStart(2, "0")}.`,
@@ -617,15 +622,16 @@ export async function previewMonth(params: {
   supabase: SupabaseLike;
   year: number;
   month: number;
+  filterDayuse?: "only" | "exclude";
 }): Promise<MonthlyAuditPreviewResult> {
-  const { supabase, year, month } = params;
+  const { supabase, year, month, filterDayuse } = params;
   const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
 
   // 1) Load checked-out reservations in this month
   const { data: reservations, error: resError } = await supabase
     .from("reservations")
     .select(
-      "id, booking_code, guest_name, source, checkin_date, checkout_date, total_price, tax_invoice_requested, guest_profile_id"
+      "id, booking_code, guest_name, source, checkin_date, checkout_date, total_price, tax_invoice_requested, guest_profile_id, is_dayuse"
     )
     .eq("status", "checked_out")
     .gte("checkout_date", dateFrom)
@@ -636,7 +642,11 @@ export async function previewMonth(params: {
     throw new MonthlyAuditError(`Failed to load reservations: ${resError.message}`, 500);
   }
 
-  const reservationRows = (reservations ?? []) as any[];
+  const reservationRows = ((reservations ?? []) as any[]).filter((row) => {
+    if (filterDayuse === "only") return Boolean(row.is_dayuse);
+    if (filterDayuse === "exclude") return !Boolean(row.is_dayuse);
+    return true;
+  });
   if (reservationRows.length === 0) {
     return {
       year,

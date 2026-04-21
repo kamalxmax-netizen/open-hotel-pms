@@ -45,22 +45,22 @@ const NOTE_COLORS: Record<LogbookNote["note_type"], { card: string; header: stri
   task: { 
     card: "bg-yellow-100 border-yellow-400 dark:bg-[#1a1910] dark:border-yellow-700/50", 
     header: "bg-yellow-200/90 dark:bg-yellow-800/40", 
-    body: "bg-yellow-50/90 dark:bg-yellow-900/10" 
+    body: "bg-yellow-50/90 dark:bg-yellow-900/10 text-slate-800 dark:text-yellow-100/90" 
   },
   urgent: { 
     card: "bg-rose-100 border-rose-400 dark:bg-[#1a1112] dark:border-rose-700/50", 
     header: "bg-rose-200/90 dark:bg-rose-800/40", 
-    body: "bg-rose-50/90 dark:bg-rose-900/10" 
+    body: "bg-rose-50/90 dark:bg-rose-900/10 text-slate-800 dark:text-rose-100/90" 
   },
   stock: { 
     card: "bg-emerald-100 border-emerald-400 dark:bg-[#0f1a14] dark:border-emerald-700/50", 
     header: "bg-emerald-200/90 dark:bg-emerald-800/40", 
-    body: "bg-emerald-50/90 dark:bg-emerald-900/10" 
+    body: "bg-emerald-50/90 dark:bg-emerald-900/10 text-slate-800 dark:text-emerald-100/90" 
   },
   vip: { 
     card: "bg-purple-100 border-purple-400 dark:bg-[#15111a] dark:border-purple-700/50", 
     header: "bg-purple-200/90 dark:bg-purple-800/40", 
-    body: "bg-purple-50/90 dark:bg-purple-900/10" 
+    body: "bg-purple-50/90 dark:bg-purple-900/10 text-slate-800 dark:text-purple-100/90" 
   },
 }
 
@@ -696,7 +696,7 @@ export function LogbookNoteCard({
             }}
             onBlur={() => window.setTimeout(() => closeAtPicker(), 120)}
             style={getRichBodyTextareaStyle(richBody)}
-            className="min-h-[72px] flex-1 resize-none rounded-xl border border-transparent bg-transparent px-1 py-1 text-xs outline-none focus:border-black/10"
+            className="min-h-[72px] flex-1 resize-none rounded-xl border border-transparent bg-transparent px-1 py-1 text-xs outline-none focus:border-black/10 placeholder:text-[var(--text-muted)] dark:placeholder:text-white/20"
             placeholder="Type your notes here..."
           />
 

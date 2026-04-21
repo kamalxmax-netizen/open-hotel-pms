@@ -11,6 +11,7 @@ export const fetchCache = "force-no-store";
 
 const bodySchema = z.object({
   audit_period_id: z.string().uuid(),
+  source_type: z.enum(["room", "dayuse", "pos"]).optional().default("room"),
 });
 
 export async function POST(request: NextRequest) {
@@ -27,7 +28,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await recalculateAbbreviated(actor.supabase, parsed.data.audit_period_id, actor.user.id);
+    const result = await recalculateAbbreviated(
+      actor.supabase,
+      parsed.data.audit_period_id,
+      actor.user.id,
+      parsed.data.source_type
+    );
     return NextResponse.json({ success: true, data: result, ...result });
   } catch (err) {
     return abbreviatedTaxErrorResponse(err);

@@ -68,7 +68,11 @@ assert.deepEqual(groupedLines[0]?.source_entry_ids, [
 ]);
 
 const overflowDraft: AbbreviatedInvoiceDraft = {
+  source_type: "room",
+  render_mode: "full_a4",
   issue_date: "2026-03-01",
+  stay_date_from: "2026-03-01",
+  stay_date_to: "2026-03-01",
   channel_group: "ota",
   tax_invoice_channel: "ota",
   predicted_invoice_no: "690301",

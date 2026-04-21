@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, FileText, AlertTriangle, CheckCircle, Save, X } from "lucide-react";
 import type { AbbreviatedPreviewResponse, ChannelGroup } from "@/lib/abbreviated-tax-invoice/types";
+import { AbbreviatedInvoicePreviewCard } from "@/components/tax-invoice/AbbreviatedInvoicePreviewCard";
 
 function fmtMoney(num: number) {
   return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -313,7 +314,7 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
           <button
             onClick={handleRecalculate}
             disabled={loading || recalculating}
-            className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition"
+            className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition dark:border-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${recalculating ? "animate-spin text-blue-500" : ""}`} />
             Recalculate
@@ -343,7 +344,7 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
           
           {/* Summary Panel */}
           <div className="lg:col-span-1 space-y-4">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-sm">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-sm dark:border-white/10">
               <h2 className="font-semibold text-[var(--text-primary)] mb-3 text-sm flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Summary (ภพ.30)
               </h2>
@@ -361,11 +362,11 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
                   <span className="font-medium text-[var(--text-primary)]">{data.summary.walkin_direct_count} ใบ</span>
                 </div>
                 <hr className="border-[var(--border)] my-2" />
-                <div className="flex justify-between text-rose-600">
+                <div className="flex justify-between text-rose-600 dark:text-rose-400/80">
                   <span>ยอดก่อน VAT</span>
                   <span>{fmtMoney(data.summary.grand_total_ex_vat)}</span>
                 </div>
-                <div className="flex justify-between text-blue-600">
+                <div className="flex justify-between text-blue-600 dark:text-blue-400/80">
                   <span>VAT (7%)</span>
                   <span>{fmtMoney(data.summary.vat_total)}</span>
                 </div>
@@ -408,7 +409,7 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
             )}
             
             {data.excluded.length > 0 && (
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-muted)] p-4 shadow-sm">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-muted)] p-4 shadow-sm dark:border-white/10">
                 <h3 className="font-semibold text-[var(--text-primary)] text-xs mb-2 flex items-center gap-1">
                   <CheckCircle className="h-3 w-3 text-emerald-500" /> ลบออกจากอย่างย่ออัตโนมัติ ({data.excluded.length})
                 </h3>
@@ -425,77 +426,12 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
                </div>
             ) : (
               data.drafts.map((draft, idx) => (
-                <div key={idx} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden shadow-sm">
-                  <div className="flex items-center justify-between bg-[var(--bg-muted)]/50 p-3 border-b border-[var(--border)]">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${draft.channel_group === "ota" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"}`}>
-                        {CHANNEL_GROUP_LABEL[draft.channel_group]}
-                      </span>
-                      <span className="text-sm font-semibold text-[var(--text-primary)] text-mono tracking-wide">
-                        {draft.predicted_invoice_no}
-                      </span>
-                    </div>
-                    <div className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
-                       {fmtDate(draft.issue_date)}
-                    </div>
-                  </div>
-                  
-                  {draft.warning && (
-                    <div className="bg-amber-50 text-amber-700 text-xs px-3 py-2 border-b border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800">
-                      {draft.warning}
-                    </div>
-                  )}
-
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-[var(--border)] text-[var(--text-muted)] text-left bg-[var(--bg-surface)]">
-                        <th className="p-2 font-medium w-[40px] text-center">Group</th>
-                        <th className="p-2 font-medium">รายการ</th>
-                        <th className="p-2 font-medium text-right">จำนวน</th>
-                        <th className="p-2 font-medium text-right">ราคา/หน่วย</th>
-                        <th className="p-2 font-medium text-right">ยอดรวม (Inc.VAT)</th>
-                        <th className="p-2 font-medium w-[40px]"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {draft.lines.map((line, lIdx) => (
-                        <tr key={lIdx} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-muted)]/30 group">
-                          <td className="p-2 text-center font-bold text-[var(--text-secondary)]">{line.tax_group}</td>
-                          <td className="p-2 font-medium text-[var(--text-primary)]">
-                            {line.label_th}
-                            {line.shifted_from_date && (
-                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded-sm bg-purple-100 text-purple-700 text-[9px] dark:bg-purple-900/40 dark:text-purple-300">
-                                Shifted
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{line.quantity}</td>
-                          <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{fmtMoney(line.unit_price)}</td>
-                          <td className="p-2 text-right font-mono font-medium text-[var(--text-primary)]">{fmtMoney(line.amount)}</td>
-                          <td className="p-2 text-center">
-                            <button
-                              title="Shift to another day"
-                              onClick={() => {
-                                const entriesToShift = line.source_entries?.map(e => ({...e, unit_price: line.unit_price})) || [];
-                                setRowShiftModal({ taxGroup: line.tax_group, entries: entriesToShift, origDate: draft.issue_date });
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[10px] rounded border border-[var(--border)] bg-[var(--bg-primary)] hover:bg-[var(--bg-surface-hover)] transition text-[var(--text-secondary)] font-medium"
-                            >
-                              Shift
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-[var(--bg-muted)]/30 border-t border-[var(--border)]">
-                      <tr>
-                        <td colSpan={4} className="p-2 text-right font-bold text-[var(--text-primary)]">Total</td>
-                        <td className="p-2 text-right font-bold text-blue-600 font-mono text-sm">{fmtMoney(draft.subtotal_inc_vat)}</td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                <AbbreviatedInvoicePreviewCard
+                  key={idx}
+                  draft={draft}
+                  variant="room"
+                  onShiftRow={(taxGroup, entries, origDate) => setRowShiftModal({ taxGroup, entries, origDate })}
+                />
               ))
             )}
           </div>

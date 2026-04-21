@@ -9,6 +9,7 @@ const STOCK_FLOORS = [1, 2, 3] as const;
 
 const productCreateSchema = z.object({
   name: z.string().trim().min(1, "name is required").max(120),
+  name_th: z.string().trim().max(120).optional().nullable(),
   sku: z.string().trim().max(80).optional().nullable(),
   category: z.enum(["amenity", "pos", "both"]).default("amenity"),
   fulfillment_mode: z.enum(["standard", "daily_prepare"]).default("standard"),
@@ -16,6 +17,7 @@ const productCreateSchema = z.object({
   unit: z.string().trim().min(1, "unit is required").max(30).default("pieces"),
   sale_price: z.number().min(0).max(9999999).nullable().optional(),
   display_order: z.coerce.number().int().min(0).optional(),
+  pos_abbreviated_enabled: z.boolean().optional().default(false),
   is_active: z.boolean().optional().default(true),
 });
 
@@ -23,6 +25,7 @@ const productQuerySchema = z.object({
   category: z.enum(["amenity", "pos", "both"]).optional(),
   fulfillment_mode: z.enum(["standard", "daily_prepare"]).optional(),
   stock_tracking_mode: z.enum(["pos_main_only", "amenity_prepare", "amenity_direct"]).optional(),
+  pos_abbreviated_enabled: z.enum(["true", "false"]).optional(),
   is_active: z.enum(["true", "false"]).optional(),
   for_sale: z.enum(["true", "false"]).optional(),
   q: z.string().trim().optional(),
@@ -34,6 +37,7 @@ export async function GET(request: NextRequest) {
       category: request.nextUrl.searchParams.get("category") ?? undefined,
       fulfillment_mode: request.nextUrl.searchParams.get("fulfillment_mode") ?? undefined,
       stock_tracking_mode: request.nextUrl.searchParams.get("stock_tracking_mode") ?? undefined,
+      pos_abbreviated_enabled: request.nextUrl.searchParams.get("pos_abbreviated_enabled") ?? undefined,
       is_active: request.nextUrl.searchParams.get("is_active") ?? undefined,
       for_sale: request.nextUrl.searchParams.get("for_sale") ?? undefined,
       q: request.nextUrl.searchParams.get("q") ?? undefined,
@@ -46,18 +50,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { category, fulfillment_mode, stock_tracking_mode, is_active, for_sale, q } = parsedQuery.data;
+    const { category, fulfillment_mode, stock_tracking_mode, pos_abbreviated_enabled, is_active, for_sale, q } =
+      parsedQuery.data;
     const supabase = createServerSupabaseClient();
 
     let query = supabase
       .from("products")
-      .select("id, name, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
+      .select(
+        "id, name, name_th, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, pos_abbreviated_enabled, created_at, updated_at"
+      )
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (category) query = query.eq("category", category);
     if (fulfillment_mode) query = query.eq("fulfillment_mode", fulfillment_mode);
     if (stock_tracking_mode) query = query.eq("stock_tracking_mode", stock_tracking_mode);
+    if (pos_abbreviated_enabled) query = query.eq("pos_abbreviated_enabled", pos_abbreviated_enabled === "true");
     if (is_active) query = query.eq("is_active", is_active === "true");
     if (for_sale === "true") query = query.not("sale_price", "is", null);
     if (for_sale === "false") query = query.is("sale_price", null);
@@ -198,6 +206,7 @@ export async function POST(request: NextRequest) {
 
     const payload = {
       name: body.name,
+      name_th: body.name_th?.trim() || null,
       sku: body.sku?.trim() || null,
       category: body.category,
       fulfillment_mode: body.fulfillment_mode ?? "standard",
@@ -205,13 +214,16 @@ export async function POST(request: NextRequest) {
       unit: body.unit,
       sale_price: body.sale_price ?? null,
       display_order: nextDisplayOrder,
+      pos_abbreviated_enabled: body.pos_abbreviated_enabled ?? false,
       is_active: body.is_active ?? true,
     };
 
     const result = await supabase
       .from("products")
       .insert(payload)
-      .select("id, name, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, created_at, updated_at")
+      .select(
+        "id, name, name_th, sku, category, fulfillment_mode, stock_tracking_mode, unit, sale_price, display_order, is_active, pos_abbreviated_enabled, created_at, updated_at"
+      )
       .single();
 
     const { data, error } = result;

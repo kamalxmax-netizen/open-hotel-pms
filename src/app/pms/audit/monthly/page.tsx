@@ -451,7 +451,7 @@ export default function MonthlyAuditPage() {
 
         <div className="flex items-center gap-2">
           <select
-            className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)] dark:border-white/10"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
@@ -460,7 +460,7 @@ export default function MonthlyAuditPage() {
             ))}
           </select>
           <select
-            className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)] dark:border-white/10"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
           >
@@ -489,14 +489,14 @@ export default function MonthlyAuditPage() {
         <button
           onClick={() => void loadPreviewData()}
           disabled={previewLoading}
-          className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-colors"
+          className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-colors dark:border-white/10"
         >
           {previewLoading ? "Loading Preview..." : previewEnabled ? "Refresh Preview" : "Preview (Live)"}
         </button>
         {previewEnabled && (
           <button
             onClick={() => setPreviewEnabled(false)}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors dark:border-white/10"
           >
             Back to Snapshot
           </button>
@@ -530,7 +530,7 @@ export default function MonthlyAuditPage() {
         {canExport && (
           <button
             onClick={handleExportCSV}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors dark:border-white/10"
           >
             Export CSV
           </button>
@@ -553,9 +553,9 @@ export default function MonthlyAuditPage() {
 
       {/* Filters */}
       {(period || isPreviewMode) && displayedEntries.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-3 dark:border-white/10">
           <select
-            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)] dark:border-white/10"
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
           >
@@ -566,7 +566,7 @@ export default function MonthlyAuditPage() {
           </select>
 
           <select
-            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)] dark:border-white/10"
             value={taxFilter}
             onChange={(e) => setTaxFilter(e.target.value)}
           >
@@ -576,7 +576,7 @@ export default function MonthlyAuditPage() {
           </select>
 
           <select
-            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
+            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)] dark:border-white/10"
             value={correctionFilter}
             onChange={(e) => setCorrectionFilter(e.target.value)}
           >
@@ -588,7 +588,7 @@ export default function MonthlyAuditPage() {
           <input
             type="text"
             placeholder="Search guest, booking, room..."
-            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] w-56"
+            className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] w-56 dark:border-white/10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -622,8 +622,8 @@ export default function MonthlyAuditPage() {
 
       {/* Summary */}
       {!loading && !previewLoading && displayedSummary && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
-          <div className="p-3 border-b border-[var(--border)]">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden dark:border-white/10">
+          <div className="p-3 border-b border-[var(--border)] dark:border-white/10">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">
               Summary — {displayedSummary.total_reservations} reservations
             </h2>
@@ -631,7 +631,7 @@ export default function MonthlyAuditPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)]">
+                <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)] dark:border-white/10">
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Source</th>
                   <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Count</th>
                   <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Revenue</th>
@@ -649,7 +649,7 @@ export default function MonthlyAuditPage() {
                 {Object.entries(displayedSummary.by_source)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([source, s]) => (
-                    <tr key={source} className="border-b border-[var(--border)] hover:bg-[var(--bg-muted)]">
+                    <tr key={source} className="border-b border-[var(--border)] hover:bg-[var(--bg-muted)] dark:border-white/10">
                       <td className="p-2 font-medium text-[var(--text-primary)]">{SOURCE_LABELS[source] ?? source}</td>
                       <td className="p-2 text-right text-[var(--text-secondary)]">{s.count}</td>
                       <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(s.total_revenue)}</td>
@@ -689,11 +689,11 @@ export default function MonthlyAuditPage() {
 
       {/* Entries table */}
       {!loading && !previewLoading && displayedEntries.length > 0 && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden dark:border-white/10">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)]">
+                <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)] dark:border-white/10">
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Booking</th>
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Guest</th>
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Source</th>
@@ -720,7 +720,7 @@ export default function MonthlyAuditPage() {
                   return (
                     <React.Fragment key={entry.id}>
                       <tr
-                        className={`border-b border-[var(--border)] hover:bg-[var(--bg-muted)] cursor-pointer ${hasCorrected ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
+                        className={`border-b border-[var(--border)] hover:bg-[var(--bg-muted)] cursor-pointer dark:border-white/10 ${hasCorrected ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
                         onClick={() => setExpandedRow(isExpanded ? null : entry.id)}
                       >
                         <td className="p-2 font-mono text-[var(--text-secondary)]">{entry.booking_code ?? "-"}</td>
@@ -735,7 +735,7 @@ export default function MonthlyAuditPage() {
                                 <select 
                                   value={entry.channel_flag?.actual_channel ?? entry.source}
                                   onChange={(e) => handleChannelFlagSave(entry.id, e.target.value, entry.channel_flag?.tax_invoice_channel ?? entry.source, entry.channel_flag?.reason ?? undefined)}
-                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)]"
+                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)] dark:border-white/10"
                                   title="Actual Channel"
                                 >
                                   <option value="ota">OTA (Act)</option>
@@ -747,7 +747,7 @@ export default function MonthlyAuditPage() {
                                 <select 
                                   value={entry.channel_flag?.tax_invoice_channel ?? entry.source}
                                   onChange={(e) => handleChannelFlagSave(entry.id, entry.channel_flag?.actual_channel ?? entry.source, e.target.value, entry.channel_flag?.reason ?? undefined)}
-                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)]"
+                                  className="w-20 rounded border border-[var(--border)] bg-transparent px-1 py-0.5 text-[10px] text-[var(--text-primary)] dark:border-white/10"
                                   title="Tax Invoice Channel"
                                 >
                                   <option value="ota">OTA (Tax)</option>

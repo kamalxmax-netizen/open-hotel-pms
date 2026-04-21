@@ -8,7 +8,7 @@ export const fetchCache = "force-no-store";
 
 const bodySchema = z.object({
   resolved_in_batch_id: z.string().uuid(),
-  resolved_qty: z.coerce.number().int().min(0),
+  resolved_qty: z.coerce.number().int().min(1),
 });
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {

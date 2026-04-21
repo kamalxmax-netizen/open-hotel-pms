@@ -58,20 +58,24 @@ const FLOW_BADGE_CLASS: Record<FulfillmentMode, string> = {
 
 interface ProductFormData {
     name: string;
+    name_th: string;
     sku: string;
     category: ProductCategory;
     fulfillment_mode: FulfillmentMode;
     unit: string;
     sale_price: string;
+    pos_abbreviated_enabled: boolean;
 }
 
 const EMPTY_FORM: ProductFormData = {
     name: "",
+    name_th: "",
     sku: "",
     category: "amenity",
     fulfillment_mode: "standard",
     unit: "pieces",
     sale_price: "",
+    pos_abbreviated_enabled: false,
 };
 
 export function ProductsTab() {
@@ -143,11 +147,13 @@ export function ProductsTab() {
         setEditingProduct(product);
         setForm({
             name: product.name,
+            name_th: (product as any).name_th ?? "",
             sku: product.sku ?? "",
             category: product.category as ProductCategory,
             fulfillment_mode: (product.fulfillment_mode as FulfillmentMode) ?? "standard",
             unit: product.unit,
             sale_price: product.sale_price != null ? String(product.sale_price) : "",
+            pos_abbreviated_enabled: !!(product as any).pos_abbreviated_enabled,
         });
         setFormOpen(true);
     };
@@ -156,7 +162,12 @@ export function ProductsTab() {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
 
-    const isFormValid = form.name.trim().length >= 1;
+    const handleCheckboxChange = (field: keyof ProductFormData, checked: boolean) => {
+        setForm((prev) => ({ ...prev, [field]: checked }));
+    };
+
+    const isNameThRequired = form.pos_abbreviated_enabled || form.category === "pos" || form.category === "both";
+    const isFormValid = form.name.trim().length >= 1 && (!isNameThRequired || form.name_th.trim().length >= 1);
 
     const handleSave = async () => {
         if (!isFormValid) return;
@@ -164,11 +175,13 @@ export function ProductsTab() {
             setIsSaving(true);
             const payload: Record<string, unknown> = {
                 name: form.name.trim(),
+                name_th: form.name_th.trim() || null,
                 sku: form.sku.trim() || null,
                 category: form.category,
                 fulfillment_mode: form.fulfillment_mode,
                 unit: form.unit.trim() || "pieces",
                 sale_price: form.sale_price.trim() ? parseFloat(form.sale_price) : null,
+                pos_abbreviated_enabled: form.pos_abbreviated_enabled,
             };
 
             const isEditing = !!editingProduct;
@@ -373,6 +386,9 @@ export function ProductsTab() {
                                         Sale Price
                                     </th>
                                     <th className="text-center px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
+                                        POS Bill
+                                    </th>
+                                    <th className="text-center px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
                                         Status
                                     </th>
                                     <th className="text-right px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">
@@ -417,6 +433,15 @@ export function ProductsTab() {
                                         </td>
                                         <td className="px-4 py-3 text-right font-medium text-[var(--text-table-cell)]">
                                             {formatPrice(product.sale_price)}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {(product as any).pos_abbreviated_enabled ? (
+                                                <span className="inline-block px-2 text-xs font-semibold text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-500/20 rounded-full">
+                                                  Enabled
+                                                </span>
+                                            ) : (
+                                                <span className="text-[var(--text-muted)] text-xs">-</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <Badge
@@ -557,15 +582,27 @@ export function ProductsTab() {
                     </DialogHeader>
 
                     <div className="space-y-4 mt-2">
-                        {/* Name */}
+                        {/* Name (EN) */}
                         <div>
                             <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
-                                Name <span className="text-red-500">*</span>
+                                Name (EN) <span className="text-red-500">*</span>
                             </label>
                             <Input
                                 placeholder="e.g. Shampoo, Water Bottle"
                                 value={form.name}
                                 onChange={(e) => handleFormChange("name", e.target.value)}
+                            />
+                        </div>
+
+                        {/* Name (TH) */}
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-table-cell)] mb-1">
+                                Name (TH) {isNameThRequired && <span className="text-red-500">* (บังคับเมื่อเป็นสินค้า POS)</span>}
+                            </label>
+                            <Input
+                                placeholder="e.g. แชมพู, น้ำดื่มขวด"
+                                value={form.name_th}
+                                onChange={(e) => handleFormChange("name_th", e.target.value)}
                             />
                         </div>
 
@@ -645,6 +682,27 @@ export function ProductsTab() {
                                 min="0"
                                 step="0.01"
                             />
+                        </div>
+
+                        {/* POS Abbreviated Options */}
+                        <div className="pt-2 border-t border-[var(--border)] mt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-gray-300"
+                                    checked={form.pos_abbreviated_enabled}
+                                    onChange={(e) => handleCheckboxChange("pos_abbreviated_enabled", e.target.checked)}
+                                />
+                                <span className="text-sm font-medium text-[var(--text-table-cell)]">
+                                    เปิดใช้สำหรับการออกใบกำกับภาษีอย่างย่อ (POS)
+                                </span>
+                            </label>
+                            
+                            {form.pos_abbreviated_enabled && !form.sale_price.trim() && (
+                                <div className="mt-2 text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 p-2 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <b>Warning:</b> ยังไม่พร้อมใช้ POS — ต้อง set ราคาขายก่อน ระบบถึงจะนำไปสะสมยอดได้
+                                </div>
+                            )}
                         </div>
                     </div>
 

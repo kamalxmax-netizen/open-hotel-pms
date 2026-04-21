@@ -35,8 +35,8 @@ export default function AbbreviatedDashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Selector Card */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-6 shadow-sm flex flex-col items-start gap-4">
-          <div className="flex items-center gap-3 w-full border-b border-[var(--border)] pb-4">
+        <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-sm flex flex-col items-start gap-4">
+          <div className="flex items-center gap-3 w-full border-b border-[var(--border-subtle)] pb-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
               <Table className="h-5 w-5" />
             </div>
@@ -50,7 +50,7 @@ export default function AbbreviatedDashboardPage() {
             <div className="flex-1">
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">ปี / Year</label>
               <select
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
               >
@@ -60,7 +60,7 @@ export default function AbbreviatedDashboardPage() {
             <div className="flex-1">
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">เดือน / Month</label>
               <select
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
               >

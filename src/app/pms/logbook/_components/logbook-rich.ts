@@ -45,9 +45,13 @@ export function richHtmlToPlainText(value: string): string {
 }
 
 export function getRichBodyTextareaStyle(richBody: LogbookRichBody): React.CSSProperties {
+  // If color is the default slate/charcoal, we want to allow it to be overridden by parent classes
+  // specifically for dark mode readability on colored logbook cards.
+  const isDefaultColor = richBody.styles.color === "#334155" || richBody.styles.color === "var(--text-table-cell)";
+  
   return {
     fontWeight: richBody.styles.bold ? 700 : 500,
-    color: richBody.styles.color,
+    color: isDefaultColor ? undefined : richBody.styles.color,
     fontSize:
       richBody.styles.size === "s"
         ? "12px"

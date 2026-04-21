@@ -18,6 +18,17 @@ export type TaxGroup = "A" | "B" | "C" | "D" | "E";
 
 export type RowShiftSource = "auto" | "manual";
 
+// Phase 71: Abbreviated invoice source discriminator.
+// - room   → Phase 70: daily, per channel_group (ota / walkin_direct)
+// - dayuse → Phase 71: monthly, Walk-in only (channel_group = null)
+// - pos    → Phase 71: daily, Walk-in only (channel_group = null)
+export type AbbreviatedSourceType = "room" | "dayuse" | "pos";
+
+// Phase 71: which print template to render.
+// - full_a4 → 2 half-pages per A4 (Phase 70 room; Phase 71 POS daily)
+// - half_a4 → 1 half per A4        (Phase 71 Day Use monthly, printed alone)
+export type AbbreviatedRenderMode = "full_a4" | "half_a4";
+
 // ============================================================
 // Room group map (seed)
 // ============================================================
@@ -112,7 +123,10 @@ export type AbbreviatedInvoice = {
   invoice_no: string;
   book_no: number;
   issue_date: string;
-  channel_group: ChannelGroup;
+  // Phase 71: NULL for source_type='dayuse' | 'pos' (Walk-in only, no channel split)
+  channel_group: ChannelGroup | null;
+  // Phase 71: discriminator — room (Phase 70) | dayuse | pos
+  source_type: AbbreviatedSourceType;
   tax_invoice_channel: BookingSource;
   audit_period_id: string;
   stay_date_from: string;
@@ -133,11 +147,16 @@ export type AbbreviatedInvoiceLine = {
   id: string;
   invoice_id: string;
   line_order: number;
-  tax_group: TaxGroup;
+  // Phase 71: NULL for dayuse/pos lines (A-E applies only to rooms).
+  tax_group: TaxGroup | null;
   label_th: string;
   quantity: number;
   unit_price: number;
   amount: number;
+  // source_entry_ids semantics by parent invoice.source_type:
+  //   - room   → monthly_audit_entries.id[]
+  //   - dayuse → monthly_audit_entries.id[] (day-use folios)
+  //   - pos    → pos_orders.id[]
   source_entry_ids: string[];
   shifted_from_date: string | null;
   shifted_reason: string | null;
@@ -148,7 +167,8 @@ export type AbbreviatedInvoiceLine = {
 // ============================================================
 
 export type AbbreviatedLineDraft = {
-  tax_group: TaxGroup;
+  // Phase 71: NULL for dayuse/pos lines (A-E applies only to rooms).
+  tax_group: TaxGroup | null;
   label_th: string;
   quantity: number;
   unit_price: number;
@@ -165,13 +185,39 @@ export type AbbreviatedLineDraft = {
   shift_source: RowShiftSource | null;
 };
 
+// Phase 71: POS daily line draft (one row per POS product sold that day).
+// Aggregates multiple pos_orders of the same product into one line.
+export type PosItemDraft = {
+  product_id: string;
+  label_th: string;                 // = products.name_th
+  quantity: number;                 // sum across orders
+  unit_price: number;               // = products.sale_price
+  amount: number;                   // = unit_price * quantity
+  source_order_ids: string[];       // pos_orders.id[]
+  source_orders: {
+    order_id: string;
+    order_number: string;
+    order_date: string;
+    quantity: number;
+  }[];
+};
+
 export type AbbreviatedInvoiceDraft = {
+  // Phase 71: discriminator for downstream rendering + persistence
+  source_type: AbbreviatedSourceType;
+  render_mode: AbbreviatedRenderMode;
   issue_date: string;
-  channel_group: ChannelGroup;
+  // NULL for source_type='dayuse' | 'pos' (Walk-in only)
+  channel_group: ChannelGroup | null;
   tax_invoice_channel: BookingSource;
   predicted_invoice_no: string;
   book_no: number;
+  stay_date_from: string;
+  stay_date_to: string;
+  // Room (Phase 70) + Day Use (Phase 71) share the line shape.
   lines: AbbreviatedLineDraft[];
+  // Phase 71 POS-only: rendered as label_th rows (no tax_group).
+  pos_items?: PosItemDraft[];
   subtotal_inc_vat: number;
   subtotal_ex_vat: number;
   vat_rate: number;
@@ -213,6 +259,20 @@ export type AbbreviatedPreviewResponse = {
   };
 };
 
+// Phase 71: POS daily preview response (/pms/preview/pos/[date]).
+// One draft per day. No carry-over / no exclusions (POS = immediate sale).
+export type AbbreviatedPosPreviewResponse = {
+  date: string;                    // ISO date — YYYY-MM-DD
+  draft: AbbreviatedInvoiceDraft | null;  // null if no POS walk-in sales that day
+  summary: {
+    total_orders: number;          // # of source pos_orders
+    total_items: number;           // distinct product rows
+    grand_total_inc_vat: number;
+    grand_total_ex_vat: number;
+    vat_total: number;
+  };
+};
+
 // ============================================================
 // Render data (print HTML)
 // ============================================================
@@ -241,9 +301,30 @@ export type AbbreviatedRenderPage = {
 };
 
 export type AbbreviatedRenderData = {
-  channel_group: ChannelGroup;
+  // Phase 71: NULL for dayuse/pos (Walk-in only, no channel split in header)
+  channel_group: ChannelGroup | null;
+  // Phase 71: discriminator for header + paper layout
+  source_type: AbbreviatedSourceType;
+  render_mode: AbbreviatedRenderMode;
   seller: TaxInvoiceSellerSnapshot;
   pages: AbbreviatedRenderPage[];
+};
+
+// Phase 71: Products admin row used by POS item master (ProductsTab).
+// Extends the base `products` table with name_th + pos_abbreviated_enabled
+// so ProductsTab can drive ใบกำกับภาษีอย่างย่อ (POS) inclusion.
+export type PosProduct = {
+  id: string;
+  name: string;                           // English master name
+  name_th: string | null;                 // Thai label printed on ใบกำกับภาษีอย่างย่อ
+  sku: string | null;
+  category: "amenity" | "pos" | "both";
+  unit: string;
+  sale_price: number | null;              // must be set before POS sale (enforced in RPC)
+  is_active: boolean;
+  pos_abbreviated_enabled: boolean;       // gate for POS abbreviated invoice aggregation
+  created_at: string;
+  updated_at: string;
 };
 
 // ============================================================
@@ -273,3 +354,15 @@ export type RecalculateResult = {
 export const ABBREVIATED_MAX_ROWS_PER_HALF_PAGE = 7;
 export const ABBREVIATED_VAT_RATE = 7;
 export const ABBREVIATED_BOOK_NO_BASE_BE_YEAR = 2561; // พ.ศ. 2561 = เล่ม 0; 2569 = เล่ม 8
+
+// Phase 71: invoice number prefixes (BE year is 2-digit, % 100).
+//   Room OTA           → YYMMDD          e.g. 690301
+//   Room Walk-in/Dir.  → W + YYMMDD      e.g. W690301
+//   Day Use monthly    → DY + YY + MM    e.g. DY6903   (one per audit period)
+//   POS daily          → D + YYMMDD      e.g. D690301  (one per day)
+export const ABBREVIATED_INVOICE_NO_PREFIX = {
+  ROOM_OTA: "",
+  ROOM_WALKIN_DIRECT: "W",
+  DAYUSE_MONTHLY: "DY",
+  POS_DAILY: "D",
+} as const;

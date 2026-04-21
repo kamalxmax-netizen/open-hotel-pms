@@ -423,12 +423,14 @@ export interface RoomMaintenanceStatus {
 export interface Product {
   id: string;
   name: string;
+  name_th?: string | null;
   sku: string | null;
   category: 'amenity' | 'pos' | 'both';
   fulfillment_mode: 'standard' | 'daily_prepare';
   unit: string;
   sale_price: number | null;
   display_order: number;
+  pos_abbreviated_enabled?: boolean;
   is_active: boolean;
   main_stock_quantity?: number;
   created_at: string;
@@ -2161,6 +2163,7 @@ export interface LaundryRewashEventExpanded extends LaundryRewashEvent {
   sent_batch_business_date: string;
   sent_batch_pickup_round: number;
   days_waiting: number;
+  remaining_qty: number;
 }
 
 export interface LaundryRewashCreateItem {

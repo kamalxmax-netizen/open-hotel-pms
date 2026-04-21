@@ -144,6 +144,40 @@ async function rollbackReturnEffects(supabase: SupabaseClient, detail: Awaited<R
   if (pendingError) throw new Error(pendingError.message);
 }
 
+async function rollbackRewashEffects(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
+  const rewashEvents = (detail.events as any[]).filter((event) => event.event_type === "rewash_resolved");
+  for (const event of rewashEvents) {
+    const rewashEventId = Number(event.data?.rewash_event_id ?? 0);
+    const appliedQty = Number(event.data?.resolved_qty ?? 0);
+    if (!rewashEventId || appliedQty <= 0) continue;
+
+    const { data: existing, error: readError } = await supabase
+      .from("laundry_rewash_events")
+      .select("id, qty, resolved_qty, status, resolved_batch_id, resolved_at, photo_keys")
+      .eq("id", rewashEventId)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!existing) continue;
+
+    const totalQty = Math.max(0, Number((existing as any).qty ?? 0));
+    const currentResolvedQty = Math.max(0, Number((existing as any).resolved_qty ?? 0));
+    const nextResolvedQty = Math.max(0, currentResolvedQty - appliedQty);
+    const nextStatus = nextResolvedQty >= totalQty ? "resolved" : "pending";
+    const nextResolvedBatchId = nextStatus === "resolved" ? (existing as any).resolved_batch_id : null;
+
+    const { error: updateError } = await supabase
+      .from("laundry_rewash_events")
+      .update({
+        status: nextStatus,
+        resolved_qty: nextResolvedQty === 0 ? null : nextResolvedQty,
+        resolved_at: nextResolvedQty === 0 ? null : ((existing as any).resolved_at ?? new Date().toISOString()),
+        resolved_batch_id: nextResolvedBatchId,
+      })
+      .eq("id", rewashEventId);
+    if (updateError) throw new Error(updateError.message);
+  }
+}
+
 async function restoreDayuseAccumulator(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
   const dayuseItems = (detail.items as any[]).filter((item) => Boolean(item.is_dayuse) && Number(item.sent_by_hotel ?? 0) > 0);
   for (const item of dayuseItems) {
@@ -447,6 +481,7 @@ export async function deleteLaundryBatch(supabase: SupabaseClient, batchId: stri
   }
 
   await rollbackReturnEffects(supabase, detail);
+  await rollbackRewashEffects(supabase, detail);
   await restoreDayuseAccumulator(supabase, detail);
 
   const signatureKeys = [
@@ -459,12 +494,6 @@ export async function deleteLaundryBatch(supabase: SupabaseClient, batchId: stri
   } catch (error) {
     console.error("Failed to delete linen batch R2 objects", error);
   }
-
-  const { error: resolvedRewashError } = await supabase
-    .from("laundry_rewash_events")
-    .update({ status: "pending", resolved_batch_id: null, resolved_qty: null, resolved_at: null })
-    .eq("resolved_batch_id", batchId);
-  if (resolvedRewashError) throw new Error(resolvedRewashError.message);
 
   const { count: linkedPendingCount, error: linkedPendingError } = await supabase
     .from("laundry_pending_items")
@@ -535,6 +564,7 @@ export async function reopenLaundryBatch(supabase: SupabaseClient, batchId: stri
   if (currentStatus === "draft") throw new LinenBatchError("Draft batch does not need reopen.", 409);
 
   await rollbackReturnEffects(supabase, detail);
+  await rollbackRewashEffects(supabase, detail);
 
   await supabase.from("laundry_vendor_tokens").update({ revoked: true }).eq("batch_id", batchId);
 

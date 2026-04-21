@@ -10,6 +10,7 @@ export const fetchCache = "force-no-store";
 const querySchema = z.object({
   year: z.coerce.number().int().min(2025).max(2030),
   month: z.coerce.number().int().min(1).max(12),
+  filter_dayuse: z.enum(["only", "exclude"]).optional(),
   source: z.string().trim().min(1).max(50).optional(),
   tax_invoice: z.enum(["true", "false"]).optional(),
   has_corrections: z.enum(["true", "false"]).optional(),
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
     const parsed = querySchema.safeParse({
       year: request.nextUrl.searchParams.get("year") ?? undefined,
       month: request.nextUrl.searchParams.get("month") ?? undefined,
+      filter_dayuse: request.nextUrl.searchParams.get("filter_dayuse") ?? undefined,
       source: request.nextUrl.searchParams.get("source") ?? undefined,
       tax_invoice: request.nextUrl.searchParams.get("tax_invoice") ?? undefined,
       has_corrections: request.nextUrl.searchParams.get("has_corrections") ?? undefined,
@@ -68,8 +70,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { year, month, source, tax_invoice, has_corrections, search, sort_by, sort_dir } = parsed.data;
-    const preview = await previewMonth({ supabase, year, month });
+    const { year, month, filter_dayuse, source, tax_invoice, has_corrections, search, sort_by, sort_dir } =
+      parsed.data;
+    const preview = await previewMonth({ supabase, year, month, filterDayuse: filter_dayuse });
 
     let entries = preview.entries;
 
@@ -113,4 +116,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }
-

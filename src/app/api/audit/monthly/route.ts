@@ -10,6 +10,7 @@ export const fetchCache = "force-no-store";
 const closeSchema = z.object({
   year: z.coerce.number().int().min(2025).max(2030),
   month: z.coerce.number().int().min(1).max(12),
+  filter_dayuse: z.enum(["only", "exclude"]).optional(),
 });
 
 // GET — list all audit periods
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       year: parsed.data.year,
       month: parsed.data.month,
       closedByUserId: user.id,
+      filterDayuse: parsed.data.filter_dayuse,
     });
 
     return NextResponse.json({

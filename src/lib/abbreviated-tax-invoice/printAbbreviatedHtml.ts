@@ -45,6 +45,14 @@ export function renderAbbreviatedA4Html(data: AbbreviatedRenderData): string {
     break-after: page;
   }
 
+  .paper.print-a4-full {
+    min-height: 297mm;
+  }
+
+  .paper.print-a4-half {
+    min-height: 148.5mm;
+  }
+
   .paper:last-child {
     page-break-after: auto;
     break-after: auto;
@@ -225,7 +233,13 @@ export function renderAbbreviatedA4Html(data: AbbreviatedRenderData): string {
   }
 
   const papersHtml = data.pages.map((p) => {
-    return `<main class="paper">
+    if (data.render_mode === "half_a4") {
+      return `<main class="paper print-a4-half">
+        <div class="sheet">${renderHalfPage(p.top)}</div>
+      </main>`;
+    }
+    
+    return `<main class="paper print-a4-full">
       <div class="sheet">${renderHalfPage(p.top)}</div>
       <div class="sheet ${p.bottom ? "" : "empty"}">${p.bottom ? renderHalfPage(p.bottom) : ""}</div>
     </main>`;
