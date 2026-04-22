@@ -1298,7 +1298,7 @@ export default function BoardPage() {
     };
 
     return (
-        <div className="space-y-5 w-full max-w-[90rem]">
+        <div className="space-y-5 w-full">
             <NightAuditPendingPopup pageName="Room Diary" />
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
