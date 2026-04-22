@@ -97,8 +97,8 @@ function BulkUpdateModal({
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body space-y-4">
-          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
-          {msg && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950/30 dark:border-rose-900 px-3 py-2 text-sm text-rose-700 dark:text-rose-400">{error}</div>}
+          {msg && <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">{msg}</div>}
 
           <div>
             <label className="form-label">Room Type</label>
@@ -351,7 +351,7 @@ export default function RatesPage() {
         </div>
       </div>
 
-      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/30 dark:border-rose-900 px-4 py-3 text-sm text-rose-700 dark:text-rose-400">{error}</div>}
 
       {/* Grid */}
       <div className="card overflow-hidden">
@@ -397,12 +397,12 @@ export default function RatesPage() {
                   const isToday = day === todayDate;
                   const occPct = data?.occupancy?.hotel_wide?.[day]?.pct ?? 0;
                   // Hotel-wide OCC strip tint across header
-                  const headerBg = isToday ? "bg-brand-100" : isWeekend ? "bg-rose-50" : "";
+                  const headerBg = isToday ? "bg-brand-100 dark:bg-brand-900/30" : isWeekend ? "bg-rose-50 dark:bg-rose-900/20" : "";
                   
                   return (
                     <div key={day} className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${headerBg}`} style={{ width: COL_W }}>
-                      <span className={`text-[9px] font-bold ${isWeekend ? "text-rose-500" : "text-[var(--text-muted)]"}`}>{dow}</span>
-                      <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : isWeekend ? "text-rose-600" : "text-[var(--text-table-cell)]"}`}>{d}</span>
+                      <span className={`text-[9px] font-bold ${isWeekend ? "text-rose-500 dark:text-rose-400" : "text-[var(--text-muted)]"}`}>{dow}</span>
+                      <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700 dark:text-brand-400" : isWeekend ? "text-rose-600 dark:text-rose-400" : "text-[var(--text-table-cell)]"}`}>{d}</span>
                       {/* small OCC bar */}
                       <div className="w-full h-[3px] bg-[var(--bg-muted)] mt-0.5 absolute bottom-0 left-0 overflow-hidden">
                         <div className="h-full bg-brand-500" style={{ width: `${Math.min(100, occPct)}%` }} />

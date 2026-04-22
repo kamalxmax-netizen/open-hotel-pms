@@ -110,6 +110,29 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function registerTelegramWebhook() {
+    setSaving("telegram.webhook");
+    try {
+      const res = await fetch("/api/telegram/webhook/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "Webhook registration failed");
+      }
+
+      showToast("✓ Telegram webhook registered");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Webhook registration failed";
+      showToast(`❌ ${message}`);
+    } finally {
+      setSaving(null);
+    }
+  }
+
   if (loading) return <div className="p-6 text-[var(--text-muted)] animate-pulse">Loading settings...</div>;
   if (role !== "admin" || !settings) return null;
 
@@ -231,6 +254,7 @@ export default function AdminSettingsPage() {
             <li>Open the Telegram app and search for your bot.</li>
             <li>Send the command <code>/start</code> to the bot.</li>
             <li>The bot will reply with your Chat ID. Copy and paste it below.</li>
+            <li>Click <span className="font-semibold">Register Webhook</span> once after env is configured on the deployed app.</li>
           </ol>
         </div>
         <div className="flex items-center gap-3">
@@ -247,6 +271,13 @@ export default function AdminSettingsPage() {
           />
           {saving === "telegram.admin_chat_id" && <span className="text-xs text-brand-500 animate-pulse">Saving...</span>}
           <div className="ml-auto">
+            <button
+              onClick={registerTelegramWebhook}
+              disabled={saving === "telegram.webhook"}
+              className="btn btn-secondary mr-2"
+            >
+              {saving === "telegram.webhook" ? "Registering..." : "Register Webhook"}
+            </button>
             <button
               onClick={testTelegram}
               disabled={!settings.telegram_admin_chat_id}
