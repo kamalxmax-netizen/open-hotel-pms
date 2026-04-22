@@ -24,6 +24,10 @@
   --overlay-bg: rgba(15, 23, 42, 0.4);
   --modal-overlay-bg: rgba(15, 23, 42, 0.5);
 
+  /* ─── OTA Brands ─── */
+  --brand-booking-bg: #003580;
+  --brand-booking-text: #ffffff;
+
   /* ─── Day-Use semantic colors ─── */
   --dayuse-text: #e11d48;
   --dayuse-text-secondary: #be123c;
@@ -59,6 +63,10 @@ html.dark {
   --overlay-bg: rgba(0, 0, 0, 0.6);
   --modal-overlay-bg: rgba(0, 0, 0, 0.7);
 
+  /* ─── OTA Brands ─── */
+  --brand-booking-bg: #004b9e;
+  --brand-booking-text: #ffffff;
+
   --dayuse-text: #fb7185;
   --dayuse-text-secondary: #f43f5e;
   --dayuse-bg: rgba(159, 18, 57, 0.15);
@@ -91,6 +99,10 @@ html.high-contrast {
   --text-table-cell: #000000;
   --overlay-bg: rgba(0, 0, 0, 0.7);
   --modal-overlay-bg: rgba(0, 0, 0, 0.8);
+
+  /* ─── OTA Brands ─── */
+  --brand-booking-bg: #000000;
+  --brand-booking-text: #ffffff;
 
   --dayuse-text: #be123c;
   --dayuse-text-secondary: #9f1239;

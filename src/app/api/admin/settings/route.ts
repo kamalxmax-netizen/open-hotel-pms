@@ -1,6 +1,9 @@
+import type { AdminRateSettings, AdminSettingsPutRequest } from "@/lib/rates/types";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminRouteAccess } from "@/lib/guest-migration";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   computePassportExpiryIso,
   DEFAULT_PASSPORT_RETENTION_DAYS,
@@ -9,19 +12,26 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const updateSchema = z.object({
-  passport_photo_retention_days: z.number().int().min(7).max(90).optional(),
-  google_sheet_sync_enabled: z.boolean().optional(),
-}).refine(
-  (value) =>
-    value.passport_photo_retention_days !== undefined ||
-    value.google_sheet_sync_enabled !== undefined,
-  { message: "At least one setting must be provided." }
-);
+const legacyUpdateSchema = z
+  .object({
+    passport_photo_retention_days: z.number().int().min(7).max(90).optional(),
+    google_sheet_sync_enabled: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.passport_photo_retention_days !== undefined ||
+      value.google_sheet_sync_enabled !== undefined,
+    { message: "At least one setting must be provided." }
+  );
 
 const partialUpdateSchema = z.object({
   passport_photo_retention_days: z.number().int().min(7).max(90).optional(),
   google_sheet_sync_enabled: z.boolean().optional(),
+});
+
+const phase72PutSchema = z.object({
+  key: z.string().trim().min(1),
+  value: z.unknown(),
 });
 
 function isTruthy(value: string | null): boolean {
@@ -37,12 +47,223 @@ function isSchemaMissingError(message?: string | null): boolean {
   );
 }
 
+function parseAppSettingNumber(value: unknown, fallback: number) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function parseAppSettingString(value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+async function readRateSettings(supabase: any): Promise<AdminRateSettings & { telegram_admin_chat_id: string | null }> {
+  const [{ data: roomTypes, error: roomTypeError }, { data: appRows, error: appError }] = await Promise.all([
+    supabase
+      .from("room_types")
+      .select("id, min_rate_floor")
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true }),
+    supabase.from("app_settings").select("key, value_json").in("key", [
+      "rate.price_delta_warn_threshold",
+      "ota.alarm_minutes",
+      "telegram.admin_chat_id",
+    ]),
+  ]);
+
+  if (roomTypeError) throw new Error(roomTypeError.message);
+  if (appError) throw new Error(appError.message);
+
+  const appMap = new Map<string, unknown>();
+  for (const row of appRows ?? []) {
+    appMap.set(String((row as any).key ?? ""), (row as any).value_json);
+  }
+
+  const min_rate_floor = Object.fromEntries(
+    (roomTypes ?? []).map((row: any) => [
+      String(row.id),
+      row.min_rate_floor == null ? null : Number(row.min_rate_floor),
+    ])
+  );
+
+  return {
+    min_rate_floor,
+    price_delta_warn_threshold: parseAppSettingNumber(appMap.get("rate.price_delta_warn_threshold"), 0.2),
+    alarm_minutes: Math.max(30, Math.min(480, parseAppSettingNumber(appMap.get("ota.alarm_minutes"), 120))),
+    telegram_admin_chat_id:
+      parseAppSettingString(appMap.get("telegram.admin_chat_id")) ||
+      parseAppSettingString(process.env.TELEGRAM_ADMIN_CHAT_ID),
+  };
+}
+
+async function canReadRatesSettings(request: NextRequest) {
+  const supabase = createServerSupabaseClient();
+  const user = await getAuthenticatedUser(supabase, request);
+  if (!user) return null;
+
+  const role = await getUserRole(supabase, user.id);
+  const allowed = role === "admin" || role === "frontdesk" || role === "supervisor" || role === "manager";
+  if (!allowed) return null;
+
+  return { supabase, userId: user.id, role };
+}
+
+async function upsertAppSetting(params: {
+  supabase: any;
+  userId: string;
+  key: string;
+  value: unknown;
+  description: string;
+}) {
+  const { error } = await params.supabase.from("app_settings").upsert(
+    {
+      key: params.key,
+      value_json: params.value,
+      description: params.description,
+      updated_at: new Date().toISOString(),
+      updated_by: params.userId,
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) throw new Error(error.message);
+}
+
+async function syncTelegramAdminSubscription(supabase: any, chatId: string | null) {
+  if (!chatId) {
+    const { error } = await supabase
+      .from("telegram_alert_subscriptions")
+      .update({ is_active: false })
+      .eq("role", "admin");
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const numericChatId = Number(chatId);
+  if (!Number.isInteger(numericChatId)) {
+    throw new Error("telegram.admin_chat_id must be a valid numeric chat id.");
+  }
+
+  const { error: deactivateError } = await supabase
+    .from("telegram_alert_subscriptions")
+    .update({ is_active: false })
+    .eq("role", "admin")
+    .neq("chat_id", numericChatId);
+  if (deactivateError) throw new Error(deactivateError.message);
+
+  const { error: upsertError } = await supabase.from("telegram_alert_subscriptions").upsert(
+    {
+      chat_id: numericChatId,
+      role: "admin",
+      is_active: true,
+    },
+    { onConflict: "chat_id" }
+  );
+  if (upsertError) throw new Error(upsertError.message);
+}
+
+async function handlePhase72Put(auth: { supabase: any; userId: string }, payload: AdminSettingsPutRequest) {
+  const key = payload.key;
+
+  if (key === "rate.price_delta_warn_threshold") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 0.05 || nextValue > 0.5) {
+      return NextResponse.json({ success: false, error: "Threshold must be between 0.05 and 0.50." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: nextValue,
+      description: "Fraction. Edits above this delta show a warning modal.",
+    });
+  } else if (key === "ota.alarm_minutes") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 30 || nextValue > 480) {
+      return NextResponse.json({ success: false, error: "Alarm minutes must be between 30 and 480." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: Math.round(nextValue),
+      description: "Minutes before pending OTA sync tasks trigger a Telegram alert.",
+    });
+  } else if (key === "telegram.admin_chat_id") {
+    const nextValue = String(payload.value ?? "").trim();
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: nextValue,
+      description: "Admin Telegram chat id configured from the bot /start flow.",
+    });
+    await syncTelegramAdminSubscription(auth.supabase, nextValue || null);
+  } else if (key.startsWith("room_type.") && key.endsWith(".min_rate_floor")) {
+    const roomTypeId = key.slice("room_type.".length, -".min_rate_floor".length);
+    const nextValue =
+      payload.value == null || String(payload.value).trim() === ""
+        ? null
+        : Number(payload.value);
+
+    if (nextValue != null && (!Number.isFinite(nextValue) || nextValue < 0)) {
+      return NextResponse.json({ success: false, error: "min_rate_floor must be null or >= 0." }, { status: 400 });
+    }
+
+    const { data, error } = await auth.supabase
+      .from("room_types")
+      .update({ min_rate_floor: nextValue })
+      .eq("id", roomTypeId)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json({ success: false, error: "Room type not found." }, { status: 404 });
+    }
+  } else {
+    return NextResponse.json({ success: false, error: "Unsupported admin setting key." }, { status: 400 });
+  }
+
+  const rateSettings = await readRateSettings(auth.supabase);
+  return NextResponse.json({
+    success: true,
+    key: payload.key,
+    value: payload.value,
+    rate_settings: rateSettings,
+    ...rateSettings,
+  });
+}
+
 export async function GET(request: NextRequest) {
+  const action = String(request.nextUrl.searchParams.get("action") ?? "").trim().toLowerCase();
+  const scope = String(request.nextUrl.searchParams.get("scope") ?? "").trim().toLowerCase();
+
+  if (scope === "rates") {
+    const actor = await canReadRatesSettings(request);
+    if (!actor) {
+      return NextResponse.json({ success: false, error: "Forbidden." }, { status: 403 });
+    }
+
+    const rateSettings = await readRateSettings(actor.supabase);
+    return NextResponse.json({
+      success: true,
+      min_rate_floor: rateSettings.min_rate_floor,
+      price_delta_warn_threshold: rateSettings.price_delta_warn_threshold,
+      alarm_minutes: rateSettings.alarm_minutes,
+    });
+  }
+
   const auth = await requireAdminRouteAccess(request);
   if (!auth.ok) return auth.response;
 
   const { supabase } = auth;
-  const action = String(request.nextUrl.searchParams.get("action") ?? "").trim().toLowerCase();
 
   if (action === "stats") {
     const { count, error } = await supabase
@@ -108,6 +329,8 @@ export async function GET(request: NextRequest) {
     };
   }
 
+  const rateSettings = await readRateSettings(supabase);
+
   return NextResponse.json({
     success: true,
     setting: {
@@ -116,10 +339,11 @@ export async function GET(request: NextRequest) {
     },
     settings: {
       passport_photo_retention_days: retentionDays,
-      google_sheet_sync_enabled:
-        (settings as any).google_sheet_sync_enabled !== false,
+      google_sheet_sync_enabled: (settings as any).google_sheet_sync_enabled !== false,
       ...cleanupMeta,
     },
+    rate_settings: rateSettings,
+    ...rateSettings,
   });
 }
 
@@ -127,7 +351,13 @@ export async function PUT(request: NextRequest) {
   const auth = await requireAdminRouteAccess(request);
   if (!auth.ok) return auth.response;
 
-  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  const phase72Parsed = phase72PutSchema.safeParse(body);
+  if (phase72Parsed.success) {
+    return handlePhase72Put(auth, phase72Parsed.data as AdminSettingsPutRequest);
+  }
+
+  const parsed = legacyUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { success: false, error: "Invalid payload.", details: parsed.error.flatten() },
@@ -153,6 +383,7 @@ export async function PUT(request: NextRequest) {
   if (nextGoogleSheetSyncEnabled != null) {
     upsertPayload.google_sheet_sync_enabled = nextGoogleSheetSyncEnabled;
   }
+
   const { data, error } = await auth.supabase
     .from("hotel_settings")
     .upsert(upsertPayload)
@@ -220,56 +451,42 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const upsertPayload: Record<string, unknown> = {
-    id: 1,
-    passport_photo_retention_days: retentionDays,
-    updated_at: new Date().toISOString(),
-  };
-  const { error: settingsError } = await auth.supabase
-    .from("hotel_settings")
-    .upsert(upsertPayload);
-  if (settingsError && !isSchemaMissingError(settingsError.message)) {
-    return NextResponse.json({ success: false, error: settingsError.message }, { status: 500 });
+  const { data: scans, error: scansError } = await auth.supabase
+    .from("passport_scans")
+    .select("id, created_at, cleaned_at")
+    .is("cleaned_at", null)
+    .limit(5000);
+
+  if (scansError) {
+    return NextResponse.json({ success: false, error: scansError.message }, { status: 500 });
   }
+
+  const nowIso = new Date().toISOString();
+  const rows = (scans ?? []).map((scan: any) => ({
+    id: scan.id,
+    expires_at: computePassportExpiryIso(retentionDays, new Date(String(scan.created_at ?? nowIso))),
+  }));
 
   if (!applyExisting) {
     return NextResponse.json({
       success: true,
-      applied_existing: false,
-      setting: {
-        key: "passport_photo_retention_days",
-        value: String(retentionDays),
-      },
+      retention_days: retentionDays,
+      would_delete_count: rows.length,
     });
   }
 
-  const { count: candidateCount, error: countError } = await auth.supabase
-    .from("passport_scans")
-    .select("id", { count: "exact", head: true })
-    .not("image_path", "is", null)
-    .is("cleaned_at", null);
-  if (countError && !isSchemaMissingError(countError.message)) {
-    return NextResponse.json({ success: false, error: countError.message }, { status: 500 });
-  }
-
-  const expiresAt = computePassportExpiryIso(retentionDays, new Date());
-  const { error: applyError } = await auth.supabase
-    .from("passport_scans")
-    .update({ expires_at: expiresAt })
-    .not("image_path", "is", null)
-    .is("cleaned_at", null);
-  if (applyError && !isSchemaMissingError(applyError.message)) {
-    return NextResponse.json({ success: false, error: applyError.message }, { status: 500 });
+  if (rows.length > 0) {
+    const { error: updateError } = await auth.supabase
+      .from("passport_scans")
+      .upsert(rows, { onConflict: "id" });
+    if (updateError) {
+      return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({
     success: true,
-    applied_existing: true,
-    setting: {
-      key: "passport_photo_retention_days",
-      value: String(retentionDays),
-    },
-    total_updated: Number(candidateCount ?? 0),
-    expires_at: expiresAt,
+    retention_days: retentionDays,
+    recalculated_count: rows.length,
   });
 }

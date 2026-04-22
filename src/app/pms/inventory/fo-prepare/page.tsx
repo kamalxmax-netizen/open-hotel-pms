@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangleIcon, RefreshCwIcon, SaveIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
@@ -148,6 +155,10 @@ export default function FoPreparePage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPreparing, setIsPreparing] = useState<boolean>(false);
   const [isReturning, setIsReturning] = useState<boolean>(false);
+  const [adjustTarget, setAdjustTarget] = useState<FoBatchItem | null>(null);
+  const [adjustNewQuantity, setAdjustNewQuantity] = useState<number>(0);
+  const [adjustReason, setAdjustReason] = useState<string>("");
+  const [isAdjustingFloor, setIsAdjustingFloor] = useState<boolean>(false);
   const [prepareFeedback, setPrepareFeedback] = useState<PrepareFeedback>(null);
   const [returnFeedback, setReturnFeedback] = useState<ReturnFeedback>(null);
 
@@ -569,6 +580,68 @@ export default function FoPreparePage() {
     }
   };
 
+  const openAdjustModal = (row: FoBatchItem) => {
+    setAdjustTarget(row);
+    setAdjustNewQuantity(row.floor_current_qty);
+    setAdjustReason("");
+  };
+
+  const handleAdjustFloorStock = async () => {
+    if (!adjustTarget) return;
+    const trimmedReason = adjustReason.trim();
+    if (!trimmedReason) {
+      toast({
+        title: "Reason required",
+        description: `Please explain why ${adjustTarget.product_name} on floor ${adjustTarget.floor_number} is being adjusted.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsAdjustingFloor(true);
+      const res = await fetch(`/api/stock/floors/${adjustTarget.floor_number}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_id: adjustTarget.product_id,
+          action: "adjust",
+          new_quantity: Math.max(Number(adjustNewQuantity ?? 0), 0),
+          note: `FO Prepare EOD adjust: ${trimmedReason}`,
+          performed_by: returnedBy || "FO",
+        }),
+      });
+      const data = await readJsonSafe<{
+        before_quantity?: number;
+        after_quantity?: number;
+      }>(res);
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || "Floor stock adjustment failed");
+      }
+
+      toast({
+        title: "Floor stock adjusted",
+        description: `${adjustTarget.product_name} floor ${adjustTarget.floor_number}: ${Number(data.before_quantity ?? adjustTarget.floor_current_qty)} -> ${Number(data.after_quantity ?? adjustNewQuantity)}.`,
+      });
+      setReturnFeedback({
+        kind: "info",
+        message: `Adjusted ${adjustTarget.product_name} floor ${adjustTarget.floor_number}. Review the refreshed system remaining before returning stock.`,
+      });
+      setAdjustTarget(null);
+      setAdjustReason("");
+      await loadPrepareData(businessDate);
+    } catch (err) {
+      toast({
+        title: "Adjustment failed",
+        description: err instanceof Error ? err.message : "Floor stock adjustment failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAdjustingFloor(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
@@ -903,6 +976,7 @@ export default function FoPreparePage() {
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Used</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">System Remaining</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Floor Current</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Adjust</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Return Qty</th>
                           <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Damaged</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase">Line Note</th>
@@ -922,6 +996,18 @@ export default function FoPreparePage() {
                               {row.suggested_remaining}
                             </td>
                             <td className="px-4 py-2.5 text-right text-[var(--text-table-cell)]">{row.floor_current_qty}</td>
+                            <td className="px-4 py-2.5">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={batchDetail.batch.status !== "prepared"}
+                                onClick={() => openAdjustModal(row)}
+                                className="h-8"
+                              >
+                                Adjust
+                              </Button>
+                            </td>
                             <td className="px-4 py-2.5 text-right">
                               <Input
                                 type="number"
@@ -992,6 +1078,71 @@ export default function FoPreparePage() {
           )}
         </div>
       )}
+
+      <Dialog
+        open={Boolean(adjustTarget)}
+        onOpenChange={(open) => {
+          if (!open && !isAdjustingFloor) {
+            setAdjustTarget(null);
+            setAdjustReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Adjust Floor Stock</DialogTitle>
+          </DialogHeader>
+          {adjustTarget && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-muted)]/60 p-3 text-sm">
+                <p className="font-semibold text-[var(--text-primary)]">{adjustTarget.product_name}</p>
+                <p className="text-[var(--text-secondary)]">
+                  Floor {adjustTarget.floor_number} · Current system stock {adjustTarget.floor_current_qty} {adjustTarget.unit}
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Use this only when the maid app recorded the wrong product or qty and you need to fix the floor stock before EOD return.
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">New Floor Qty</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={String(adjustNewQuantity)}
+                  onChange={(e) => setAdjustNewQuantity(Math.max(Number(e.target.value || 0), 0))}
+                  className="mt-1 h-9"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Reason</label>
+                <Input
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Example: maid clicked coffee 3 instead of water 3"
+                  className="mt-1 h-9"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!isAdjustingFloor) {
+                  setAdjustTarget(null);
+                  setAdjustReason("");
+                }
+              }}
+              disabled={isAdjustingFloor}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAdjustFloorStock} disabled={isAdjustingFloor || !adjustTarget}>
+              {isAdjustingFloor ? "Saving..." : "Apply Adjustment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
