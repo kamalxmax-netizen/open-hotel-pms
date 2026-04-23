@@ -9,6 +9,10 @@ type AdminSettings = {
   price_delta_warn_threshold: number;
   alarm_minutes: number;
   telegram_admin_chat_id?: string;
+  dynamic_max_multiplier: number;
+  dynamic_eval_window_days: number;
+  dynamic_undo_window_minutes: number;
+  dynamic_suggestion_stale_minutes: number;
 };
 
 type RoomTypeInfo = {
@@ -59,6 +63,10 @@ export default function AdminSettingsPage() {
             price_delta_warn_threshold: setJson.price_delta_warn_threshold || 0.20,
             alarm_minutes: setJson.alarm_minutes || 120,
             telegram_admin_chat_id: setJson.telegram_admin_chat_id || "",
+            dynamic_max_multiplier: setJson["rate.dynamic_max_multiplier"] ?? 1.5,
+            dynamic_eval_window_days: setJson["rate.dynamic_eval_window_days"] ?? 60,
+            dynamic_undo_window_minutes: setJson["rate.dynamic_undo_window_minutes"] ?? 60,
+            dynamic_suggestion_stale_minutes: setJson["rate.dynamic_suggestion_stale_minutes"] ?? 120,
           });
         }
 
@@ -285,6 +293,101 @@ export default function AdminSettingsPage() {
             >
               Test Ping
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 5: Dynamic Engine */}
+      <div className="card p-6 space-y-6">
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">5. Dynamic Rules Engine</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Configure global constraints and evaluation parameters for dynamic rates.</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Max Multiplier Cap</label>
+            <p className="text-xs text-[var(--text-muted)]">Max allowed multiple of base price (e.g. 1.5 = +50% cap).</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="1.0"
+                max="3.0"
+                step="0.1"
+                className="w-48 accent-brand-500"
+                value={settings.dynamic_max_multiplier}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSettings(s => s ? { ...s, dynamic_max_multiplier: val } : s);
+                }}
+                onMouseUp={() => updateSetting("rate.dynamic_max_multiplier", settings.dynamic_max_multiplier)}
+              />
+              <span className="text-base font-bold text-brand-600">{settings.dynamic_max_multiplier.toFixed(1)}x</span>
+              {saving === "rate.dynamic_max_multiplier" && <span className="text-xs text-brand-500 animate-pulse ml-2">Saving...</span>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Evaluation Window (days)</label>
+            <p className="text-xs text-[var(--text-muted)]">Look-ahead window for daily scheduled evaluations.</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                min="7"
+                max="120"
+                className="form-input w-24"
+                value={settings.dynamic_eval_window_days}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSettings(s => s ? { ...s, dynamic_eval_window_days: val } : s);
+                }}
+                onBlur={() => updateSetting("rate.dynamic_eval_window_days", settings.dynamic_eval_window_days)}
+              />
+              <span className="text-sm text-[var(--text-secondary)]">Days</span>
+              {saving === "rate.dynamic_eval_window_days" && <span className="text-xs text-brand-500 animate-pulse ml-2">Saving...</span>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Undo Window (minutes)</label>
+            <p className="text-xs text-[var(--text-muted)]">Time allowed to revert an applied rate.</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                min="5"
+                max="240"
+                className="form-input w-24"
+                value={settings.dynamic_undo_window_minutes}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSettings(s => s ? { ...s, dynamic_undo_window_minutes: val } : s);
+                }}
+                onBlur={() => updateSetting("rate.dynamic_undo_window_minutes", settings.dynamic_undo_window_minutes)}
+              />
+              <span className="text-sm text-[var(--text-secondary)]">Minutes</span>
+              {saving === "rate.dynamic_undo_window_minutes" && <span className="text-xs text-brand-500 animate-pulse ml-2">Saving...</span>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Suggestion Staleness</label>
+            <p className="text-xs text-[var(--text-muted)]">Pending time before triggering an alert.</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                min="30"
+                max="720"
+                className="form-input w-24"
+                value={settings.dynamic_suggestion_stale_minutes}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSettings(s => s ? { ...s, dynamic_suggestion_stale_minutes: val } : s);
+                }}
+                onBlur={() => updateSetting("rate.dynamic_suggestion_stale_minutes", settings.dynamic_suggestion_stale_minutes)}
+              />
+              <span className="text-sm text-[var(--text-secondary)]">Minutes</span>
+              {saving === "rate.dynamic_suggestion_stale_minutes" && <span className="text-xs text-brand-500 animate-pulse ml-2">Saving...</span>}
+            </div>
           </div>
         </div>
       </div>

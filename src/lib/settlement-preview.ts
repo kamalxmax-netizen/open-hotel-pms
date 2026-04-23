@@ -1,4 +1,4 @@
-import { computeCheckoutNetPaidSatang } from "@/lib/checkout-balance";
+import { computeCheckoutNetPaidSatang, resolveCheckoutRevenueCategory } from "@/lib/checkout-balance";
 import { fromSatang, toSatang } from "@/lib/money";
 import { listNights } from "@/lib/dates";
 
@@ -14,6 +14,8 @@ export type SettlementPreviewPaymentRow = {
   is_record_only?: boolean | null;
   method?: string | null;
 };
+
+type SettlementRevenueScope = "all_non_deposit" | "room_revenue_only";
 
 export type SettlementPreviewNightRow = {
   stay_date: string | null;
@@ -45,6 +47,36 @@ export function computePrepaidNetAmount(rows: SettlementPreviewPaymentRow[] | nu
   return fromSatang(Math.max(0, netPaidSatang));
 }
 
+function computeScopedNetPaidSatang(
+  rows: SettlementPreviewPaymentRow[] | null | undefined,
+  scope: SettlementRevenueScope
+): number {
+  let totalPaidSatang = 0;
+  let totalRefundedSatang = 0;
+
+  for (const row of rows ?? []) {
+    const txType = String(row.tx_type ?? "").toLowerCase();
+    if (txType !== "payment" && txType !== "refund") continue;
+    if (row.is_record_only === true) continue;
+
+    const category = resolveCheckoutRevenueCategory(row.revenue_category, txType, row.note);
+    if (category === "deposit") continue;
+    if (scope === "room_revenue_only" && category !== "room_revenue") continue;
+
+    const amountSatang = toSatang(row.amount);
+    if (txType === "refund") totalRefundedSatang += amountSatang;
+    else totalPaidSatang += amountSatang;
+  }
+
+  return totalPaidSatang - totalRefundedSatang;
+}
+
+export function computeShortenPrepaidNetAmount(
+  rows: SettlementPreviewPaymentRow[] | null | undefined
+): number {
+  return fromSatang(Math.max(0, computeScopedNetPaidSatang(rows, "room_revenue_only")));
+}
+
 export function suggestRefundMethod(rows: SettlementPreviewPaymentRow[] | null | undefined): SettlementRefundMethod {
   const methods = new Set<SettlementFeeCollectMethod>();
 
@@ -53,6 +85,28 @@ export function suggestRefundMethod(rows: SettlementPreviewPaymentRow[] | null |
     if (txType !== "payment") continue;
     if (row.is_record_only === true) continue;
     if (String(row.revenue_category ?? "").toLowerCase() === "deposit") continue;
+    const method = normalizeMethod(row.method);
+    if (method) methods.add(method);
+  }
+
+  if (methods.size !== 1) return "cash";
+
+  const [single] = Array.from(methods.values());
+  if (single === "transfer") return "transfer";
+  return "cash";
+}
+
+export function suggestShortenRefundMethod(
+  rows: SettlementPreviewPaymentRow[] | null | undefined
+): SettlementRefundMethod {
+  const methods = new Set<SettlementFeeCollectMethod>();
+
+  for (const row of rows ?? []) {
+    const txType = String(row.tx_type ?? "").toLowerCase();
+    if (txType !== "payment") continue;
+    if (row.is_record_only === true) continue;
+    const category = resolveCheckoutRevenueCategory(row.revenue_category, txType, row.note);
+    if (category !== "room_revenue") continue;
     const method = normalizeMethod(row.method);
     if (method) methods.add(method);
   }
@@ -103,4 +157,3 @@ export function computeShortenProjectedTotal(input: ShortenPreviewInput): number
 export function computeShortenOverpaidAmount(prepaidNet: number, newTotal: number): number {
   return round2(Math.max(0, prepaidNet - newTotal));
 }
-

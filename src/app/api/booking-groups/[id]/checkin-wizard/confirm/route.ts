@@ -1,9 +1,4 @@
 import {
-  buildDepositSnapshotNote,
-  computeHeldDepositFromRows,
-  extractDepositGeneralNote,
-} from "@/lib/deposit-ledger";
-import {
   allocateMasterLineByRemaining,
   mapMassCheckinCodeToWizardCodes,
   mergeDraftJson,
@@ -148,134 +143,6 @@ async function attachGroupPassportScansToReservations(params: {
   }
 
   return warnings;
-}
-
-async function syncReservationDepositSnapshot(params: {
-  supabase: ReturnType<typeof createServerSupabaseClient>;
-  reservationId: string;
-}) {
-  const { supabase, reservationId } = params;
-  const { data: reservation, error: reservationError } = await supabase
-    .from("reservations")
-    .select("deposit_note")
-    .eq("id", reservationId)
-    .maybeSingle();
-
-  if (reservationError) {
-    throw new Error(reservationError.message);
-  }
-
-  const { data: depositRows, error: depositRowsError } = await supabase
-    .from("folio_payments")
-    .select("method, amount, note, paid_at, tx_type, revenue_category")
-    .eq("reservation_id", reservationId)
-    .eq("revenue_category", "deposit")
-    .order("paid_at", { ascending: true });
-
-  if (depositRowsError) {
-    throw new Error(depositRowsError.message);
-  }
-
-  const generalNote = extractDepositGeneralNote(reservation?.deposit_note);
-  const netByMethod = new Map<string, { method: string; amount: number; note: string | null }>();
-  for (const row of depositRows ?? []) {
-    const method = String(row.method ?? "cash");
-    const current = netByMethod.get(method) ?? { method, amount: 0, note: null };
-    const amount = toRoundedMoney(row.amount ?? 0);
-    if (row.tx_type === "deposit") current.amount += amount;
-    else if (row.tx_type === "refund") current.amount -= amount;
-    if (!current.note && typeof row.note === "string" && row.note.trim()) {
-      current.note = row.note.trim();
-    }
-    netByMethod.set(method, current);
-  }
-
-  const lines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
-  const nextDepositAmount = computeHeldDepositFromRows(depositRows ?? []);
-  const nextPaidAt =
-    (depositRows ?? []).some((row: any) => row.tx_type === "deposit")
-      ? String(
-        [...(depositRows ?? [])]
-          .filter((row: any) => row.tx_type === "deposit")
-          .slice(-1)[0]?.paid_at ?? new Date().toISOString()
-      )
-      : null;
-  const nextDepositNote = buildDepositSnapshotNote(
-    lines,
-    nextDepositAmount > 0 ? null : generalNote
-  );
-
-  const { error: syncError } = await supabase
-    .from("reservations")
-    .update({
-      deposit_amount: nextDepositAmount,
-      deposit_paid_at: nextPaidAt,
-      deposit_note: nextDepositNote,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", reservationId);
-
-  if (syncError) {
-    throw new Error(syncError.message);
-  }
-}
-
-async function persistDraftReservationPayments(params: {
-  supabase: ReturnType<typeof createServerSupabaseClient>;
-  businessDate: string;
-  item: WizardPaymentItem;
-}) {
-  const { supabase, businessDate, item } = params;
-  const paidAt = new Date().toISOString();
-  const folioRows: Array<Record<string, unknown>> = [];
-
-  if (item.deposit_policy === "set" && toRoundedMoney(item.deposit_amount) > 0) {
-    const depositMethod =
-      item.deposit_collection_mode === "combined"
-        ? item.payments[0]?.method ?? item.deposit_method ?? "cash"
-        : item.deposit_method ?? "cash";
-    folioRows.push({
-      reservation_id: item.reservation_id,
-      tx_type: "deposit",
-      method: depositMethod,
-      amount: toRoundedMoney(item.deposit_amount),
-      note: item.deposit_note || "Deposit collected at group check-in",
-      revenue_category: "deposit",
-      cashier_name: "FO",
-      paid_date: businessDate,
-      paid_at: paidAt,
-    });
-  }
-
-  for (const payment of item.payments) {
-    const amount = toRoundedMoney(payment.amount ?? 0);
-    if (amount <= 0) continue;
-    folioRows.push({
-      reservation_id: item.reservation_id,
-      tx_type: "payment",
-      method: payment.method,
-      amount,
-      note: payment.note || "Paid at group check-in",
-      revenue_category: "room_revenue",
-      cashier_name: "FO",
-      paid_date: businessDate,
-      paid_at: paidAt,
-    });
-  }
-
-  if (folioRows.length === 0) return;
-
-  const { error: insertError } = await supabase.from("folio_payments").insert(folioRows);
-  if (insertError) {
-    throw new Error(insertError.message);
-  }
-
-  if (folioRows.some((row) => row.tx_type === "deposit")) {
-    await syncReservationDepositSnapshot({
-      supabase,
-      reservationId: item.reservation_id,
-    });
-  }
 }
 
 export async function POST(
@@ -524,20 +391,6 @@ export async function POST(
           target.deposit_note = masterDepositNote || null;
         });
       }
-    }
-
-    const failedPrevalidatedReservationIds = Array.from(prevalidatedResults.entries())
-      .filter(([, row]) => row.status === "failed")
-      .map(([reservationId]) => reservationId);
-
-    for (const reservationId of failedPrevalidatedReservationIds) {
-      const paymentItem = massItemsByReservation.get(reservationId);
-      if (!paymentItem) continue;
-      await persistDraftReservationPayments({
-        supabase,
-        businessDate,
-        item: paymentItem,
-      });
     }
 
     let massResultByReservation = new Map<string, any>();

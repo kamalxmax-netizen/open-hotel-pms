@@ -30,6 +30,7 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
     const [rewashQtys, setRewashQtys] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOlderPending, setShowOlderPending] = useState(false);
+    const [showPendingRewash, setShowPendingRewash] = useState(false);
     const [isResolving, setIsResolving] = useState<Record<string, boolean>>({});
 
     const { data: rwData, mutate: mutateRewash } = useSWR<LaundryRewashPendingResponse>("/api/linen/rewash/pending", apiDataFetcher);
@@ -267,93 +268,114 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
                     {/* Pending Rewash Section */}
                     {pendingRewash && pendingRewash.length > 0 && (
                         <section className="pt-2">
-                            <div className="mb-3 flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={() => setShowPendingRewash((value) => !value)}
+                                className="flex w-full items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 px-4 py-4 text-left active:scale-[0.99] transition-all"
+                            >
                                 <div>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-purple-400">ค้างส่งซักใหม่</p>
-                                    <h3 className="mt-1 text-lg font-black text-slate-900 font-thai">ผ้า Rewash ที่รอคืน</h3>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-purple-500">ค้างส่งซักใหม่</p>
+                                    <p className="mt-1 text-lg font-black text-slate-900 font-thai">ผ้า Rewash ที่รอคืน</p>
+                                    <p className="mt-0.5 text-xs font-medium text-purple-700/70 font-thai">
+                                        มี {pendingRewash.length} รายการ รอคืนจากร้านซัก
+                                    </p>
                                 </div>
-                                <div className="rounded-full bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
-                                    {pendingRewash.length} รายการ
+                                <div className="flex items-center gap-3">
+                                    <div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-purple-700 border border-purple-200">
+                                        {pendingRewash.length} รายการ
+                                    </div>
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                        className={`h-5 w-5 text-purple-700 transition-transform ${showPendingRewash ? "rotate-180" : ""}`}
+                                    >
+                                        <path d="m6 9 6 6 6-6" />
+                                    </svg>
                                 </div>
-                            </div>
-                            <div className="space-y-3">
-                                {pendingRewash.map((rw) => {
-                                    const photoKey = (rw as any).photo_keys?.[0] ?? (rw as any).photo_urls?.[0];
-                                    const photoSrc = rewashPhotoSrc(photoKey);
-                                    const remainingQty = Math.max(0, Number((rw as any).remaining_qty ?? Number(rw.qty ?? 0) - Number(rw.resolved_qty ?? 0)));
-                                    const typedQty = rewashQtys[String(rw.id)] ?? "";
-                                    const submitQty = Math.min(remainingQty, Math.max(0, parseInt(typedQty || "0", 10) || 0));
-                                    return (
-                                        <div key={rw.id} className="bg-purple-50 border border-purple-100 rounded-2xl p-4 group">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className="w-12 h-12 rounded-lg bg-white border border-purple-200 flex items-center justify-center overflow-hidden shrink-0">
-                                                        {photoSrc ? (
-                                                            <img src={photoSrc} alt="Proof" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-purple-200"><path d="M12 5v14M5 12h14"/></svg>
-                                                        )}
+                            </button>
+
+                            {showPendingRewash && (
+                                <div className="mt-4 space-y-3 rounded-3xl border border-purple-100 bg-purple-50/60 p-4">
+                                    {pendingRewash.map((rw) => {
+                                        const photoKey = (rw as any).photo_keys?.[0] ?? (rw as any).photo_urls?.[0];
+                                        const photoSrc = rewashPhotoSrc(photoKey);
+                                        const remainingQty = Math.max(0, Number((rw as any).remaining_qty ?? Number(rw.qty ?? 0) - Number(rw.resolved_qty ?? 0)));
+                                        const typedQty = rewashQtys[String(rw.id)] ?? "";
+                                        const submitQty = Math.min(remainingQty, Math.max(0, parseInt(typedQty || "0", 10) || 0));
+                                        return (
+                                            <div key={rw.id} className="bg-purple-50 border border-purple-100 rounded-2xl p-4 group">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="w-12 h-12 rounded-lg bg-white border border-purple-200 flex items-center justify-center overflow-hidden shrink-0">
+                                                            {photoSrc ? (
+                                                                <img src={photoSrc} alt="Proof" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-purple-200"><path d="M12 5v14M5 12h14"/></svg>
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-slate-900 font-thai">{rw.item_name_th}</p>
+                                                            <p className="text-[10px] text-slate-500 font-thai">คงเหลือ {remainingQty} / ทั้งหมด {rw.qty} • จากรอบ {rw.sent_batch_pickup_round}</p>
+                                                            {Number(rw.resolved_qty ?? 0) > 0 && (
+                                                                <p className="text-[10px] text-purple-600 font-thai">คืนแล้วสะสม {rw.resolved_qty} ชิ้น</p>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-slate-900 font-thai">{rw.item_name_th}</p>
-                                                        <p className="text-[10px] text-slate-500 font-thai">คงเหลือ {remainingQty} / ทั้งหมด {rw.qty} • จากรอบ {rw.sent_batch_pickup_round}</p>
-                                                        {Number(rw.resolved_qty ?? 0) > 0 && (
-                                                            <p className="text-[10px] text-purple-600 font-thai">คืนแล้วสะสม {rw.resolved_qty} ชิ้น</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setRewashQtys((prev) => ({ ...prev, [String(rw.id)]: String(remainingQty) }))}
-                                                    className="shrink-0 rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-purple-700 active:scale-95"
-                                                >
-                                                    เต็ม
-                                                </button>
-                                            </div>
-                                            <div className="mt-3 flex items-center gap-2">
-                                                <div className="flex items-center gap-1 rounded-2xl border border-purple-100 bg-white p-1.5">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleRewashQtyChange(String(rw.id), String(Math.max(0, submitQty - 1)), remainingQty)}
-                                                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-600 active:scale-90"
+                                                        onClick={() => setRewashQtys((prev) => ({ ...prev, [String(rw.id)]: String(remainingQty) }))}
+                                                        className="shrink-0 rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-bold text-purple-700 active:scale-95"
                                                     >
-                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M5 12h14" /></svg>
-                                                    </button>
-                                                    <input
-                                                        type="number"
-                                                        inputMode="numeric"
-                                                        pattern="[0-9]*"
-                                                        min={0}
-                                                        max={remainingQty}
-                                                        value={typedQty}
-                                                        placeholder={String(remainingQty)}
-                                                        onChange={(e) => handleRewashQtyChange(String(rw.id), e.target.value, remainingQty)}
-                                                        className="w-14 border-0 bg-transparent text-center text-xl font-black text-purple-700 focus:ring-0 placeholder:text-purple-200"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRewashQtyChange(String(rw.id), String(Math.min(remainingQty, submitQty + 1)), remainingQty)}
-                                                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white active:scale-90"
-                                                    >
-                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-5 h-5"><path d="M12 5v14M5 12h14" /></svg>
+                                                        เต็ม
                                                     </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleResolveRewash(String(rw.id), submitQty)}
-                                                    disabled={isResolving[String(rw.id)] || submitQty <= 0}
-                                                    className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-sm ${
-                                                        isResolving[String(rw.id)] || submitQty <= 0
-                                                        ? 'bg-slate-200 text-slate-400'
-                                                        : 'bg-white text-purple-600 border border-purple-200 active:scale-95 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600'
-                                                    }`}
-                                                >
-                                                    {isResolving[String(rw.id)] ? "..." : `คืน ${submitQty || ""}`.trim()}
-                                                </button>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <div className="flex items-center gap-1 rounded-2xl border border-purple-100 bg-white p-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRewashQtyChange(String(rw.id), String(Math.max(0, submitQty - 1)), remainingQty)}
+                                                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-600 active:scale-90"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M5 12h14" /></svg>
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            pattern="[0-9]*"
+                                                            min={0}
+                                                            max={remainingQty}
+                                                            value={typedQty}
+                                                            placeholder={String(remainingQty)}
+                                                            onChange={(e) => handleRewashQtyChange(String(rw.id), e.target.value, remainingQty)}
+                                                            className="w-14 border-0 bg-transparent text-center text-xl font-black text-purple-700 focus:ring-0 placeholder:text-purple-200"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRewashQtyChange(String(rw.id), String(Math.min(remainingQty, submitQty + 1)), remainingQty)}
+                                                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white active:scale-90"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-5 h-5"><path d="M12 5v14M5 12h14" /></svg>
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleResolveRewash(String(rw.id), submitQty)}
+                                                        disabled={isResolving[String(rw.id)] || submitQty <= 0}
+                                                        className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-sm ${
+                                                            isResolving[String(rw.id)] || submitQty <= 0
+                                                            ? 'bg-slate-200 text-slate-400'
+                                                            : 'bg-white text-purple-600 border border-purple-200 active:scale-95 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600'
+                                                        }`}
+                                                    >
+                                                        {isResolving[String(rw.id)] ? "..." : `คืน ${submitQty || ""}`.trim()}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </section>
                     )}
                 </div>

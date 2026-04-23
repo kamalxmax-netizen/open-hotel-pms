@@ -27,6 +27,10 @@ export async function getOtaAlarmMinutes(supabase: SupabaseClient) {
   return toNumber(await readAppSetting(supabase, "ota.alarm_minutes"), 120);
 }
 
+export async function getDynamicSuggestionStaleMinutes(supabase: SupabaseClient) {
+  return toNumber(await readAppSetting(supabase, "rate.dynamic_suggestion_stale_minutes"), 120);
+}
+
 export async function getTelegramAdminChatId(supabase: SupabaseClient) {
   const dbValue = await readAppSetting(supabase, "telegram.admin_chat_id");
   const normalized = String(dbValue ?? "").trim();
@@ -41,17 +45,63 @@ export async function notifyPendingOtaTasks(params: {
   oldestMinutes: number;
   supabase?: SupabaseClient;
 }): Promise<TelegramSendResult> {
+  return notifyRateSystemAlerts({
+    supabase: params.supabase,
+    ota: {
+      count: params.count,
+      oldestMinutes: params.oldestMinutes,
+    },
+  });
+}
+
+function formatMinutesLabel(totalMinutes: number) {
+  const safeMinutes = Math.max(0, Math.floor(totalMinutes));
+  if (safeMinutes < 60) return `${safeMinutes}m`;
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+  return `${hours}h ${minutes}m`;
+}
+
+export async function notifyRateSystemAlerts(params: {
+  ota?: {
+    count: number;
+    oldestMinutes: number;
+  };
+  suggestions?: {
+    count: number;
+    oldestMinutes: number;
+  };
+  supabase?: SupabaseClient;
+}): Promise<TelegramSendResult> {
   const supabase = params.supabase ?? createServerSupabaseClient();
   const chatId = await getTelegramAdminChatId(supabase);
   if (!chatId) {
     return { success: false, error: "telegram.admin_chat_id is not configured." };
   }
 
+  const sections: string[] = [];
+  if (params.ota && params.ota.count > 0) {
+    sections.push(
+      "📤 OTA Sync (Booking.com)",
+      `  ${params.ota.count} task${params.ota.count === 1 ? "" : "s"} pending · oldest ${formatMinutesLabel(params.ota.oldestMinutes)}`
+    );
+  }
+  if (params.suggestions && params.suggestions.count > 0) {
+    sections.push(
+      "🎯 Dynamic Suggestions",
+      `  ${params.suggestions.count} pending · oldest ${formatMinutesLabel(params.suggestions.oldestMinutes)}`
+    );
+  }
+
+  if (sections.length === 0) {
+    return { success: true };
+  }
+
   const text = [
-    "OTA sync alert",
+    "🔔 Rate System Alerts",
+    ...sections,
     "",
-    `${params.count} pending OTA sync task${params.count === 1 ? "" : "s"} are overdue.`,
-    `Oldest pending task: ${params.oldestMinutes} minute${params.oldestMinutes === 1 ? "" : "s"}.`,
+    "→ Open PMS: /pms/ota-sync · /pms/rates/suggestions",
   ].join("\n");
 
   return sendTelegramMessage({

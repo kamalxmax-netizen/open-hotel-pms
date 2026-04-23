@@ -8,6 +8,8 @@ import { occTint } from "./_components/OccHeat";
 import { PriceCellV2 } from "./_components/PriceCellV2";
 import { FloorGuardModal } from "./_components/FloorGuardModal";
 import { DeltaConfirmModal } from "./_components/DeltaConfirmModal";
+import UndoStrip from "./suggestions/_components/UndoStrip";
+import Link from "next/link";
 
 /* ─── helpers ───────────────────────────────────── */
 function addDays(date: string, n: number) {
@@ -189,6 +191,8 @@ export default function RatesPage() {
   const [mode, setMode] = useState<RateEditMode>("type");
   const [deltaThreshold, setDeltaThreshold] = useState(0.20);
   const [otaAlertCount, setOtaAlertCount] = useState(0);
+  const [pendingSuggestions, setPendingSuggestions] = useState(0); // Mocked for now
+  const [undoableCount, setUndoableCount] = useState(0); // Mocked for now
 
   // Modal Promise State
   const [deltaModal, setDeltaModal] = useState<{ oldP: number; newP: number; pct: number; resolve: (val: boolean) => void } | null>(null);
@@ -210,9 +214,11 @@ export default function RatesPage() {
 
   const loadSettingsAndAlerts = useCallback(async () => {
     try {
-      const [setRes, otaRes] = await Promise.all([
+      const [setRes, otaRes, suggRes, undoRes] = await Promise.all([
         fetch("/api/admin/settings?scope=rates").catch(() => null),
-        fetch("/api/ota-sync").catch(() => null)
+        fetch("/api/ota-sync").catch(() => null),
+        fetch("/api/dynamic-rules/preview?status=suggested").catch(() => null),
+        fetch("/api/dynamic-rules/applied-log").catch(() => null)
       ]);
       if (setRes?.ok) {
         const j = await setRes.json();
@@ -223,6 +229,17 @@ export default function RatesPage() {
       if (otaRes?.ok) {
         const j = await otaRes.json();
         setOtaAlertCount(j.total_pending || 0);
+      }
+      if (suggRes?.ok) {
+        const j = await suggRes.json();
+        if (j.success) setPendingSuggestions(j.rows?.length || 0);
+      }
+      if (undoRes?.ok) {
+        const j = await undoRes.json();
+        if (j.success) {
+          const undoable = (j.rows || []).filter((l: any) => l.is_undoable);
+          setUndoableCount(undoable.length);
+        }
       }
     } catch {}
   }, []);
@@ -315,6 +332,20 @@ export default function RatesPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-full pb-10">
+      <UndoStrip count={undoableCount} latestTime={null} />
+      
+      {pendingSuggestions > 0 && (
+        <div className="w-full bg-violet-50 border border-violet-200 dark:bg-violet-900/20 dark:border-violet-800 rounded-xl p-3 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-violet-800 dark:text-violet-300">
+            <span className="text-base">🔔</span>
+            <span className="font-medium">{pendingSuggestions} dynamic rate {pendingSuggestions === 1 ? 'suggestion' : 'suggestions'} pending review</span>
+          </div>
+          <Link href="/pms/rates/suggestions" className="btn btn-primary bg-violet-600 hover:bg-violet-700 text-xs py-1.5 px-3">
+            Review Suggestions
+          </Link>
+        </div>
+      )}
+
       {/* Header & Filter Bar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

@@ -1,4 +1,5 @@
-import type { AdminRateSettings, AdminSettingsPutRequest } from "@/lib/rates/types";
+import type { AdminRateSettings } from "@/lib/rates/types";
+import type { DynamicEngineSettings } from "@/lib/rates/dynamic-types";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminRouteAccess } from "@/lib/guest-migration";
@@ -61,7 +62,12 @@ function parseAppSettingString(value: unknown) {
   return normalized || null;
 }
 
-async function readRateSettings(supabase: any): Promise<AdminRateSettings & { telegram_admin_chat_id: string | null }> {
+type AdminSettingsPayload = AdminRateSettings &
+  DynamicEngineSettings & {
+    telegram_admin_chat_id: string | null;
+  };
+
+async function readRateSettings(supabase: any): Promise<AdminSettingsPayload> {
   const [{ data: roomTypes, error: roomTypeError }, { data: appRows, error: appError }] = await Promise.all([
     supabase
       .from("room_types")
@@ -72,6 +78,10 @@ async function readRateSettings(supabase: any): Promise<AdminRateSettings & { te
       "rate.price_delta_warn_threshold",
       "ota.alarm_minutes",
       "telegram.admin_chat_id",
+      "rate.dynamic_max_multiplier",
+      "rate.dynamic_eval_window_days",
+      "rate.dynamic_undo_window_minutes",
+      "rate.dynamic_suggestion_stale_minutes",
     ]),
   ]);
 
@@ -94,6 +104,22 @@ async function readRateSettings(supabase: any): Promise<AdminRateSettings & { te
     min_rate_floor,
     price_delta_warn_threshold: parseAppSettingNumber(appMap.get("rate.price_delta_warn_threshold"), 0.2),
     alarm_minutes: Math.max(30, Math.min(480, parseAppSettingNumber(appMap.get("ota.alarm_minutes"), 120))),
+    dynamic_max_multiplier: Math.max(
+      1,
+      Math.min(3, parseAppSettingNumber(appMap.get("rate.dynamic_max_multiplier"), 1.5))
+    ),
+    dynamic_eval_window_days: Math.max(
+      7,
+      Math.min(120, Math.round(parseAppSettingNumber(appMap.get("rate.dynamic_eval_window_days"), 60)))
+    ),
+    dynamic_undo_window_minutes: Math.max(
+      5,
+      Math.min(240, Math.round(parseAppSettingNumber(appMap.get("rate.dynamic_undo_window_minutes"), 60)))
+    ),
+    dynamic_suggestion_stale_minutes: Math.max(
+      30,
+      Math.min(720, Math.round(parseAppSettingNumber(appMap.get("rate.dynamic_suggestion_stale_minutes"), 120)))
+    ),
     telegram_admin_chat_id:
       parseAppSettingString(appMap.get("telegram.admin_chat_id")) ||
       parseAppSettingString(process.env.TELEGRAM_ADMIN_CHAT_ID),
@@ -166,7 +192,7 @@ async function syncTelegramAdminSubscription(supabase: any, chatId: string | nul
   if (upsertError) throw new Error(upsertError.message);
 }
 
-async function handlePhase72Put(auth: { supabase: any; userId: string }, payload: AdminSettingsPutRequest) {
+async function handlePhase72Put(auth: { supabase: any; userId: string }, payload: { key: string; value?: unknown }) {
   const key = payload.key;
 
   if (key === "rate.price_delta_warn_threshold") {
@@ -203,6 +229,54 @@ async function handlePhase72Put(auth: { supabase: any; userId: string }, payload
       description: "Admin Telegram chat id configured from the bot /start flow.",
     });
     await syncTelegramAdminSubscription(auth.supabase, nextValue || null);
+  } else if (key === "rate.dynamic_max_multiplier") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 1 || nextValue > 3) {
+      return NextResponse.json({ success: false, error: "Max multiplier must be between 1.0 and 3.0." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: Math.round(nextValue * 10) / 10,
+      description: "Max multiple of current base price a dynamic suggestion may output.",
+    });
+  } else if (key === "rate.dynamic_eval_window_days") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 7 || nextValue > 120) {
+      return NextResponse.json({ success: false, error: "Evaluation window must be between 7 and 120 days." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: Math.round(nextValue),
+      description: "Default look-ahead window in days for scheduled evaluations.",
+    });
+  } else if (key === "rate.dynamic_undo_window_minutes") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 5 || nextValue > 240) {
+      return NextResponse.json({ success: false, error: "Undo window must be between 5 and 240 minutes." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: Math.round(nextValue),
+      description: "Minutes after apply during which a dynamic rate change may be undone.",
+    });
+  } else if (key === "rate.dynamic_suggestion_stale_minutes") {
+    const nextValue = Number(payload.value);
+    if (!Number.isFinite(nextValue) || nextValue < 30 || nextValue > 720) {
+      return NextResponse.json({ success: false, error: "Suggestion stale minutes must be between 30 and 720." }, { status: 400 });
+    }
+    await upsertAppSetting({
+      supabase: auth.supabase,
+      userId: auth.userId,
+      key,
+      value: Math.round(nextValue),
+      description: "Minutes a dynamic suggestion may sit before Telegram alerts admin.",
+    });
   } else if (key.startsWith("room_type.") && key.endsWith(".min_rate_floor")) {
     const roomTypeId = key.slice("room_type.".length, -".min_rate_floor".length);
     const nextValue =
@@ -354,7 +428,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const phase72Parsed = phase72PutSchema.safeParse(body);
   if (phase72Parsed.success) {
-    return handlePhase72Put(auth, phase72Parsed.data as AdminSettingsPutRequest);
+    return handlePhase72Put(auth, phase72Parsed.data);
   }
 
   const parsed = legacyUpdateSchema.safeParse(body);

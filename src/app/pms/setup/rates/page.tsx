@@ -39,6 +39,15 @@ export default function RateSetupPage() {
     }
   ];
 
+  if (role === "admin" || role === "supervisor") {
+    CARDS.push({
+      href: "/pms/setup/rates/dynamic",
+      title: "Dynamic Rules",
+      description: "Configure automated rule groups for occupancy-based pricing.",
+      accent: "bg-violet-50 border-violet-200 text-violet-800 dark:bg-violet-500/10 dark:border-violet-500/30 dark:text-violet-300",
+    });
+  }
+
   if (role === "admin") {
     CARDS.push({
       href: "/pms/setup/rates/admin",

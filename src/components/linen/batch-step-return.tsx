@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import useSWR from "@/hooks/use-simple-swr";
 import type { LaundryBatchItem, LaundryPendingItem, LaundryReturnSourceItem } from "@/lib/types";
+import type { LaundryRewashPendingResponse } from "@/lib/types";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
 
 interface BatchStepReturnProps {
@@ -14,10 +15,16 @@ interface BatchStepReturnProps {
 
 export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: BatchStepReturnProps) {
     const { data: pendingItems, isLoading: isPendingLoading } = useSWR<LaundryPendingItem[]>("/api/linen/pending", apiDataFetcher);
+    const { data: rwData, mutate: mutateRewash } = useSWR<LaundryRewashPendingResponse>("/api/linen/rewash/pending", apiDataFetcher);
     const [returnData, setReturnData] = useState<Record<string, string>>({});
     const [resolvedPending, setResolvedPending] = useState<string[]>([]);
+    const [rewashQtys, setRewashQtys] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPendingSheetOpen, setIsPendingSheetOpen] = useState(false);
+    const [isRewashSheetOpen, setIsRewashSheetOpen] = useState(false);
+    const [isResolvingRewash, setIsResolvingRewash] = useState<Record<string, boolean>>({});
+
+    const pendingRewash = rwData?.events || [];
 
     // Group pending items by date
     const pendingByDate = useMemo(() => {
@@ -32,6 +39,12 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
     }, [pendingItems]);
 
     const hasPending = pendingItems && pendingItems.length > 0;
+
+    const rewashPhotoSrc = (photoKeyOrUrl?: string | null) => {
+        if (!photoKeyOrUrl) return null;
+        if (/^https?:\/\//.test(photoKeyOrUrl) || photoKeyOrUrl.startsWith("blob:")) return photoKeyOrUrl;
+        return `/api/linen/rewash/photo/${photoKeyOrUrl.split("/").map(encodeURIComponent).join("/")}`;
+    };
 
     const isComplete = useMemo(() => {
         // all source items expected back MUST have an entry in returnData (can be 0)
@@ -51,6 +64,38 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
         setResolvedPending(prev => 
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
         );
+    };
+
+    const handleRewashQtyChange = (id: string, val: string, max: number) => {
+        if (val === "") {
+            setRewashQtys((prev) => ({ ...prev, [id]: "" }));
+            return;
+        }
+        const parsed = parseInt(val, 10);
+        if (Number.isNaN(parsed) || parsed < 0 || parsed > max) return;
+        setRewashQtys((prev) => ({ ...prev, [id]: String(parsed) }));
+    };
+
+    const handleResolveRewash = async (id: string, qty: number) => {
+        setIsResolvingRewash((prev) => ({ ...prev, [id]: true }));
+        try {
+            const res = await fetch(`/api/linen/rewash/${id}/resolve`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    resolved_in_batch_id: batchId,
+                    resolved_qty: qty,
+                }),
+            });
+            if (!res.ok) throw new Error("Failed to resolve rewash");
+            setRewashQtys((prev) => ({ ...prev, [id]: "" }));
+            await mutateRewash();
+        } catch (error) {
+            console.error(error);
+            alert("เกิดข้อผิดพลาดในการบันทึกรับผ้า Rewash");
+        } finally {
+            setIsResolvingRewash((prev) => ({ ...prev, [id]: false }));
+        }
     };
 
     const handleSubmit = async () => {
@@ -222,6 +267,103 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                             </div>
                             ไม่มีผ้าค้างเก่า
+                        </div>
+                    )}
+
+                    {pendingRewash.length > 0 && (
+                        <div className="mt-6 border border-purple-200 dark:border-purple-900/50 rounded-xl overflow-hidden bg-purple-50/40 dark:bg-purple-950/20">
+                            <div className="p-4 border-b border-purple-100 dark:border-purple-900/50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                                    <div>
+                                        <h4 className="font-semibold text-purple-800 dark:text-purple-400 text-sm">
+                                            ผ้าซักใหม่ที่รอคืน ({pendingRewash.length} รายการ)
+                                        </h4>
+                                        <p className="text-[11px] text-purple-700/70 dark:text-purple-400/70">
+                                            ซ่อนไว้ก่อน เพราะบางรายการรอคืนหลายวัน
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsRewashSheetOpen((prev) => !prev)}
+                                    className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-white dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 px-3 py-1.5 rounded-lg transition-colors shadow-sm uppercase tracking-wider"
+                                >
+                                    {isRewashSheetOpen ? "ปิดรายละเอียด" : "ดูรายละเอียด →"}
+                                </button>
+                            </div>
+
+                            {isRewashSheetOpen && (
+                                <div className="p-4 bg-white dark:bg-slate-900 space-y-3">
+                                    {pendingRewash.map((rw) => {
+                                        const photoKey = (rw as any).photo_keys?.[0] ?? (rw as any).photo_urls?.[0];
+                                        const photoSrc = rewashPhotoSrc(photoKey);
+                                        const remainingQty = Math.max(
+                                            0,
+                                            Number((rw as any).remaining_qty ?? Number(rw.qty ?? 0) - Number(rw.resolved_qty ?? 0))
+                                        );
+                                        const typedQty = rewashQtys[String(rw.id)] ?? "";
+                                        const submitQty = Math.min(remainingQty, Math.max(0, parseInt(typedQty || "0", 10) || 0));
+
+                                        return (
+                                            <div key={rw.id} className="rounded-xl border border-purple-100 dark:border-purple-900/40 bg-purple-50 dark:bg-purple-950/20 p-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 flex items-center justify-center overflow-hidden shrink-0">
+                                                            {photoSrc ? (
+                                                                <img src={photoSrc} alt="Rewash proof" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-purple-200"><path d="M12 5v14M5 12h14"/></svg>
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-slate-900 dark:text-slate-100">{rw.item_name_th}</p>
+                                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                คงเหลือ {remainingQty} / ทั้งหมด {rw.qty} • จากรอบ {rw.sent_batch_pickup_round}
+                                                            </p>
+                                                            {Number(rw.resolved_qty ?? 0) > 0 && (
+                                                                <p className="text-[11px] text-purple-600 dark:text-purple-400">
+                                                                    คืนแล้วสะสม {rw.resolved_qty} ชิ้น
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRewashQtys((prev) => ({ ...prev, [String(rw.id)]: String(remainingQty) }))}
+                                                        className="shrink-0 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-bold text-purple-700 dark:text-purple-300"
+                                                    >
+                                                        เต็ม
+                                                    </button>
+                                                </div>
+
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max={remainingQty}
+                                                        value={typedQty}
+                                                        onChange={(e) => handleRewashQtyChange(String(rw.id), e.target.value, remainingQty)}
+                                                        placeholder={String(remainingQty)}
+                                                        className="w-24 h-11 bg-white dark:bg-slate-800 border-2 border-purple-200 dark:border-purple-800 rounded-lg text-center font-bold text-purple-700 dark:text-purple-300 text-lg outline-none"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleResolveRewash(String(rw.id), submitQty)}
+                                                        disabled={isResolvingRewash[String(rw.id)] || submitQty <= 0}
+                                                        className={`flex-1 h-11 rounded-lg font-bold text-sm transition-all ${
+                                                            isResolvingRewash[String(rw.id)] || submitQty <= 0
+                                                                ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                                                : "bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-600 hover:text-white dark:hover:bg-purple-700"
+                                                        }`}
+                                                    >
+                                                        {isResolvingRewash[String(rw.id)] ? "..." : `คืน ${submitQty || ""}`.trim()}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

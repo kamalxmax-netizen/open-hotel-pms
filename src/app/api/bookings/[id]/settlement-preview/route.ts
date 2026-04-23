@@ -1,9 +1,11 @@
 import { isValidDateString } from "@/lib/dates";
 import {
   computePrepaidNetAmount,
+  computeShortenPrepaidNetAmount,
   computeShortenOverpaidAmount,
   computeShortenProjectedTotal,
   suggestRefundMethod,
+  suggestShortenRefundMethod,
 } from "@/lib/settlement-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -124,6 +126,8 @@ export async function GET(
       return NextResponse.json({ error: nightsError.message }, { status: 500 });
     }
 
+    const shortenPrepaidNet = computeShortenPrepaidNetAmount(payments ?? []);
+    const shortenRefundMethod = suggestShortenRefundMethod(payments ?? []);
     const newTotal = computeShortenProjectedTotal({
       checkinDate,
       checkoutDate: currentCheckoutDate,
@@ -131,29 +135,28 @@ export async function GET(
       currentTotalPrice: oldTotal,
       nights: nights ?? [],
     });
-    const overpaid = computeShortenOverpaidAmount(prepaidNet, newTotal);
+    const overpaid = computeShortenOverpaidAmount(shortenPrepaidNet, newTotal);
 
     return NextResponse.json({
       success: true,
       action,
       reservation_id: reservationId,
-      prepaid_net: prepaidNet,
+      prepaid_net: shortenPrepaidNet,
       old_total: oldTotal,
       new_total: newTotal,
       overpaid,
       fee_cap: overpaid,
-      default_no_fee: prepaidNet <= 0 || overpaid <= 0,
+      default_no_fee: shortenPrepaidNet <= 0 || overpaid <= 0,
       warning:
-        prepaidNet <= 0
+        shortenPrepaidNet <= 0
           ? "No pre-paid amount found. Fee can still be collected as a new payment."
           : overpaid <= 0
           ? "No overpaid amount after shorten. Refund is not required."
           : null,
-      suggested_refund_method: suggestedRefundMethod,
+      suggested_refund_method: shortenRefundMethod,
       allowed_refund_methods: allowedRefundMethods,
     });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
-

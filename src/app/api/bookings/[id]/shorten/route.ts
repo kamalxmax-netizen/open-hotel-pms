@@ -7,10 +7,10 @@ import {
 } from "@/lib/folio-fees";
 import { appendReservationNoteLine } from "@/lib/planned-room-moves";
 import {
-  computePrepaidNetAmount,
+  computeShortenPrepaidNetAmount,
   computeShortenOverpaidAmount,
   computeShortenProjectedTotal,
-  suggestRefundMethod,
+  suggestShortenRefundMethod,
 } from "@/lib/settlement-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -107,8 +107,8 @@ export async function POST(
       return NextResponse.json({ error: nightsError.message }, { status: 500 });
     }
 
-    const prepaidNet = normalizeAmount(computePrepaidNetAmount(paymentRows ?? []));
-    const suggestedRefundMethod = suggestRefundMethod(paymentRows ?? []);
+    const prepaidNet = normalizeAmount(computeShortenPrepaidNetAmount(paymentRows ?? []));
+    const suggestedRefundMethod = suggestShortenRefundMethod(paymentRows ?? []);
     const projectedNewTotal = normalizeAmount(
       computeShortenProjectedTotal({
         checkinDate,
