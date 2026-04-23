@@ -39,6 +39,24 @@ type ExcludedBreakdownRow = {
   amount: number;
 };
 
+function chunkArray<T>(items: T[], size = 200): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function countTowardsPaymentDailyNet(
+  txType: PaymentReportTxType,
+  amount: number,
+  isAdvanceDeposit: boolean
+): number {
+  if (txType === "refund") return -amount;
+  if (txType === "deposit") return isAdvanceDeposit ? amount : 0;
+  return amount;
+}
+
 function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
   if (reason === "void_pair") return "Void Pair";
   if (reason === "record_only") return "Record-only";
@@ -98,7 +116,27 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = (paymentsRes.data ?? []) as PaymentReportRow[];
-    const voidedIds = buildPaymentReportVoidedIdSet(rows);
+    const scopedPaymentIds = rows
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean);
+    const laterVoidedOriginalIds = new Set<string>();
+    if (scopedPaymentIds.length > 0) {
+      for (const chunk of chunkArray(scopedPaymentIds)) {
+        const { data: laterVoidRows, error: laterVoidError } = await supabase
+          .from("folio_payments")
+          .select("id, void_of")
+          .eq("is_void_reversal", true)
+          .in("void_of", chunk);
+        if (laterVoidError) {
+          return NextResponse.json({ success: false, error: laterVoidError.message }, { status: 500 });
+        }
+        for (const row of laterVoidRows ?? []) {
+          const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+          if (originalId) laterVoidedOriginalIds.add(originalId);
+        }
+      }
+    }
+    const voidedIds = buildPaymentReportVoidedIdSet(rows, laterVoidedOriginalIds);
 
     const policyExtraChargeKeys = new Set<string>();
     for (const row of rows) {
@@ -107,6 +145,30 @@ export async function GET(request: NextRequest) {
       const note = String(row.note ?? "").trim().toLowerCase();
       if (txType === "payment" && category === "extra_charge" && note.includes("fee")) {
         policyExtraChargeKeys.add(buildPaymentReportPolicyFeeDedupKey(row));
+      }
+    }
+
+    const reservationIds = Array.from(
+      new Set(rows.map((row) => String(row.reservation_id ?? "").trim()).filter(Boolean))
+    );
+    const reservationCheckinDateById = new Map<string, string>();
+    if (reservationIds.length > 0) {
+      for (const chunk of chunkArray(reservationIds)) {
+        const { data: reservationRows, error: reservationError } = await supabase
+          .from("reservations")
+          .select("id, checkin_date")
+          .in("id", chunk);
+        if (reservationError) {
+          return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
+        }
+        for (const row of reservationRows ?? []) {
+          const reservationId = String((row as { id?: string | null }).id ?? "").trim();
+          if (!reservationId) continue;
+          reservationCheckinDateById.set(
+            reservationId,
+            String((row as { checkin_date?: string | null }).checkin_date ?? "").trim()
+          );
+        }
       }
     }
 
@@ -172,12 +234,17 @@ export async function GET(request: NextRequest) {
       const amount = Number(row.amount ?? 0);
       const note = String(row.note ?? "").trim();
       const category = normalizePaymentReportCategory(row.revenue_category, rawTxType, row.note);
+      const reservationId = String(row.reservation_id ?? "").trim();
+      const reservationCheckinDate = reservationCheckinDateById.get(reservationId) ?? "";
+      const isAdvanceDeposit =
+        rawTxType === "deposit" &&
+        !isPaymentReportPosDepositRecord(rawTxType, String(category), note) &&
+        reservationCheckinDate > countedDate;
 
       if (rawTxType === "refund") allPostedSummary.grand_refunds += amount;
       else allPostedSummary.grand_total += amount;
       allPostedSummary.tx_count += 1;
 
-      const reservationId = String(row.reservation_id ?? "").trim();
       if (category === "deposit" && reservationId) {
         const current = depositRowsByReservation.get(reservationId) ?? [];
         current.push({
@@ -198,7 +265,7 @@ export async function GET(request: NextRequest) {
       const paymentId = String(row.id ?? "").trim();
 
       let excludedReason: PaymentReportExcludedReason | null = null;
-      if (paymentId && voidedIds.has(paymentId)) {
+      if (row.is_void_reversal === true || (paymentId && voidedIds.has(paymentId))) {
         excludedReason = "void_pair";
       } else if (isRecordOnly) {
         excludedReason = "record_only";
@@ -224,6 +291,7 @@ export async function GET(request: NextRequest) {
 
       const method = isPosDeposit ? "cash" : rawMethod;
       const txType: PaymentReportTxType = isPosDeposit ? "payment" : rawTxType;
+      const netContribution = countTowardsPaymentDailyNet(txType, amount, isAdvanceDeposit);
       applyPaymentReportMovement(countedMethods, method, txType, amount);
 
       const day = ensureDay(countedDate);
@@ -231,18 +299,18 @@ export async function GET(request: NextRequest) {
         countedSummary.grand_refunds += amount;
         countedCategoryMap[category].refunds += amount;
         day.refunds += amount;
-        day.net -= amount;
       } else {
         countedSummary.grand_total += amount;
         countedCategoryMap[category].inflow += amount;
         day[method] += amount;
         day.total_inflow += amount;
-        day.net += amount;
       }
+      countedSummary.net_total += netContribution;
       countedSummary.tx_count += 1;
       countedCategoryMap[category].net = round2(
         countedCategoryMap[category].inflow - countedCategoryMap[category].refunds
       );
+      day.net += netContribution;
       day.tx_count += 1;
     }
 
@@ -268,7 +336,7 @@ export async function GET(request: NextRequest) {
       allPostedSummary.tx_count += 1;
     }
 
-    countedSummary.net_total = round2(countedSummary.grand_total - countedSummary.grand_refunds);
+    countedSummary.net_total = round2(countedSummary.net_total);
     allPostedSummary.net_total = round2(allPostedSummary.grand_total - allPostedSummary.grand_refunds);
 
     const byMethodSummary = PAYMENT_REPORT_METHOD_KEYS.map((method) => {

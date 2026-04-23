@@ -1,4 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { applyAlertSettingsToHotelSettings, readAlertSettings, updateAlertSettings } from "@/lib/alerts/service";
+import { getAuthenticatedUser } from "@/lib/server-auth";
 import { normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -14,11 +16,14 @@ export async function GET() {
     noStore(); // Completely disable all Next.js caching for this request
     try {
         const supabase = createServerSupabaseClient();
-        const { data, error } = await supabase
-            .from("hotel_settings")
-            .select("*")
-            .eq("id", 1)
-            .maybeSingle();
+        const [{ data, error }, alertSettings] = await Promise.all([
+            supabase
+                .from("hotel_settings")
+                .select("*")
+                .eq("id", 1)
+                .maybeSingle(),
+            readAlertSettings(supabase),
+        ]);
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -26,7 +31,7 @@ export async function GET() {
 
         // Database time fields return as 'HH:mm:ss' (e.g., '14:00:00'). 
         // We slice to 5 chars ('14:00') since the frontend dropdown only has 'HH:mm' values.
-        const settings = {
+        const settings = applyAlertSettingsToHotelSettings({
             hotel_name: data?.hotel_name ?? "My Hotel",
             hotel_timezone: data?.hotel_timezone ?? "Asia/Bangkok",
             sellable_rooms: data?.sellable_rooms ?? 0,
@@ -47,7 +52,7 @@ export async function GET() {
             identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
             identity_alert_over18_passport_enabled: data?.identity_alert_over18_passport_enabled ?? true,
             identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
-        };
+        }, alertSettings);
 
         return NextResponse.json(
             { success: true, settings },
@@ -63,6 +68,11 @@ export async function PUT(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
         const body = await request.json();
+        const alertPatch = {
+            start_time: "alert_start_time" in body ? String(body.alert_start_time ?? "") : undefined,
+            snooze_minutes: "alert_snooze_minutes" in body ? Number(body.alert_snooze_minutes) : undefined,
+            prepayment_lead_days: "alert_prepayment_lead_days" in body ? Number(body.alert_prepayment_lead_days) : undefined,
+        };
 
         const allowed = [
             "hotel_name", "hotel_timezone", "sellable_rooms",
@@ -100,7 +110,14 @@ export async function PUT(request: NextRequest) {
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-        return NextResponse.json({ success: true, settings: data });
+        const actorUser = await getAuthenticatedUser(supabase, request);
+        const actorUserId = actorUser?.id ?? null;
+        if (actorUserId && Object.values(alertPatch).some((value) => value !== undefined)) {
+            await updateAlertSettings(supabase, actorUserId, alertPatch);
+        }
+        const alertSettings = await readAlertSettings(supabase);
+
+        return NextResponse.json({ success: true, settings: applyAlertSettingsToHotelSettings(data ?? {}, alertSettings) });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }

@@ -115,12 +115,26 @@ export function isPaymentReportDepositRefundEntry(
   return lowered.includes("deposit") && lowered.includes("refund");
 }
 
-export function buildPaymentReportVoidedIdSet(rows: PaymentReportRow[]): Set<string> {
+export function buildPaymentReportVoidedIdSet(
+  rows: PaymentReportRow[],
+  laterVoidedOriginalIds: Set<string> = new Set()
+): Set<string> {
   const excluded = new Set<string>();
+  const scopedIds = new Set(
+    rows
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean)
+  );
+
+  for (const originalId of laterVoidedOriginalIds) {
+    if (originalId) excluded.add(originalId);
+  }
+
   for (const row of rows) {
     const originalId = String(row.void_of ?? "").trim();
     const reversalId = String(row.id ?? "").trim();
     if (!originalId) continue;
+    if (!scopedIds.has(originalId)) continue;
     excluded.add(originalId);
     if (reversalId) excluded.add(reversalId);
   }

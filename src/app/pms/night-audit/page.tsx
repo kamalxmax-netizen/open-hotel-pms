@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation"
 
 import { NoShowTable } from "./_components/NoShowTable"
 import { PreCheckStatus } from "./_components/PreCheckStatus"
+import { AlertCheckGate } from "./_components/AlertCheckGate"
 import { AuditPreviewCards } from "./_components/AuditPreviewCards"
 import { NightAuditSnapshot } from "@/lib/types"
 
-type AuditStep = "noshow" | "precheck" | "preview" | "confirm" | "summary"
+type AuditStep = "noshow" | "precheck" | "alert_check" | "preview" | "confirm" | "summary"
 
 export default function NightAuditPage() {
     const router = useRouter()
@@ -86,7 +87,7 @@ export default function NightAuditPage() {
     }
 
     const renderStepIcon = (s: AuditStep, index: number) => {
-        const steps: AuditStep[] = ["noshow", "precheck", "preview", "confirm", "summary"]
+        const steps: AuditStep[] = ["noshow", "precheck", "alert_check", "preview", "confirm", "summary"]
         const currentIndex = steps.indexOf(step)
 
         if (index < currentIndex) {
@@ -115,6 +116,7 @@ export default function NightAuditPage() {
     const stepLabels = [
         "No-Show",
         "Pre-Check",
+        "Alert Check",
         "Preview",
         "Confirm",
         "Summary"
@@ -140,15 +142,15 @@ export default function NightAuditPage() {
                         <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--bg-muted)] dark:bg-white/5 -z-10 hidden sm:block">
                             <div
                                 className="h-full bg-brand-600 transition-all duration-300"
-                                style={{ width: `${(Math.max(0, ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step)) / 4) * 100}%` }}
+                                style={{ width: `${(Math.max(0, ["noshow", "precheck", "alert_check", "preview", "confirm", "summary"].indexOf(step)) / 5) * 100}%` }}
                             />
                         </div>
 
                         <div className="flex justify-between items-start">
-                            {(["noshow", "precheck", "preview", "confirm", "summary"] as AuditStep[]).map((s, i) => (
+                            {(["noshow", "precheck", "alert_check", "preview", "confirm", "summary"] as AuditStep[]).map((s, i) => (
                                 <div key={s} className="flex flex-col items-center gap-2">
                                     {renderStepIcon(s, i)}
-                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700 dark:text-brand-400" : ["noshow", "precheck", "preview", "confirm", "summary"].indexOf(step) > i ? "text-[var(--text-table-cell)]" : "text-[var(--text-muted)]"
+                                    <span className={`text-[11px] font-semibold hidden sm:block ${step === s ? "text-brand-700 dark:text-brand-400" : ["noshow", "precheck", "alert_check", "preview", "confirm", "summary"].indexOf(step) > i ? "text-[var(--text-table-cell)]" : "text-[var(--text-muted)]"
                                         }`}>
                                         {stepLabels[i]}
                                     </span>
@@ -197,12 +199,25 @@ export default function NightAuditPage() {
                                     ← Back to No-Shows
                                 </button>
                                 <button
-                                    onClick={() => setStep("preview")}
+                                    onClick={() => setStep("alert_check")}
                                     disabled={!isPreCheckReady}
                                     className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${!isPreCheckReady ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed" : "text-white bg-brand-600 hover:bg-brand-700"}`}
                                 >
-                                    Proceed to Preview →
+                                    Proceed to Alert Check →
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === "alert_check" && (
+                        <div className="rounded-xl border border-[var(--border-default)] dark:border-white/5 bg-[var(--bg-surface)] p-6 shadow-sm min-h-[400px] flex flex-col justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Pending Alerts Verification</h2>
+                                <AlertCheckGate 
+                                    businessDate={businessDate} 
+                                    onAdvance={() => setStep("preview")} 
+                                    onBack={() => setStep("precheck")} 
+                                />
                             </div>
                         </div>
                     )}
@@ -225,7 +240,7 @@ export default function NightAuditPage() {
                             </div>
                             <div className="flex flex-col sm:flex-row gap-3 items-center justify-end pt-6 border-t border-[var(--border-subtle)] dark:border-white/5 mt-6">
                                 <button
-                                    onClick={() => setStep("precheck")}
+                                    onClick={() => setStep("alert_check")}
                                     className="w-full sm:w-auto rounded-lg border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-table-cell)] hover:bg-[var(--bg-body)] focus:outline-none"
                                 >
                                     ← Back

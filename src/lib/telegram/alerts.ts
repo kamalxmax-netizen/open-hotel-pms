@@ -109,3 +109,57 @@ export async function notifyRateSystemAlerts(params: {
     text,
   });
 }
+
+type AlertJobFinishedSummary = {
+  job_date?: string;
+  total?: number;
+  cleared?: number;
+  snoozed?: number;
+  prepayment?: {
+    paid?: number;
+    snoozed?: number;
+    admin_override?: number;
+  };
+  custom?: {
+    done?: number;
+    snoozed?: number;
+  };
+};
+
+export async function sendAlertJobFinished(params: {
+  summary: AlertJobFinishedSummary;
+  supabase?: SupabaseClient;
+}): Promise<TelegramSendResult & { messageText?: string | null }> {
+  const supabase = params.supabase ?? createServerSupabaseClient();
+  const chatId = await getTelegramAdminChatId(supabase);
+  if (!chatId) {
+    return { success: false, error: "telegram.admin_chat_id is not configured.", messageText: null };
+  }
+
+  const summary = params.summary ?? {};
+  const text = [
+    "✅ Finish Alarm Job",
+    `Date: ${String(summary.job_date ?? "-")}`,
+    `Total: ${toNumber(summary.total, 0)}`,
+    `Cleared: ${toNumber(summary.cleared, 0)}`,
+    `Snoozed: ${toNumber(summary.snoozed, 0)}`,
+    "",
+    "💰 Pre-payment",
+    `  Paid: ${toNumber(summary.prepayment?.paid, 0)}`,
+    `  Snoozed: ${toNumber(summary.prepayment?.snoozed, 0)}`,
+    `  Admin override: ${toNumber(summary.prepayment?.admin_override, 0)}`,
+    "",
+    "⏰ Custom",
+    `  Done: ${toNumber(summary.custom?.done, 0)}`,
+    `  Snoozed: ${toNumber(summary.custom?.snoozed, 0)}`,
+    "",
+    "→ Open PMS: /pms/alerts",
+  ].join("\n");
+
+  const result = await sendTelegramMessage({
+    chat_id: chatId,
+    text,
+  });
+
+  return { ...result, messageText: text };
+}

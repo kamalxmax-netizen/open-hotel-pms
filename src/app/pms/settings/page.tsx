@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, MAX_TRANSPORT_ALERT_LEAD_MINUTES, TRANSPORT_ALERT_RED_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
+import { PrepaymentRulesSettings } from "./_components/prepayment-rules-settings";
 
 type Settings = {
     hotel_name: string;
@@ -19,6 +20,9 @@ type Settings = {
     identity_alert_over18_thai_id_enabled: boolean;
     identity_alert_over18_passport_enabled: boolean;
     identity_alert_birthday_enabled: boolean;
+    alert_start_time: string;
+    alert_snooze_minutes: number;
+    alert_prepayment_lead_days: number;
 };
 
 type EodStatus = {
@@ -46,6 +50,9 @@ const DEFAULTS: Settings = {
     identity_alert_over18_thai_id_enabled: true,
     identity_alert_over18_passport_enabled: true,
     identity_alert_birthday_enabled: true,
+    alert_start_time: "07:30",
+    alert_snooze_minutes: 60,
+    alert_prepayment_lead_days: 7,
 };
 
 const TIMEZONES = ["Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore", "UTC"];
@@ -68,6 +75,9 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
         identity_alert_over18_passport_enabled: data?.identity_alert_over18_passport_enabled ?? true,
         identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
+        alert_start_time: data?.alert_start_time ?? "07:30",
+        alert_snooze_minutes: Number(data?.alert_snooze_minutes ?? 60),
+        alert_prepayment_lead_days: Number(data?.alert_prepayment_lead_days ?? 7),
     };
 }
 
@@ -409,6 +419,43 @@ export default function SettingsPage() {
                         </p>
                     </div>
                 </div>
+
+                {/* Alert Settings Phase 74 */}
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Alert Reminders</h2>
+                    <div className="grid grid-cols-3 gap-3">
+                        <div>
+                            <label className="form-label">Alert start time</label>
+                            <select className="form-select" value={settings.alert_start_time} onChange={(e) => setField("alert_start_time", e.target.value)}>
+                                {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-1">(Bangkok)</p>
+                        </div>
+                        <div>
+                            <label className="form-label">Snooze duration (min)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                className="form-input"
+                                value={settings.alert_snooze_minutes}
+                                onChange={(e) => setField("alert_snooze_minutes", parseInt(e.target.value, 10) || 60)}
+                            />
+                        </div>
+                        <div>
+                            <label className="form-label">Pre-payment lead time (days)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                className="form-input"
+                                value={settings.alert_prepayment_lead_days}
+                                onChange={(e) => setField("alert_prepayment_lead_days", parseInt(e.target.value, 10) || 7)}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Prepayment Rules */}
+                <PrepaymentRulesSettings />
 
                 <button type="submit" className="btn btn-primary w-full" disabled={saving}>
                     {saving ? "Saving…" : "💾 Save Settings"}

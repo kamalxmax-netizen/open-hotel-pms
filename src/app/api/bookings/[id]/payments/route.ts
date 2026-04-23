@@ -294,6 +294,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const amountSatang = toSatang(body.amount);
         const amount = fromSatang(amountSatang);
         const note = body.note ? String(body.note) : null;
+        const isRecordOnly = body.is_record_only === true;
         const cashierName =
             typeof body.cashier_name === "string" && body.cashier_name.trim().length > 0
                 ? body.cashier_name.trim()
@@ -376,6 +377,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 note,
                 revenue_category: revenueCategory,
                 cashier_name: cashierName,
+                is_record_only: isRecordOnly,
                 paid_date: businessDate,
                 paid_at: new Date().toISOString()
             });
@@ -454,6 +456,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             toNumber(refreshedReservation?.data?.deposit_amount ?? reservation.deposit_amount),
             payments
         );
+
+        if (txType === "payment" && !isRecordOnly) {
+            try {
+                await supabase.rpc("alert_auto_clear_by_payment", {
+                    p_booking_id: effectiveReservationId,
+                });
+            } catch (alertError) {
+                console.error("[alerts] auto-clear failed", alertError);
+            }
+        }
 
         return NextResponse.json({
             success: true,

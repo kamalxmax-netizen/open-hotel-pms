@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import NationalityFlag from "@/components/nationality-flag";
 import { formatNationalityCode } from "@/lib/nationality";
+import { BookingAlarmsSection } from "@/components/reservation-alarms-section";
 
 /* ─── Types ─────────────────────────────────────────────────── */
 type TraceStatus = "open" | "done" | "cancelled";
@@ -199,7 +200,7 @@ export default function ReservationOptionsPanel({
                         />
                     )}
                     {activeTab === "alerts" && (
-                        <AlertsTab reservationId={reservationId} />
+                        <AlertsTab reservationId={reservationId} checkinDate={checkinDate} />
                     )}
                     {activeTab === "guest" && (
                         <GuestProfileTab
@@ -432,7 +433,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
 /* ══════════════════════════════════════════════════════════════
    ALERTS TAB
 ══════════════════════════════════════════════════════════════ */
-function AlertsTab({ reservationId }: { reservationId: string }) {
+function AlertsTab({ reservationId, checkinDate }: { reservationId: string; checkinDate: string }) {
     const [alerts, setAlerts] = useState<AlertRow[]>([]);
     const [allTemplates, setAllTemplates] = useState<AlertTemplateOption[]>([]);
     const [loading, setLoading] = useState(true);
@@ -584,6 +585,9 @@ function AlertsTab({ reservationId }: { reservationId: string }) {
                     </div>
                 </details>
             )}
+
+            <hr className="my-6 border-[var(--border-default)]" />
+            <BookingAlarmsSection reservationId={reservationId} checkInDate={checkinDate} />
         </div>
     );
 }

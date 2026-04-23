@@ -376,16 +376,16 @@ export default function PaymentsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="card p-4">
+              <p className="text-xs text-[var(--text-secondary)]">Payment Daily Net</p>
+              <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summaryData?.summary_counted.net_total ?? 0)}</p>
+            </div>
+            <div className="card p-4">
               <p className="text-xs text-[var(--text-secondary)]">Counted Inflow</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">{fmtMoney(summaryData?.summary_counted.grand_total ?? 0)}</p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-[var(--text-secondary)]">Counted Refunds</p>
               <p className="text-2xl font-bold text-rose-600">{fmtMoney(summaryData?.summary_counted.grand_refunds ?? 0)}</p>
-            </div>
-            <div className="card p-4">
-              <p className="text-xs text-[var(--text-secondary)]">Counted Net</p>
-              <p className="text-2xl font-bold text-emerald-700">{fmtMoney(summaryData?.summary_counted.net_total ?? 0)}</p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-[var(--text-secondary)]">Counted Transactions</p>
@@ -479,7 +479,8 @@ export default function PaymentsPage() {
           </div>
 
           <div className="card p-4 overflow-x-auto">
-            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Counted Daily Summary</h2>
+            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-1">Counted Daily Summary</h2>
+            <p className="mb-3 text-xs text-[var(--text-secondary)]">Net column should mirror Payment Daily for each date.</p>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-subtle)]">

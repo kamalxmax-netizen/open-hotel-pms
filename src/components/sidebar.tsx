@@ -38,6 +38,7 @@ const NAV_ITEMS = [
             { href: "/pms/logbook", label: "Logbook", icon: ListIcon },
             { href: "/pms/availability", label: "Availability", icon: CalendarIcon },
             { href: "/pms/vehicles", label: "Vehicle Registry", icon: TransportIcon },
+            { href: "/pms/alerts", label: "Today's Alerts", icon: BellIcon },
         ]
     },
     {
@@ -398,6 +399,14 @@ function CalendarIcon() {
     return (
         <svg viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+        </svg>
+    );
+}
+function BellIcon() {
+    return (
+        <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 2a4 4 0 00-4 4v1.126c0 .533-.21 1.044-.586 1.419L4.293 9.667A1 1 0 005 11h10a1 1 0 00.707-1.707l-1.121-1.121A2.007 2.007 0 0114 6.753V6a4 4 0 00-4-4z" />
+            <path d="M8 13a2 2 0 104 0H8z" />
         </svg>
     );
 }

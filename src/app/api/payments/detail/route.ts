@@ -32,6 +32,24 @@ type ReservationNightRoom = {
   room_number: string | null;
 };
 
+function chunkArray<T>(items: T[], size = 200): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function countTowardsPaymentDailyNet(
+  txType: "payment" | "refund" | "deposit",
+  amount: number,
+  isAdvanceDeposit: boolean
+): number {
+  if (txType === "refund") return -amount;
+  if (txType === "deposit") return isAdvanceDeposit ? amount : 0;
+  return amount;
+}
+
 function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
   if (reason === "void_pair") return "Voided";
   if (reason === "record_only") return "Record-only";
@@ -112,7 +130,27 @@ export async function GET(request: NextRequest) {
     }
 
     const paymentRows = (paymentsRes.data ?? []) as PaymentReportRow[];
-    const voidedIds = buildPaymentReportVoidedIdSet(paymentRows);
+    const scopedPaymentIds = paymentRows
+      .map((row) => String(row.id ?? "").trim())
+      .filter(Boolean);
+    const laterVoidedOriginalIds = new Set<string>();
+    if (scopedPaymentIds.length > 0) {
+      for (const chunk of chunkArray(scopedPaymentIds)) {
+        const { data: laterVoidRows, error: laterVoidError } = await supabase
+          .from("folio_payments")
+          .select("id, void_of")
+          .eq("is_void_reversal", true)
+          .in("void_of", chunk);
+        if (laterVoidError) {
+          return NextResponse.json({ success: false, error: laterVoidError.message }, { status: 500 });
+        }
+        for (const row of laterVoidRows ?? []) {
+          const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+          if (originalId) laterVoidedOriginalIds.add(originalId);
+        }
+      }
+    }
+    const voidedIds = buildPaymentReportVoidedIdSet(paymentRows, laterVoidedOriginalIds);
 
     const policyExtraChargeKeys = new Set<string>();
     for (const row of paymentRows) {
@@ -130,50 +168,58 @@ export async function GET(request: NextRequest) {
 
     const reservationMap = new Map<
       string,
-      { booking_code: string | null; guest_name: string | null; guest_profile_id: string | null }
+      {
+        booking_code: string | null;
+        guest_name: string | null;
+        guest_profile_id: string | null;
+        checkin_date: string | null;
+      }
     >();
     const nightsByReservation = new Map<string, ReservationNightRoom[]>();
 
     if (reservationIds.length > 0) {
-      const [reservationsRes, nightsRes] = await Promise.all([
-        supabase
-          .from("reservations")
-          .select("id, booking_code, guest_name, guest_profile_id")
-          .in("id", reservationIds),
-        supabase
-          .from("reservation_nights")
-          .select("reservation_id, stay_date, rooms:room_id(room_number)")
-          .in("reservation_id", reservationIds)
-          .lte("stay_date", endDate)
-          .is("cancelled_at", null),
-      ]);
+      for (const chunk of chunkArray(reservationIds)) {
+        const [reservationsRes, nightsRes] = await Promise.all([
+          supabase
+            .from("reservations")
+            .select("id, booking_code, guest_name, guest_profile_id, checkin_date")
+            .in("id", chunk),
+          supabase
+            .from("reservation_nights")
+            .select("reservation_id, stay_date, rooms:room_id(room_number)")
+            .in("reservation_id", chunk)
+            .lte("stay_date", endDate)
+            .is("cancelled_at", null),
+        ]);
 
-      if (reservationsRes.error) {
-        return NextResponse.json({ success: false, error: reservationsRes.error.message }, { status: 500 });
-      }
-      if (nightsRes.error) {
-        return NextResponse.json({ success: false, error: nightsRes.error.message }, { status: 500 });
-      }
+        if (reservationsRes.error) {
+          return NextResponse.json({ success: false, error: reservationsRes.error.message }, { status: 500 });
+        }
+        if (nightsRes.error) {
+          return NextResponse.json({ success: false, error: nightsRes.error.message }, { status: 500 });
+        }
 
-      for (const row of reservationsRes.data ?? []) {
-        reservationMap.set(String(row.id), {
-          booking_code: row.booking_code ? String(row.booking_code) : null,
-          guest_name: row.guest_name ? String(row.guest_name) : null,
-          guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
-        });
-      }
+        for (const row of reservationsRes.data ?? []) {
+          reservationMap.set(String(row.id), {
+            booking_code: row.booking_code ? String(row.booking_code) : null,
+            guest_name: row.guest_name ? String(row.guest_name) : null,
+            guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
+            checkin_date: row.checkin_date ? String(row.checkin_date) : null,
+          });
+        }
 
-      for (const row of (nightsRes.data ?? []) as any[]) {
-        const reservationId = String(row.reservation_id ?? "");
-        if (!reservationId) continue;
-        const roomRef = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
-        const next: ReservationNightRoom = {
-          stay_date: String(row.stay_date ?? ""),
-          room_number: roomRef?.room_number ? String(roomRef.room_number) : null,
-        };
-        const current = nightsByReservation.get(reservationId);
-        if (current) current.push(next);
-        else nightsByReservation.set(reservationId, [next]);
+        for (const row of (nightsRes.data ?? []) as any[]) {
+          const reservationId = String(row.reservation_id ?? "");
+          if (!reservationId) continue;
+          const roomRef = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
+          const next: ReservationNightRoom = {
+            stay_date: String(row.stay_date ?? ""),
+            room_number: roomRef?.room_number ? String(roomRef.room_number) : null,
+          };
+          const current = nightsByReservation.get(reservationId);
+          if (current) current.push(next);
+          else nightsByReservation.set(reservationId, [next]);
+        }
       }
     }
 
@@ -223,6 +269,10 @@ export async function GET(request: NextRequest) {
       const rawTxType = normalizePaymentReportTxType(row.tx_type);
       const rawCategory = normalizePaymentReportCategory(row.revenue_category, rawTxType, row.note);
       const note = String(row.note ?? "").trim();
+      const isAdvanceDeposit =
+        rawTxType === "deposit" &&
+        !isPaymentReportPosDepositRecord(rawTxType, String(rawCategory), note) &&
+        String(reservation?.checkin_date ?? "").trim() > countedPaidDate;
       const roomNumber = reservationId
         ? resolveRoomNumberForDate(nightsByReservation.get(reservationId), countedPaidDate)
         : null;
@@ -250,7 +300,7 @@ export async function GET(request: NextRequest) {
 
       let excludedReason: PaymentReportExcludedReason | null = null;
       const paymentId = String(row.id ?? "").trim();
-      if (paymentId && voidedIds.has(paymentId)) {
+      if (row.is_void_reversal === true || (paymentId && voidedIds.has(paymentId))) {
         excludedReason = "void_pair";
       } else if (isRecordOnly) {
         excludedReason = "record_only";
@@ -271,7 +321,7 @@ export async function GET(request: NextRequest) {
 
       const countedMethod = isPosDeposit ? "cash" : normalizePaymentReportMethod(row.method);
       const countedTxType = isPosDeposit ? "payment" : rawTxType;
-      const countedSignedAmount = countedTxType === "refund" ? -rawAmount : rawAmount;
+      const countedSignedAmount = countTowardsPaymentDailyNet(countedTxType, rawAmount, isAdvanceDeposit);
       const countedInTotals = excludedReason === null;
 
       if (countedInTotals) {
