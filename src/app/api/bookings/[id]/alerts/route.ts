@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { attachTemplateFallback, filterAlertsForSurface, mapEffectiveReservationAlert, normalizeAlertCodeKey, normalizeAlertSeverity, normalizeDisplaySurfaces } from "@/lib/reservation-alerts";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -26,6 +27,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   noStore();
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, req);
+    if (auth.error) return auth.error;
+
     const includeDismissed = req.nextUrl.searchParams.get("include_dismissed") === "1";
     const surface = req.nextUrl.searchParams.get("surface");
 

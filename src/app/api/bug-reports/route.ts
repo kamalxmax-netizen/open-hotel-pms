@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 
 /* ─── GET /api/bug-reports ────────────────────────
    List bug reports (admin view), newest first
 */
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient();
+  const auth = await requireStaffAuth(supabase, request);
+  if (auth.error) return auth.error;
+
   const status = request.nextUrl.searchParams.get("status");
 
   let query = supabase

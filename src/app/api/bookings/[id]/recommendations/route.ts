@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { listSwapCandidatesForReservation, loadReservationSwapContext } from "@/lib/room-swap";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+import { requireStaffAuth } from "@/lib/server-auth";
 
 function parseRoomTypeId(raw: string | null): number | null {
     if (!raw) return null;
@@ -17,7 +18,7 @@ function isDateString(value: string | null): value is string {
 }
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     const reservationId = params.id;
@@ -27,6 +28,9 @@ export async function GET(
 
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const { searchParams } = new URL(request.url);
         const roomTypeOverrideRaw = searchParams.get("room_type_id");
         const checkinOverrideRaw = searchParams.get("checkin_date");

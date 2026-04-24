@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -8,9 +9,12 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const { data, error } = await supabase
       .from("hotel_settings")
       .select("dayuse_rate, dayuse_duration_min, dayuse_extend_rate, dayuse_extend_min")
@@ -38,4 +42,3 @@ export async function GET() {
     );
   }
 }
-

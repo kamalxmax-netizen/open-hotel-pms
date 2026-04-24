@@ -1,5 +1,6 @@
 import { normalizeExtraFeeCategory } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
   noStore();
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const activeParam = request.nextUrl.searchParams.get("active");
     const categories = request.nextUrl.searchParams.getAll("category");
     const normalizedCategories = categories

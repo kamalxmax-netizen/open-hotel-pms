@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 import type { DayUseRoomStatus, DayUseTimerState } from "@/lib/types";
 import { isValidDateString } from "@/lib/dates";
 
@@ -24,9 +25,12 @@ function computeTimerState(expiresAt: string | null): DayUseTimerState | null {
   return "overdue";
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const url = new URL(request.url);
     const requestedDate = url.searchParams.get("date");
     if (requestedDate && !isValidDateString(requestedDate)) {

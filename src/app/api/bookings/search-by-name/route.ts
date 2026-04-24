@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 
 export async function GET(request: NextRequest) {
   const name = request.nextUrl.searchParams.get("name")?.trim() ?? "";
@@ -11,6 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServerSupabaseClient();
+  const auth = await requireStaffAuth(supabase, request);
+  if (auth.error) return auth.error;
 
   const { data: reservations, error: reservationError } = await supabase
     .from("reservations")

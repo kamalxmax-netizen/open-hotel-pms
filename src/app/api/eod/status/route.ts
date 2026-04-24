@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,13 @@ function toLocalDate(date: Date, tz = "Asia/Bangkok"): string {
    - days_overdue: how many days behind
    - business_date / calendar_date
 */
-export async function GET() {
+export async function GET(request: NextRequest) {
     noStore(); // Completely disable Next.js caching
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const { data: settings } = await supabase
             .from("hotel_settings")
             .select("business_date, eod_reminder_time, hotel_timezone, night_audit_popup_snooze_min")

@@ -1,6 +1,7 @@
 import { getAmenityAuditSession } from "@/lib/fo-amenity-audit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ const paramsSchema = z.object({
 });
 
 export async function GET(
-  _request: Request,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -21,6 +22,9 @@ export async function GET(
     }
 
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, _request);
+    if (auth.error) return auth.error;
+
     const session = await getAmenityAuditSession(supabase, params.id);
     if (!session) {
       return NextResponse.json({ success: false, error: "Session not found." }, { status: 404 });

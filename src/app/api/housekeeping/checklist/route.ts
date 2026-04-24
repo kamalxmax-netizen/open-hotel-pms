@@ -1,9 +1,13 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const roomTypeCode = request.nextUrl.searchParams.get("room_type_code");
 
         if (!roomTypeCode) {

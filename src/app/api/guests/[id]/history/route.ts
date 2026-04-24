@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import type { GuestHistoryResponse, GuestHistoryStay } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -92,6 +93,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     const guestProfileId = parsedId.data;
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, _request);
+    if (auth.error) return auth.error;
 
     const reservationSelect =
       "id, booking_code, guest_name, status, checkin_date, checkout_date, checked_in_at, source, created_at, guest_profile_id, total_price, is_dayuse";
