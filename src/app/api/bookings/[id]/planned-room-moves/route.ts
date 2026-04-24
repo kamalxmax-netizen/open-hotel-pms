@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import {
   PlannedRoomMoveError,
   appendReservationNoteLine,
@@ -76,7 +77,7 @@ function formatPricingPolicyLabel(params: {
   return `POLICY: Reprice Grid + Discount (${discountType}:${discountValue})${discountReason ? ` [${discountReason}]` : ""}`;
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const parsed = paramsSchema.safeParse(params);
     if (!parsed.success) {
@@ -84,6 +85,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     }
 
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
     const reservationId = parsed.data.id;
     const moves = await listReservationPlannedMoves(supabase as any, reservationId);
 

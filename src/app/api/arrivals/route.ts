@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { getBusinessDate } from "@/lib/fo-prepare";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest) {
     noStore();
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
         const requestedDate = request.nextUrl.searchParams.get("date");
         if (requestedDate && !isValidDateString(requestedDate)) {
             return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD." }, { status: 400 });

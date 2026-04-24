@@ -11,6 +11,7 @@ import {
 } from "@/lib/deposit-ledger";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { fromSatang, toSatang } from "@/lib/money";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -230,7 +231,7 @@ async function resolveLinkedActiveReservationId(
     }
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
     noStore();
     try {
         const reservationId = params.id;
@@ -239,6 +240,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         }
 
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
 
         const { data: reservation, error: reservationError } = await supabase
             .from("reservations")
