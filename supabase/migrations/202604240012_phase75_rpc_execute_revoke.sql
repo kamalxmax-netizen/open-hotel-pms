@@ -31,11 +31,10 @@ BEGIN;
 -- Sig: (text, jsonb, text, uuid, text, text, numeric)
 -- Caller: src/app/api/pos/orders/route.ts:303 (server)
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.pos_create_order_v2(text, jsonb, text, uuid, text, text, numeric)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.pos_create_order_v2(text, jsonb, text, uuid, text, text, numeric)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.pos_create_order_v2(text, jsonb, text, uuid, text, text, numeric)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.pos_create_order_v2(text, jsonb, text, uuid, text, text, numeric)
+  TO service_role;
 
 -- ============================================================================
 -- 2. pos_void_order_v2  (Phase 29/54 — POS)
@@ -43,11 +42,10 @@ BEGIN;
 -- Sig: (uuid, text, text)
 -- Caller: src/app/api/pos/orders/[id]/void/route.ts:154 (server)
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.pos_void_order_v2(uuid, text, text)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.pos_void_order_v2(uuid, text, text)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.pos_void_order_v2(uuid, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.pos_void_order_v2(uuid, text, text)
+  TO service_role;
 
 -- ============================================================================
 -- 3. stock_transfer  (Phase 10 — Inventory)
@@ -55,11 +53,10 @@ BEGIN;
 -- Sig: (uuid, int, int, text, text)
 -- Caller: src/app/api/stock/transfer/route.ts:53 (server)
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.stock_transfer(uuid, int, int, text, text)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.stock_transfer(uuid, int, int, text, text)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.stock_transfer(uuid, int, int, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.stock_transfer(uuid, int, int, text, text)
+  TO service_role;
 
 -- ============================================================================
 -- 4. fo_prepare_daily_stock  (Phase 10 — FO)
@@ -67,11 +64,10 @@ BEGIN;
 -- Sig: (date, text, text, jsonb)
 -- Caller: src/app/api/stock/fo-prepare/route.ts:199 (server)
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.fo_prepare_daily_stock(date, text, text, jsonb)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.fo_prepare_daily_stock(date, text, text, jsonb)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.fo_prepare_daily_stock(date, text, text, jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.fo_prepare_daily_stock(date, text, text, jsonb)
+  TO service_role;
 
 -- ============================================================================
 -- 5. fo_return_daily_stock  (Phase 10 — FO)
@@ -80,11 +76,10 @@ BEGIN;
 -- Caller: no direct .rpc() found in src/ — called via stored proc chain only.
 --         Safe to revoke.
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.fo_return_daily_stock(uuid, text, text, jsonb, boolean, text)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.fo_return_daily_stock(uuid, text, text, jsonb, boolean, text)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.fo_return_daily_stock(uuid, text, text, jsonb, boolean, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.fo_return_daily_stock(uuid, text, text, jsonb, boolean, text)
+  TO service_role;
 
 -- ============================================================================
 -- 6. fo_amenity_audit_submit  (Phase 65 — FO)
@@ -92,11 +87,10 @@ BEGIN;
 -- Sig: (jsonb)
 -- Caller: src/lib/fo-amenity-audit.ts:118 (server lib, uses createServerSupabaseClient)
 -- ============================================================================
--- TODO(Agent B):
--- REVOKE EXECUTE ON FUNCTION public.fo_amenity_audit_submit(jsonb)
---   FROM PUBLIC, anon, authenticated;
--- GRANT  EXECUTE ON FUNCTION public.fo_amenity_audit_submit(jsonb)
---   TO service_role;
+REVOKE EXECUTE ON FUNCTION public.fo_amenity_audit_submit(jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.fo_amenity_audit_submit(jsonb)
+  TO service_role;
 
 -- ============================================================================
 -- 7. evaluate_dynamic_rates  — ⚠️ DEFERRED to Phase 76
