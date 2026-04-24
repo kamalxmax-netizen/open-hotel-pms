@@ -20,8 +20,8 @@
 
 BEGIN;
 
--- TODO(Agent B): DROP POLICY IF EXISTS legacy_stays_service_role ON public.legacy_stays;
--- TODO(Agent B): COMMENT ON TABLE public.legacy_stays IS
---   'Historical pre-migration stay data. Service-role only (RLS ON with no policies).';
+DROP POLICY IF EXISTS legacy_stays_service_role ON public.legacy_stays;
+COMMENT ON TABLE public.legacy_stays IS
+  'Historical pre-migration stay data. Service-role only (RLS ON with no policies).';
 
 COMMIT;
