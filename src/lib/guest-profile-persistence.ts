@@ -20,6 +20,9 @@ type GuestProfileMutationResult = {
 
 type ResolutionStage = "pre_mutation_document_match" | "db_duplicate_conflict";
 
+const GUEST_PROFILE_MUTATION_SELECT =
+  "id, created_at, updated_at, member_no, first_name, last_name, gender, nationality, nationality_code, passport_no, dob, id_card_number, id_type, id_number, address, address_line1, address_line2, city, province, postal_code, country, phone, email, whatsapp, line_id, car_registration, vip_tier, preferences, notes, blacklisted, passport_raw, profile_status, merged_into, do_not_merge, last_stay_date, stay_count, legacy_night_count, night_count, main_stay_count, main_night_count, accompanying_stay_count, accompanying_night_count";
+
 function isBlank(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === "string") return value.trim().length === 0;
@@ -171,7 +174,7 @@ async function fetchGuestProfileById(
 ): Promise<Record<string, any> | null> {
   const { data, error } = await supabase
     .from("guest_profiles")
-    .select("*")
+    .select(GUEST_PROFILE_MUTATION_SELECT)
     .eq("id", profileId)
     .maybeSingle();
 
@@ -221,7 +224,7 @@ async function resolveConflictProfile(params: {
       .from("guest_profiles")
       .update(patch)
       .eq("id", resolvedProfileId)
-      .select("*")
+      .select(GUEST_PROFILE_MUTATION_SELECT)
       .maybeSingle();
 
     if (patchError) {
@@ -304,7 +307,7 @@ export async function createGuestProfileWithConflictHandling(params: {
           .from("guest_profiles")
           .update(patch)
           .eq("id", String(identityMatch.id))
-          .select("*")
+          .select(GUEST_PROFILE_MUTATION_SELECT)
           .maybeSingle();
 
         if (patchError) {
@@ -327,7 +330,7 @@ export async function createGuestProfileWithConflictHandling(params: {
   const { data, error } = await supabase
     .from("guest_profiles")
     .insert(normalizedPayload)
-    .select("*")
+    .select(GUEST_PROFILE_MUTATION_SELECT)
     .maybeSingle();
 
   if (!error && data) {
@@ -387,7 +390,7 @@ export async function updateGuestProfileWithConflictHandling(params: {
     .from("guest_profiles")
     .update(normalizedPayload)
     .eq("id", profileId)
-    .select("*")
+    .select(GUEST_PROFILE_MUTATION_SELECT)
     .maybeSingle();
 
   if (!error && data) {

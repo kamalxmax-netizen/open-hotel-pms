@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ScbCallbackIdentifiers, ScbReferenceBundle, ScbStoredRequest, ScbTransactionStatus } from "@/lib/scb/types";
 
+const SCB_PAYMENT_REQUEST_SELECT =
+  "id, target_type, target_id, channel, mode, request_amount_total, room_amount, deposit_amount, status, partner_reference_no, scb_order_id, wallet_id, scb_ref_1, scb_ref_2, scb_ref_3, qr_payload, qr_image_base64, request_payload, provider_raw_response, error_message, expires_at, auto_inquiry_after_expiry_at, paid_transaction_id, created_by, created_at, updated_at";
+
 function toPlainObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -198,7 +201,7 @@ export async function loadScbRequestByReference(
   if (primaryRef) {
     const byRef = await supabase
       .from("scb_payment_requests")
-      .select("*")
+      .select(SCB_PAYMENT_REQUEST_SELECT)
       .eq("scb_ref_3", primaryRef)
       .maybeSingle();
     if (byRef.error) throw new Error(byRef.error.message);
@@ -208,7 +211,7 @@ export async function loadScbRequestByReference(
   if (identifiers.ref2) {
     const byRef2 = await supabase
       .from("scb_payment_requests")
-      .select("*")
+      .select(SCB_PAYMENT_REQUEST_SELECT)
       .eq("scb_ref_2", identifiers.ref2)
       .maybeSingle();
     if (byRef2.error) throw new Error(byRef2.error.message);
@@ -218,7 +221,7 @@ export async function loadScbRequestByReference(
   if (identifiers.ref1) {
     let byRef1Query = supabase
       .from("scb_payment_requests")
-      .select("*")
+      .select(SCB_PAYMENT_REQUEST_SELECT)
       .eq("scb_ref_1", identifiers.ref1)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
@@ -233,7 +236,7 @@ export async function loadScbRequestByReference(
   if (identifiers.orderId) {
     const byOrder = await supabase
       .from("scb_payment_requests")
-      .select("*")
+      .select(SCB_PAYMENT_REQUEST_SELECT)
       .eq("scb_order_id", identifiers.orderId)
       .maybeSingle();
     if (byOrder.error) throw new Error(byOrder.error.message);
