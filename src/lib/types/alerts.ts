@@ -142,6 +142,9 @@ export interface AlertsSummary {
   pending_prepayment: number;
   pending_custom: number;
   ready_to_finish: boolean;
+  is_finished: boolean;
+  finished_at: string | null;
+  finished_by: string | null;
 }
 
 export interface AlertsTodayResponse {

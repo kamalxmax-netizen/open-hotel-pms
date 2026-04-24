@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "frontdesk" | "maid" | "supervisor" | "mobile";
+export type UserRole = "admin" | "frontdesk" | "maid" | "supervisor" | "mobile" | "owner";
 
 export type BookingSource = "walkin" | "ota" | "direct" | "agent";
 

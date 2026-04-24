@@ -12,6 +12,7 @@ type ProfileRow = {
 const ROLE_TO_DEPARTMENT_CODE: Record<string, "FO" | "HK" | "MNT" | "FB" | "SEC"> = {
   admin: "FO",
   frontdesk: "FO",
+  owner: "FO",
   supervisor: "FO",
   maid: "HK",
 };

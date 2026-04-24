@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error.";
-    return NextResponse.json({ success: false, error: message }, { status: message.includes("pending alerts remain") ? 409 : 400 });
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: message.includes("pending alerts remain") || message.includes("already finished") ? 409 : 400 }
+    );
   }
 }

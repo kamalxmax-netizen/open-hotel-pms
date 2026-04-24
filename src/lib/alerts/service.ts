@@ -59,7 +59,7 @@ type ReservationAlertRow = {
   reservation_nights?: any[];
 };
 
-const READ_ROLES = new Set(["admin", "frontdesk", "supervisor", "manager"]);
+const READ_ROLES = new Set(["admin", "frontdesk", "supervisor", "manager", "owner"]);
 const ADMIN_ROLES = new Set(["admin"]);
 
 export async function requireAlertsReadAccess(request: NextRequest) {
@@ -970,10 +970,27 @@ async function buildProjectedAlertItemsForDate(
   return items;
 }
 
-async function buildAlertsSummary(date: string, rows: AlertDailyStateRow[], context: BusinessDateContext): Promise<AlertsSummary> {
+async function fetchAlertJobLogForDate(supabase: SupabaseClientLike, date: string) {
+  const { data, error } = await supabase
+    .from("alert_job_log")
+    .select("id, finished_at, finished_by")
+    .eq("job_date", date)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as { id: string; finished_at: string | null; finished_by: string | null } | null;
+}
+
+async function buildAlertsSummary(
+  supabase: SupabaseClientLike,
+  date: string,
+  rows: AlertDailyStateRow[],
+  context: BusinessDateContext
+): Promise<AlertsSummary> {
   const pendingPrepayment = rows.filter((row) => row.alert_type === "prepayment" && row.status === "pending").length;
   const pendingCustom = rows.filter((row) => row.alert_type === "custom" && row.status === "pending").length;
   const cleared = rows.filter((row) => row.status !== "pending").length;
+  const jobLog = await fetchAlertJobLogForDate(supabase, date);
 
   return {
     date,
@@ -983,7 +1000,10 @@ async function buildAlertsSummary(date: string, rows: AlertDailyStateRow[], cont
     cleared,
     pending_prepayment: pendingPrepayment,
     pending_custom: pendingCustom,
-    ready_to_finish: pendingPrepayment + pendingCustom === 0,
+    ready_to_finish: pendingPrepayment + pendingCustom === 0 && !jobLog,
+    is_finished: Boolean(jobLog),
+    finished_at: jobLog?.finished_at ? String(jobLog.finished_at) : null,
+    finished_by: jobLog?.finished_by ? String(jobLog.finished_by) : null,
   };
 }
 
@@ -1252,7 +1272,7 @@ export async function listAlertsForDate(
   ];
 
   return {
-    summary: await buildAlertsSummary(date, summaryRows, context),
+    summary: await buildAlertsSummary(supabase, date, summaryRows, context),
     items: allItems,
   };
 }
@@ -1309,13 +1329,12 @@ export async function snoozeAlert(
   note: string
 ) {
   const trimmed = String(note ?? "").trim();
-  if (!trimmed) throw new Error("note is required.");
 
   const { data, error } = await supabase
     .from("alert_daily_state")
     .update({
       status: "snoozed",
-      snooze_note: trimmed,
+      snooze_note: trimmed || null,
     })
     .eq("id", dailyStateId)
     .in("status", ["pending", "snoozed"])
@@ -1402,6 +1421,10 @@ export async function finishAlertJob(
   businessDate: string
 ) {
   if (!isIsoDate(businessDate)) throw new Error("business date must be YYYY-MM-DD.");
+  const existingJobLog = await fetchAlertJobLogForDate(supabase, businessDate);
+  if (existingJobLog) {
+    throw new Error(`Alert job already finished for ${businessDate}.`);
+  }
   const { data, error } = await supabase.rpc("alert_finish_job", {
     p_business_date: businessDate,
     p_user: actorUserId,

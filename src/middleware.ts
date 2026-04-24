@@ -15,6 +15,38 @@ const EXACT_PERMISSION_PATHS = new Set([
   "/pms/lost-found",
   "/pms/linen",
 ]);
+const MUTATING_API_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const PUBLIC_MUTATION_API_PREFIXES = [
+  "/api/auth",
+  "/api/webhooks",
+  "/api/linen/vendor",
+];
+const PUBLIC_MUTATION_API_PATTERNS = [
+  /^\/api\/telegram\/webhook\/(?!register(?:\/|$))[^/]+$/,
+];
+const OWNER_SAFE_MUTATION_API_PATTERNS = [
+  /^\/api\/rate-plans\/calculate$/,
+  /^\/api\/room-planner\/preview$/,
+  /^\/api\/bookings\/[^/]+\/extend-stay\/preview$/,
+  /^\/api\/bookings\/[^/]+\/ota-extend-orchestrator\/preview$/,
+  /^\/api\/booking-groups\/[^/]+\/checkin-wizard\/preview-payments$/,
+  /^\/api\/dynamic-rules\/(?:preview|simulate)$/,
+  /^\/api\/tax\/lookup$/,
+  /^\/api\/mobile-text(?:\/|$)/,
+  /^\/api\/guests\/match$/,
+  /^\/api\/checkin\/match-booking$/,
+];
+
+function isPublicMutationApiPath(pathname: string): boolean {
+  return (
+    PUBLIC_MUTATION_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
+    PUBLIC_MUTATION_API_PATTERNS.some((pattern) => pattern.test(pathname))
+  );
+}
+
+function isOwnerSafeMutationApiPath(pathname: string): boolean {
+  return OWNER_SAFE_MUTATION_API_PATTERNS.some((pattern) => pattern.test(pathname));
+}
 
 function resolvePostLoginPath(role: string | null | undefined): string {
   const normalizedRole = String(role ?? "").trim().toLowerCase();
@@ -43,6 +75,39 @@ export async function middleware(request: NextRequest) {
       }
     }
     return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/api") && MUTATING_API_METHODS.has(request.method.toUpperCase())) {
+    if (isPublicMutationApiPath(pathname) || isOwnerSafeMutationApiPath(pathname)) {
+      return NextResponse.next();
+    }
+
+    const response = NextResponse.next();
+    const supabase = createMiddlewareSupabaseClient(request, response);
+    const authHeader = request.headers.get("authorization");
+    const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null;
+    const { data: authData } = bearerToken
+      ? await supabase.auth.getUser(bearerToken)
+      : await supabase.auth.getUser();
+    const user = authData.user;
+
+    if (!user) return response;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const role = String(profile?.role ?? "").trim().toLowerCase();
+
+    if (role === "owner") {
+      return NextResponse.json(
+        { success: false, error: "Owner is view-only." },
+        { status: 403 }
+      );
+    }
+
+    return response;
   }
 
   // For /pms/** and other protected routes: require session

@@ -7,7 +7,7 @@ export const fetchCache = "force-no-store";
 
 const schema = z.object({
   daily_state_id: z.string().uuid(),
-  note: z.string().trim().min(1).max(1000),
+  note: z.string().trim().max(1000).optional().default(""),
 });
 
 export async function POST(request: NextRequest) {

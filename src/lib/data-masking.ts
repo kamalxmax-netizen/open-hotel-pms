@@ -63,14 +63,14 @@ export function isCheckinModeEnabled(value: string | null): boolean {
 
 export function shouldMaskIdentityForRole(role: string | null | undefined): boolean {
   const normalized = String(role ?? "").trim().toLowerCase();
-  if (normalized === "admin") return false;
+  if (normalized === "admin" || normalized === "owner") return false;
   if (MASKED_ROLES.has(normalized)) return true;
   return true;
 }
 
 export function canRoleUnmaskInCheckin(role: string | null | undefined): boolean {
   const normalized = String(role ?? "").trim().toLowerCase();
-  if (normalized === "admin") return true;
+  if (normalized === "admin" || normalized === "owner") return true;
   return CHECKIN_UNMASK_ROLES.has(normalized);
 }
 

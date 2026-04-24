@@ -132,7 +132,7 @@ async function canReadRatesSettings(request: NextRequest) {
   if (!user) return null;
 
   const role = await getUserRole(supabase, user.id);
-  const allowed = role === "admin" || role === "frontdesk" || role === "supervisor" || role === "manager";
+  const allowed = role === "admin" || role === "frontdesk" || role === "supervisor" || role === "manager" || role === "owner";
   if (!allowed) return null;
 
   return { supabase, userId: user.id, role };

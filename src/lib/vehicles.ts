@@ -17,7 +17,7 @@ export type VehicleCountry = (typeof VEHICLE_COUNTRIES)[number];
 export const VEHICLE_COLORS = ["white", "black", "silver", "red", "blue", "yellow", "other"] as const;
 export type VehicleColor = (typeof VEHICLE_COLORS)[number];
 
-export type VehicleActorRole = Extract<UserRole, "admin" | "frontdesk" | "supervisor">;
+export type VehicleActorRole = Extract<UserRole, "admin" | "frontdesk" | "supervisor" | "owner">;
 
 export type VehicleActor = {
   userId: string;
@@ -357,7 +357,7 @@ async function assertNoActiveDuplicateVehicle(
 }
 
 function isVehicleActorRole(value: string | null): value is VehicleActorRole {
-  return value === "admin" || value === "frontdesk" || value === "supervisor";
+  return value === "admin" || value === "frontdesk" || value === "supervisor" || value === "owner";
 }
 
 function makeVehicleError(message: string, status: number) {
@@ -685,7 +685,9 @@ export async function requireVehicleActor(
   if (!isVehicleActorRole(role)) {
     throw makeVehicleError("Forbidden", 403);
   }
-  if (!allowedRoles.includes(role)) {
+  if (role === "owner" && request.method.toUpperCase() === "GET") {
+    // Owner is full-read, never operational. Mutations are blocked globally in middleware.
+  } else if (!allowedRoles.includes(role)) {
     throw makeVehicleError("Forbidden", 403);
   }
 

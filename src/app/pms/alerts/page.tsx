@@ -215,8 +215,8 @@ export default function AlertsCenterPage() {
                             {isPreview ? `📅 Preview: ${selectedDate}` : `Today's Alerts`}
                         </h1>
                         {!isPreview && summary && (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${summary.ready_to_finish ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
-                                {summary.cleared} / {summary.total} cleared
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${summary.is_finished ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : summary.ready_to_finish ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                {summary.is_finished ? 'Finished' : `${summary.cleared} / ${summary.total} cleared`}
                             </span>
                         )}
                     </div>
@@ -225,11 +225,11 @@ export default function AlertsCenterPage() {
                         <button className="btn btn-secondary" onClick={() => setSelectedDate("")}>← Back to Today</button>
                     ) : summary && (
                         <button 
-                            className={`btn shadow-sm flex gap-2 items-center transition-colors ${summary.ready_to_finish ? 'btn-primary bg-emerald-600 hover:bg-emerald-700 text-white' : 'btn-secondary opacity-50'}`} 
+                            className={`btn shadow-sm flex gap-2 items-center transition-colors ${summary.is_finished ? 'btn-secondary opacity-60' : summary.ready_to_finish ? 'btn-primary bg-emerald-600 hover:bg-emerald-700 text-white' : 'btn-secondary opacity-50'}`} 
                             onClick={handleFinishJob}
-                            disabled={!summary.ready_to_finish || finishing}
+                            disabled={!summary.ready_to_finish || summary.is_finished || finishing}
                         >
-                            Finish Alarm Job →
+                            {summary.is_finished ? 'Alarm Job Finished' : 'Finish Alarm Job →'}
                         </button>
                     )}
                 </div>

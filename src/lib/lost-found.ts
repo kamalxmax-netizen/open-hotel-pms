@@ -50,7 +50,7 @@ type ReservationLinkRow = {
   checked_in_at?: string | null;
 };
 
-export type LostFoundRole = Extract<UserRole, "admin" | "frontdesk" | "maid" | "supervisor">;
+export type LostFoundRole = Extract<UserRole, "admin" | "frontdesk" | "maid" | "supervisor" | "owner">;
 
 export type LostFoundActor = {
   userId: string;
@@ -88,7 +88,7 @@ function normalizeText(value: unknown): string | null {
 }
 
 function isLostFoundRole(value: string | null): value is LostFoundRole {
-  return value === "admin" || value === "frontdesk" || value === "maid" || value === "supervisor";
+  return value === "admin" || value === "frontdesk" || value === "maid" || value === "supervisor" || value === "owner";
 }
 
 function makeError(message: string, status: number) {
@@ -176,7 +176,9 @@ export async function requireLostFoundActor(
   if (!isLostFoundRole(role)) {
     throw makeError("Forbidden", 403);
   }
-  if (!allowedRoles.includes(role)) {
+  if (role === "owner" && request.method.toUpperCase() === "GET") {
+    // Owner can view every surface, but cannot mutate Lost & Found.
+  } else if (!allowedRoles.includes(role)) {
     throw makeError("Forbidden", 403);
   }
 

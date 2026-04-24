@@ -224,6 +224,7 @@ export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
+    const [role, setRole] = useState<string | null>(null);
     const { theme, setTheme } = useTheme();
 
     useEffect(() => {
@@ -238,18 +239,18 @@ export default function Sidebar() {
             const cached = readSidebarPermissionCache(userId);
             if (cached) {
                 setAllowedPages(cached);
-                return;
             }
 
             const { data } = await supabase
                 .from("profiles")
-                .select("allowed_pages")
+                .select("allowed_pages, role")
                 .eq("user_id", userId)
                 .single();
             if (cancelled) return;
 
             const nextAllowedPages = normalizeAllowedPages(data?.allowed_pages);
             setAllowedPages(nextAllowedPages);
+            setRole(String(data?.role ?? "").trim().toLowerCase() || null);
             writeSidebarPermissionCache(userId, nextAllowedPages);
         }
 
@@ -332,6 +333,11 @@ export default function Sidebar() {
                         {theme === "light" ? <SunIcon /> : theme === "dark" ? <MoonSmallIcon /> : <ShieldIcon className="w-3.5 h-3.5" />}
                     </button>
                 </div>
+                {role === "owner" && (
+                    <div className="sidebar-text mx-3 rounded-md border border-sky-400/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300">
+                        Owner View Only
+                    </div>
+                )}
                 <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
