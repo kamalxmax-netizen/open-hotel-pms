@@ -24,17 +24,17 @@ const PUBLIC_MUTATION_API_PREFIXES = [
 const PUBLIC_MUTATION_API_PATTERNS = [
   /^\/api\/telegram\/webhook\/(?!register(?:\/|$))[^/]+$/,
 ];
+// Phase 75 Batch 1.2 (2026-04-24): removed 5 unsafe entries per Agent B §4 audit.
+// Removed: rate-plans/calculate, checkin-wizard/preview-payments, dynamic-rules/preview
+//          (preview mutates despite the name), guests/match, checkin/match-booking
+//          (writes to storage). Handler-level auth in Batch 1.3 rejects owner.
 const OWNER_SAFE_MUTATION_API_PATTERNS = [
-  /^\/api\/rate-plans\/calculate$/,
   /^\/api\/room-planner\/preview$/,
   /^\/api\/bookings\/[^/]+\/extend-stay\/preview$/,
   /^\/api\/bookings\/[^/]+\/ota-extend-orchestrator\/preview$/,
-  /^\/api\/booking-groups\/[^/]+\/checkin-wizard\/preview-payments$/,
-  /^\/api\/dynamic-rules\/(?:preview|simulate)$/,
+  /^\/api\/dynamic-rules\/simulate$/,
   /^\/api\/tax\/lookup$/,
   /^\/api\/mobile-text(?:\/|$)/,
-  /^\/api\/guests\/match$/,
-  /^\/api\/checkin\/match-booking$/,
 ];
 
 function isPublicMutationApiPath(pathname: string): boolean {

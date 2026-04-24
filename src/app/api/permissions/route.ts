@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, assertAdminOrSupervisor } from "@/lib/server-auth";
 
 // All PMS route prefixes selectable in the UI
 const ALL_PAGES = [
@@ -14,6 +15,7 @@ const ALL_PAGES = [
   { path: "/pms/groups", label: "Group Bookings", section: "Front Desk" },
   { path: "/pms/availability", label: "Availability", section: "Front Desk" },
   { path: "/pms/vehicles", label: "Vehicle Registry", section: "Front Desk" },
+  { path: "/pms/alerts", label: "Today's Alerts", section: "Front Desk" },
   { path: "/pms/guests", label: "Guest Profiles", section: "Client Relations" },
   { path: "/pms/rates", label: "Rate Grid", section: "Revenue" },
   { path: "/pms/revenue", label: "Revenue Report", section: "Revenue" },
@@ -67,9 +69,21 @@ const ALL_PAGES = [
 
 /* ─── GET /api/permissions ───────────────────────
    List all Auth users; auto-upsert profiles for any that don't have one.
+   Phase 75 Batch 1.1: admin/supervisor guard added (was unauthed — CRITICAL).
 */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient();
+
+  // Phase 75: auth gate — admin/supervisor only
+  try {
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+  } catch {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   // 1. Fetch all auth users (service role only)
   const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
@@ -114,9 +128,22 @@ export async function GET(_request: NextRequest) {
 /* ─── PATCH /api/permissions ─────────────────────
    Update allowed_pages for a profile
    Body: { profile_id: string, allowed_pages: string[] }
+   Phase 75 Batch 1.1: admin/supervisor guard added (was unauthed — CRITICAL).
 */
 export async function PATCH(request: NextRequest) {
   const supabase = createServerSupabaseClient();
+
+  // Phase 75: auth gate — admin/supervisor only
+  try {
+    const user = await getAuthenticatedUser(supabase, request);
+    if (!user) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    await assertAdminOrSupervisor(supabase, user.id);
+  } catch {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const body = await request.json();
   const { profile_id, allowed_pages } = body;
 

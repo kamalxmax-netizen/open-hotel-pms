@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBookingName } from "@/lib/guest-booking-names";
 import { normalizeNationalityCode } from "@/lib/nationality-map";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -211,6 +212,10 @@ function buildMatch(profile: CandidateProfile, query: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const json = await request.json().catch(() => null);
     const parsed = bodySchema.safeParse(json);
     if (!parsed.success) {
@@ -222,7 +227,6 @@ export async function POST(request: NextRequest) {
 
     const query = parsed.data.query.trim();
     const nationalityCode = normalizeNationalityCode(parsed.data.nationality_code ?? null);
-    const supabase = createServerSupabaseClient();
 
     let dbQuery = supabase
       .from("guest_profiles")

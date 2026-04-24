@@ -8,6 +8,7 @@ import {
   getGroupReservationLines,
   getSelectedReservationIdsFromDraft,
 } from "@/lib/group-checkin-wizard-service";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -41,8 +42,11 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Missing group ID." }, { status: 400 });
     }
 
-    const body = await request.json().catch(() => ({}));
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
+    const body = await request.json().catch(() => ({}));
     const fallbackBusinessDate = await getBusinessDate(supabase, null);
     const businessDate = pickBusinessDate(body?.business_date, fallbackBusinessDate);
 
