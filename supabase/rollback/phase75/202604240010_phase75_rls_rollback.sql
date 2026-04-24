@@ -27,56 +27,67 @@ BEGIN;
 -- ============================================================================
 -- 11. maid_cart_items
 -- ============================================================================
--- TODO(Agent B): DROP POLICY IF EXISTS ... + DISABLE ROW LEVEL SECURITY
+DROP POLICY IF EXISTS maid_cart_items_authenticated_read ON public.maid_cart_items;
+ALTER TABLE public.maid_cart_items DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 10. stock_transactions
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS stock_transactions_authenticated_read ON public.stock_transactions;
+ALTER TABLE public.stock_transactions DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 9. stock_items
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS stock_items_authenticated_read ON public.stock_items;
+ALTER TABLE public.stock_items DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 8. extra_task_assignments
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS extra_task_assignments_authenticated_read ON public.extra_task_assignments;
+ALTER TABLE public.extra_task_assignments DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 7. extra_task_templates
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS extra_task_templates_authenticated_read ON public.extra_task_templates;
+ALTER TABLE public.extra_task_templates DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 6. checklist_templates
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS checklist_templates_authenticated_read ON public.checklist_templates;
+ALTER TABLE public.checklist_templates DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 5. daily_plans
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS daily_plans_authenticated_read ON public.daily_plans;
+ALTER TABLE public.daily_plans DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 4. booking_groups
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS booking_groups_authenticated_read ON public.booking_groups;
+ALTER TABLE public.booking_groups DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 3. rate_plan_profiles
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS rate_plan_profiles_authenticated_read ON public.rate_plan_profiles;
+ALTER TABLE public.rate_plan_profiles DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 2. rate_plan_tiers
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS rate_plan_tiers_authenticated_read ON public.rate_plan_tiers;
+ALTER TABLE public.rate_plan_tiers DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 1. rate_plans
 -- ============================================================================
--- TODO(Agent B)
+DROP POLICY IF EXISTS rate_plans_authenticated_read ON public.rate_plans;
+ALTER TABLE public.rate_plans DISABLE ROW LEVEL SECURITY;
 
 COMMIT;
