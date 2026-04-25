@@ -105,8 +105,11 @@ function shapeAuditRows(rows: any[]): AuditRow[] {
   });
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/[%_,]/g, "").trim();
+// Escape user input for use inside a PostgREST .or() ilike quoted value.
+// Inside "..." only backslash and double quote need escaping; commas and
+// parentheses remain literal instead of becoming .or() grammar.
+function escapeOrValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export async function GET(request: NextRequest) {
@@ -161,11 +164,13 @@ export async function GET(request: NextRequest) {
       return query;
     };
 
-    const searchTerm = escapeLike(queryData.search ?? "");
+    const rawSearch = (queryData.search ?? "").trim();
+    const hasSearch = rawSearch.length > 0;
     let rowsQuery = buildBaseQuery();
-    if (searchTerm) {
+    if (hasSearch) {
+      const searchValue = escapeOrValue(rawSearch);
       rowsQuery = rowsQuery.or(
-        `entity_id.ilike.%${searchTerm}%,action.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`
+        `entity_id.ilike."%${searchValue}%",action.ilike."%${searchValue}%",note.ilike."%${searchValue}%"`
       );
     }
 
@@ -185,7 +190,7 @@ export async function GET(request: NextRequest) {
     const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
 
     let filterSourceRows = grouped;
-    if (page === 1 && searchTerm) {
+    if (page === 1 && hasSearch) {
       const { data: metaData, error: metaError } = await buildBaseQuery().limit(MAX_SCAN_ROWS);
       if (metaError) {
         return NextResponse.json({ success: false, error: metaError.message }, { status: 500 });
