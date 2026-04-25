@@ -96,6 +96,8 @@ export function suggestRefundMethod(rows: SettlementPreviewPaymentRow[] | null |
   return "cash";
 }
 
+// Keep separate from suggestRefundMethod: shorten refunds only consider rows
+// resolved as room revenue, while cancellation refunds only exclude raw deposits.
 export function suggestShortenRefundMethod(
   rows: SettlementPreviewPaymentRow[] | null | undefined
 ): SettlementRefundMethod {
