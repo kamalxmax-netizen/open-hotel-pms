@@ -15,6 +15,9 @@ export const fetchCache = "force-no-store";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_SCAN_ROWS = 10000;
+const AUDIT_ROW_SELECT =
+  "id, actor_user_id, action, entity_type, entity_id, before_json, after_json, source, note, business_date, created_at, profiles:actor_user_id(full_name)";
+const AUDIT_METADATA_SELECT = "actor_user_id, action, entity_type, profiles:actor_user_id(full_name)";
 
 const querySchema = z.object({
   date_from: z.string().regex(DATE_RE, "date_from must be YYYY-MM-DD").optional(),
@@ -42,6 +45,8 @@ type AuditRow = {
   business_date: string;
   created_at: string;
 };
+
+type AuditFilterSourceRow = Pick<AuditRow, "actor_user_id" | "actor_name" | "action" | "entity_type">;
 
 async function requireAuditAccess(
   supabase: ReturnType<typeof createServerSupabaseClient>,
@@ -105,6 +110,15 @@ function shapeAuditRows(rows: any[]): AuditRow[] {
   });
 }
 
+function shapeAuditMetadataRows(rows: any[]): AuditFilterSourceRow[] {
+  return rows.map((row) => ({
+    actor_user_id: row.actor_user_id ? String(row.actor_user_id) : null,
+    actor_name: getActorName(row.profiles, Boolean(row.actor_user_id)),
+    action: String(row.action ?? ""),
+    entity_type: String(row.entity_type ?? ""),
+  }));
+}
+
 // Escape user input for use inside a PostgREST .or() ilike quoted value while
 // preserving literal substring semantics (parity with /api/audit/export).
 function escapeOrValue(value: string): string {
@@ -150,12 +164,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const buildBaseQuery = () => {
+    const buildBaseQuery = (selectColumns = AUDIT_ROW_SELECT) => {
       let query = supabase
         .from("audit_logs")
-        .select(
-          "id, actor_user_id, action, entity_type, entity_id, before_json, after_json, source, note, business_date, created_at, profiles:actor_user_id(full_name)"
-        )
+        .select(selectColumns)
         .gte("business_date", dateFrom)
         .lte("business_date", dateTo)
         .order("created_at", { ascending: false });
@@ -192,15 +204,15 @@ export async function GET(request: NextRequest) {
     const pageRows = grouped.slice(offset, offset + perPage);
     const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
 
-    let filterSourceRows = grouped;
+    let filterSourceRows: AuditFilterSourceRow[] = grouped;
     if (page === 1 && hasSearch) {
-      const { data: metaData, error: metaError } = await buildBaseQuery().limit(MAX_SCAN_ROWS);
+      const { data: metaData, error: metaError } = await buildBaseQuery(AUDIT_METADATA_SELECT).limit(MAX_SCAN_ROWS);
       if (metaError) {
         return NextResponse.json({ success: false, error: metaError.message }, { status: 500 });
       }
 
       filterSourceRows = filterAuditRowsByGroup(
-        shapeAuditRows((metaData ?? []) as any[]),
+        shapeAuditMetadataRows((metaData ?? []) as any[]),
         queryData.group
       );
     }
