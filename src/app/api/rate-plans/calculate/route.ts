@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { isValidDateString, listNights } from "@/lib/dates";
 
@@ -45,6 +46,10 @@ function isNightAllowedByPeriod(night: string, validFrom: string | null, validUn
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const roomTypeIdRaw = body.room_type_id;
     const roomIdRaw = body.room_id ? String(body.room_id) : "";
@@ -66,8 +71,6 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       return NextResponse.json({ error: (err as Error).message }, { status: 400 });
     }
-
-    const supabase = createServerSupabaseClient();
 
     const { data: roomRows, error: roomError } = await supabase
       .from("rooms")

@@ -4,6 +4,7 @@ import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { computeReservationDiscountAmount } from "@/lib/reservation-visible-total";
 import { mapEffectiveReservationAlert } from "@/lib/reservation-alerts";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -31,12 +32,14 @@ function getBangkokHour(date = new Date()): number {
  * - open traces count
  */
 export async function GET(
-    _req: NextRequest,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     noStore();
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
         const reservationId = params.id;
 
         // 1. Reservation basics

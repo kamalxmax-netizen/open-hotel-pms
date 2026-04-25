@@ -1,10 +1,14 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const calendarDate = toLocalDate(new Date(), "Asia/Bangkok");
         const businessDate = await resolveBusinessDate(supabase, calendarDate);
 

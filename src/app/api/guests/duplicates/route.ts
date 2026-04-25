@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -109,6 +110,8 @@ export async function GET(request: NextRequest) {
 
         const { status, limit, offset } = parsed.data;
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
 
         const { data: rows, error, count } = await supabase
             .from("profile_match_scores")

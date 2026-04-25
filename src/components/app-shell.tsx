@@ -2,6 +2,7 @@
 
 import Sidebar from "@/components/sidebar";
 import BugReportButton from "@/components/bug-report-button";
+import AlertPendingPopup from "@/components/alert-pending-popup";
 import UrgentLogbookOverlay from "@/components/urgent-logbook-overlay";
 import UiEventLogProvider from "@/components/ui-event-log-provider";
 import { ensureCopyBoardFocusTracking } from "@/lib/copy-board";
@@ -79,6 +80,7 @@ export default function AppShell({
       <div className="main-content">
         <main className="page-body">{children}</main>
       </div>
+      <AlertPendingPopup pageName="PMS" />
       <UrgentLogbookOverlay hasNeighbor={showBugReport} />
       {showBugReport && <BugReportButton />}
     </div>

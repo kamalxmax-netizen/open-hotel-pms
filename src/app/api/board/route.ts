@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidDateString } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import type { BoardRoomStatus } from "@/lib/board-layout";
 import { getBusinessDate } from "@/lib/fo-prepare";
 import { resolveHotelCheckOutTime, resolveLinkedStayBatch } from "@/lib/linked-stay";
@@ -105,6 +106,8 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServerSupabaseClient();
+  const auth = await requireStaffAuth(supabase, request);
+  if (auth.error) return auth.error;
   const { data: hotelSettings } = await supabase
     .from("hotel_settings")
     .select("*")

@@ -7,6 +7,7 @@ import {
   resolveBusinessDate,
 } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -26,7 +27,7 @@ function isMissingRpc(error: { code?: string | null; message?: string | null } |
   );
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   noStore();
   try {
     const reservationId = params.id;
@@ -35,6 +36,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
       .select("id, total_price, deposit_amount")

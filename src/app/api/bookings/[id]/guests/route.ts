@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -18,7 +19,7 @@ const deleteQuerySchema = z.object({
   guest_profile_id: z.string().uuid("guest_profile_id must be uuid"),
 });
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const parsedParams = paramsSchema.safeParse(params);
     if (!parsedParams.success) {
@@ -27,6 +28,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
     const reservationId = parsedParams.data.id;
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

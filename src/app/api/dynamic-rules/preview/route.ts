@@ -1,4 +1,6 @@
 import { bulkActionPreviewRows, listPreviewRows, requireDynamicRulesReadAccess } from "@/lib/dynamic-rules/service";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,6 +35,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = createServerSupabaseClient();
+  const staffAuth = await requireStaffAuth(supabase, request);
+  if (staffAuth.error) return staffAuth.error;
+
   const auth = await requireDynamicRulesReadAccess(request);
   if (!auth.ok) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.error === "Unauthorized." ? 401 : 403 });

@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listNights, isValidDateString } from "@/lib/dates";
 import { expandPlannedMoveNights, listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+import { requireStaffAuth } from "@/lib/server-auth";
 
 function round2(value: number) {
     return Number(value.toFixed(2));
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
 
     const nights = listNights(checkin, checkout);
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     // 1. All sellable overnight rooms with type (exclude day-use inventory)
     const { data: roomsRaw, error: roomsErr } = await supabase

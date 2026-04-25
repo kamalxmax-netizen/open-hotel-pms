@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { deriveBookingGroupStatus } from "@/lib/booking-group-status";
 
 function toNumber(value: unknown): number {
@@ -7,9 +8,12 @@ function toNumber(value: unknown): number {
     return Number.isFinite(num) ? num : 0;
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const { id } = await context.params;
 
         if (!id) {

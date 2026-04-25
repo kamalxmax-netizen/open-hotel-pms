@@ -8,6 +8,7 @@ import {
   suggestShortenRefundMethod,
 } from "@/lib/settlement-preview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -42,6 +43,8 @@ export async function GET(
     const action = parsed.data.action;
     const newCheckoutDate = parsed.data.new_checkout_date;
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

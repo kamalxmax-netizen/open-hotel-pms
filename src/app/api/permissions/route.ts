@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  getAuthenticatedUser,
+  assertAdminOrSupervisor,
+  type AuthUser,
+} from "@/lib/server-auth";
 
 // All PMS route prefixes selectable in the UI
 const ALL_PAGES = [
@@ -14,6 +19,7 @@ const ALL_PAGES = [
   { path: "/pms/groups", label: "Group Bookings", section: "Front Desk" },
   { path: "/pms/availability", label: "Availability", section: "Front Desk" },
   { path: "/pms/vehicles", label: "Vehicle Registry", section: "Front Desk" },
+  { path: "/pms/alerts", label: "Today's Alerts", section: "Front Desk" },
   { path: "/pms/guests", label: "Guest Profiles", section: "Client Relations" },
   { path: "/pms/rates", label: "Rate Grid", section: "Revenue" },
   { path: "/pms/revenue", label: "Revenue Report", section: "Revenue" },
@@ -65,11 +71,52 @@ const ALL_PAGES = [
   { path: "/pms/setup/permissions", label: "Permissions", section: "System" },
 ];
 
+async function requirePermissionsAccess(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  request: NextRequest
+): Promise<{ ok: true; user: AuthUser } | { ok: false; response: NextResponse }> {
+  let user: AuthUser | null;
+  try {
+    user = await getAuthenticatedUser(supabase, request);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Auth check failed";
+    return {
+      ok: false,
+      response: NextResponse.json({ error: message }, { status: 500 }),
+    };
+  }
+
+  if (!user) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    };
+  }
+
+  try {
+    await assertAdminOrSupervisor(supabase, user.id);
+  } catch (guardError) {
+    const message = guardError instanceof Error ? guardError.message : "Forbidden";
+    const status = message === "Forbidden" ? 403 : 500;
+    return {
+      ok: false,
+      response: NextResponse.json({ error: message }, { status }),
+    };
+  }
+
+  return { ok: true, user };
+}
+
 /* ─── GET /api/permissions ───────────────────────
    List all Auth users; auto-upsert profiles for any that don't have one.
+   Phase 75 Batch 1.1: admin/supervisor guard added (was unauthed — CRITICAL).
 */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient();
+
+  // Phase 75: auth gate — admin/supervisor only
+  const auth = await requirePermissionsAccess(supabase, request);
+  if (!auth.ok) return auth.response;
 
   // 1. Fetch all auth users (service role only)
   const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
@@ -114,9 +161,15 @@ export async function GET(_request: NextRequest) {
 /* ─── PATCH /api/permissions ─────────────────────
    Update allowed_pages for a profile
    Body: { profile_id: string, allowed_pages: string[] }
+   Phase 75 Batch 1.1: admin/supervisor guard added (was unauthed — CRITICAL).
 */
 export async function PATCH(request: NextRequest) {
   const supabase = createServerSupabaseClient();
+
+  // Phase 75: auth gate — admin/supervisor only
+  const auth = await requirePermissionsAccess(supabase, request);
+  if (!auth.ok) return auth.response;
+
   const body = await request.json();
   const { profile_id, allowed_pages } = body;
 

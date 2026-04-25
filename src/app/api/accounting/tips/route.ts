@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -79,6 +80,8 @@ export async function GET(request: NextRequest) {
 
     const { status, date_from, date_to, tip_type, limit, offset } = parsed.data;
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     let query = supabase
       .from("tip_ledger")

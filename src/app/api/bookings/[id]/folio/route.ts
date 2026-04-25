@@ -5,6 +5,7 @@ import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
 import type { ReservationFolioLedgerRow, ReservationFolioResponse, ReservationFolioSummary } from "@/lib/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -596,7 +597,7 @@ function normalizeLedgerRows(
   return rows.sort((a, b) => Date.parse(b.occurred_at || "") - Date.parse(a.occurred_at || ""));
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   noStore();
 
   try {
@@ -606,6 +607,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const withCheckedOutSelect = `
         id,

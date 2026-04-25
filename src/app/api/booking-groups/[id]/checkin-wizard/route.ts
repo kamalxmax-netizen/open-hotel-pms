@@ -5,6 +5,7 @@ import {
   getWizardDraft,
 } from "@/lib/group-checkin-wizard-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 function buildDefaultSelection(lines: Array<any>, businessDate: string): string[] {
@@ -38,6 +39,9 @@ export async function GET(
 ) {
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const { id: groupId } = await context.params;
 
     if (!groupId) {

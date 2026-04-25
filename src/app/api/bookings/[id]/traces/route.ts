@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { decrementLoanItemStock } from "@/lib/loan-item-stock";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -12,6 +13,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     noStore();
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, req);
+        if (auth.error) return auth.error;
+
         const kind = req.nextUrl.searchParams.get("kind") ?? "all";
 
         let query = supabase

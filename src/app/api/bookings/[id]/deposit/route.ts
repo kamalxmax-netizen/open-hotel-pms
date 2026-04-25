@@ -3,6 +3,7 @@ import {
     parseDepositPayloadLines,
 } from "@/lib/deposit-ledger";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { fromSatang, toSatang } from "@/lib/money";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -150,9 +151,11 @@ async function assertDepositEditable(
 }
 
 /* ─── GET — fetch current deposit status ─────────── */
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, { params }: Params) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
         const { data, error } = await supabase
             .from("reservations")
             .select("id, booking_code, guest_name, deposit_amount, deposit_paid_at, deposit_note, total_price")

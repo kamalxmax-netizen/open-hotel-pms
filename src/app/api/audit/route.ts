@@ -105,15 +105,14 @@ function shapeAuditRows(rows: any[]): AuditRow[] {
   });
 }
 
-function applySearch(rows: AuditRow[], term: string | undefined): AuditRow[] {
-  const needle = String(term ?? "").trim().toLowerCase();
-  if (!needle) return rows;
-  return rows.filter((row) => {
-    const entity = row.entity_id.toLowerCase();
-    const action = row.action.toLowerCase();
-    const note = String(row.note ?? "").toLowerCase();
-    return entity.includes(needle) || action.includes(needle) || note.includes(needle);
-  });
+// Escape user input for use inside a PostgREST .or() ilike quoted value while
+// preserving literal substring semantics (parity with /api/audit/export).
+function escapeOrValue(value: string): string {
+  const ilikeEscaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+  return ilikeEscaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export async function GET(request: NextRequest) {
@@ -151,47 +150,72 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = supabase
-      .from("audit_logs")
-      .select(
-        "id, actor_user_id, action, entity_type, entity_id, before_json, after_json, source, note, business_date, created_at, profiles:actor_user_id(full_name)"
-      )
-      .gte("business_date", dateFrom)
-      .lte("business_date", dateTo)
-      .order("created_at", { ascending: false })
-      .limit(MAX_SCAN_ROWS);
+    const buildBaseQuery = () => {
+      let query = supabase
+        .from("audit_logs")
+        .select(
+          "id, actor_user_id, action, entity_type, entity_id, before_json, after_json, source, note, business_date, created_at, profiles:actor_user_id(full_name)"
+        )
+        .gte("business_date", dateFrom)
+        .lte("business_date", dateTo)
+        .order("created_at", { ascending: false });
 
-    if (queryData.entity_type) query = query.eq("entity_type", queryData.entity_type);
-    if (queryData.action) query = query.eq("action", queryData.action);
-    if (queryData.actor_user_id) query = query.eq("actor_user_id", queryData.actor_user_id);
+      if (queryData.entity_type) query = query.eq("entity_type", queryData.entity_type);
+      if (queryData.action) query = query.eq("action", queryData.action);
+      if (queryData.actor_user_id) query = query.eq("actor_user_id", queryData.actor_user_id);
 
-    const { data, error } = await query;
+      return query;
+    };
+
+    const rawSearch = (queryData.search ?? "").trim();
+    const hasSearch = rawSearch.length > 0;
+    let rowsQuery = buildBaseQuery();
+    if (hasSearch) {
+      const searchValue = escapeOrValue(rawSearch);
+      rowsQuery = rowsQuery.or(
+        `entity_id.ilike."%${searchValue}%",action.ilike."%${searchValue}%",note.ilike."%${searchValue}%"`
+      );
+    }
+
+    const { data, error } = await rowsQuery.limit(MAX_SCAN_ROWS);
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     const shaped = shapeAuditRows((data ?? []) as any[]);
     const grouped = filterAuditRowsByGroup(shaped, queryData.group);
-    const filtered = applySearch(grouped, queryData.search);
 
-    const total = filtered.length;
+    const total = grouped.length;
     const page = queryData.page;
     const perPage = queryData.per_page;
     const offset = (page - 1) * perPage;
-    const pageRows = filtered.slice(offset, offset + perPage);
+    const pageRows = grouped.slice(offset, offset + perPage);
     const totalPages = total > 0 ? Math.ceil(total / perPage) : 0;
+
+    let filterSourceRows = grouped;
+    if (page === 1 && hasSearch) {
+      const { data: metaData, error: metaError } = await buildBaseQuery().limit(MAX_SCAN_ROWS);
+      if (metaError) {
+        return NextResponse.json({ success: false, error: metaError.message }, { status: 500 });
+      }
+
+      filterSourceRows = filterAuditRowsByGroup(
+        shapeAuditRows((metaData ?? []) as any[]),
+        queryData.group
+      );
+    }
 
     const filters =
       page === 1
         ? {
-            available_actions: Array.from(new Set(grouped.map((row) => row.action)))
+            available_actions: Array.from(new Set(filterSourceRows.map((row) => row.action)))
               .filter(Boolean)
               .sort((a, b) => a.localeCompare(b)),
-            available_entity_types: Array.from(new Set(grouped.map((row) => row.entity_type)))
+            available_entity_types: Array.from(new Set(filterSourceRows.map((row) => row.entity_type)))
               .filter(Boolean)
               .sort((a, b) => a.localeCompare(b)),
             available_actors: Array.from(
-              grouped.reduce((acc, row) => {
+              filterSourceRows.reduce((acc, row) => {
                 if (!row.actor_user_id) return acc;
                 if (!acc.has(row.actor_user_id)) {
                   acc.set(row.actor_user_id, {
@@ -224,4 +248,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-

@@ -1010,14 +1010,16 @@ export async function simulateDynamicRules(
   const roomTypeIds = Array.from(
     new Set(effectiveGroups.flatMap((group) => group.members.map((member) => member.room_type_id)))
   );
-  const [settings, roomMeta, basePriceByType, occByType] = await Promise.all([
+  const [settings, roomMeta] = await Promise.all([
     fetchDynamicSettings(supabase),
     fetchRoomTypeMeta(supabase, roomTypeIds),
-    fetchRoomTypeMeta(supabase, roomTypeIds).then((meta) => loadBasePricesByRoomType(supabase, stayDate, meta)),
-    fetchRoomTypeMeta(supabase, roomTypeIds).then((meta) => loadOccupancyByRoomType(supabase, stayDate, meta)),
+  ]);
+  const [basePriceByType, occByType] = await Promise.all([
+    loadBasePricesByRoomType(supabase, stayDate, roomMeta),
+    loadOccupancyByRoomType(supabase, stayDate, roomMeta),
   ]);
 
-  const roomMetaResolved = await fetchRoomTypeMeta(supabase, roomTypeIds);
+  const roomMetaResolved = roomMeta;
   const totalBooked = Array.from(occByType.values()).reduce((sum, item) => sum + item.booked, 0);
   const totalRooms = Array.from(occByType.values()).reduce((sum, item) => sum + item.total, 0);
   const hotelOcc = {

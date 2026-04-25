@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffAuth } from "@/lib/server-auth";
 import type { GuestStaySummaryResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -49,6 +50,8 @@ export async function GET(
 
     const { id: guestProfileId, reservationId } = parsed.data;
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, _request);
+    if (auth.error) return auth.error;
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

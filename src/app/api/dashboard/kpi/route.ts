@@ -2,7 +2,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DashboardKPI } from "@/lib/types";
 import { getNightAuditSettings } from "@/lib/night-audit";
 import { collectSameRoomLinkedContinuationReservationIds } from "@/lib/linked-stay-continuity";
-import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -42,9 +43,12 @@ type DashboardKPIResponse = DashboardKPI & {
   departures_preview: PreviewItem[];
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const settings = await getNightAuditSettings(supabase);
     const businessDate = settings.businessDate;
     const calendarDate = toLocalDate(new Date(), settings.hotelTimezone);
