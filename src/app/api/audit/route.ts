@@ -105,11 +105,14 @@ function shapeAuditRows(rows: any[]): AuditRow[] {
   });
 }
 
-// Escape user input for use inside a PostgREST .or() ilike quoted value.
-// Inside "..." only backslash and double quote need escaping; commas and
-// parentheses remain literal instead of becoming .or() grammar.
+// Escape user input for use inside a PostgREST .or() ilike quoted value while
+// preserving literal substring semantics (parity with /api/audit/export).
 function escapeOrValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const ilikeEscaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+  return ilikeEscaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export async function GET(request: NextRequest) {
