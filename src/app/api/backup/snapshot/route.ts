@@ -13,7 +13,6 @@ export const fetchCache = "force-no-store";
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
-
     await authorizeOfflineSnapshotRequest(supabase, request);
 
     const snapshot = await getLatestSnapshot(supabase);
