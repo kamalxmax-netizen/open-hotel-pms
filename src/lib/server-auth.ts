@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import {
   DEFAULT_DENY_ROLES,
+  KNOWN_USER_ROLES,
   type RequireStaffAuthOptions,
   type StaffAuthResult,
 } from "@/lib/phase75/types";
@@ -103,11 +104,15 @@ export async function requireStaffAuth(
       error: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
     };
   }
-  if (options.skipRoleCheck) {
-    return { user, role: "frontdesk" as UserRole, error: null };
-  }
   const rawRole = await getUserRole(supabase, user.id);
-  const role = (rawRole ?? "") as UserRole;
+  if (rawRole === null || !KNOWN_USER_ROLES.includes(rawRole as UserRole)) {
+    return {
+      user: null,
+      role: null,
+      error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
+    };
+  }
+  const role = rawRole as UserRole;
   const allow = options.allowRoles;
   const deny = options.denyRoles ?? DEFAULT_DENY_ROLES;
   const passes = allow ? allow.includes(role) : !deny.includes(role);

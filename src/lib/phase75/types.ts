@@ -25,12 +25,6 @@ export interface RequireStaffAuthOptions {
    * Default: `['owner']` — owner is a billing-level role with no operational access.
    */
   denyRoles?: UserRole[];
-
-  /**
-   * When true, skip the role check and only assert "authenticated".
-   * Use sparingly — only for endpoints safe for any logged-in user (rare).
-   */
-  skipRoleCheck?: boolean;
 }
 
 /**
