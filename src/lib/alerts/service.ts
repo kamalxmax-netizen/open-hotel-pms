@@ -748,6 +748,48 @@ async function fetchPaymentTotals(
   return totals;
 }
 
+async function fetchOccPercentByDate(
+  supabase: SupabaseClientLike,
+  dates: string[]
+) {
+  const uniqueDates = Array.from(new Set(dates.filter(isIsoDate)));
+  const result = new Map<string, number>(uniqueDates.map((date) => [date, 0]));
+  if (uniqueDates.length === 0) return result;
+
+  const { data: settings, error: settingsError } = await supabase
+    .from("hotel_settings")
+    .select("sellable_rooms")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (settingsError) throw new Error(settingsError.message);
+
+  const sellable = toNumber((settings as any)?.sellable_rooms);
+  if (sellable <= 0) return result;
+
+  const { data: nights, error: nightsError } = await supabase
+    .from("reservation_nights")
+    .select("stay_date")
+    .in("stay_date", uniqueDates)
+    .is("cancelled_at", null);
+
+  if (nightsError) throw new Error(nightsError.message);
+
+  const occupiedByDate = new Map<string, number>();
+  for (const row of (nights ?? []) as any[]) {
+    const stayDate = String(row.stay_date ?? "");
+    if (!result.has(stayDate)) continue;
+    occupiedByDate.set(stayDate, (occupiedByDate.get(stayDate) ?? 0) + 1);
+  }
+
+  for (const date of uniqueDates) {
+    const occupied = occupiedByDate.get(date) ?? 0;
+    result.set(date, Math.round((occupied / sellable) * 10000) / 100);
+  }
+
+  return result;
+}
+
 function buildAlertItem(
   row: AlertDailyStateRow,
   reservation: ReservationAlertRow | undefined,
@@ -1152,13 +1194,10 @@ async function getProjectedFirstEligiblePrepaymentCountsForRange(
     openRowDatesByReservation.set(reservationId, existing);
   }
 
-  const occByDate = new Map<string, number>();
-  for (const reservation of reservations) {
-    if (occByDate.has(reservation.checkin_date)) continue;
-    const { data, error } = await supabase.rpc("fn_alert_occ_for_date", { p_date: reservation.checkin_date });
-    if (error) throw new Error(error.message);
-    occByDate.set(reservation.checkin_date, toNumber(data));
-  }
+  const occByDate = await fetchOccPercentByDate(
+    supabase,
+    reservations.map((reservation) => reservation.checkin_date)
+  );
 
   for (const reservation of reservations) {
     if (!isThaiCustomer(reservation)) continue;
