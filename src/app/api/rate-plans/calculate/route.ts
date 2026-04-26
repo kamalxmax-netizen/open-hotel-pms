@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     if (ratePlanId) {
       const { data, error } = await supabase
         .from("rate_plans")
-        .select("*")
+        .select("id, code, name_en, discount_type, discount_value, min_nights, max_nights, valid_from, valid_until, is_active, apply_to_room_types")
         .eq("id", ratePlanId)
         .maybeSingle();
       if (error) {
