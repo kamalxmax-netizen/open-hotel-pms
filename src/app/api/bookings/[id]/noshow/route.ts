@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { syncBookingGroupStatusById } from "@/lib/booking-group-status";
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { clearAlertsForInactiveReservations } from "@/lib/alerts/lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
@@ -30,6 +31,23 @@ export async function POST(
             .eq("id", reservationId);
 
         if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+        try {
+            const alertCleanupCounts = await clearAlertsForInactiveReservations({
+                supabase,
+                reservationIds: [reservationId],
+                reason: "no_show",
+            });
+            console.warn("[alerts:lifecycle] cleared on no-show", {
+                reservationIds: [reservationId],
+                ...alertCleanupCounts,
+            });
+        } catch (alertCleanupError) {
+            console.error("[alerts:lifecycle] cleanup failed (no-show succeeded)", {
+                reservationIds: [reservationId],
+                error: alertCleanupError instanceof Error ? alertCleanupError.message : String(alertCleanupError),
+            });
+        }
 
         await supabase.from("audit_logs").insert({
             action: "no_show",
