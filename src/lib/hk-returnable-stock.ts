@@ -9,6 +9,8 @@ type SupabaseLike = {
 };
 
 type LedgerRow = {
+  reservation_id?: string | null;
+  room_id?: string | null;
   task_id?: string | null;
   stay_date?: string | null;
   product_id?: string | null;
@@ -19,6 +21,7 @@ type LedgerRow = {
 
 type HistoryTaskRow = {
   id?: string | null;
+  room_id?: string | null;
   stay_date?: string | null;
   checklist_snapshot?: Array<{
     item?: string | null;
@@ -42,6 +45,24 @@ type ReturnableHistoryDelivery = {
   item_name: string;
   quantity: number;
 };
+
+type ReturnableStockResult = {
+  items: ReturnableStockSummaryItem[];
+  source: "ledger" | "history" | "none";
+  ledgerRowCount: number;
+  historyDeliveries: ReturnableHistoryDelivery[];
+};
+
+type ReturnableStockCandidate = {
+  reservationId: string;
+  roomId: string;
+  checkinDate: string | null;
+  checkoutDate: string | null;
+};
+
+function candidateKey(reservationId: string, roomId: string) {
+  return `${reservationId}::${roomId}`;
+}
 
 function buildReturnableStockSummary(items: Map<string, {
   product_id: string;
@@ -85,6 +106,42 @@ function aggregateLedgerRows(rows: LedgerRow[]): ReturnableStockSummaryItem[] {
   }
 
   return buildReturnableStockSummary(totals);
+}
+
+function buildHistoryResult(historyDeliveries: ReturnableHistoryDelivery[]): ReturnableStockResult {
+  if (historyDeliveries.length === 0) {
+    return {
+      items: [],
+      source: "none",
+      ledgerRowCount: 0,
+      historyDeliveries: [],
+    };
+  }
+
+  const totals = new Map<string, {
+    product_id: string;
+    item: string;
+    delivered_total: number;
+    returned_total: number;
+  }>();
+
+  for (const delivery of historyDeliveries) {
+    const current = totals.get(delivery.product_id) ?? {
+      product_id: delivery.product_id,
+      item: delivery.item_name,
+      delivered_total: 0,
+      returned_total: 0,
+    };
+    current.delivered_total += delivery.quantity;
+    totals.set(delivery.product_id, current);
+  }
+
+  return {
+    items: buildReturnableStockSummary(totals),
+    source: "history",
+    ledgerRowCount: 0,
+    historyDeliveries,
+  };
 }
 
 function extractHistoryDeliveries(rows: HistoryTaskRow[]): ReturnableHistoryDelivery[] {
@@ -164,12 +221,7 @@ export async function getReturnableStockForReservationRoom(
     checkinDate: string | null;
     checkoutDate: string | null;
   }
-): Promise<{
-    items: ReturnableStockSummaryItem[];
-    source: "ledger" | "history" | "none";
-    ledgerRowCount: number;
-    historyDeliveries: ReturnableHistoryDelivery[];
-  }> {
+): Promise<ReturnableStockResult> {
   const ledgerRows = await loadLedgerRows(supabase, options.reservationId, options.roomId);
   if (ledgerRows.length > 0) {
     return {
@@ -187,39 +239,131 @@ export async function getReturnableStockForReservationRoom(
     options.checkoutDate
   );
   const historyDeliveries = extractHistoryDeliveries(historyRows);
-  if (historyDeliveries.length === 0) {
-    return {
-      items: [],
-      source: "none",
-      ledgerRowCount: 0,
-      historyDeliveries: [],
-    };
+  return buildHistoryResult(historyDeliveries);
+}
+
+export async function getReturnableStockForReservationRooms(
+  supabase: SupabaseLike,
+  candidates: ReturnableStockCandidate[]
+): Promise<Map<string, ReturnableStockResult>> {
+  const normalizedCandidates = candidates
+    .map((candidate) => ({
+      reservationId: String(candidate.reservationId ?? "").trim(),
+      roomId: String(candidate.roomId ?? "").trim(),
+      checkinDate: candidate.checkinDate,
+      checkoutDate: candidate.checkoutDate,
+    }))
+    .filter((candidate) => candidate.reservationId && candidate.roomId);
+
+  const resultsByRoomId = new Map<string, ReturnableStockResult>();
+  if (normalizedCandidates.length === 0) return resultsByRoomId;
+
+  const candidatesByPairKey = new Map<string, ReturnableStockCandidate>();
+  for (const candidate of normalizedCandidates) {
+    candidatesByPairKey.set(candidateKey(candidate.reservationId, candidate.roomId), candidate);
   }
 
-  const totals = new Map<string, {
-    product_id: string;
-    item: string;
-    delivered_total: number;
-    returned_total: number;
-  }>();
+  const reservationIds = Array.from(new Set(normalizedCandidates.map((candidate) => candidate.reservationId)));
+  const roomIds = Array.from(new Set(normalizedCandidates.map((candidate) => candidate.roomId)));
 
-  for (const delivery of historyDeliveries) {
-    const current = totals.get(delivery.product_id) ?? {
-      product_id: delivery.product_id,
-      item: delivery.item_name,
-      delivered_total: 0,
-      returned_total: 0,
-    };
-    current.delivered_total += delivery.quantity;
-    totals.set(delivery.product_id, current);
+  const { data: ledgerData, error: ledgerError } = await supabase
+    .from("housekeeping_amenity_ledger")
+    .select("reservation_id, room_id, task_id, stay_date, product_id, item_name, action, quantity")
+    .in("reservation_id", reservationIds)
+    .in("room_id", roomIds);
+
+  if (ledgerError) {
+    throw new Error(ledgerError.message ?? "Failed to load amenity ledger");
   }
 
-  return {
-    items: buildReturnableStockSummary(totals),
-    source: "history",
-    ledgerRowCount: 0,
-    historyDeliveries,
-  };
+  const ledgerRowsByPairKey = new Map<string, LedgerRow[]>();
+  for (const row of (ledgerData ?? []) as LedgerRow[]) {
+    const reservationId = String(row.reservation_id ?? "").trim();
+    const roomId = String(row.room_id ?? "").trim();
+    const key = candidateKey(reservationId, roomId);
+    if (!candidatesByPairKey.has(key)) continue;
+    const rows = ledgerRowsByPairKey.get(key) ?? [];
+    rows.push(row);
+    ledgerRowsByPairKey.set(key, rows);
+  }
+
+  const candidatesNeedingHistory: ReturnableStockCandidate[] = [];
+  for (const candidate of normalizedCandidates) {
+    const key = candidateKey(candidate.reservationId, candidate.roomId);
+    const ledgerRows = ledgerRowsByPairKey.get(key) ?? [];
+    if (ledgerRows.length > 0) {
+      resultsByRoomId.set(candidate.roomId, {
+        items: aggregateLedgerRows(ledgerRows),
+        source: "ledger",
+        ledgerRowCount: ledgerRows.length,
+        historyDeliveries: [],
+      });
+      continue;
+    }
+    candidatesNeedingHistory.push(candidate);
+  }
+
+  const historyCandidates = candidatesNeedingHistory.filter(
+    (candidate) => candidate.checkinDate && candidate.checkoutDate
+  );
+  if (historyCandidates.length === 0) {
+    for (const candidate of candidatesNeedingHistory) {
+      resultsByRoomId.set(candidate.roomId, {
+        items: [],
+        source: "none",
+        ledgerRowCount: 0,
+        historyDeliveries: [],
+      });
+    }
+    return resultsByRoomId;
+  }
+
+  const minCheckinDate = historyCandidates
+    .map((candidate) => candidate.checkinDate as string)
+    .sort()[0];
+  const maxCheckoutDate = historyCandidates
+    .map((candidate) => candidate.checkoutDate as string)
+    .sort()
+    .at(-1) as string;
+  const historyRoomIds = Array.from(new Set(historyCandidates.map((candidate) => candidate.roomId)));
+
+  const { data: historyData, error: historyError } = await supabase
+    .from("housekeeping_tasks")
+    .select("id, room_id, stay_date, checklist_snapshot")
+    .in("room_id", historyRoomIds)
+    .gte("stay_date", minCheckinDate)
+    .lt("stay_date", maxCheckoutDate)
+    .in("status", ["cleaned", "approved"]);
+
+  if (historyError) {
+    throw new Error(historyError.message ?? "Failed to load housekeeping history");
+  }
+
+  const historyRows = (historyData ?? []) as HistoryTaskRow[];
+  for (const candidate of candidatesNeedingHistory) {
+    if (!candidate.checkinDate || !candidate.checkoutDate) {
+      resultsByRoomId.set(candidate.roomId, {
+        items: [],
+        source: "none",
+        ledgerRowCount: 0,
+        historyDeliveries: [],
+      });
+      continue;
+    }
+
+    const candidateHistoryRows = historyRows.filter((row) => {
+      const roomId = String(row.room_id ?? "").trim();
+      const stayDate = String(row.stay_date ?? "").trim();
+      return (
+        roomId === candidate.roomId &&
+        stayDate >= candidate.checkinDate! &&
+        stayDate < candidate.checkoutDate!
+      );
+    });
+    resultsByRoomId.set(candidate.roomId, buildHistoryResult(extractHistoryDeliveries(candidateHistoryRows)));
+  }
+
+  return resultsByRoomId;
 }
 
 export async function backfillReturnableAmenityLedgerIfMissing(
