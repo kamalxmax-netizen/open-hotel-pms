@@ -11,7 +11,7 @@ import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { SignatureDisplay } from "@/components/linen/signature-display";
 import { StatusBadge } from "@/components/linen/status-badge";
-import { formatLinenSummaryLines, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 export default function BatchDetailPage({ params }: { params: { id: string } }) {
     const { data, isLoading, mutate } = useLinenBatchDetail(params.id);
@@ -30,6 +30,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const rewashRows = toRewashSummaryRows(data.rewash_events ?? []);
     const rewashTotal = rewashRows.reduce((sum, item) => sum + item.qty, 0);
     const returnRows = toReturnSummaryRows(data.events ?? [], [...items, ...returnSources]);
+    const rewashReturnRows = toResolvedRewashSummaryRows(data.resolved_rewash_events ?? []);
     const summaryText = (() => {
         const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
@@ -49,6 +50,9 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
         }
         if (returns.length > 0) {
             text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+        }
+        if (rewashReturnRows.length > 0) {
+            text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturnRows);
         }
         return text;
     })();
@@ -118,7 +122,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">ร้านซักเซ็นรับ</h1></div>
                 </div>
-                <BatchStepVendorSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} pendingItems={[]} onNext={handleNext} />
+                <BatchStepVendorSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} rewashReturnSummary={rewashReturnRows} pendingItems={[]} onNext={handleNext} />
             </div>
         );
     }
@@ -132,7 +136,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">FO เซ็นรับจบ</h1></div>
                 </div>
-                <BatchStepFoSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} onDone={handleDone} />
+                <BatchStepFoSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} rewashReturnSummary={rewashReturnRows} onDone={handleDone} />
             </div>
         );
     }
@@ -144,6 +148,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
         ? returnRows
         : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
     const returnTotal = detailReturnRows.reduce((sum, item) => sum + item.qty, 0);
+    const rewashReturnTotal = rewashReturnRows.reduce((sum, item) => sum + item.qty, 0);
 
     return (
         <div className="p-4 md:p-8 max-w-2xl mx-auto pb-20">
@@ -177,7 +182,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     <h3 className="font-semibold text-slate-800 dark:text-slate-200">สรุปจำนวนผ้า</h3>
                 </div>
                 <div className="p-0 border-b border-slate-100 dark:border-slate-800">
-                    <div className={`grid ${rewashTotal > 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-3"} divide-x divide-slate-100 dark:divide-slate-800`}>
+                    <div className={`grid ${rewashTotal > 0 || rewashReturnTotal > 0 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-3"} divide-x divide-slate-100 dark:divide-slate-800`}>
                         <div className="p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">ส่งซัก</p>
                             <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{dirtyTotal}</p>
@@ -196,6 +201,12 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                             <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">รับคืน</p>
                             <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{returnTotal}</p>
                         </div>
+                        {rewashReturnTotal > 0 && (
+                            <div className="p-4 text-center bg-fuchsia-50/30 dark:bg-fuchsia-500/5">
+                                <p className="text-xs text-fuchsia-600 dark:text-fuchsia-400 mb-1">รับคืน Rewash</p>
+                                <p className="text-2xl font-bold text-fuchsia-700 dark:text-fuchsia-500">{rewashReturnTotal}</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -234,6 +245,19 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                                 <div key={`detail-return-${index}`} className="flex justify-between items-center py-1 text-sm">
                                     <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
                                     <span className="font-bold text-emerald-700 dark:text-emerald-300">{item.qty}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {rewashReturnRows.length > 0 && (
+                        <div className="mt-3 rounded-lg border border-fuchsia-100 bg-fuchsia-50/50 p-3 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/20">
+                            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-fuchsia-600 dark:text-fuchsia-300">
+                                รับคืนผ้าซักใหม่
+                            </div>
+                            {rewashReturnRows.map((item, index) => (
+                                <div key={`detail-rewash-return-${index}`} className="flex justify-between items-center py-1 text-sm">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                                    <span className="font-bold text-fuchsia-700 dark:text-fuchsia-300">{item.qty}</span>
                                 </div>
                             ))}
                         </div>

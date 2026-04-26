@@ -10,10 +10,11 @@ interface BatchStepFoSignProps {
     items: LaundryBatchItem[];
     rewashEvents?: LaundryRewashEvent[];
     returnSummary?: { name: string; qty: number }[];
+    rewashReturnSummary?: { name: string; qty: number }[];
     onDone: (token: string) => void;
 }
 
-export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary = [], onDone }: BatchStepFoSignProps) {
+export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary = [], rewashReturnSummary = [], onDone }: BatchStepFoSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,6 +27,7 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
         return items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
     }, [items, returnSummary]);
     const returnTotal = useMemo(() => returnRows.reduce((sum, item) => sum + item.qty, 0), [returnRows]);
+    const rewashReturnTotal = useMemo(() => rewashReturnSummary.reduce((sum, item) => sum + item.qty, 0), [rewashReturnSummary]);
     
     // Simplistic check for complete/partial
     const isComplete = useMemo(() => {
@@ -140,6 +142,22 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
                                             <span className="font-semibold text-emerald-600 dark:text-emerald-300">{item.qty}</span>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                            {rewashReturnTotal > 0 && (
+                                <div className="border-t border-slate-100 dark:border-slate-700 pt-2">
+                                    <div className="flex justify-between">
+                                        <span>รับคืนผ้าซักใหม่</span>
+                                        <span className="font-bold text-fuchsia-600 dark:text-fuchsia-400">{rewashReturnTotal} ชิ้น</span>
+                                    </div>
+                                    <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                        {rewashReturnSummary.map((item, index) => (
+                                            <div key={`fo-rewash-return-${index}`} className="flex justify-between gap-3">
+                                                <span>{item.name}</span>
+                                                <span className="font-semibold text-fuchsia-600 dark:text-fuchsia-300">{item.qty}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

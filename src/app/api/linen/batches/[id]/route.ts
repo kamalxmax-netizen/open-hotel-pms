@@ -13,6 +13,14 @@ const dirtyItemsSchema = z.array(z.object({
   sent_by_hotel: z.coerce.number().int().min(0),
 })).min(1);
 
+const rewashItemsSchema = z.array(z.object({
+  linen_item_id: z.coerce.number().int().positive(),
+  is_dayuse: z.boolean().optional(),
+  qty: z.coerce.number().int().positive(),
+  photo_keys: z.array(z.string().trim().min(1)).min(1),
+  note: z.string().trim().optional().nullable(),
+})).optional();
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { supabase } = await requireLinenAccess(request);
@@ -27,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { supabase } = await requireLinenAccess(request);
+    const { supabase, actor } = await requireLinenAccess(request);
     const body = await request.json().catch(() => ({}));
 
     if (Array.isArray(body.items)) {
@@ -35,7 +43,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       if (!parsed.success) {
         return NextResponse.json({ success: false, error: "Invalid items payload.", details: parsed.error.flatten() }, { status: 400 });
       }
-      const data = await updateLaundryBatchDirtyItems(supabase, params.id, { items: parsed.data });
+      const parsedRewash = rewashItemsSchema.safeParse(body.rewash_items);
+      if (!parsedRewash.success) {
+        return NextResponse.json({ success: false, error: "Invalid rewash_items payload.", details: parsedRewash.error.flatten() }, { status: 400 });
+      }
+      const data = await updateLaundryBatchDirtyItems(supabase, params.id, {
+        items: parsed.data,
+        rewashItems: parsedRewash.data,
+        createdBy: actor.userId,
+      });
       return NextResponse.json({ success: true, data });
     }
 

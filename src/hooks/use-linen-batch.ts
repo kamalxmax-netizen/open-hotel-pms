@@ -15,6 +15,7 @@ type LinenBatchDetail = {
   batch: LaundryBatch;
   items: LaundryBatchItem[];
   rewash_events?: LaundryRewashEvent[];
+  resolved_rewash_events?: LaundryRewashEvent[];
   events?: LaundryBatchEvent[];
   tokens?: LaundryVendorToken[];
   return_sources?: LaundryReturnSourceItem[];

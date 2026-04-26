@@ -7,6 +7,7 @@ import {
   type PendingResolveInput,
   type ReturnItemInput,
 } from "@/lib/linen/pending-service";
+import { createRewashEvents } from "@/lib/linen/rewash";
 
 export class LinenBatchError extends Error {
   status: number;
@@ -360,6 +361,43 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
   if (rewashRes.error && rewashRes.error.code !== "42P01") throw new Error(rewashRes.error.message);
   if (editLogRes.error && editLogRes.error.code !== "42P01") throw new Error(editLogRes.error.message);
 
+  const eventRows = eventsRes.data ?? [];
+  const resolvedRewashRefs = eventRows
+    .filter((event: any) => event.event_type === "rewash_resolved")
+    .map((event: any) => ({
+      event_id: event.id,
+      rewash_event_id: Number(event.data?.rewash_event_id ?? 0),
+      resolved_qty: Number(event.data?.resolved_qty ?? 0),
+      resolved_at: event.created_at,
+    }))
+    .filter((event) => event.rewash_event_id > 0 && event.resolved_qty > 0);
+
+  let resolvedRewashEvents: any[] = [];
+  if (resolvedRewashRefs.length > 0) {
+    const { data: resolvedRewashRows, error: resolvedRewashError } = await supabase
+      .from("laundry_rewash_events")
+      .select("*, linen_items(item_number, name_th)")
+      .in("id", [...new Set(resolvedRewashRefs.map((event) => event.rewash_event_id))]);
+    if (resolvedRewashError && resolvedRewashError.code !== "42P01") throw new Error(resolvedRewashError.message);
+
+    const rowById = new Map((resolvedRewashRows ?? []).map((row: any) => [Number(row.id), row]));
+    resolvedRewashEvents = resolvedRewashRefs
+      .map((event) => {
+        const row = rowById.get(event.rewash_event_id);
+        if (!row) return null;
+        return {
+          ...row,
+          id: `${event.event_id}-${event.rewash_event_id}`,
+          rewash_event_id: event.rewash_event_id,
+          resolved_qty: event.resolved_qty,
+          resolved_at: event.resolved_at,
+          item_number: row.linen_items?.item_number,
+          name_th: row.linen_items?.name_th,
+        };
+      })
+      .filter(Boolean);
+  }
+
   const returnSources = (returnSourcesRes.data ?? [])
     .map((row: any) => {
       const sentQty = Number(row.sent_by_hotel ?? 0);
@@ -388,7 +426,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
       item_number: row.linen_items?.item_number,
       name_th: row.linen_items?.name_th,
     })),
-    events: eventsRes.data ?? [],
+    events: eventRows,
     tokens: tokensRes.data ?? [],
     return_sources: returnSources,
     rewash_events: (rewashRes.data ?? []).map((row: any) => ({
@@ -396,6 +434,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
       item_number: row.linen_items?.item_number,
       name_th: row.linen_items?.name_th,
     })),
+    resolved_rewash_events: resolvedRewashEvents,
     edit_audit_log: editLogRes.data ?? [],
   };
 }
@@ -434,7 +473,11 @@ export async function createLaundryBatch(supabase: SupabaseClient, input: Create
   return { ...detail, rewash_event_ids: (rpcData as any)?.rewash_event_ids ?? [] };
 }
 
-export async function updateLaundryBatchDirtyItems(supabase: SupabaseClient, batchId: string, input: { items: CreateBatchItemInput[] }) {
+export async function updateLaundryBatchDirtyItems(
+  supabase: SupabaseClient,
+  batchId: string,
+  input: { items: CreateBatchItemInput[]; rewashItems?: CreateBatchRewashItemInput[]; createdBy?: string | null }
+) {
   if (!Array.isArray(input.items) || input.items.length === 0) throw new LinenBatchError("items are required.", 400);
 
   const detail = await getLaundryBatchDetail(supabase, batchId);
@@ -465,8 +508,17 @@ export async function updateLaundryBatchDirtyItems(supabase: SupabaseClient, bat
 
   await logEvent(supabase, batchId, "fo_dirty_counted", {
     actorRole: "fo",
-    data: { item_count: rows.length, edited: true },
+    data: { item_count: rows.length, edited: true, rewash_item_count: input.rewashItems?.length ?? 0 },
   });
+
+  if ((input.rewashItems?.length ?? 0) > 0) {
+    if (!input.createdBy) throw new LinenBatchError("created_by is required for rewash items.", 400);
+    await createRewashEvents(supabase, {
+      batchId,
+      createdBy: input.createdBy,
+      items: input.rewashItems ?? [],
+    });
+  }
 
   const nextDetail = await getLaundryBatchDetail(supabase, batchId);
   return { ...nextDetail, items: items ?? nextDetail.items };

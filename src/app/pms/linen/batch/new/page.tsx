@@ -8,7 +8,7 @@ import { BatchStepVendorSign } from "@/components/linen/batch-step-vendor-sign";
 import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { useLinenBatchDetail } from "@/hooks/use-linen-batch";
-import { formatLinenSummaryLines, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 export default function NewBatchWizardPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -17,13 +17,14 @@ export default function NewBatchWizardPage() {
     const [returnSummary, setReturnSummary] = useState<{ name: string; qty: number }[]>([]);
 
     // Fetch batch detail from Step 2 onwards
-    const { data, isLoading } = useLinenBatchDetail(batchId);
+    const { data, isLoading, mutate } = useLinenBatchDetail(batchId);
 
     const summaryText = useMemo(() => {
         if (!data?.batch || !data.items) return "";
         const dirty = data.items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
         const rewash = toRewashSummaryRows(data.rewash_events ?? []);
+        const rewashReturns = toResolvedRewashSummaryRows(data.resolved_rewash_events ?? []);
         const returns = returnSummary.length > 0
             ? returnSummary
             : data.items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
@@ -41,6 +42,9 @@ export default function NewBatchWizardPage() {
         if (returns.length > 0) {
             text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
         }
+        if (rewashReturns.length > 0) {
+            text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
+        }
         return text;
     }, [data, returnSummary]);
 
@@ -49,8 +53,9 @@ export default function NewBatchWizardPage() {
         setStep(2);
     };
 
-    const handleStep2Done = (summary: { name: string; qty: number }[] = []) => {
+    const handleStep2Done = async (summary: { name: string; qty: number }[] = []) => {
         setReturnSummary(summary);
+        await mutate();
         setStep(3);
     };
 
@@ -110,13 +115,21 @@ export default function NewBatchWizardPage() {
                         batchId={batchId} 
                         items={data.items} 
                         rewashEvents={data.rewash_events ?? []}
+                        rewashReturnSummary={toResolvedRewashSummaryRows(data.resolved_rewash_events ?? [])}
                         pendingItems={[]} 
                         onNext={handleStep3Done} 
                     />
                 )}
 
                 {step === 4 && batchId && data && !isLoading && (
-                    <BatchStepFoSign batchId={batchId} items={data.items} rewashEvents={data.rewash_events ?? []} onDone={handleStep4Done} />
+                    <BatchStepFoSign
+                        batchId={batchId}
+                        items={data.items}
+                        rewashEvents={data.rewash_events ?? []}
+                        returnSummary={returnSummary}
+                        rewashReturnSummary={toResolvedRewashSummaryRows(data.resolved_rewash_events ?? [])}
+                        onDone={handleStep4Done}
+                    />
                 )}
 
                 {step === 5 && vendorToken && (
