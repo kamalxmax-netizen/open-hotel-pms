@@ -24,7 +24,10 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
     const [isRewashSheetOpen, setIsRewashSheetOpen] = useState(false);
     const [isResolvingRewash, setIsResolvingRewash] = useState<Record<string, boolean>>({});
 
-    const pendingRewash = rwData?.events || [];
+    const pendingRewash = useMemo(
+        () => (rwData?.events || []).filter((event) => String(event.sent_in_batch_id) !== String(batchId)),
+        [batchId, rwData?.events]
+    );
 
     // Group pending items by date
     const pendingByDate = useMemo(() => {
@@ -98,10 +101,51 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
         }
     };
 
+    const getPendingRewashReturns = () => pendingRewash
+        .map((rw) => {
+            const remainingQty = Math.max(
+                0,
+                Number((rw as any).remaining_qty ?? Number(rw.qty ?? 0) - Number(rw.resolved_qty ?? 0))
+            );
+            const qty = Math.min(remainingQty, Math.max(0, parseInt(rewashQtys[String(rw.id)] || "0", 10) || 0));
+            return { id: String(rw.id), qty };
+        })
+        .filter((item) => item.qty > 0);
+
+    const resolveTypedRewashReturns = async () => {
+        const rewashReturns = getPendingRewashReturns();
+        if (rewashReturns.length === 0) return;
+
+        await Promise.all(rewashReturns.map(async (item) => {
+            setIsResolvingRewash((prev) => ({ ...prev, [item.id]: true }));
+            const res = await fetch(`/api/linen/rewash/${item.id}/resolve`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    resolved_in_batch_id: batchId,
+                    resolved_qty: item.qty,
+                }),
+            });
+            const result = await res.json().catch(() => null);
+            if (!res.ok || result?.success === false) {
+                throw new Error(result?.error || "Failed to resolve rewash");
+            }
+        }));
+
+        setRewashQtys((prev) => {
+            const next = { ...prev };
+            for (const item of rewashReturns) delete next[item.id];
+            return next;
+        });
+        await mutateRewash();
+    };
+
     const handleSubmit = async () => {
         if (!isComplete) return;
         setIsSubmitting(true);
         try {
+            await resolveTypedRewashReturns();
+
             const returnItemsPayload = returnSources.map(item => ({
                 source_batch_id: item.source_batch_id,
                 linen_item_id: item.linen_item_id,
@@ -134,6 +178,7 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
             alert("เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่");
         } finally {
             setIsSubmitting(false);
+            setIsResolvingRewash({});
         }
     };
 
