@@ -1,6 +1,7 @@
 import { getNightAuditSettings } from "@/lib/night-audit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { clearAlertsForInactiveReservations } from "@/lib/alerts/lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -78,6 +79,23 @@ export async function POST(request: NextRequest, context: { params: { id: string
 
     if (updateReservationError) {
       return NextResponse.json({ success: false, error: updateReservationError.message }, { status: 500 });
+    }
+
+    try {
+      const alertCleanupCounts = await clearAlertsForInactiveReservations({
+        supabase,
+        reservationIds: [reservationId],
+        reason: "no_show",
+      });
+      console.warn("[alerts:lifecycle] cleared on no-show", {
+        reservationIds: [reservationId],
+        ...alertCleanupCounts,
+      });
+    } catch (alertCleanupError) {
+      console.error("[alerts:lifecycle] cleanup failed (no-show succeeded)", {
+        reservationIds: [reservationId],
+        error: alertCleanupError instanceof Error ? alertCleanupError.message : String(alertCleanupError),
+      });
     }
 
     const { error: cancelNightsError } = await supabase

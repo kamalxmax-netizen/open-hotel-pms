@@ -13,6 +13,7 @@ import { computePrepaidNetAmount, suggestRefundMethod } from "@/lib/settlement-p
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
 import { markRoomDirtyTask } from "@/lib/hk-dirty";
+import { clearAlertsForInactiveReservations } from "@/lib/alerts/lifecycle";
 
 const cancelSchema = z.object({
   cancel_reason: z.string().min(1).optional(),
@@ -468,6 +469,27 @@ export async function POST(
   }
 
   const cancelledReservationIds = [reservationId, ...linkedCancelled.map((row) => row.id)];
+
+  try {
+    const alertCleanupCounts = await clearAlertsForInactiveReservations({
+      supabase,
+      reservationIds: cancelledReservationIds,
+      reason: "cancelled",
+    });
+    console.warn("[alerts:lifecycle] cleared on cancel", {
+      reservationIds: cancelledReservationIds,
+      ...alertCleanupCounts,
+    });
+  } catch (alertCleanupError) {
+    const warningMessage = `Cancellation succeeded, but failed to clear alerts: ${
+      alertCleanupError instanceof Error ? alertCleanupError.message : String(alertCleanupError)
+    }`;
+    cancellationWarnings.push(warningMessage);
+    console.error("[alerts:lifecycle] cleanup failed (cancel succeeded)", {
+      reservationIds: cancelledReservationIds,
+      error: alertCleanupError instanceof Error ? alertCleanupError.message : String(alertCleanupError),
+    });
+  }
 
   // When cancelling a child without cascade, auto-unlink it from the parent
   // so the linked stay group stays clean (cancelled children should not appear in linked stay).
