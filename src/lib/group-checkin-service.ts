@@ -3,7 +3,6 @@ import { normalizeAuditSource } from "@/lib/audit-utils";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { extractBookedNameFromProfileNotes } from "@/lib/guest-name-match";
-import { assertPrimaryGuestAvailableForCheckin } from "@/lib/guest-primary-checkin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card";
@@ -16,6 +15,28 @@ const ROOM_OCCUPIED_INHOUSE_CODE = "ROOM_OCCUPIED_INHOUSE";
 const PAYMENT_METHODS = new Set<PaymentMethod>(["cash", "transfer", "credit_card"]);
 
 type SupabaseClientLike = ReturnType<typeof createServerSupabaseClient>;
+
+type ValidationResult = { ok: true } | { ok: false; error: string; code: string };
+
+type GroupCheckinValidationCandidate = {
+  reservationId: string;
+  roomId: string;
+  guestProfileId: string;
+  reservation: any;
+};
+
+type RoomConflictRow = {
+  id: string;
+  booking_code: string | null;
+  guest_name: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
+  checked_in_at: unknown;
+};
+
+type HkReadinessResult =
+  | { ok: true; taskId?: string; status?: string }
+  | { ok: false; error: string; code: "hk_not_ready" };
 
 export type MassPaymentInput = {
   method: PaymentMethod;
@@ -121,6 +142,321 @@ function isValidHHmm(value: string): boolean {
 function toNonNegativeMoney(value: unknown): { satang: number; amount: number } {
   const satang = toSatang(value);
   return { satang, amount: fromSatang(satang) };
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+function buildRoomOccupancyFailure(conflict: RoomConflictRow, stayDate: string): ValidationResult {
+  const isDueOutToday = String(conflict.checkout_date ?? "") === stayDate;
+  const guestSuffix = conflict.guest_name ? ` ${conflict.guest_name}` : "";
+  const bookingSuffix = conflict.booking_code ? ` (${conflict.booking_code})` : "";
+  const occupiedBy = isDueOutToday ? "due-out guest" : "in-house guest";
+  return {
+    ok: false,
+    error: `Room is still occupied by ${occupiedBy}${guestSuffix}${bookingSuffix}. Save Draft first, then check in again after checkout and housekeeping approval.`,
+    code: isDueOutToday ? ROOM_OCCUPIED_BACK_TO_BACK_CODE : ROOM_OCCUPIED_INHOUSE_CODE,
+  };
+}
+
+async function loadBulkPrimaryGuestConflicts(
+  supabase: SupabaseClientLike,
+  candidates: GroupCheckinValidationCandidate[]
+): Promise<Map<string, ValidationResult>> {
+  const result = new Map<string, ValidationResult>();
+  const profileIds = uniqueStrings(candidates.map((candidate) => candidate.guestProfileId));
+
+  for (const candidate of candidates) {
+    if (candidate.guestProfileId) result.set(candidate.reservationId, { ok: true });
+  }
+  if (profileIds.length === 0) return result;
+
+  const { data: rows, error } = await supabase
+    .from("reservation_guests")
+    .select(`
+      reservation_id,
+      guest_profile_id,
+      reservations!inner(
+        id,
+        booking_code,
+        guest_name,
+        status,
+        checked_in_at
+      )
+    `)
+    .in("guest_profile_id", profileIds)
+    .eq("role", "primary");
+
+  if (error) {
+    for (const candidate of candidates) {
+      if (candidate.guestProfileId) {
+        result.set(candidate.reservationId, {
+          ok: false,
+          error: error.message ?? "Failed to validate primary guest check-in conflict.",
+          code: "primary_guest_already_checked_in",
+        });
+      }
+    }
+    return result;
+  }
+
+  const rowsByProfileId = new Map<string, any[]>();
+  const pendingIdsByProfileId = new Map<string, Set<string>>();
+  const checkedInReservationIds = new Set<string>();
+  const profileIdsWithLogError = new Set<string>();
+
+  for (const row of rows ?? []) {
+    const profileId = String((row as any)?.guest_profile_id ?? "");
+    const reservationId = String((row as any)?.reservation_id ?? "");
+    const reservation = Array.isArray((row as any)?.reservations)
+      ? (row as any).reservations[0]
+      : (row as any)?.reservations;
+    if (!profileId || !reservationId || !reservation) continue;
+    if (String(reservation.status ?? "") !== "active") continue;
+
+    const bucket = rowsByProfileId.get(profileId) ?? [];
+    bucket.push(row);
+    rowsByProfileId.set(profileId, bucket);
+
+    if (reservation.checked_in_at) {
+      checkedInReservationIds.add(reservationId);
+    } else {
+      const pending = pendingIdsByProfileId.get(profileId) ?? new Set<string>();
+      pending.add(reservationId);
+      pendingIdsByProfileId.set(profileId, pending);
+    }
+  }
+
+  const pendingIds = uniqueStrings(Array.from(pendingIdsByProfileId.values()).flatMap((set) => Array.from(set)));
+  if (pendingIds.length > 0) {
+    const { data: logs, error: logError } = await supabase
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("entity_type", "reservation")
+      .eq("action", "checked_in")
+      .in("entity_id", pendingIds);
+
+    if (logError) {
+      for (const candidate of candidates) {
+        const profilePendingIds = pendingIdsByProfileId.get(candidate.guestProfileId);
+        if (profilePendingIds && profilePendingIds.size > 0) {
+          profileIdsWithLogError.add(candidate.guestProfileId);
+          result.set(candidate.reservationId, {
+            ok: false,
+            error: logError.message ?? "Failed to validate checked-in audit logs.",
+            code: "primary_guest_already_checked_in",
+          });
+        }
+      }
+    } else {
+      for (const log of logs ?? []) {
+        const entityId = String((log as any)?.entity_id ?? "").trim();
+        if (entityId) checkedInReservationIds.add(entityId);
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate.guestProfileId) continue;
+    if (profileIdsWithLogError.has(candidate.guestProfileId)) continue;
+    const candidateRows = rowsByProfileId.get(candidate.guestProfileId) ?? [];
+    const conflict = candidateRows.find((row: any) => {
+      const reservationId = String(row?.reservation_id ?? "");
+      return reservationId && reservationId !== candidate.reservationId && checkedInReservationIds.has(reservationId);
+    });
+    if (!conflict) continue;
+
+    result.set(candidate.reservationId, {
+      ok: false,
+      error: "Primary guest is already checked in on another active reservation.",
+      code: "primary_guest_already_checked_in",
+    });
+  }
+
+  return result;
+}
+
+async function loadBulkRoomVacancy(
+  supabase: SupabaseClientLike,
+  candidates: GroupCheckinValidationCandidate[],
+  stayDate: string
+): Promise<Map<string, ValidationResult>> {
+  const result = new Map<string, ValidationResult>();
+  for (const candidate of candidates) result.set(candidate.reservationId, { ok: true });
+  if (candidates.length === 0) return result;
+
+  const failAll = (error: string): Map<string, ValidationResult> => {
+    for (const candidate of candidates) {
+      result.set(candidate.reservationId, { ok: false, error, code: "ROOM_OCCUPANCY_CHECK_FAILED" });
+    }
+    return result;
+  };
+
+  const { data: rowsData, error: candidatesError } = await supabase
+    .from("reservations")
+    .select("id, booking_code, guest_name, checkin_date, checkout_date, checked_in_at")
+    .eq("status", "active")
+    .lte("checkin_date", stayDate)
+    .gte("checkout_date", stayDate);
+
+  if (candidatesError) return failAll(candidatesError.message);
+
+  const rows: RoomConflictRow[] = (rowsData ?? [])
+    .map((row: any) => ({
+      id: String(row.id ?? ""),
+      booking_code: row.booking_code ? String(row.booking_code) : null,
+      guest_name: row.guest_name ? String(row.guest_name) : null,
+      checkin_date: row.checkin_date ? String(row.checkin_date) : null,
+      checkout_date: row.checkout_date ? String(row.checkout_date) : null,
+      checked_in_at: row.checked_in_at ?? null,
+    }))
+    .filter((row) => row.id);
+
+  if (rows.length === 0) return result;
+
+  const checkedInIds = new Set<string>();
+  const pendingLogLookupIds: string[] = [];
+  for (const row of rows) {
+    if (row.checked_in_at) {
+      checkedInIds.add(row.id);
+      continue;
+    }
+    if (row.checkin_date && row.checkin_date < stayDate) {
+      checkedInIds.add(row.id);
+      continue;
+    }
+    pendingLogLookupIds.push(row.id);
+  }
+
+  if (pendingLogLookupIds.length > 0) {
+    const { data: checkinLogs, error: checkinLogError } = await supabase
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("entity_type", "reservation")
+      .eq("action", "checked_in")
+      .in("entity_id", uniqueStrings(pendingLogLookupIds));
+    if (checkinLogError) return failAll(checkinLogError.message);
+
+    for (const log of checkinLogs ?? []) {
+      const id = String((log as any).entity_id ?? "");
+      if (id) checkedInIds.add(id);
+    }
+  }
+
+  const checkedInCandidateIds = rows.map((row) => row.id).filter((id) => checkedInIds.has(id));
+  if (checkedInCandidateIds.length === 0) return result;
+
+  const { data: nights, error: nightsError } = await supabase
+    .from("reservation_nights")
+    .select("reservation_id, room_id, stay_date")
+    .in("reservation_id", checkedInCandidateIds)
+    .is("cancelled_at", null)
+    .lte("stay_date", stayDate);
+
+  if (nightsError) return failAll(nightsError.message);
+
+  const latestRoomByReservation = new Map<string, { stay_date: string; room_id: string }>();
+  for (const night of nights ?? []) {
+    const reservationId = String((night as any).reservation_id ?? "");
+    const nightRoomId = String((night as any).room_id ?? "");
+    const nightDate = String((night as any).stay_date ?? "");
+    if (!reservationId || !nightRoomId || !nightDate) continue;
+    const current = latestRoomByReservation.get(reservationId);
+    if (!current || nightDate > current.stay_date) {
+      latestRoomByReservation.set(reservationId, { stay_date: nightDate, room_id: nightRoomId });
+    }
+  }
+
+  for (const candidate of candidates) {
+    const conflict = rows.find((row) => {
+      if (row.id === candidate.reservationId) return false;
+      if (!checkedInIds.has(row.id)) return false;
+      const latest = latestRoomByReservation.get(row.id);
+      return latest?.room_id === candidate.roomId;
+    });
+    if (conflict) result.set(candidate.reservationId, buildRoomOccupancyFailure(conflict, stayDate));
+  }
+
+  return result;
+}
+
+function markRoomOccupiedInVacancyMap(
+  vacancyByReservationId: Map<string, ValidationResult>,
+  candidates: GroupCheckinValidationCandidate[],
+  roomId: string,
+  conflict: RoomConflictRow,
+  stayDate: string
+): void {
+  const failure = buildRoomOccupancyFailure(conflict, stayDate);
+  for (const candidate of candidates) {
+    if (candidate.roomId === roomId) vacancyByReservationId.set(candidate.reservationId, failure);
+  }
+}
+
+async function loadBulkHkReadiness(
+  supabase: SupabaseClientLike,
+  candidates: GroupCheckinValidationCandidate[],
+  stayDate: string
+): Promise<Map<string, HkReadinessResult>> {
+  const result = new Map<string, HkReadinessResult>();
+  const roomIds = uniqueStrings(candidates.map((candidate) => candidate.roomId));
+  for (const roomId of roomIds) result.set(roomId, { ok: true });
+  if (roomIds.length === 0) return result;
+
+  const { data: hkTasks, error: hkTaskError } = await supabase
+    .from("housekeeping_tasks")
+    .select("id, room_id, status")
+    .in("room_id", roomIds)
+    .eq("stay_date", stayDate);
+
+  if (hkTaskError) {
+    for (const roomId of roomIds) {
+      result.set(roomId, { ok: false, error: hkTaskError.message, code: "hk_not_ready" });
+    }
+    return result;
+  }
+
+  const tasksByRoomId = new Map<string, any[]>();
+  for (const task of hkTasks ?? []) {
+    const roomId = String((task as any).room_id ?? "");
+    if (!roomId || !roomIds.includes(roomId)) continue;
+    const bucket = tasksByRoomId.get(roomId) ?? [];
+    bucket.push(task);
+    tasksByRoomId.set(roomId, bucket);
+  }
+
+  for (const roomId of roomIds) {
+    const tasks = tasksByRoomId.get(roomId) ?? [];
+    if (tasks.length === 0) continue;
+    if (tasks.length > 1) {
+      result.set(roomId, {
+        ok: false,
+        error: "Multiple housekeeping tasks found for room/date.",
+        code: "hk_not_ready",
+      });
+      continue;
+    }
+
+    const task = tasks[0];
+    const hkStatus = String(task.status ?? "");
+    if (HK_BLOCKED_CHECKIN_STATUSES.has(hkStatus)) {
+      result.set(roomId, {
+        ok: false,
+        error: `Room is not ready for check-in (HK status: ${hkStatus}).`,
+        code: "hk_not_ready",
+      });
+      continue;
+    }
+
+    result.set(roomId, {
+      ok: true,
+      taskId: task.id ? String(task.id) : undefined,
+      status: hkStatus,
+    });
+  }
+
+  return result;
 }
 
 export async function ensureHousekeepingReadyForCheckin(
@@ -267,15 +603,7 @@ export async function ensureRoomVacantForCheckin(
 
   if (!conflict) return { ok: true };
 
-  const isDueOutToday = String(conflict.checkout_date ?? "") === stayDate;
-  const guestSuffix = conflict.guest_name ? ` ${conflict.guest_name}` : "";
-  const bookingSuffix = conflict.booking_code ? ` (${conflict.booking_code})` : "";
-  const occupiedBy = isDueOutToday ? "due-out guest" : "in-house guest";
-  return {
-    ok: false,
-    error: `Room is still occupied by ${occupiedBy}${guestSuffix}${bookingSuffix}. Save Draft first, then check in again after checkout and housekeeping approval.`,
-    code: isDueOutToday ? ROOM_OCCUPIED_BACK_TO_BACK_CODE : ROOM_OCCUPIED_INHOUSE_CODE,
-  };
+  return buildRoomOccupancyFailure(conflict, stayDate);
 }
 
 function normalizeMassItems(rawItems: unknown[]): { items: MassItem[]; error?: string } {
@@ -400,6 +728,26 @@ export async function runGroupMassCheckin(params: {
   });
 
   const today = params.todayOverride || await resolveBusinessDate(supabase, toLocalDate(new Date()));
+  const validationCandidates: GroupCheckinValidationCandidate[] = [];
+  for (const item of items) {
+    const reservation = reservationById.get(item.reservationId);
+    if (!reservation) continue;
+    if (!reservation.booking_group_id || String(reservation.booking_group_id) !== groupId) continue;
+    if (reservation.status !== "active") continue;
+    if (strictDueIn && String(reservation.checkin_date) !== today) continue;
+    if (alreadyCheckedIn.has(item.reservationId)) continue;
+    const roomId = roomIdByReservation.get(item.reservationId) ?? null;
+    if (!roomId) continue;
+    validationCandidates.push({
+      reservationId: item.reservationId,
+      roomId,
+      guestProfileId: reservation?.guest_profile_id ? String(reservation.guest_profile_id) : "",
+      reservation,
+    });
+  }
+  const primaryGuestConflicts = await loadBulkPrimaryGuestConflicts(supabase, validationCandidates);
+  const roomVacancyByReservation = await loadBulkRoomVacancy(supabase, validationCandidates, today);
+  const hkReadinessByRoom = await loadBulkHkReadiness(supabase, validationCandidates, today);
   const results: GroupMassCheckinResultRow[] = [];
   const processedPrimaryGuestProfileIds = new Set<string>();
 
@@ -449,18 +797,13 @@ export async function runGroupMassCheckin(params: {
       continue;
     }
     if (guestProfileId) {
-      try {
-        await assertPrimaryGuestAvailableForCheckin({
-          supabase: supabase as any,
-          reservationId: item.reservationId,
-          guestProfileId,
-        });
-      } catch (error) {
+      const primaryGuestConflict = primaryGuestConflicts.get(item.reservationId) ?? { ok: true };
+      if (!primaryGuestConflict.ok) {
         results.push({
           ...resultBase,
           ok: false,
-          error: error instanceof Error ? error.message : "Primary guest check-in conflict.",
-          code: "primary_guest_already_checked_in",
+          error: primaryGuestConflict.error,
+          code: primaryGuestConflict.code,
         });
         continue;
       }
@@ -469,16 +812,41 @@ export async function runGroupMassCheckin(params: {
     const checkedInDate = item.checkedInAtDate ?? new Date();
     const checkedInAtIso = checkedInDate.toISOString();
     const checkinTime = item.checkinTime || toLocalTime(checkedInDate);
-    const roomVacant = await ensureRoomVacantForCheckin(supabase, roomId, today, item.reservationId);
+    const roomVacant = roomVacancyByReservation.get(item.reservationId) ?? { ok: true };
     if (!roomVacant.ok) {
       results.push({ ...resultBase, ok: false, error: roomVacant.error, code: roomVacant.code });
       continue;
     }
 
-    const hkReady = await ensureHousekeepingReadyForCheckin(supabase, roomId, today);
+    const hkReady = hkReadinessByRoom.get(roomId) ?? { ok: true };
     if (!hkReady.ok) {
       results.push({ ...resultBase, ok: false, error: hkReady.error, code: hkReady.code });
       continue;
+    }
+    if (hkReady.status === "cleaned" && hkReady.taskId) {
+      const approvedAt = new Date().toISOString();
+      const { error: approveError } = await supabase
+        .from("housekeeping_tasks")
+        .update({
+          status: "approved",
+          approved_at: approvedAt,
+        })
+        .eq("id", hkReady.taskId);
+
+      if (approveError) {
+        results.push({ ...resultBase, ok: false, error: approveError.message, code: "hk_not_ready" });
+        continue;
+      }
+
+      await supabase
+        .from("housekeeping_logs")
+        .insert({
+          task_id: hkReady.taskId,
+          status: "approved",
+          note: "auto-approved at group check-in",
+        });
+
+      hkReadinessByRoom.set(roomId, { ok: true, taskId: hkReady.taskId, status: "approved" });
     }
 
     const updatePayload: Record<string, any> = { checkin_time: checkinTime };
@@ -488,6 +856,8 @@ export async function runGroupMassCheckin(params: {
       updatePayload.deposit_paid_at = item.depositAmount > 0 ? checkedInAtIso : null;
     }
 
+    let checkedInAtPersisted = true;
+    let vacancyMapUpdated = false;
     const updateWithCheckedInAt = await supabase
       .from("reservations")
       .update({ ...updatePayload, checked_in_at: checkedInAtIso })
@@ -495,6 +865,7 @@ export async function runGroupMassCheckin(params: {
 
     let reservationUpdateError = updateWithCheckedInAt.error;
     if (reservationUpdateError && /checked_in_at/i.test(reservationUpdateError.message)) {
+      checkedInAtPersisted = false;
       const fallback = await supabase.from("reservations").update(updatePayload).eq("id", item.reservationId);
       reservationUpdateError = fallback.error;
     }
@@ -502,6 +873,23 @@ export async function runGroupMassCheckin(params: {
     if (reservationUpdateError) {
       results.push({ ...resultBase, ok: false, error: reservationUpdateError.message });
       continue;
+    }
+    if (checkedInAtPersisted) {
+      markRoomOccupiedInVacancyMap(
+        roomVacancyByReservation,
+        validationCandidates,
+        roomId,
+        {
+          id: item.reservationId,
+          booking_code: reservation?.booking_code ? String(reservation.booking_code) : null,
+          guest_name: reservation?.guest_name ? String(reservation.guest_name) : null,
+          checkin_date: reservation?.checkin_date ? String(reservation.checkin_date) : null,
+          checkout_date: reservation?.checkout_date ? String(reservation.checkout_date) : null,
+          checked_in_at: checkedInAtIso,
+        },
+        today
+      );
+      vacancyMapUpdated = true;
     }
 
     const folioRows: Array<Record<string, unknown>> = [];
@@ -610,6 +998,22 @@ export async function runGroupMassCheckin(params: {
 
     alreadyCheckedIn.add(item.reservationId);
     if (guestProfileId) processedPrimaryGuestProfileIds.add(guestProfileId);
+    if (!vacancyMapUpdated) {
+      markRoomOccupiedInVacancyMap(
+        roomVacancyByReservation,
+        validationCandidates,
+        roomId,
+        {
+          id: item.reservationId,
+          booking_code: reservation?.booking_code ? String(reservation.booking_code) : null,
+          guest_name: reservation?.guest_name ? String(reservation.guest_name) : null,
+          checkin_date: reservation?.checkin_date ? String(reservation.checkin_date) : null,
+          checkout_date: reservation?.checkout_date ? String(reservation.checkout_date) : null,
+          checked_in_at: checkedInAtIso,
+        },
+        today
+      );
+    }
     results.push({
       ...resultBase,
       ok: true,
