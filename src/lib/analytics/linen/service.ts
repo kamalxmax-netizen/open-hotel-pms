@@ -1,5 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calculateExpectedLinen } from "@/lib/linen/expected-calc";
+import {
+  addIsoDays,
+  computeExpectedLinenFromRows,
+  LINEN_EXPECTED_INHOUSE_SELECT,
+  LINEN_EXPECTED_ITEMS_SELECT,
+  LINEN_EXPECTED_RULES_SELECT,
+  LINEN_EXPECTED_SETUPS_SELECT,
+  LINEN_EXPECTED_TASKS_SELECT,
+  type ExpectedLinenRows,
+  type InhouseNightRow,
+  type LinenItemRow,
+  type RuleRow,
+  type SetupRow,
+  type TaskRow,
+} from "@/lib/linen/expected-calc";
 import { computeBucket } from "@/lib/analytics/variance";
 import type { AnalyticsMetric, AnalyticsQuery, AnalyticsTrendPoint } from "@/lib/analytics/types";
 import type { LinenExpectedResult } from "@/lib/types";
@@ -94,14 +108,50 @@ async function loadExpectedDailyUncached(
   supabase: SupabaseClient,
   query: AnalyticsQuery
 ): Promise<ExpectedDailyRow[]> {
-  const rows: ExpectedDailyRow[] = [];
-  for (const businessDate of listDates(query.start, query.end)) {
-    rows.push({
+  const dates = listDates(query.start, query.end);
+  if (dates.length === 0) return [];
+
+  const taskStartDate = addIsoDays(query.start, -1);
+  const nightStartDate = addIsoDays(query.start, -2);
+
+  const [itemsRes, setupsRes, rulesRes, tasksRes, inhouseRes] = await Promise.all([
+    supabase.from("linen_items").select(LINEN_EXPECTED_ITEMS_SELECT).eq("is_active", true).order("sort_order", { ascending: true }),
+    supabase.from("room_linen_setups").select(LINEN_EXPECTED_SETUPS_SELECT),
+    supabase.from("linen_usage_rules").select(LINEN_EXPECTED_RULES_SELECT),
+    supabase
+      .from("housekeeping_tasks")
+      .select(LINEN_EXPECTED_TASKS_SELECT)
+      .gte("stay_date", taskStartDate)
+      .lte("stay_date", query.end),
+    supabase
+      .from("reservation_nights")
+      .select(LINEN_EXPECTED_INHOUSE_SELECT)
+      .gte("stay_date", nightStartDate)
+      .lte("stay_date", query.end)
+      .is("cancelled_at", null),
+  ]);
+
+  if (itemsRes.error) throw new Error(itemsRes.error.message);
+  if (setupsRes.error) throw new Error(setupsRes.error.message);
+  if (rulesRes.error) throw new Error(rulesRes.error.message);
+  if (tasksRes.error) throw new Error(tasksRes.error.message);
+  if (inhouseRes.error) throw new Error(inhouseRes.error.message);
+
+  const preloadedRows: ExpectedLinenRows = {
+    items: (itemsRes.data ?? []) as LinenItemRow[],
+    setups: (setupsRes.data ?? []) as SetupRow[],
+    rules: (rulesRes.data ?? []) as RuleRow[],
+    tasks: (tasksRes.data ?? []) as TaskRow[],
+    inhouseNights: (inhouseRes.data ?? []) as InhouseNightRow[],
+  };
+
+  return dates.map((businessDate) => ({
+    businessDate,
+    expected: computeExpectedLinenFromRows(preloadedRows, {
       businessDate,
-      expected: await calculateExpectedLinen(supabase, { businessDate, roomTypeCodes: query.room_type }),
-    });
-  }
-  return rows;
+      roomTypeCodes: query.room_type,
+    }),
+  }));
 }
 
 async function loadExpectedDaily(

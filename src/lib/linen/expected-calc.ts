@@ -4,9 +4,9 @@ import type { LinenCategorySummary, LinenExpectedResult, LinenRoomCategory } fro
 const TOWEL_CHECKLIST_KEYS = ["ผ้าขนหนู"];
 const DEFAULT_CUTOFF_TIME = "11:00";
 
-type LinenItemRow = { id: number; item_number: number; name_th: string };
-type SetupRow = { room_type_code: string; linen_item_id: number; qty: number };
-type RuleRow = { category: LinenRoomCategory; linen_item_id: number; percentage: number; use_checklist: boolean };
+export type LinenItemRow = { id: number; item_number: number; name_th: string };
+export type SetupRow = { room_type_code: string; linen_item_id: number; qty: number };
+export type RuleRow = { category: LinenRoomCategory; linen_item_id: number; percentage: number; use_checklist: boolean };
 type ReservationRow = {
   id?: string;
   guest_name?: string | null;
@@ -16,7 +16,7 @@ type ReservationRow = {
   is_dayuse?: boolean | null;
 };
 
-type TaskRow = {
+export type TaskRow = {
   id: string;
   room_id: string;
   reservation_night_id?: string | null;
@@ -39,7 +39,7 @@ type TaskRow = {
   } | null;
 };
 
-type InhouseNightRow = {
+export type InhouseNightRow = {
   id: string;
   room_id: string;
   stay_date: string;
@@ -53,6 +53,33 @@ type InhouseNightRow = {
   reservations?: ReservationRow | null;
 };
 
+export type ExpectedLinenRows = {
+  items: LinenItemRow[];
+  setups: SetupRow[];
+  rules: RuleRow[];
+  tasks: TaskRow[];
+  inhouseNights: InhouseNightRow[];
+};
+
+export const LINEN_EXPECTED_ITEMS_SELECT = "id, item_number, name_th";
+export const LINEN_EXPECTED_SETUPS_SELECT = "room_type_code, linen_item_id, qty";
+export const LINEN_EXPECTED_RULES_SELECT = "category, linen_item_id, percentage, use_checklist";
+export const LINEN_EXPECTED_TASKS_SELECT = `
+        id,
+        room_id,
+        reservation_night_id,
+        stay_date,
+        status,
+        started_at,
+        finished_at,
+        approved_at,
+        is_no_service,
+        checklist_snapshot,
+        rooms(id, room_number, is_dayuse, room_types(code)),
+        reservation_nights(reservation_id, reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse))
+      `;
+export const LINEN_EXPECTED_INHOUSE_SELECT = "id, room_id, stay_date, cancelled_at, rooms(id, room_number, is_dayuse, room_types(code)), reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse)";
+
 function dateString(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -61,6 +88,10 @@ function addDays(date: string, days: number): string {
   const parsed = new Date(`${date}T00:00:00.000Z`);
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return dateString(parsed);
+}
+
+export function addIsoDays(date: string, days: number): string {
+  return addDays(date, days);
 }
 
 function bangkokCutoffIso(date: string, cutoffTime: string): string {
@@ -164,11 +195,11 @@ export async function getCurrentBusinessDate(supabase: SupabaseClient): Promise<
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : dateString(new Date());
 }
 
-export async function calculateExpectedLinen(
-  supabase: SupabaseClient,
-  options: { businessDate?: string; cutoffTime?: string; roomTypeCodes?: string[] } = {}
-): Promise<LinenExpectedResult> {
-  const businessDate = options.businessDate ?? await getCurrentBusinessDate(supabase);
+export function computeExpectedLinenFromRows(
+  rows: ExpectedLinenRows,
+  options: { businessDate: string; cutoffTime?: string; roomTypeCodes?: string[] }
+): LinenExpectedResult {
+  const businessDate = options.businessDate;
   const cutoffTime = options.cutoffTime ?? DEFAULT_CUTOFF_TIME;
   const roomTypeFilter = new Set(
     (options.roomTypeCodes ?? [])
@@ -182,47 +213,17 @@ export async function calculateExpectedLinen(
   const windowStartIso = bangkokCutoffIso(previousDate, cutoffTime);
   const windowEndIso = bangkokCutoffIso(businessDate, cutoffTime);
 
-  const [itemsRes, setupsRes, rulesRes, tasksRes, inhouseRes] = await Promise.all([
-    supabase.from("linen_items").select("id, item_number, name_th").eq("is_active", true).order("sort_order", { ascending: true }),
-    supabase.from("room_linen_setups").select("room_type_code, linen_item_id, qty"),
-    supabase.from("linen_usage_rules").select("category, linen_item_id, percentage, use_checklist"),
-    supabase
-      .from("housekeeping_tasks")
-      .select(`
-        id,
-        room_id,
-        reservation_night_id,
-        stay_date,
-        status,
-        started_at,
-        finished_at,
-        approved_at,
-        is_no_service,
-        checklist_snapshot,
-        rooms(id, room_number, is_dayuse, room_types(code)),
-        reservation_nights(reservation_id, reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse))
-      `)
-      .gte("stay_date", previousDate)
-      .lte("stay_date", businessDate),
-    supabase
-      .from("reservation_nights")
-      .select("id, room_id, stay_date, cancelled_at, rooms(id, room_number, is_dayuse, room_types(code)), reservations(id, guest_name, status, checkin_date, checkout_date, is_dayuse)")
-      .gte("stay_date", previousNightDate)
-      .lte("stay_date", businessDate)
-      .is("cancelled_at", null),
-  ]);
-
-  if (itemsRes.error) throw new Error(itemsRes.error.message);
-  if (setupsRes.error) throw new Error(setupsRes.error.message);
-  if (rulesRes.error) throw new Error(rulesRes.error.message);
-  if (tasksRes.error) throw new Error(tasksRes.error.message);
-  if (inhouseRes.error) throw new Error(inhouseRes.error.message);
-
-  const items = (itemsRes.data ?? []) as LinenItemRow[];
-  const setups = (setupsRes.data ?? []) as SetupRow[];
-  const rules = (rulesRes.data ?? []) as RuleRow[];
-  const tasks = (tasksRes.data ?? []) as TaskRow[];
-  const inhouseNights = (inhouseRes.data ?? []) as InhouseNightRow[];
+  const items = rows.items;
+  const setups = rows.setups;
+  const rules = rows.rules;
+  const tasks = rows.tasks.filter((task) => {
+    const stayDate = String(task.stay_date ?? "");
+    return stayDate >= previousDate && stayDate <= businessDate;
+  });
+  const inhouseNights = rows.inhouseNights.filter((night) => {
+    const stayDate = String(night.stay_date ?? "");
+    return stayDate >= previousNightDate && stayDate <= businessDate;
+  });
 
   const setupByRoomType = new Map<string, Map<number, number>>();
   for (const row of setups) {
@@ -341,4 +342,50 @@ export async function calculateExpectedLinen(
     })),
     category_summary: categorySummary,
   };
+}
+
+export async function calculateExpectedLinen(
+  supabase: SupabaseClient,
+  options: { businessDate?: string; cutoffTime?: string; roomTypeCodes?: string[] } = {}
+): Promise<LinenExpectedResult> {
+  const businessDate = options.businessDate ?? await getCurrentBusinessDate(supabase);
+  const cutoffTime = options.cutoffTime ?? DEFAULT_CUTOFF_TIME;
+  const previousDate = addDays(businessDate, -1);
+  // Checkout tasks dated yesterday often point to the reservation night from
+  // the night before checkout, so include one extra night for room/date lookup.
+  const previousNightDate = addDays(businessDate, -2);
+
+  const [itemsRes, setupsRes, rulesRes, tasksRes, inhouseRes] = await Promise.all([
+    supabase.from("linen_items").select(LINEN_EXPECTED_ITEMS_SELECT).eq("is_active", true).order("sort_order", { ascending: true }),
+    supabase.from("room_linen_setups").select(LINEN_EXPECTED_SETUPS_SELECT),
+    supabase.from("linen_usage_rules").select(LINEN_EXPECTED_RULES_SELECT),
+    supabase
+      .from("housekeeping_tasks")
+      .select(LINEN_EXPECTED_TASKS_SELECT)
+      .gte("stay_date", previousDate)
+      .lte("stay_date", businessDate),
+    supabase
+      .from("reservation_nights")
+      .select(LINEN_EXPECTED_INHOUSE_SELECT)
+      .gte("stay_date", previousNightDate)
+      .lte("stay_date", businessDate)
+      .is("cancelled_at", null),
+  ]);
+
+  if (itemsRes.error) throw new Error(itemsRes.error.message);
+  if (setupsRes.error) throw new Error(setupsRes.error.message);
+  if (rulesRes.error) throw new Error(rulesRes.error.message);
+  if (tasksRes.error) throw new Error(tasksRes.error.message);
+  if (inhouseRes.error) throw new Error(inhouseRes.error.message);
+
+  return computeExpectedLinenFromRows(
+    {
+      items: (itemsRes.data ?? []) as LinenItemRow[],
+      setups: (setupsRes.data ?? []) as SetupRow[],
+      rules: (rulesRes.data ?? []) as RuleRow[],
+      tasks: (tasksRes.data ?? []) as TaskRow[],
+      inhouseNights: (inhouseRes.data ?? []) as InhouseNightRow[],
+    },
+    { businessDate, cutoffTime, roomTypeCodes: options.roomTypeCodes }
+  );
 }
