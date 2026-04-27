@@ -10,11 +10,12 @@ interface MobileBatchStepFoSignProps {
     items: any[];
     rewashEvents?: any[];
     returnSummary?: { name: string; qty: number }[];
+    rewashReturnSummary?: { name: string; qty: number }[];
     onDone: (token: string) => void;
     onBack: () => void;
 }
 
-export function MobileBatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary, onDone, onBack }: MobileBatchStepFoSignProps) {
+export function MobileBatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary, rewashReturnSummary = [], onDone, onBack }: MobileBatchStepFoSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,6 +88,7 @@ export function MobileBatchStepFoSign({ batchId, items, rewashEvents = [], retur
                 <MobileBatchStepSummary title="ผ้าเก่า" items={dayuseItems} />
                 <MobileBatchStepSummary title="ผ้าซักใหม่" items={rewashItems} />
                 <MobileBatchStepSummary title="ผ้ารับคืน" items={returnItems} />
+                <MobileBatchStepSummary title="รับคืนผ้าซักใหม่" items={rewashReturnSummary} />
 
                 <div className="pt-6 border-t border-slate-100">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">✍️ ลายเซ็นพนักงาน (FO)</h3>

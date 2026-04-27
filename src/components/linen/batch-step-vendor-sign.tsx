@@ -10,12 +10,13 @@ interface BatchStepVendorSignProps {
     items: LaundryBatchItem[];
     rewashEvents?: LaundryRewashEvent[];
     returnSummary?: { name: string; qty: number }[];
+    rewashReturnSummary?: { name: string; qty: number }[];
     pendingItems: LaundryPendingItem[]; // all active global pending, or specific to what's left? 
                                         // The backend will leave pending items unresolved if they weren't checked in step 2.
     onNext: () => void;
 }
 
-export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnSummary = [], pendingItems, onNext }: BatchStepVendorSignProps) {
+export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnSummary = [], rewashReturnSummary = [], pendingItems, onNext }: BatchStepVendorSignProps) {
     const [signatureBlob, setSignatureBlob] = useState<Blob | null>(null);
     const [vendorName, setVendorName] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,6 +29,7 @@ export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnS
         if (returnSummary.length > 0) return returnSummary.reduce((sum, item) => sum + item.qty, 0);
         return items.reduce((sum, item) => sum + item.received_back, 0);
     }, [items, returnSummary]);
+    const rewashReturnTotal = useMemo(() => rewashReturnSummary.reduce((sum, item) => sum + item.qty, 0), [rewashReturnSummary]);
     // Note: If we just resolved some pending items in step 2, they will still be in pendingItems list unless we mutate SWR or wait for real backend state. 
     // We'll just show a count of any unresolved pending for simplicity or rely on server state.
     
@@ -144,6 +146,26 @@ export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnS
                                         <span className="font-medium text-slate-600 dark:text-slate-300">{i.received_back}</span>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+
+                        {rewashReturnTotal > 0 && (
+                            <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
+                                        <div className="w-2 h-2 bg-fuchsia-500 rounded-full" />
+                                        รับคืนผ้าซักใหม่
+                                    </h4>
+                                    <span className="font-bold text-lg text-fuchsia-700 dark:text-fuchsia-400">{rewashReturnTotal} ชิ้น</span>
+                                </div>
+                                <div className="mt-2 pl-4 space-y-1">
+                                    {rewashReturnSummary.map((item, index) => (
+                                        <div key={`rewash-return-${index}`} className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span>• {item.name}</span>
+                                            <span className="font-medium text-fuchsia-700 dark:text-fuchsia-300">{item.qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
                         

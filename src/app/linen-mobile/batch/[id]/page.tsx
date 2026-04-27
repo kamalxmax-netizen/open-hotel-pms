@@ -8,7 +8,7 @@ import { MobileBatchStepReturn } from "@/components/linen/mobile-batch-step-retu
 import { MobileBatchStepVendorSign } from "@/components/linen/mobile-batch-step-vendor-sign";
 import { MobileBatchStepFoSign } from "@/components/linen/mobile-batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
-import { formatLinenSummaryLines, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 type ReturnSummaryItem = { name: string; qty: number };
 
@@ -96,11 +96,11 @@ export default function MobileBatchWizardPage() {
         }
     };
 
-    const handleReturnNext = (summary: ReturnSummaryItem[] = [], qtys: Record<string, string> = {}) => {
+    const handleReturnNext = async (summary: ReturnSummaryItem[] = [], qtys: Record<string, string> = {}) => {
         setReturnSummary(summary);
         setReturnQtyDraft(qtys);
+        await mutate();
         setCurrentStep(3);
-        handleNext();
     };
 
     const reopenForEdit = async (targetStep: 1 | 2) => {
@@ -147,6 +147,7 @@ export default function MobileBatchWizardPage() {
         const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
         const rewash = toRewashSummaryRows(batchDetail.rewash_events ?? []);
+        const rewashReturns = toResolvedRewashSummaryRows(batchDetail.resolved_rewash_events ?? []);
         const eventReturns = toReturnSummaryRows(batchDetail.events ?? [], [
             ...items,
             ...(batchDetail.return_sources ?? []),
@@ -170,6 +171,9 @@ export default function MobileBatchWizardPage() {
         }
         if (returns.length > 0) {
             text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+        }
+        if (rewashReturns.length > 0) {
+            text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
         }
         
         return text;
@@ -244,6 +248,7 @@ export default function MobileBatchWizardPage() {
                         items={batchDetail.items} 
                         rewashEvents={batchDetail.rewash_events ?? []}
                         returnSummary={activeReturnSummary}
+                        rewashReturnSummary={toResolvedRewashSummaryRows(batchDetail.resolved_rewash_events ?? [])}
                         onNext={() => handleNext()}
                         onBack={() => reopenForEdit(2)}
                     />
@@ -254,6 +259,7 @@ export default function MobileBatchWizardPage() {
                         items={batchDetail.items} 
                         rewashEvents={batchDetail.rewash_events ?? []}
                         returnSummary={activeReturnSummary}
+                        rewashReturnSummary={toResolvedRewashSummaryRows(batchDetail.resolved_rewash_events ?? [])}
                         onDone={(token) => {
                             setFinalToken(token);
                             setCurrentStep(5);

@@ -4,6 +4,7 @@ export type RewashSummarySource = {
   name_th?: string | null;
   item_name_th?: string | null;
   qty?: number | string | null;
+  resolved_qty?: number | string | null;
   is_dayuse?: boolean | null;
   status?: string | null;
 };
@@ -38,6 +39,30 @@ export function toRewashSummaryRows(events: RewashSummarySource[] | null | undef
 
 export function formatLinenSummaryLines(rows: Array<{ name: string; qty: number }>) {
   return rows.map((row) => `${row.name}: ${row.qty} ชิ้น`).join("\n");
+}
+
+export function toResolvedRewashSummaryRows(events: RewashSummarySource[] | null | undefined): LinenSummaryRow[] {
+  const rows = new Map<string, LinenSummaryRow>();
+
+  for (const event of events ?? []) {
+    const linenItemId = Number(event.linen_item_id ?? 0);
+    const qty = Number(event.resolved_qty ?? event.qty ?? 0);
+    if (linenItemId <= 0 || qty <= 0) continue;
+
+    const name = String(event.name_th ?? event.item_name_th ?? `Item ${linenItemId}`);
+    const key = `${linenItemId}:${Boolean(event.is_dayuse)}`;
+    const existing = rows.get(key);
+    rows.set(key, {
+      id: existing?.id ?? String(event.id ?? key),
+      linen_item_id: linenItemId,
+      name,
+      qty: (existing?.qty ?? 0) + qty,
+      is_dayuse: Boolean(event.is_dayuse),
+      status: event.status ? String(event.status) : null,
+    });
+  }
+
+  return [...rows.values()];
 }
 
 type ReturnEventSource = {
