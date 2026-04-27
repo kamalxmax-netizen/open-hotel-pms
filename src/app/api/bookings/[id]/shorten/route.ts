@@ -12,6 +12,7 @@ import {
   computeShortenProjectedTotal,
   suggestShortenRefundMethod,
 } from "@/lib/settlement-preview";
+import { normalizePhoneForStorage } from "@/lib/phone";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -237,9 +238,7 @@ export async function POST(
       optionalPatch.guest_name = updatePayload.guest_name.trim();
     }
     if (Object.prototype.hasOwnProperty.call(updatePayload, "phone")) {
-      optionalPatch.phone = typeof updatePayload.phone === "string" && updatePayload.phone.trim()
-        ? updatePayload.phone.trim()
-        : null;
+      optionalPatch.phone = normalizePhoneForStorage(updatePayload.phone);
     }
     if (Object.prototype.hasOwnProperty.call(updatePayload, "note")) {
       optionalPatch.note = typeof updatePayload.note === "string" && updatePayload.note.trim()

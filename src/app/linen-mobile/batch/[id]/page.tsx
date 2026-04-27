@@ -148,6 +148,14 @@ export default function MobileBatchWizardPage() {
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
         const rewash = toRewashSummaryRows(batchDetail.rewash_events ?? []);
         const rewashReturns = toResolvedRewashSummaryRows(batchDetail.resolved_rewash_events ?? []);
+        const pending = (batchDetail.pending_items ?? [])
+            .filter((item: any) => Number(item.pending_qty ?? 0) > 0)
+            .map((item: any) => ({
+                name: item.name_th ?? `Item ${item.linen_item_id}`,
+                qty: Number(item.pending_qty ?? 0),
+                sourceDate: item.source_batch_date ? String(item.source_batch_date) : "",
+                sourceRound: item.source_pickup_round ? String(item.source_pickup_round) : "",
+            }));
         const eventReturns = toReturnSummaryRows(batchDetail.events ?? [], [
             ...items,
             ...(batchDetail.return_sources ?? []),
@@ -174,6 +182,14 @@ export default function MobileBatchWizardPage() {
         }
         if (rewashReturns.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
+        }
+        if (pending.length > 0) {
+            text += `\n\n--- ผ้าค้าง ---\n` + pending.map((item) => {
+                const source = item.sourceDate
+                    ? ` (ค้างจาก ${item.sourceDate}${item.sourceRound ? ` รอบ ${item.sourceRound}` : ""})`
+                    : "";
+                return `${item.name}: ${item.qty} ชิ้น${source}`;
+            }).join("\n");
         }
         
         return text;

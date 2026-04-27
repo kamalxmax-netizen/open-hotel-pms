@@ -32,6 +32,7 @@ import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalit
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
 import { cleanBookingNameInput, cleanFloatingThaiMarks } from "@/lib/text-normalization";
+import { formatPhoneInput } from "@/lib/phone";
 import { logUiEvent } from "@/lib/ui-event-log-client";
 import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -1322,7 +1323,7 @@ export default function ReservationDetailPage({
         }
         setLinkedProfileName(fullName);
         const phoneValue = String(profile.phone || "").trim();
-        if (phoneValue) setPhone(phoneValue);
+        if (phoneValue) setPhone(formatPhoneInput(phoneValue));
 
         const normalizedCode = normalizeNationalityCode(profile.nationality_code || profile.nationality);
         const inferredCountry = getCountryByCode(normalizedCode);
@@ -1495,7 +1496,7 @@ export default function ReservationDetailPage({
             if (fallback) {
                 const fullName = joinGuestName(String(fallback.first_name || ""), String(fallback.last_name || ""));
                 if (fullName) setGuestName(fullName);
-                if (fallback.phone) setPhone(String(fallback.phone));
+                if (fallback.phone) setPhone(formatPhoneInput(String(fallback.phone)));
             }
 
             await loadGuestProfileById(normalizedProfileId, { overwriteGuest: true });
@@ -2453,7 +2454,7 @@ export default function ReservationDetailPage({
                     setInitialAssignedRoomId(res.room_id || "");
                     setGuestName(res.guest_name || "");
                     setInitialBookedGuestName(res.guest_name || "");
-                    setPhone(res.phone || "");
+                    setPhone(formatPhoneInput(res.phone || ""));
                     setGuestProfileId(res.guest_profile_id || null);
                     setPrefetchedPossibleReturnMatches(Array.isArray(res.possible_return_matches) ? res.possible_return_matches : []);
                     setIsProfileMasked(res._masked === true || (res.guest_profile && res.guest_profile._masked === true));
@@ -4980,7 +4981,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             className={`form-input text-sm ${checkinFieldErrorClass("phone")}`}
                                                             value={phone}
-                                                            onChange={(e) => setPhone(e.target.value)}
+                                                            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
                                                             disabled={isReadonly}
                                                             placeholder="Phone"
                                                         />
@@ -5355,7 +5356,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             className={`form-input text-sm ${checkinFieldErrorClass("phone")}`}
                                                             value={phone}
-                                                            onChange={(e) => setPhone(e.target.value)}
+                                                            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
                                                             disabled={isReadonly}
                                                         />
                                                     </div>
@@ -6159,7 +6160,7 @@ export default function ReservationDetailPage({
                                                     type="text"
                                                     className="form-input text-sm"
                                                     value={partyDraft.phone}
-                                                    onChange={(e) => setPartyDraft((current) => ({ ...current, phone: e.target.value }))}
+                                                    onChange={(e) => setPartyDraft((current) => ({ ...current, phone: formatPhoneInput(e.target.value) }))}
                                                     disabled={isReadonly}
                                                 />
                                             </div>

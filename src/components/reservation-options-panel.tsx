@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import NationalityFlag from "@/components/nationality-flag";
 import { formatNationalityCode } from "@/lib/nationality";
+import { formatPhoneInput } from "@/lib/phone";
 import { BookingAlarmsSection } from "@/components/reservation-alarms-section";
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -836,7 +837,7 @@ function GuestProfileTab({ reservationId, guestName }: { reservationId: string; 
                         <div>
                             <label className="form-label">Phone</label>
                             <input className="form-input" value={createForm.phone}
-                                onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))} />
+                                onChange={e => setCreateForm(f => ({ ...f, phone: formatPhoneInput(e.target.value) }))} />
                         </div>
                         <div>
                             <label className="form-label">Email</label>

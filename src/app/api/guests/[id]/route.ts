@@ -13,6 +13,7 @@ import { listGuestProfileBookingNames, replaceGuestProfileBookingNames } from "@
 import { updateGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
+import { normalizePhoneForStorage } from "@/lib/phone";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { z } from "zod";
@@ -219,6 +220,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsedBody.data)) {
       if (value !== undefined) updates[key] = value;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, "phone")) {
+      updates.phone = normalizePhoneForStorage(updates.phone);
     }
     const requestedBookingNames = Array.isArray(parsedBody.data.booking_names)
       ? Array.from(

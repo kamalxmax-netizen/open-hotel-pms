@@ -6,6 +6,7 @@ import type {
     LaundryRewashEvent,
     LaundryReturnSourceItem,
     LaundryVendorToken,
+    LaundryPendingItem,
     LinenEditAuditLog,
     LinenExpectedResult,
 } from "@/lib/types";
@@ -19,6 +20,7 @@ type LinenBatchDetail = {
   events?: LaundryBatchEvent[];
   tokens?: LaundryVendorToken[];
   return_sources?: LaundryReturnSourceItem[];
+  pending_items?: LaundryPendingItem[];
 };
 
 export function useLinenBatchDetail(id?: string | null) {

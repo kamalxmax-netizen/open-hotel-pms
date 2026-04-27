@@ -3,6 +3,7 @@ import { resolveBusinessDate } from "@/lib/data-masking";
 import { createGuestProfileWithConflictHandling } from "@/lib/guest-profile-persistence";
 import { normalizeBookingName } from "@/lib/guest-booking-names";
 import { getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
+import { normalizePhoneForStorage } from "@/lib/phone";
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import type { GuestProfileListItem, GuestProfileListResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -380,7 +381,7 @@ export async function POST(request: NextRequest) {
         province,
         postal_code,
         country: resolvedCountry,
-        phone,
+        phone: normalizePhoneForStorage(phone),
         email,
         whatsapp,
         line_id,
