@@ -8,6 +8,7 @@ import {
   logGuestProfileConflictEvent,
   type GuestProfileConflictLogContext,
 } from "@/lib/guest-profile-conflict-log";
+import { normalizePhoneForStorage } from "@/lib/phone";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -46,6 +47,9 @@ function normalizeGuestProfilePayload(payload: Record<string, unknown>): {
   document: { idType: GuestDocumentType; idNumber: string } | null;
 } {
   const normalizedPayload = { ...payload };
+  if (Object.prototype.hasOwnProperty.call(normalizedPayload, "phone")) {
+    normalizedPayload.phone = normalizePhoneForStorage(normalizedPayload.phone);
+  }
 
   let idType = asGuestDocumentType(normalizedPayload.id_type);
   let rawIdNumber = String(normalizedPayload.id_number ?? "").trim();

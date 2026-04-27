@@ -32,6 +32,7 @@ import { normalizeExpectedArrivalTime, syncExpectedArrivalAlert } from "@/lib/ex
 import { findPossibleReturnCandidatesByBookingNames } from "@/lib/guest-booking-names";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cleanBookingNameInput } from "@/lib/text-normalization";
+import { normalizePhoneForStorage } from "@/lib/phone";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -522,6 +523,7 @@ export async function PUT(
 
   const payload = parsed.data;
   const normalizedGuestName = cleanBookingNameInput(payload.guest_name);
+  const normalizedPhone = normalizePhoneForStorage(payload.phone);
   if (!normalizedGuestName) {
     return NextResponse.json({ error: "Guest Name is required." }, { status: 400 });
   }
@@ -917,7 +919,7 @@ export async function PUT(
       .from("reservations")
       .update({
         guest_name: normalizedGuestName,
-        phone: payload.phone?.trim() || null,
+        phone: normalizedPhone,
         ...(checkedOutMetadataOnlyUpdate ? {} : {
           source: payload.source,
           checkin_date: payload.checkin_date,
@@ -947,7 +949,7 @@ export async function PUT(
       p_checkin_date: payload.checkin_date,
       p_checkout_date: payload.checkout_date,
       p_source: payload.source,
-      p_phone: payload.phone?.trim() || null,
+      p_phone: normalizedPhone,
       p_checkin_time: requestedCheckinTime !== undefined
         ? requestedCheckinTime || null
         : String(currentReservation.checkin_time ?? "").trim() || null,
@@ -974,7 +976,7 @@ export async function PUT(
         p_guest_name: normalizedGuestName,
         p_note: payload.note?.trim() || null,
         p_ota_prices: normalizedOtaPrices,
-        p_phone: payload.phone?.trim() || null,
+        p_phone: normalizedPhone,
         p_reservation_id: reservationId,
         p_room_number: roomNumber,
         p_room_type_id: capacityRoomTypeId,
