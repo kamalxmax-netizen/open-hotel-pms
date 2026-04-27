@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getReturnableStockForReservationRoom } from "@/lib/hk-returnable-stock";
+import { getReturnableStockForReservationRooms } from "@/lib/hk-returnable-stock";
 import { isMaidNameMatch, maidAuthErrorResponse, requireMaidRead } from "@/lib/maid-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -913,13 +913,16 @@ export async function GET(request: NextRequest) {
     );
 
     if (checkedOutReturnCandidates.length > 0) {
-      for (const [roomId, reservation] of checkedOutReturnCandidates) {
-        const stock = await getReturnableStockForReservationRoom(supabase, {
+      const returnableStockByCandidateRoomId = await getReturnableStockForReservationRooms(
+        supabase,
+        checkedOutReturnCandidates.map(([roomId, reservation]) => ({
           reservationId: reservation.reservation_id,
           roomId,
           checkinDate: reservation.checkin_date ?? null,
           checkoutDate: reservation.checkout_date ?? null,
-        });
+        }))
+      );
+      for (const [roomId, stock] of returnableStockByCandidateRoomId) {
         if (stock.items.length > 0) {
           returnableStockByRoomId.set(roomId, stock.items);
         }
