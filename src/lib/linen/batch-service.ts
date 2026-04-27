@@ -3,6 +3,7 @@ import type { LaundryBatchStatus } from "@/lib/types";
 import { deleteR2Objects } from "@/lib/r2";
 import {
   applyReturnsToSourceBatches,
+  listPendingItems,
   resolvePendingItems,
   type PendingResolveInput,
   type ReturnItemInput,
@@ -330,7 +331,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
   if (batchError) throw new Error(batchError.message);
   if (!batch) throw new LinenBatchError("Batch not found.", 404);
 
-  const [itemsRes, eventsRes, tokensRes, returnSourcesRes, rewashRes, editLogRes] = await Promise.all([
+  const [itemsRes, eventsRes, tokensRes, returnSourcesRes, rewashRes, editLogRes, pendingItems] = await Promise.all([
     supabase
       .from("laundry_batch_items")
       .select("*, linen_items(item_number, name_th)")
@@ -353,6 +354,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
       .select("*")
       .eq("batch_id", batchId)
       .order("edited_at", { ascending: true }),
+    listPendingItems(supabase),
   ]);
   if (itemsRes.error) throw new Error(itemsRes.error.message);
   if (eventsRes.error) throw new Error(eventsRes.error.message);
@@ -436,6 +438,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
     })),
     resolved_rewash_events: resolvedRewashEvents,
     edit_audit_log: editLogRes.data ?? [],
+    pending_items: pendingItems,
   };
 }
 
