@@ -3,7 +3,6 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
 import type {
   BuildLineItemsResult,
-  TaxInvoiceBookingSnapshot,
   TaxInvoiceLineItem,
   TaxInvoiceSellerSnapshot,
   TaxInvoiceTotals,
@@ -203,51 +202,6 @@ export function extractReservationIdsFromBookingSnapshot(
   const fallback = String(fallbackReservationId ?? "").trim();
 
   return Array.from(new Set([...snapshotIds, ...(fallback ? [fallback] : [])]));
-}
-
-function addOneDay(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(year, month - 1, day + 1);
-  const yy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-
-export function deriveBookingSnapshotForLineItems(
-  baseSnapshot: unknown,
-  lineItems: TaxInvoiceLineItem[]
-): TaxInvoiceBookingSnapshot | Record<string, unknown> {
-  const base =
-    baseSnapshot && typeof baseSnapshot === "object"
-      ? ({ ...(baseSnapshot as Record<string, unknown>) } as TaxInvoiceBookingSnapshot)
-      : ({} as TaxInvoiceBookingSnapshot);
-
-  const roomItems = lineItems.filter((item) => item.kind === "room_charge");
-  const stayDates = Array.from(
-    new Set(roomItems.flatMap((item) => item.stay_dates ?? []))
-  ).sort();
-
-  if (stayDates.length === 0) {
-    return base;
-  }
-
-  const roomNumbers = Array.from(
-    new Set(
-      roomItems
-        .flatMap((item) => String(item.room_number ?? "").split(","))
-        .map((value) => value.trim())
-        .filter(Boolean)
-    )
-  ).sort(compareRoomNumber);
-
-  return {
-    ...base,
-    checkin_date: stayDates[0],
-    checkout_date: addOneDay(stayDates[stayDates.length - 1]),
-    nights: roomItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-    room_numbers: roomNumbers.length > 0 ? roomNumbers : base.room_numbers ?? [],
-  };
 }
 
 export function assertReservationsCanCombine(reservations: ReservationInvoiceContextRow[]) {

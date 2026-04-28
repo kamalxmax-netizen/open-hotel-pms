@@ -73,6 +73,10 @@ interface TaxInvoiceFormProps {
     customer_address?: string;
     customer_branch?: string;
   };
+  initialPeriod?: {
+    from: string;
+    to: string;
+  };
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -83,6 +87,7 @@ export default function TaxInvoiceForm({
   mode,
   reservationId,
   existingInvoice,
+  initialPeriod,
 }: TaxInvoiceFormProps) {
   const router = useRouter();
 
@@ -116,8 +121,8 @@ export default function TaxInvoiceForm({
   // ── Edit mode: date range selector ────────────────────────────────────────
   const fullCheckin = booking?.checkin_date ?? "";
   const fullCheckout = booking?.checkout_date ?? "";
-  const [editFrom, setEditFrom] = useState<string>(fullCheckin);
-  const [editTo, setEditTo] = useState<string>(fullCheckout);
+  const [editFrom, setEditFrom] = useState<string>(initialPeriod?.from || fullCheckin);
+  const [editTo, setEditTo] = useState<string>(initialPeriod?.to || fullCheckout);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [showConfirm, setShowConfirm] = useState(false);

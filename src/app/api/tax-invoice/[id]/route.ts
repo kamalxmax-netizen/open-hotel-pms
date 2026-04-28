@@ -2,7 +2,6 @@ import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   canFoEditInvoiceByBusinessDate,
-  deriveBookingSnapshotForLineItems,
   getBusinessDateFromSettings,
   getRequestingUserRole,
   getSellerSnapshotFromSettings,
@@ -99,6 +98,25 @@ function normalizeTaxIdOrNull(value: unknown, isPassport = false): string | null
   return digits;
 }
 
+function toAuditInvoiceSnapshot(invoice: InvoiceWithReservation | Record<string, unknown>) {
+  return {
+    invoice_no: strOrNull((invoice as any).invoice_no) ?? strOrNull((invoice as any).cancelled_invoice_no),
+    status: strOrNull((invoice as any).status),
+    language: strOrNull((invoice as any).language),
+    issue_date: strOrNull((invoice as any).issue_date),
+    customer_name: strOrNull((invoice as any).customer_name),
+    customer_tax_id: strOrNull((invoice as any).customer_tax_id),
+    customer_address: strOrNull((invoice as any).customer_address),
+    customer_branch: strOrNull((invoice as any).customer_branch),
+    line_items: (invoice as any).line_items ?? null,
+    discount: normalizeMoney((invoice as any).discount ?? 0),
+    subtotal: normalizeMoney((invoice as any).subtotal ?? 0),
+    vat_rate: normalizeMoney((invoice as any).vat_rate ?? 0),
+    vat_amount: normalizeMoney((invoice as any).vat_amount ?? 0),
+    grand_total: normalizeMoney((invoice as any).grand_total ?? 0),
+  };
+}
+
 async function loadInvoiceOr404(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   invoiceId: string
@@ -179,10 +197,22 @@ export async function GET(
         company_address_en: rawSnapshot.company_address_en ?? liveSeller.company_address_en,
       };
       const enriched = { ...invoiceForResponse, seller_snapshot: merged };
-      return NextResponse.json({ success: true, invoice: enriched, data: enriched });
+      return NextResponse.json({
+        success: true,
+        invoice: enriched,
+        data: enriched,
+        viewer_role: role,
+        viewer_is_admin: isAdminRole(role),
+      });
     }
 
-    return NextResponse.json({ success: true, invoice: invoiceForResponse, data: invoiceForResponse });
+    return NextResponse.json({
+      success: true,
+      invoice: invoiceForResponse,
+      data: invoiceForResponse,
+      viewer_role: role,
+      viewer_is_admin: isAdminRole(role),
+    });
   } catch (err) {
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
@@ -279,7 +309,6 @@ export async function PATCH(
 
     const totals = totalsFromLineItems(nextLineItems, nextDiscount);
     patch.line_items = nextLineItems;
-    patch.booking_snapshot = deriveBookingSnapshotForLineItems(invoice.booking_snapshot, nextLineItems);
     patch.discount = totals.discount;
     patch.subtotal = totals.subtotal;
     patch.vat_rate = totals.vat_rate;
@@ -316,6 +345,24 @@ export async function PATCH(
 
     if (updateError) {
       return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+    }
+
+    const updateReason = strOrNull(input.update_reason);
+    const { error: auditError } = await supabase.from("audit_logs").insert({
+      actor_user_id: user.id,
+      action: "tax_invoice_updated",
+      entity_type: "tax_invoice",
+      entity_id: invoiceId,
+      before_json: toAuditInvoiceSnapshot(invoice),
+      after_json: toAuditInvoiceSnapshot(updated as Record<string, unknown>),
+      source: "manual",
+      note: updateReason,
+      change_reason: updateReason,
+      business_date: businessDate,
+    });
+
+    if (auditError) {
+      console.error("tax invoice update audit insert failed", auditError);
     }
 
     return NextResponse.json({ success: true, invoice: updated, data: updated });

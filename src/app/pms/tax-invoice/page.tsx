@@ -37,7 +37,18 @@ interface InvoiceHistoryItem {
   grand_total: number;
   language: TaxInvoiceLanguage;
   can_reuse_invoice_no?: boolean;
+  has_edit_log?: boolean;
 }
+
+type AuditHistoryRow = {
+  id: string;
+  actor_name: string;
+  action: string;
+  note: string | null;
+  created_at: string;
+  before_json: any;
+  after_json: any;
+};
 
 /* ─── Mock Data (Until API is ready) ─────────────────── */
 
@@ -113,6 +124,45 @@ const MOCK_HISTORY: InvoiceHistoryItem[] = [
   },
 ];
 
+function formatDateTime(value: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatAmount(value: unknown) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function summarizeAuditChange(row: AuditHistoryRow) {
+  const before = row.before_json || {};
+  const after = row.after_json || {};
+  const changes: string[] = [];
+
+  if (before.language !== after.language) changes.push(`Language ${before.language || "-"} -> ${after.language || "-"}`);
+  if (before.customer_name !== after.customer_name) changes.push("Customer name");
+  if (before.customer_tax_id !== after.customer_tax_id) changes.push("Tax ID");
+  if (before.customer_address !== after.customer_address) changes.push("Address");
+  if (before.customer_branch !== after.customer_branch) changes.push("Branch");
+  if (Number(before.grand_total || 0) !== Number(after.grand_total || 0)) {
+    changes.push(`Total ${formatAmount(before.grand_total)} -> ${formatAmount(after.grand_total)}`);
+  }
+  const beforeItems = Array.isArray(before.line_items) ? before.line_items.length : 0;
+  const afterItems = Array.isArray(after.line_items) ? after.line_items.length : 0;
+  if (beforeItems !== afterItems) changes.push(`Items ${beforeItems} -> ${afterItems}`);
+
+  return changes.length > 0 ? changes.join(" · ") : "Document fields updated";
+}
+
 /* ─── Components ────────────────────────────────────── */
 
 export default function TaxInvoiceListPage() {
@@ -130,6 +180,10 @@ export default function TaxInvoiceListPage() {
   const [cancelReuseMode, setCancelReuseMode] = useState<"continue" | "reuse">("continue");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [editLogTarget, setEditLogTarget] = useState<InvoiceHistoryItem | null>(null);
+  const [editLogRows, setEditLogRows] = useState<AuditHistoryRow[]>([]);
+  const [editLogLoading, setEditLogLoading] = useState(false);
+  const [editLogError, setEditLogError] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -180,6 +234,7 @@ export default function TaxInvoiceListPage() {
             grand_total: Number(row.grand_total || 0),
             language: (String(row.language || "th") === "en" ? "en" : "th") as TaxInvoiceLanguage,
             can_reuse_invoice_no: Boolean(row.can_reuse_invoice_no),
+            has_edit_log: Boolean(row.has_edit_log),
           }))
         : [];
 
@@ -221,6 +276,25 @@ export default function TaxInvoiceListPage() {
       setCancelError(err.message || "เกิดข้อผิดพลาด");
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const openEditLog = async (invoice: InvoiceHistoryItem) => {
+    setEditLogTarget(invoice);
+    setEditLogRows([]);
+    setEditLogError("");
+    setEditLogLoading(true);
+    try {
+      const res = await fetch(`/api/audit/entity/tax_invoice/${invoice.id}`, { cache: "no-store" });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || "Failed to load edit log");
+      }
+      setEditLogRows(Array.isArray(result.history) ? result.history : []);
+    } catch (err: any) {
+      setEditLogError(err.message || "Failed to load edit log");
+    } finally {
+      setEditLogLoading(false);
     }
   };
 
@@ -411,6 +485,15 @@ export default function TaxInvoiceListPage() {
                               ✏️
                             </Link>
                           )}
+                          {isAdmin && h.has_edit_log && (
+                            <button
+                              onClick={() => openEditLog(h)}
+                              className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition"
+                              title="Edit invoice log"
+                            >
+                              ⚠️
+                            </button>
+                          )}
                           <Link
                             href={`/pms/tax-invoice/preview/${h.id}`}
                             className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-sky-600 transition"
@@ -519,6 +602,53 @@ export default function TaxInvoiceListPage() {
                 {cancelLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 ยืนยันยกเลิก
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editLogTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] w-full max-w-2xl rounded-2xl shadow-2xl border border-[var(--border-default)] overflow-hidden">
+            <div className="bg-amber-50 dark:bg-amber-500/10 p-5 flex items-center justify-between gap-4 border-b border-amber-100 dark:border-amber-500/20">
+              <div>
+                <h3 className="text-lg font-bold text-amber-900 dark:text-amber-400">Edit Invoice Log</h3>
+                <p className="text-xs text-amber-700/70 dark:text-amber-400/60 mt-0.5 font-mono">{editLogTarget.invoice_no}</p>
+              </div>
+              <button
+                onClick={() => setEditLogTarget(null)}
+                className="w-9 h-9 rounded-xl border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/10"
+              >
+                ×
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto">
+              {editLogLoading ? (
+                <div className="px-6 py-10 text-sm text-[var(--text-muted)]">Loading edit log...</div>
+              ) : editLogError ? (
+                <div className="px-6 py-10 text-sm text-rose-600">{editLogError}</div>
+              ) : editLogRows.length === 0 ? (
+                <div className="px-6 py-10 text-sm text-[var(--text-muted)] italic">
+                  This invoice has an older edit marker, but no detailed audit rows were recorded yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--border-subtle)]">
+                  {editLogRows.map((row) => (
+                    <div key={row.id} className="px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-bold text-[var(--text-primary)]">{summarizeAuditChange(row)}</p>
+                          <p className="mt-1 text-xs text-[var(--text-secondary)]">{row.note || "No reason provided"}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-semibold text-[var(--text-primary)]">{row.actor_name || "System"}</p>
+                          <p className="text-[10px] text-[var(--text-muted)]">{formatDateTime(row.created_at)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

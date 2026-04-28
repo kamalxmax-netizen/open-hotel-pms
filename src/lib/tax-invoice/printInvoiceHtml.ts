@@ -23,6 +23,16 @@ interface InvoiceRenderData {
 
 const PAGE_ITEM_UNIT_BUDGET = 10;
 
+function addOneDay(isoDate: string | null | undefined): string | null {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate ?? null;
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day + 1);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 function estimateItemUnits(item: TaxInvoiceLineItem): number {
   const descriptionLines = Math.max(1, Math.ceil(String(item.description || "").length / 40));
   const noteLines = item.note ? Math.max(1, Math.ceil(String(item.note).length / 48)) : 0;
@@ -176,8 +186,19 @@ function sellerBlock(seller: TaxInvoiceSellerSnapshot, lang: TaxInvoiceLanguage)
 
 function partyBlock(data: InvoiceRenderData, lang: TaxInvoiceLanguage) {
   const l = getLabels(lang);
-  const { customerName, customerAddress, customerTaxId, customerBranch, booking } = data;
+  const { customerName, customerAddress, customerTaxId, customerBranch, booking, lineItems } = data;
   const roomText = booking.room_numbers.join(", ") || "-";
+  const stayDates = Array.from(
+    new Set(
+      lineItems
+        .filter((item) => item.kind === "room_charge")
+        .flatMap((item) => item.stay_dates ?? [])
+    )
+  ).sort();
+  const displayCheckin = stayDates[0] ?? booking.checkin_date;
+  const displayCheckout = stayDates.length > 0
+    ? addOneDay(stayDates[stayDates.length - 1])
+    : booking.checkout_date;
 
   // Tax ID line — include branch info inline: "Tax ID 024... | Branch HQ" or passport
   const isPassport = customerTaxId && !/^\d{13}$/.test(customerTaxId);
@@ -197,7 +218,7 @@ function partyBlock(data: InvoiceRenderData, lang: TaxInvoiceLanguage) {
     <div class="party-name">${esc(l.customer)} ${esc(customerName || "-")}</div>
     <div class="party-line">${esc(l.address)} ${esc(customerAddress || "-")}</div>
     <div class="party-line">${esc(taxIdLine)}</div>
-    <div class="party-line">${esc(l.room)} ${esc(roomText)} | Check-in ${esc(fmtDate(booking.checkin_date, lang))} | Check-out ${esc(fmtDate(booking.checkout_date, lang))}</div>
+    <div class="party-line">${esc(l.room)} ${esc(roomText)} | Check-in ${esc(fmtDate(displayCheckin, lang))} | Check-out ${esc(fmtDate(displayCheckout, lang))}</div>
   `;
 }
 
