@@ -14,6 +14,8 @@ import {
   getLabels,
   computeVatInclusiveTotals,
   compareRoomNumber,
+  formatTaxInvoiceItemDescription,
+  formatTaxInvoiceItemUnit,
   round2,
 } from "@/lib/tax-invoice/utils";
 
@@ -126,9 +128,9 @@ export default function TaxInvoiceForm({
 
   const l = getLabels(language);
 
-  // ── Filtered line items (edit mode: trim room charges to selected range) ──
+  // ── Filtered line items: trim room charges to selected invoice period ──
   const filteredLineItems = useMemo((): TaxInvoiceLineItem[] => {
-    if (mode !== "edit") return lineItems;
+    if (!editFrom || !editTo) return lineItems;
     return lineItems.flatMap((item) => {
       if (item.kind !== "room_charge" || !item.stay_dates?.length) {
         return [item]; // Extra charges always included
@@ -146,11 +148,11 @@ export default function TaxInvoiceForm({
         },
       ];
     });
-  }, [lineItems, editFrom, editTo, mode]);
+  }, [lineItems, editFrom, editTo]);
 
   // ── Sorted line items for display (preserve original idx for display only) ─
   const sortedDisplayItems = useMemo(() => {
-    const source = mode === "edit" ? filteredLineItems : lineItems;
+    const source = filteredLineItems;
     return [...source].sort((a, b) => {
       if (a.room_number && b.room_number)
         return compareRoomNumber(a.room_number, b.room_number);
@@ -158,14 +160,14 @@ export default function TaxInvoiceForm({
       if (b.room_number) return 1;
       return 0;
     });
-  }, [filteredLineItems, lineItems, mode]);
+  }, [filteredLineItems]);
 
   // ── Totals ─────────────────────────────────────────────────────────────────
   const totals = useMemo((): TaxInvoiceTotals => {
-    const items = mode === "edit" ? filteredLineItems : lineItems;
+    const items = filteredLineItems;
     const gross = items.reduce((acc, it) => acc + it.amount, 0);
     return computeVatInclusiveTotals(gross, 0);
-  }, [filteredLineItems, lineItems, mode]);
+  }, [filteredLineItems]);
 
   // ── Date range helpers ─────────────────────────────────────────────────────
   const selectedNights = daysBetween(editFrom, editTo);
@@ -256,7 +258,7 @@ export default function TaxInvoiceForm({
             customer_address: customerAddress,
             customer_branch: customerBranch,
             is_passport: isPassport,
-            line_items: lineItems,
+            line_items: filteredLineItems,
             discount: 0,
             save_customer_profile: true,
           }),
@@ -322,7 +324,7 @@ export default function TaxInvoiceForm({
       {mode === "edit" && (
         <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4">
           <span className="text-lg leading-none mt-0.5">ℹ️</span>
-          <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+          <div className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
             <p className="font-bold mb-0.5">การแก้ไขใบกำกับภาษีที่ออกแล้ว</p>
             <p>
               ระบบต้อง Issue ใบครบทุกรายการก่อน ค่อยกลับมาที่นี่เพื่อเลือกช่วงวันที่ต้องการ
@@ -524,8 +526,8 @@ export default function TaxInvoiceForm({
         {/* ── Right: Date range + Line items ── */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* ── Date range picker (edit mode only) — booking-style ── */}
-          {mode === "edit" && fullCheckin && fullCheckout && (
+          {/* ── Date range picker — booking-style ── */}
+          {fullCheckin && fullCheckout && (
             <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm overflow-hidden">
               {/* Header */}
               <div className="px-5 py-3.5 bg-[var(--bg-muted)] border-b border-[var(--border-default)] flex items-center justify-between">
@@ -534,7 +536,7 @@ export default function TaxInvoiceForm({
                 </h2>
                 <div className="flex items-center gap-3">
                   {excludedNights > 0 ? (
-                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
                       ตัดออก {excludedNights} คืน
                     </span>
                   ) : (
@@ -559,7 +561,7 @@ export default function TaxInvoiceForm({
 
               {/* Booking-style date range row */}
               <div className="p-5">
-                <div className="flex items-center gap-3 bg-[var(--bg-muted)] rounded-2xl border border-[var(--border-subtle)] p-3">
+                <div className="flex items-end gap-3 bg-[var(--bg-muted)] rounded-2xl border border-[var(--border-subtle)] p-3">
 
                   {/* ── Left: check-in date input (grayed, read-only) ── */}
                   <div className="flex-1">
@@ -572,7 +574,7 @@ export default function TaxInvoiceForm({
                         const v = e.target.value;
                         if (v >= fullCheckin && v < editTo) setEditFrom(v);
                       }}
-                      className="w-full px-4 py-3 rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] text-sm font-semibold text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-400 cursor-pointer"
+                      className="w-full px-4 py-3 rounded-xl bg-white dark:bg-white/5 border border-[var(--border-default)] text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-brand-400 cursor-pointer shadow-sm"
                     />
                   </div>
 
@@ -631,11 +633,9 @@ export default function TaxInvoiceForm({
             <div className="px-5 py-4 bg-[var(--bg-muted)] border-b border-[var(--border-default)] flex justify-between items-center">
               <h2 className="text-sm font-bold text-[var(--text-primary)]">
                 Revenue Items
-                {mode === "edit" && (
-                  <span className="ml-2 text-[10px] font-bold text-[var(--text-muted)]">
-                    · {filteredLineItems.length} รายการ
-                  </span>
-                )}
+                <span className="ml-2 text-[10px] font-bold text-[var(--text-muted)]">
+                  · {filteredLineItems.length} รายการ
+                </span>
               </h2>
               {mode === "issue" && (
                 <button className="text-[10px] uppercase font-bold text-brand-600 hover:text-brand-700">
@@ -661,12 +661,12 @@ export default function TaxInvoiceForm({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)] text-sm">
+              <tbody className="divide-y divide-[var(--border-subtle)] text-base">
                 {sortedDisplayItems.length === 0 ? (
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-5 py-10 text-center text-[var(--text-muted)] text-xs"
+                      className="px-5 py-10 text-center text-[var(--text-muted)] text-sm"
                     >
                       ไม่มีรายการในช่วงวันที่เลือก
                     </td>
@@ -676,21 +676,21 @@ export default function TaxInvoiceForm({
                     <tr key={idx} className="hover:bg-[var(--bg-muted)]/50">
                       <td className="px-5 py-4">
                         <p className="font-semibold text-[var(--text-primary)]">
-                          {item.description}
+                          {formatTaxInvoiceItemDescription(item, language)}
                         </p>
                         {item.note && (
-                          <p className="text-[11px] text-[var(--text-muted)]">
+                          <p className="text-[13px] text-[var(--text-muted)]">
                             {item.note}
                           </p>
                         )}
                         {item.room_number && (
-                          <span className="text-[10px] bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-500/20 font-bold uppercase mt-1 inline-block">
+                          <span className="text-xs bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-500/20 font-bold uppercase mt-1 inline-block">
                             Room {item.room_number}
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-center text-[var(--text-secondary)]">
-                        {item.quantity} {item.unit}
+                      <td className="px-5 py-4 text-center text-[var(--text-secondary)] text-base">
+                        {item.quantity} {formatTaxInvoiceItemUnit(item, language)}
                       </td>
                       <td className="px-5 py-4 text-right text-[var(--text-secondary)] font-mono">
                         {fmtMoney(item.unit_price)}
@@ -704,18 +704,18 @@ export default function TaxInvoiceForm({
               </tbody>
             </table>
 
-            <div className="bg-[var(--bg-muted)] p-6 flex justify-end">
+            <div className="bg-white dark:bg-[var(--bg-surface)] p-6 flex justify-end border-t border-[var(--border-default)]">
               <div className="w-64 space-y-3">
-                {mode === "edit" && excludedNights > 0 && (
-                  <p className="text-[10px] text-amber-600 font-bold text-right mb-1">
+                {excludedNights > 0 && (
+                  <p className="text-xs text-amber-600 font-bold text-right mb-1">
                     คำนวณจาก {selectedNights} คืน (ตัด {excludedNights} คืน)
                   </p>
                 )}
-                <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                <div className="flex justify-between text-sm text-[var(--text-secondary)]">
                   <span>{l.subtotal}</span>
                   <span className="font-mono">{fmtMoney(totals.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                <div className="flex justify-between text-sm text-[var(--text-secondary)]">
                   <span>{l.vat}</span>
                   <span className="font-mono">{fmtMoney(totals.vat_amount)}</span>
                 </div>
@@ -736,7 +736,7 @@ export default function TaxInvoiceForm({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-[var(--bg-surface)] w-full max-w-md rounded-2xl shadow-2xl border border-[var(--border-default)] overflow-hidden animate-in zoom-in duration-200">
             <div className="bg-amber-50 dark:bg-amber-500/10 p-6 flex items-center gap-4 border-b border-amber-100 dark:border-amber-500/20">
-              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-2xl">
+              <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-500/20 flex items-center justify-center text-2xl">
                 ⚠️
               </div>
               <div className="flex-1">
@@ -760,6 +760,11 @@ export default function TaxInvoiceForm({
                     <strong>Invoice Number</strong> based on the current
                     sequence. Once issued:
                   </p>
+                  {excludedNights > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 font-bold">
+                      Invoice period: {fmtDisplayDate(editFrom)} → {fmtDisplayDate(editTo)} ({selectedNights} คืน)
+                    </p>
+                  )}
                   <ul className="text-[10px] space-y-1 text-rose-600 dark:text-rose-400 font-bold list-disc pl-4">
                     <li>It CANNOT be deleted or skipped.</li>
                     <li>The sequence must be strictly continuous.</li>
@@ -786,10 +791,10 @@ export default function TaxInvoiceForm({
                   </p>
                   {updateReason.trim() && (
                     <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-lg p-3">
-                      <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase">
+                      <p className="text-[12.65px] text-amber-700 dark:text-amber-400 font-bold uppercase">
                         เหตุผล
                       </p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                      <p className="text-[15.18px] text-amber-800 dark:text-amber-300 mt-0.5">
                         {updateReason.trim()}
                       </p>
                     </div>
@@ -831,8 +836,8 @@ export default function TaxInvoiceForm({
                     <span className="block text-xl font-black text-brand-600 font-mono tracking-tighter">
                       ฿{fmtMoney(totals.grand_total)}
                     </span>
-                    <span className="block text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-bold">
-                      Seven Percent VAT Inclusive
+                    <span className="block text-[10.35px] text-[var(--text-muted)] uppercase tracking-widest font-bold">
+                      (ราคาที่แสดง รวม VAT 7% แล้ว)
                     </span>
                   </div>
                 </div>

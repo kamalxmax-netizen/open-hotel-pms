@@ -1,4 +1,4 @@
-import type { TaxInvoiceTotals, TaxInvoiceLanguage } from "@/lib/tax-invoice/types";
+import type { TaxInvoiceLineItem, TaxInvoiceTotals, TaxInvoiceLanguage } from "@/lib/tax-invoice/types";
 
 export function toBangkokDate(date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -25,6 +25,27 @@ export function toInvoiceYearYY(dateLike?: string | Date | null): string {
     year: "2-digit",
   }).format(date);
   return year;
+}
+
+export function toInvoiceYearMonthYYMM(dateLike?: string | Date | null): string {
+  let date = new Date();
+  if (typeof dateLike === "string" && dateLike.trim()) {
+    const parsed = new Date(`${dateLike.trim()}T00:00:00+07:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  } else if (dateLike instanceof Date && !Number.isNaN(dateLike.getTime())) {
+    date = dateLike;
+  }
+
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Bangkok",
+    year: "2-digit",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? toInvoiceYearYY(date);
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  return `${year}${month}`;
 }
 
 export function round2(value: number): number {
@@ -151,6 +172,24 @@ export function fmtMoney(n: number | string) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+export function formatTaxInvoiceItemDescription(item: TaxInvoiceLineItem, lang: TaxInvoiceLanguage): string {
+  const description = String(item.description || "").trim();
+  if (lang !== "en" || item.kind !== "room_charge") return description;
+
+  return description
+    .replace(/^ค่าห้อง\s*Room\s*/i, "Room charge ")
+    .replace(/^ค่าห้อง\s*/i, "Room charge ")
+    .trim();
+}
+
+export function formatTaxInvoiceItemUnit(item: TaxInvoiceLineItem, lang: TaxInvoiceLanguage): string {
+  const unit = String(item.unit || "").trim();
+  if (lang !== "en") return unit;
+  if (item.kind === "room_charge" && unit === "คืน") return Number(item.quantity) === 1 ? "Night" : "Nights";
+  if (item.kind === "extra_charge" && unit === "รายการ") return "Item";
+  return unit;
 }
 
 /**

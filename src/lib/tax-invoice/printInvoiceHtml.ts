@@ -5,7 +5,7 @@ import {
   TaxInvoiceSellerSnapshot,
   TaxInvoiceLanguage
 } from "./types";
-import { esc, fmtMoney, fmtDate, getLabels } from "./utils";
+import { esc, fmtMoney, fmtDate, formatTaxInvoiceItemDescription, formatTaxInvoiceItemUnit, getLabels } from "./utils";
 
 interface InvoiceRenderData {
   invoiceNo: string | null;
@@ -208,7 +208,8 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage, startI
 
   const rows = items
     .map((it, idx) => {
-      const description = it.description;
+      const description = formatTaxInvoiceItemDescription(it, lang);
+      const unit = formatTaxInvoiceItemUnit(it, lang);
       return `
         <tr>
           <td class="center">${startIndex + idx + 1}</td>
@@ -217,7 +218,7 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage, startI
             ${it.note ? `<br/><span class="item-note">${esc(it.note)}</span>` : ""}
           </td>
           <td class="center">${esc(String(it.quantity || 0))}</td>
-          <td class="center">${esc(it.unit || "")}</td>
+          <td class="center">${esc(unit)}</td>
           <td class="num">${fmtMoney(it.unit_price)}</td>
           <td class="num">0.00</td>
           <td class="num">${fmtMoney(it.amount)}</td>
