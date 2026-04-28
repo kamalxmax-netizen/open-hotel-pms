@@ -15,7 +15,7 @@ export default function TaxInvoiceEditPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/tax-invoice/${id}`);
+        const res = await fetch(`/api/tax-invoice/${id}`, { cache: "no-store" });
         const result = await res.json();
         if (result.success) {
           setData(result.data);

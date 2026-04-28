@@ -5,6 +5,7 @@ import {
   buildLineItemsForReservation,
   buildLineItemsForReservations,
   assertReservationsCanCombine,
+  deriveBookingSnapshotForLineItems,
   extractReservationIdsFromBookingSnapshot,
   getSellerSnapshotFromSettings,
   isAdminRole,
@@ -560,6 +561,7 @@ export async function POST(request: NextRequest) {
         : null;
 
     const sellerSnapshot = await getSellerSnapshotFromSettings(supabase);
+    const bookingSnapshot = deriveBookingSnapshotForLineItems(built.booking_snapshot, lineItems);
 
     const { data: inserted, error: insertError } = await supabase
       .from("invoices")
@@ -575,7 +577,7 @@ export async function POST(request: NextRequest) {
         customer_branch: customerBranch,
         is_passport: input.is_passport,
         guest_tax_profile_id: savedProfile?.id ?? input.guest_tax_profile_id ?? selectedTaxProfile?.id ?? null,
-        booking_snapshot: built.booking_snapshot,
+        booking_snapshot: bookingSnapshot,
         line_items: lineItems,
         subtotal: totals.subtotal,
         vat_rate: totals.vat_rate,

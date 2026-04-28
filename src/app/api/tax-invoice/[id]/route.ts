@@ -2,6 +2,7 @@ import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   canFoEditInvoiceByBusinessDate,
+  deriveBookingSnapshotForLineItems,
   getBusinessDateFromSettings,
   getRequestingUserRole,
   getSellerSnapshotFromSettings,
@@ -278,6 +279,7 @@ export async function PATCH(
 
     const totals = totalsFromLineItems(nextLineItems, nextDiscount);
     patch.line_items = nextLineItems;
+    patch.booking_snapshot = deriveBookingSnapshotForLineItems(invoice.booking_snapshot, nextLineItems);
     patch.discount = totals.discount;
     patch.subtotal = totals.subtotal;
     patch.vat_rate = totals.vat_rate;

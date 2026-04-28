@@ -281,7 +281,7 @@ export default function TaxInvoiceForm({
         const issuedId =
           issueResult.data?.id ?? issueResult.invoice?.id ?? draftId;
         setShowConfirm(false);
-        router.push(`/pms/tax-invoice/preview/${issuedId}`);
+        router.push(`/pms/tax-invoice/preview/${issuedId}?updated=${Date.now()}`);
       } else {
         // Edit mode: PATCH with filtered items only
         const patchRes = await fetch(`/api/tax-invoice/${invoiceId}`, {
@@ -304,7 +304,8 @@ export default function TaxInvoiceForm({
           throw new Error(patchResult.error || "Failed to update invoice");
 
         setShowConfirm(false);
-        router.push(`/pms/tax-invoice/preview/${invoiceId}`);
+        const updatedAt = patchResult.data?.updated_at ?? patchResult.invoice?.updated_at ?? Date.now();
+        router.push(`/pms/tax-invoice/preview/${invoiceId}?updated=${encodeURIComponent(String(updatedAt))}`);
       }
     } catch (e: any) {
       alert(e.message || "An error occurred");
