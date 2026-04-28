@@ -1,5 +1,6 @@
 import { getLaundryBatchDetail } from "@/lib/linen/batch-service";
 import { listPendingItems } from "@/lib/linen/pending-service";
+import { toAdjustedPendingSummaryRows, toReturnSummaryRows } from "@/lib/linen/rewash-summary";
 import { validateVendorToken, LinenVendorTokenError } from "@/lib/linen/vendor-token";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -23,6 +24,26 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
 
     const items = detail.items.filter((item: any) => Number(item.sent_by_hotel ?? 0) > 0);
     const todayReceivedTotal = items.reduce((sum: number, item: any) => sum + Number(item.sent_by_hotel ?? 0), 0);
+    const returnSummary = toReturnSummaryRows(detail.events ?? [], [
+      ...(detail.items ?? []),
+      ...(detail.return_sources ?? []),
+    ]);
+    const adjustedPendingItems = toAdjustedPendingSummaryRows(pendingItems, detail.events ?? [], [
+      ...(detail.items ?? []),
+      ...(detail.return_sources ?? []),
+    ]).map((item) => ({
+      id: item.id,
+      source_batch_id: item.source_batch_id,
+      linen_item_id: item.linen_item_id,
+      pending_qty: item.qty,
+      resolved_batch_id: null,
+      resolved_at: null,
+      reason: null,
+      created_at: "",
+      source_batch_date: item.sourceDate,
+      source_pickup_round: item.sourceRound ? Number(item.sourceRound) : undefined,
+      name_th: item.name,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -31,7 +52,8 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
         items,
         rewash_items: detail.rewash_events.filter((item: any) => Number(item.qty ?? 0) > 0),
         return_items: detail.items.filter((item: any) => Number(item.received_back ?? 0) > 0),
-        pending_items: pendingItems,
+        return_summary: returnSummary,
+        pending_items: adjustedPendingItems,
         today_received_total: todayReceivedTotal,
         status: (detail.batch as any).status,
         hotel_name: String((settings as any)?.hotel_name ?? (settings as any)?.company_name ?? "Hotel"),

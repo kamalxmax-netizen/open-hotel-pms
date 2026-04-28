@@ -1903,6 +1903,7 @@ export interface LaundryPendingItem {
   created_at: string;
   // Joined fields
   source_batch_date?: string;
+  source_pickup_round?: number;
   name_th?: string;
 }
 
@@ -1975,6 +1976,11 @@ export interface LinenVendorView {
   items: LaundryBatchItem[];           // dirty sent today
   rewash_items: LaundryRewashEvent[];  // rewash sent today
   return_items: LaundryBatchItem[];    // clean returned today
+  return_summary?: {
+    name: string;
+    qty: number;
+    source?: "normal" | "pending_resolved";
+  }[];
   pending_items: LaundryPendingItem[];
   today_received_total: number;        // ผ้าวันนี้ที่เพิ่งรับ (คืนรอบถัดไป)
   status: LaundryBatchStatus;
