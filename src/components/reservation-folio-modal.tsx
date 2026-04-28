@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock, ShieldAlert, CheckCircle2, Printer } from "lucide-react";
 import PmsModal from "./pms-modal";
 import { toBangkokDateString } from "@/lib/audit-utils";
 import { PostChargeModal } from "./post-charge-modal";
@@ -269,8 +269,19 @@ export function ReservationFolioModal({
         onClose={onClose}
         footer={
           <div className="flex w-full items-center justify-between gap-2">
-            <div className="text-xs text-[var(--text-secondary)]">
-              Full folio ledger for this reservation
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => window.open(`/pms/folio/preview/${reservationId}`, "_blank", "noopener,noreferrer")}
+                disabled={!reservationId}
+              >
+                <Printer className="h-4 w-4" />
+                Print Folio
+              </button>
+              <div className="text-xs text-[var(--text-secondary)]">
+                Full folio ledger for this reservation
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button type="button" className="btn btn-secondary" onClick={onClose}>

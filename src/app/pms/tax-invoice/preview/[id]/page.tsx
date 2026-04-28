@@ -16,7 +16,9 @@ export default function TaxInvoicePreviewPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/tax-invoice/${id}`);
+        const cacheKey = typeof window !== "undefined" ? window.location.search : "";
+        const url = `/api/tax-invoice/${id}${cacheKey}`;
+        const res = await fetch(url, { cache: "no-store" });
         const result = await res.json();
         if (result.success) {
           setData(result.data);

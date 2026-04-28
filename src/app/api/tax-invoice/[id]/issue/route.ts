@@ -1,7 +1,7 @@
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { extractReservationIdsFromBookingSnapshot, TaxInvoiceError } from "@/lib/tax-invoice/service";
-import { toInvoiceYearYY } from "@/lib/tax-invoice/utils";
+import { toInvoiceYearMonthYYMM } from "@/lib/tax-invoice/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -131,12 +131,12 @@ export async function POST(
     }
 
     const issueDate = parsed.data.issue_date ?? current.issue_date;
-    const yy = toInvoiceYearYY(issueDate);
+    const yymm = toInvoiceYearMonthYYMM(issueDate);
 
     let lastError: string | null = null;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const { data: nextNo, error: nextNoError } = await supabase.rpc("next_invoice_no", { p_yy: yy });
+      const { data: nextNo, error: nextNoError } = await supabase.rpc("next_invoice_no", { p_yy: yymm });
       if (nextNoError) {
         return NextResponse.json({ success: false, error: nextNoError.message }, { status: 500 });
       }

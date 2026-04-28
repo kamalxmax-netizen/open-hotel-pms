@@ -1,6 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { toInvoiceYearYY } from "@/lib/tax-invoice/utils";
+import { toBangkokDate, toInvoiceYearMonthYYMM } from "@/lib/tax-invoice/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -9,6 +9,7 @@ export const fetchCache = "force-no-store";
 
 const querySchema = z.object({
   yy: z.string().regex(/^\d{2}$/).optional(),
+  issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     const parsed = querySchema.safeParse({
       yy: request.nextUrl.searchParams.get("yy") ?? undefined,
+      issue_date: request.nextUrl.searchParams.get("issue_date") ?? undefined,
     });
     if (!parsed.success) {
       return NextResponse.json(
@@ -29,15 +31,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const yy = parsed.data.yy ?? toInvoiceYearYY();
-    const { data, error } = await supabase.rpc("next_invoice_no", { p_yy: yy });
+    const issueDate = parsed.data.issue_date ?? toBangkokDate();
+    const yymm = parsed.data.yy ? `${parsed.data.yy}${issueDate.slice(5, 7)}` : toInvoiceYearMonthYYMM(issueDate);
+    const { data, error } = await supabase.rpc("next_invoice_no", { p_yy: yymm });
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      yy,
+      yy: yymm.slice(0, 2),
+      yymm,
+      issue_date: issueDate,
       next_invoice_no: String(data ?? ""),
     });
   } catch (err) {

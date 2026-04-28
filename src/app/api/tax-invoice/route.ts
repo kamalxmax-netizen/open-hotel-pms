@@ -75,6 +75,7 @@ type InvoiceRow = {
   customer_name: string;
   customer_tax_id: string | null;
   grand_total: number | string;
+  update_reason?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -127,6 +128,7 @@ function toInvoiceListItem(row: InvoiceRow, reservation: ReservationMetaRow | nu
     customer_name: String(row.customer_name ?? ""),
     customer_tax_id: strOrNull(row.customer_tax_id),
     grand_total: round2(normalizeMoney(row.grand_total)),
+    update_reason: strOrNull(row.update_reason),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
     reservation: reservation
@@ -193,7 +195,7 @@ export async function GET(request: NextRequest) {
 
     let invoiceQuery = supabase
       .from("invoices")
-      .select("id, invoice_no, cancelled_invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, grand_total, created_at, updated_at, booking_snapshot")
+      .select("id, invoice_no, cancelled_invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, grand_total, update_reason, created_at, updated_at, booking_snapshot")
       .gte("issue_date", dateFrom)
       .lte("issue_date", dateTo)
       .order("issue_date", { ascending: false })
@@ -247,12 +249,27 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => String(b.invoice_no ?? "").localeCompare(String(a.invoice_no ?? ""), undefined, { numeric: true, sensitivity: "base" }))[0]
       ?.id ?? null;
 
+    let editedInvoiceIds = new Set<string>();
+    if (viewerIsAdmin && invoiceRows.length > 0) {
+      const { data: auditRows, error: auditError } = await supabase
+        .from("audit_logs")
+        .select("entity_id")
+        .eq("entity_type", "tax_invoice")
+        .eq("action", "tax_invoice_updated")
+        .in("entity_id", invoiceRows.map((row) => String(row.id)));
+
+      if (!auditError) {
+        editedInvoiceIds = new Set((auditRows ?? []).map((row: any) => String(row.entity_id)));
+      }
+    }
+
     const listRows = invoiceRows.map((row) => ({
       ...toInvoiceListItem(row, reservationMap.get(String(row.reservation_id)) ?? null),
       can_reuse_invoice_no:
         row.status === "issued" &&
         Boolean(strOrNull(row.invoice_no)) &&
         String(row.id) === latestIssuedNumberedInvoiceId,
+      has_edit_log: Boolean(strOrNull(row.update_reason)) || editedInvoiceIds.has(String(row.id)),
     }));
 
     const search = String(queryInput.search ?? "").trim().toLowerCase();
