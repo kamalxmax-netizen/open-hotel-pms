@@ -31,6 +31,7 @@ type MaidTaskRow = {
   stay_date: string;
   task_seq: number | null;
   status: TaskStatus;
+  assigned_maid_name: string | null;
   is_no_service: boolean | null;
   no_service_note?: string | null;
   accumulated_ms: number | null;
@@ -272,16 +273,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: assignedTaskError.message }, { status: 500 });
     }
 
-    const latestAssignedTaskByRoomId = buildLatestTaskByRoom(
-      ((allAssignedTasks ?? []) as Array<{
-        room_id: string;
-        task_seq?: number | null;
-        assigned_maid_name?: string | null;
-        status?: string | null;
-      }>)
-    );
+    const assignedTaskRows = ((allAssignedTasks ?? []) as Array<{
+      room_id: string;
+      task_seq?: number | null;
+      assigned_maid_name?: string | null;
+      status?: string | null;
+    }>);
 
-    const fallbackTaskRoomIds = Array.from(latestAssignedTaskByRoomId.values())
+    const fallbackTaskRoomIds = assignedTaskRows
       .filter((row) => isMaidMatch(row.assigned_maid_name, maidName))
       .map((row) => row.room_id);
 
@@ -427,7 +426,7 @@ export async function GET(request: NextRequest) {
     >();
 
     const taskSelectBase =
-      "id, room_id, stay_date, task_seq, status, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
+      "id, room_id, stay_date, task_seq, status, assigned_maid_name, is_no_service, accumulated_ms, started_at, finished_at, approved_at";
     const maintenancePromise = supabase.rpc("get_todays_maintenance_assignments", {
       p_target_date: date,
     });
@@ -532,17 +531,27 @@ export async function GET(request: NextRequest) {
     >();
 
     const latestTaskByRoomId = buildLatestTaskByRoom(taskRows);
+    const latestMaidTaskByRoomId = buildLatestTaskByRoom(
+      taskRows.filter((row) => isMaidMatch(row.assigned_maid_name, maidName))
+    );
 
     for (const row of latestTaskByRoomId.values()) {
+      const maidTask = latestMaidTaskByRoomId.get(row.room_id);
+      const selectedRow =
+        maidTask &&
+        !isMaidMatch(row.assigned_maid_name, maidName) &&
+        (row.status === "dirty" || row.status === "in_progress" || row.status === "paused")
+          ? maidTask
+          : row;
       taskByRoomId.set(row.room_id, {
-        id: row.id,
-        status: row.status as TaskStatus,
-        is_no_service: row.is_no_service ?? false,
-        no_service_note: row.no_service_note ?? null,
-        accumulated_ms: row.accumulated_ms ?? 0,
-        started_at: row.started_at ?? null,
-        finished_at: row.finished_at ?? null,
-        approved_at: row.approved_at ?? null,
+        id: selectedRow.id,
+        status: selectedRow.status as TaskStatus,
+        is_no_service: selectedRow.is_no_service ?? false,
+        no_service_note: selectedRow.no_service_note ?? null,
+        accumulated_ms: selectedRow.accumulated_ms ?? 0,
+        started_at: selectedRow.started_at ?? null,
+        finished_at: selectedRow.finished_at ?? null,
+        approved_at: selectedRow.approved_at ?? null,
       });
     }
 

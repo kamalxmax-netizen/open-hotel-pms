@@ -1969,6 +1969,50 @@ export interface LinenDashboard {
   dayuse_threshold: number;           // 30
 }
 
+// ─── Phase 78: Frozen Daily Linen Snapshot ────────────────────────────────────
+
+export interface LinenDailySnapshotTotals {
+  sent_normal: number;
+  sent_rewash: number;
+  sent_old_dayuse: number;
+  received_normal: number;
+  received_rewash: number;
+  received_pending: number;
+  received_old_dayuse: number;
+  balance_normal_today: number;
+  balance_old_dayuse: number;
+  balance_pending_old: number;
+  balance_rewash: number;
+  balance_vendor: number;
+}
+
+export interface LinenDailySnapshotItem extends LinenDailySnapshotTotals {
+  id: string;
+  snapshot_id: string;
+  business_date: string;
+  linen_item_id: number;
+  item_number: number | null;
+  name_th: string;
+}
+
+export interface LinenDailySnapshot {
+  id: string;
+  business_date: string;
+  computed_at: string;
+  computed_by: string | null;
+  recomputed_count: number;
+  recompute_reason: string | null;
+  totals: LinenDailySnapshotTotals;
+  meta: Record<string, unknown>;
+  items: LinenDailySnapshotItem[];
+}
+
+export interface LinenDailySnapshotResponse {
+  business_date: string;
+  snapshot: LinenDailySnapshot | null;
+  can_recompute: boolean;
+}
+
 // ─── Phase 66: Vendor View (public token-based) ────────────────────────────────
 
 export interface LinenVendorView {

@@ -31,7 +31,6 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOlderPending, setShowOlderPending] = useState(false);
     const [showPendingRewash, setShowPendingRewash] = useState(false);
-    const [isResolving, setIsResolving] = useState<Record<string, boolean>>({});
 
     const { data: rwData, mutate: mutateRewash } = useSWR<LaundryRewashPendingResponse>("/api/linen/rewash/pending", apiDataFetcher);
     const pendingRewash = useMemo(
@@ -81,28 +80,6 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
         setRewashQtys((prev) => ({ ...prev, [id]: String(parsed) }));
     };
 
-    const handleResolveRewash = async (id: string, qty: number) => {
-        setIsResolving(prev => ({ ...prev, [id]: true }));
-        try {
-            const res = await fetch(`/api/linen/rewash/${id}/resolve`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    resolved_in_batch_id: batchId,
-                    resolved_qty: qty,
-                }),
-            });
-            if (!res.ok) throw new Error("Failed to resolve rewash");
-            setRewashQtys((prev) => ({ ...prev, [id]: "" }));
-            await mutateRewash();
-        } catch (err) {
-            console.error(err);
-            alert("เกิดข้อผิดพลาดในการบันทึกรับผ้า Rewash");
-        } finally {
-            setIsResolving(prev => ({ ...prev, [id]: false }));
-        }
-    };
-
     const getPendingRewashReturns = () => pendingRewash
         .map((rw) => {
             const remainingQty = Math.max(0, Number((rw as any).remaining_qty ?? Number(rw.qty ?? 0) - Number(rw.resolved_qty ?? 0)));
@@ -116,7 +93,6 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
         if (rewashReturns.length === 0) return;
 
         await Promise.all(rewashReturns.map(async (item) => {
-            setIsResolving(prev => ({ ...prev, [item.id]: true }));
             const res = await fetch(`/api/linen/rewash/${item.id}/resolve`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -200,7 +176,6 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
             alert(`เกิดข้อผิดพลาดในการบันทึก: ${message}`);
         } finally {
             setIsSubmitting(false);
-            setIsResolving({});
         }
     };
 
@@ -401,17 +376,9 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
                                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-5 h-5"><path d="M12 5v14M5 12h14" /></svg>
                                                         </button>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleResolveRewash(String(rw.id), submitQty)}
-                                                        disabled={isResolving[String(rw.id)] || submitQty <= 0}
-                                                        className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-sm ${
-                                                            isResolving[String(rw.id)] || submitQty <= 0
-                                                            ? 'bg-slate-200 text-slate-400'
-                                                            : 'bg-white text-purple-600 border border-purple-200 active:scale-95 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600'
-                                                        }`}
-                                                    >
-                                                        {isResolving[String(rw.id)] ? "..." : `คืน ${submitQty || ""}`.trim()}
-                                                    </button>
+                                                    <div className="flex-1 rounded-xl border border-purple-100 bg-white px-4 py-3 text-center text-xs font-bold text-purple-600">
+                                                        บันทึกเมื่อกดถัดไป
+                                                    </div>
                                                 </div>
                                             </div>
                                         );

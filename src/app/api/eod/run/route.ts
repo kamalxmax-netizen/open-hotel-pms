@@ -7,6 +7,7 @@ import {
 import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { computeStockSnapshot } from "@/lib/stock-snapshot";
+import { computeLinenDailySnapshot } from "@/lib/linen/daily-snapshot";
 import { NextRequest, NextResponse } from "next/server";
 
 function isMissingRelationError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -401,6 +402,17 @@ export async function POST(request: NextRequest) {
             console.error("EOD stock snapshot compute failed", stockErr);
         }
 
+        let linenSnapshotResult: any = null;
+        let linenSnapshotWarning: string | null = null;
+        try {
+            linenSnapshotResult = await computeLinenDailySnapshot(supabase, businessDate, {
+                reason: "EOD auto snapshot",
+            });
+        } catch (linenErr) {
+            linenSnapshotWarning = linenErr instanceof Error ? linenErr.message : "Linen snapshot compute failed.";
+            console.error("EOD linen snapshot compute failed", linenErr);
+        }
+
         /* ── 4. Advance business_date ────────────────── */
         const nextDate = new Date(businessDate + "T00:00:00");
         nextDate.setDate(nextDate.getDate() + 1);
@@ -419,6 +431,13 @@ export async function POST(request: NextRequest) {
             new_business_date: newBusinessDate,
             stock_snapshot: stockSnapshotResult,
             stock_snapshot_warning: stockSnapshotWarning,
+            linen_snapshot: linenSnapshotResult ? {
+                id: linenSnapshotResult.id,
+                business_date: linenSnapshotResult.business_date,
+                computed_at: linenSnapshotResult.computed_at,
+                totals: linenSnapshotResult.totals,
+            } : null,
+            linen_snapshot_warning: linenSnapshotWarning,
             snapshot: {
                 total_revenue: Math.round(totalRevenue * 100) / 100,
                 occupied_nights: occupiedNights,
