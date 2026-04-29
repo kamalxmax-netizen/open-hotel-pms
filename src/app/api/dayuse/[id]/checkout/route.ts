@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import { markRoomDirtyTask } from "@/lib/hk-dirty";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -103,27 +104,16 @@ export async function POST(request: NextRequest, context: { params: { id: string
     }
 
     if (roomId) {
-      const { error: housekeepingError } = await supabase
-        .from("housekeeping_tasks")
-        .upsert(
-          {
-            room_id: roomId,
-            stay_date: businessDate,
-            task_seq: 1,
-            status: "dirty",
-            is_no_service: false,
-            no_service_note: null,
-            no_service_marked_at: null,
-            no_service_marked_by: null,
-            started_at: null,
-            finished_at: null,
-            approved_at: null,
-            accumulated_ms: 0,
-          },
-          { onConflict: "room_id,stay_date,task_seq" }
-        );
-      if (housekeepingError) {
-        return NextResponse.json({ success: false, error: housekeepingError.message }, { status: 500 });
+      try {
+        await markRoomDirtyTask(supabase, {
+          roomId,
+          stayDate: businessDate,
+          assignedMaidName: null,
+          clearDailyPlanWhenUnassigned: true,
+          logNote: "Marked dirty from dayuse checkout",
+        });
+      } catch (housekeepingError) {
+        return NextResponse.json({ success: false, error: String(housekeepingError) }, { status: 500 });
       }
     }
 

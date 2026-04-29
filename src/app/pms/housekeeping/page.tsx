@@ -497,6 +497,16 @@ export default function HousekeepingPage() {
       }),
     [planningRooms, draftAssignments]
   );
+  const displayRooms = useMemo(() => {
+    const priorRooms = rooms.filter((room) => room.is_prior_task);
+    return [...boardRooms, ...priorRooms].sort((a, b) => {
+      const floorDiff = Number(a.floor_number ?? 0) - Number(b.floor_number ?? 0);
+      if (floorDiff !== 0) return floorDiff;
+      const roomDiff = a.room_number.localeCompare(b.room_number, undefined, { numeric: true });
+      if (roomDiff !== 0) return roomDiff;
+      return Number(a.is_prior_task ?? false) - Number(b.is_prior_task ?? false);
+    });
+  }, [boardRooms, rooms]);
 
   const extraTaskPool = useMemo(
     () => extraTaskPending.filter((task) => task.assigned_maid === EXTRA_TASK_POOL_MAID),
@@ -996,7 +1006,7 @@ export default function HousekeepingPage() {
   const showPoolDragHint = poolDropActive || timelineBarDragging || draggingDirtyRoomId !== null;
   const showPlanningBoard = ["all", "dirty", "in_progress", "extra_tasks", "due_out", "back_to_back", "in_house"].includes(filter);
 
-  const filtered = boardRooms.filter((r) => {
+  const filtered = displayRooms.filter((r) => {
     if (!r.is_sellable) return false;
     if (filter === "all") return true;
     if (filter === "extra_tasks") return false;
@@ -1086,7 +1096,7 @@ export default function HousekeepingPage() {
       {/* Timeline (only show if all or when managing tasks) */}
       {showPlanningBoard && (
         <TimelineView
-          rooms={boardRooms}
+          rooms={displayRooms}
           extraTasks={timelineExtraTasks}
           selectedDate={date}
           maids={[...maidLaneNames]}
