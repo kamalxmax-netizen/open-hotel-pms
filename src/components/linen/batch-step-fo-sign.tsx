@@ -2,14 +2,18 @@
 
 import React, { useState, useMemo } from "react";
 import { SignatureCanvas } from "./signature-canvas";
-import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    splitReturnSummaryRowsForDisplay,
+    toRewashSummaryRows,
+    type ReturnSummaryDisplayRow,
+} from "@/lib/linen/rewash-summary";
 import type { LaundryBatchItem, LaundryRewashEvent } from "@/lib/types";
 
 interface BatchStepFoSignProps {
     batchId: string;
     items: LaundryBatchItem[];
     rewashEvents?: LaundryRewashEvent[];
-    returnSummary?: { name: string; qty: number }[];
+    returnSummary?: ReturnSummaryDisplayRow[];
     rewashReturnSummary?: { name: string; qty: number }[];
     onDone: (token: string) => void;
 }
@@ -22,11 +26,13 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
     const dayuseTotal = useMemo(() => items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0), [items]);
     const rewashItems = useMemo(() => toRewashSummaryRows(rewashEvents), [rewashEvents]);
     const rewashTotal = useMemo(() => rewashItems.reduce((sum, item) => sum + item.qty, 0), [rewashItems]);
+    const splitReturns = useMemo(() => splitReturnSummaryRowsForDisplay(returnSummary), [returnSummary]);
     const returnRows = useMemo(() => {
-        if (returnSummary.length > 0) return returnSummary;
+        if (splitReturns.normal.length > 0) return splitReturns.normal;
         return items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
-    }, [items, returnSummary]);
+    }, [items, splitReturns.normal]);
     const returnTotal = useMemo(() => returnRows.reduce((sum, item) => sum + item.qty, 0), [returnRows]);
+    const pendingReturnTotal = useMemo(() => splitReturns.pending.reduce((sum, item) => sum + item.qty, 0), [splitReturns.pending]);
     const rewashReturnTotal = useMemo(() => rewashReturnSummary.reduce((sum, item) => sum + item.qty, 0), [rewashReturnSummary]);
     
     // Simplistic check for complete/partial
@@ -131,7 +137,7 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
                                 </div>
                             )}
                             <div className="flex justify-between pt-1">
-                                <span>ผ้ารับคืนจากร้าน</span>
+                                <span>ผ้าซักปกติรับคืนจากร้าน</span>
                                 <span className="font-bold text-emerald-700 dark:text-emerald-400">{returnTotal} ชิ้น</span>
                             </div>
                             {returnRows.length > 0 && (
@@ -142,6 +148,22 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
                                             <span className="font-semibold text-emerald-600 dark:text-emerald-300">{item.qty}</span>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                            {pendingReturnTotal > 0 && (
+                                <div className="border-t border-slate-100 dark:border-slate-700 pt-2">
+                                    <div className="flex justify-between">
+                                        <span>รับคืนผ้าค้างเก่า</span>
+                                        <span className="font-bold text-amber-600 dark:text-amber-400">{pendingReturnTotal} ชิ้น</span>
+                                    </div>
+                                    <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                        {splitReturns.pending.map((item, index) => (
+                                            <div key={`fo-pending-return-${index}`} className="flex justify-between gap-3">
+                                                <span>{item.name}</span>
+                                                <span className="font-semibold text-amber-600 dark:text-amber-300">{item.qty}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             {rewashReturnTotal > 0 && (

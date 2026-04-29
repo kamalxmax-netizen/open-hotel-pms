@@ -16,6 +16,9 @@ const EXACT_PERMISSION_PATHS = new Set([
   "/pms/lost-found",
   "/pms/linen",
 ]);
+const STRICT_PERMISSION_PREFIXES = [
+  "/pms/tax-invoice/abbreviated",
+];
 const MUTATING_API_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const PUBLIC_MUTATION_API_PREFIXES = [
   "/api/auth",
@@ -54,6 +57,14 @@ function resolvePostLoginPath(role: string | null | undefined): string {
   if (normalizedRole === "mobile") return MOBILE_HOME_PATH;
   if (normalizedRole === "maid") return MAID_HOME_PATH;
   return "/pms/board";
+}
+
+function isStrictPermissionPath(pathname: string): boolean {
+  return STRICT_PERMISSION_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function isStrictPermissionGrant(allowedPath: string): boolean {
+  return STRICT_PERMISSION_PREFIXES.some((prefix) => allowedPath === prefix || allowedPath.startsWith(`${prefix}/`));
 }
 
 export async function middleware(request: NextRequest) {
@@ -168,6 +179,9 @@ export async function middleware(request: NextRequest) {
           ? "/pms/calendar"
           : pathname;
       const hasAccess = allowedPages.some((p) => {
+        if (isStrictPermissionPath(permissionPath)) {
+          return isStrictPermissionGrant(p) && (permissionPath === p || permissionPath.startsWith(`${p}/`));
+        }
         if (EXACT_PERMISSION_PATHS.has(p)) return permissionPath === p;
         return permissionPath === p || permissionPath.startsWith(`${p}/`);
       });

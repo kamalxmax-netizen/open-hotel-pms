@@ -5,12 +5,13 @@ import useSWR from "@/hooks/use-simple-swr";
 import type { LaundryBatchItem, LaundryPendingItem, LaundryReturnSourceItem } from "@/lib/types";
 import type { LaundryRewashPendingResponse } from "@/lib/types";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
+import type { ReturnSummaryDisplayRow } from "@/lib/linen/rewash-summary";
 
 interface BatchStepReturnProps {
     batchId: string;
     items: LaundryBatchItem[];
     returnSources?: LaundryReturnSourceItem[];
-    onNext: (summary?: { name: string; qty: number }[]) => void;
+    onNext: (summary?: ReturnSummaryDisplayRow[]) => void;
 }
 
 export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: BatchStepReturnProps) {
@@ -166,13 +167,22 @@ export function BatchStepReturn({ batchId, items, returnSources = [], onNext }: 
             });
 
             if (!res.ok) throw new Error("Failed to submit return counts");
-            const summary = returnSources
+            const returnedSummary: ReturnSummaryDisplayRow[] = returnSources
                 .map((item) => ({
                     name: item.name_th ?? `Item ${item.linen_item_id}`,
                     qty: parseInt(returnData[item.id] || "0", 10),
+                    source: "normal" as const,
                 }))
                 .filter((item) => item.qty > 0);
-            onNext(summary);
+            const pendingSummary: ReturnSummaryDisplayRow[] = (pendingItems ?? [])
+                .filter((item) => resolvedPending.includes(item.id))
+                .map((item) => ({
+                    name: item.name_th ?? `Item ${item.linen_item_id}`,
+                    qty: Number(item.pending_qty ?? 0),
+                    source: "pending_resolved" as const,
+                }))
+                .filter((item) => item.qty > 0);
+            onNext([...returnedSummary, ...pendingSummary]);
         } catch (error) {
             console.error(error);
             alert("เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่");

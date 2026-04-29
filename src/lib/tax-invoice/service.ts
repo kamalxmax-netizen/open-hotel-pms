@@ -10,7 +10,7 @@ import type {
 import {
   compareRoomNumber,
   computeVatInclusiveTotals,
-  formatThaiDateLabelFromDates,
+  formatDateLabelFromDates,
   normalizeMoney,
   round2,
   toBangkokDate,
@@ -364,7 +364,7 @@ export async function buildLineItemsForReservations(
     })
     .map((group) => {
       const sortedDates = Array.from(new Set(group.stay_dates)).sort();
-      const dateLabel = formatThaiDateLabelFromDates(sortedDates);
+      const dateLabel = formatDateLabelFromDates(sortedDates, "th");
       const quantity = group.quantity;
       const unitPrice = fromSatang(group.unit_price_satang);
       const amount = fromSatang(group.amount_satang);
@@ -372,7 +372,7 @@ export async function buildLineItemsForReservations(
 
       return {
         kind: "room_charge",
-        description: `ค่าห้อง Room ${roomNumbers.join(",")} (${dateLabel})`,
+        description: `ค่าห้อง (${dateLabel})`,
         quantity,
         unit: "คืน",
         unit_price: round2(unitPrice),

@@ -106,25 +106,35 @@ export function formatThaiDate(isoDate: string): string {
 }
 
 export function formatThaiDateLabelFromDates(sortedDates: string[]): string {
+  return formatDateLabelFromDates(sortedDates, "th");
+}
+
+export function formatDateLabelFromDates(sortedDates: string[], lang: TaxInvoiceLanguage): string {
   if (!sortedDates.length) return "-";
 
   const groups = groupConsecutiveDates(sortedDates);
+  const yearOffset = lang === "th" ? 543 : 0;
+  const formatSingle = (isoDate: string): string => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate;
+    const [yyyy, mm, dd] = isoDate.split("-");
+    return `${Number(dd)}/${mm}/${Number(yyyy) + yearOffset}`;
+  };
+
   const labels = groups.map((dates) => {
     if (dates.length === 1) {
-      return formatThaiDate(dates[0]);
+      return formatSingle(dates[0]);
     }
 
     const first = dates[0];
     const last = dates[dates.length - 1];
     const [fy, fm, fd] = first.split("-");
-    const [, lm, ld] = last.split("-");
+    const [ly, lm, ld] = last.split("-");
 
-    if (fm === lm) {
-      const beYear = Number(fy) + 543;
-      return `${fd}-${ld}/${fm}/${beYear}`;
+    if (fy === ly && fm === lm) {
+      return `${Number(fd)}-${Number(ld)}/${fm}/${Number(fy) + yearOffset}`;
     }
 
-    return `${formatThaiDate(first)}-${formatThaiDate(last)}`;
+    return `${formatSingle(first)}-${formatSingle(last)}`;
   });
 
   return labels.join(", ");
@@ -176,6 +186,10 @@ export function fmtMoney(n: number | string) {
 
 export function formatTaxInvoiceItemDescription(item: TaxInvoiceLineItem, lang: TaxInvoiceLanguage): string {
   const description = String(item.description || "").trim();
+  if (item.kind === "room_charge" && item.stay_dates?.length) {
+    const dateLabel = formatDateLabelFromDates(Array.from(new Set(item.stay_dates)).sort(), lang);
+    return lang === "en" ? `Room charge (${dateLabel})` : `ค่าห้อง (${dateLabel})`;
+  }
   if (lang !== "en" || item.kind !== "room_charge") return description;
 
   return description

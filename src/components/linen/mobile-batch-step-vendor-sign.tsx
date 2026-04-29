@@ -3,13 +3,17 @@
 import React, { useState } from "react";
 import { MobileBatchStepSummary } from "./mobile-batch-step-summary";
 import { SignatureCanvas } from "./signature-canvas";
-import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    splitReturnSummaryRowsForDisplay,
+    toRewashSummaryRows,
+    type ReturnSummaryDisplayRow,
+} from "@/lib/linen/rewash-summary";
 
 interface MobileBatchStepVendorSignProps {
     batchId: string;
     items: any[];
     rewashEvents?: any[];
-    returnSummary?: { name: string; qty: number }[];
+    returnSummary?: ReturnSummaryDisplayRow[];
     rewashReturnSummary?: { name: string; qty: number }[];
     onNext: () => void;
     onBack: () => void;
@@ -23,8 +27,9 @@ export function MobileBatchStepVendorSign({ batchId, items, rewashEvents = [], r
     const dirtyItems = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const rewashItems = toRewashSummaryRows(rewashEvents).map(i => ({ name: i.name, qty: i.qty }));
-    const returnItems = returnSummary?.length
-        ? returnSummary
+    const splitReturns = splitReturnSummaryRowsForDisplay(returnSummary);
+    const returnItems = splitReturns.normal.length
+        ? splitReturns.normal
         : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
     const handleBack = () => {
@@ -88,7 +93,8 @@ export function MobileBatchStepVendorSign({ batchId, items, rewashEvents = [], r
                 <MobileBatchStepSummary title="ผ้าวันนี้" items={dirtyItems} />
                 <MobileBatchStepSummary title="ผ้าเก่า" items={dayuseItems} />
                 <MobileBatchStepSummary title="ผ้าซักใหม่" items={rewashItems} />
-                <MobileBatchStepSummary title="ผ้ารับคืน" items={returnItems} />
+                <MobileBatchStepSummary title="รับคืนผ้าซักปกติ" items={returnItems} />
+                <MobileBatchStepSummary title="รับคืนผ้าค้างเก่า" items={splitReturns.pending} />
                 <MobileBatchStepSummary title="รับคืนผ้าซักใหม่" items={rewashReturnSummary} />
 
                 <div className="pt-6 border-t border-slate-100">
