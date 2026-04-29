@@ -71,7 +71,12 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
     const dirtyItems = data.items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const rewashItems = toRewashSummaryRows(data.rewash_items ?? []).map(i => ({ name: i.name, qty: i.qty }));
-    const returnItems = data.return_items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+    const returnItems = data.return_summary?.length
+        ? data.return_summary.map((item) => ({
+            name: item.source === "pending_resolved" ? `${item.name} (คืนผ้าค้าง)` : item.name,
+            qty: item.qty,
+        }))
+        : data.return_items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-thai transition-colors">
@@ -129,7 +134,14 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
                                 <div className="space-y-3">
                                     {data.pending_items.map(p => (
                                         <div key={p.id} className="flex justify-between items-end border-b border-white/10 pb-2">
-                                            <span className="text-sm font-thai text-slate-300">{p.name_th}</span>
+                                            <span className="text-sm font-thai text-slate-300">
+                                                {p.name_th}
+                                                {p.source_batch_date && (
+                                                    <span className="block text-[10px] text-slate-500">
+                                                        ค้างจาก {p.source_batch_date}{p.source_pickup_round ? ` รอบ ${p.source_pickup_round}` : ""}
+                                                    </span>
+                                                )}
+                                            </span>
                                             <span className="font-bold text-amber-500 text-lg">{p.pending_qty} <span className="text-xs font-medium text-slate-500">ชิ้น</span></span>
                                         </div>
                                     ))}

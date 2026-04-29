@@ -8,7 +8,16 @@ import { MobileBatchStepReturn } from "@/components/linen/mobile-batch-step-retu
 import { MobileBatchStepVendorSign } from "@/components/linen/mobile-batch-step-vendor-sign";
 import { MobileBatchStepFoSign } from "@/components/linen/mobile-batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
-import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    formatLinenSummaryLines,
+    formatPendingSummaryLines,
+    formatReturnSummaryLines,
+    formatReturnSummaryRowsForDisplay,
+    toAdjustedPendingSummaryRows,
+    toResolvedRewashSummaryRows,
+    toReturnSummaryRows,
+    toRewashSummaryRows,
+} from "@/lib/linen/rewash-summary";
 
 type ReturnSummaryItem = { name: string; qty: number };
 
@@ -152,10 +161,14 @@ export default function MobileBatchWizardPage() {
             ...items,
             ...(batchDetail.return_sources ?? []),
         ]);
-        const returns = returnSummary.length > 0
-            ? returnSummary
-            : eventReturns.length > 0
-                ? eventReturns
+        const pending = toAdjustedPendingSummaryRows(batchDetail.pending_items ?? [], batchDetail.events ?? [], [
+            ...items,
+            ...(batchDetail.return_sources ?? []),
+        ]);
+        const returns = eventReturns.length > 0
+            ? eventReturns
+            : returnSummary.length > 0
+                ? returnSummary
                 : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
 
         let text = `สรุปรายการผ้า [รอบ ${batchDetail.batch.pickup_round}]\nวันที่: ${batchDetail.batch.business_date}\n`;
@@ -170,23 +183,28 @@ export default function MobileBatchWizardPage() {
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
         }
         if (rewashReturns.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
+        }
+        if (pending.length > 0) {
+            text += `\n\n--- ผ้าค้าง ---\n` + formatPendingSummaryLines(pending);
         }
         
         return text;
     }, [batchDetail, returnSummary]);
 
-    const eventReturnSummary = useMemo<ReturnSummaryItem[]>(() => {
+    const eventReturnSummary = useMemo(() => {
         return toReturnSummaryRows(batchDetail?.events ?? [], [
             ...(batchDetail?.items ?? []),
             ...(batchDetail?.return_sources ?? []),
         ]);
     }, [batchDetail]);
 
-    const activeReturnSummary = returnSummary.length > 0 ? returnSummary : eventReturnSummary;
+    const activeReturnSummary = eventReturnSummary.length > 0
+        ? formatReturnSummaryRowsForDisplay(eventReturnSummary)
+        : returnSummary;
 
     if (isLoading && params.id !== "new") {
         return <div className="p-10 text-center text-slate-400 font-thai">กำลังโหลดข้อมูลรอบ...</div>;

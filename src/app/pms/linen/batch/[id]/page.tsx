@@ -11,7 +11,16 @@ import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { SignatureDisplay } from "@/components/linen/signature-display";
 import { StatusBadge } from "@/components/linen/status-badge";
-import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toReturnSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    formatLinenSummaryLines,
+    formatPendingSummaryLines,
+    formatReturnSummaryLines,
+    formatReturnSummaryRowsForDisplay,
+    toAdjustedPendingSummaryRows,
+    toResolvedRewashSummaryRows,
+    toReturnSummaryRows,
+    toRewashSummaryRows,
+} from "@/lib/linen/rewash-summary";
 
 export default function BatchDetailPage({ params }: { params: { id: string } }) {
     const { data, isLoading, mutate } = useLinenBatchDetail(params.id);
@@ -30,7 +39,9 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const rewashRows = toRewashSummaryRows(data.rewash_events ?? []);
     const rewashTotal = rewashRows.reduce((sum, item) => sum + item.qty, 0);
     const returnRows = toReturnSummaryRows(data.events ?? [], [...items, ...returnSources]);
+    const returnDisplayRows = formatReturnSummaryRowsForDisplay(returnRows);
     const rewashReturnRows = toResolvedRewashSummaryRows(data.resolved_rewash_events ?? []);
+    const pendingRows = toAdjustedPendingSummaryRows(data.pending_items ?? [], data.events ?? [], [...items, ...returnSources]);
     const summaryText = (() => {
         const dirty = items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0);
         const dayuse = items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
@@ -49,10 +60,13 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashRows);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
         }
         if (rewashReturnRows.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturnRows);
+        }
+        if (pendingRows.length > 0) {
+            text += `\n\n--- ผ้าค้าง ---\n` + formatPendingSummaryLines(pendingRows);
         }
         return text;
     })();
@@ -122,7 +136,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">ร้านซักเซ็นรับ</h1></div>
                 </div>
-                <BatchStepVendorSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} rewashReturnSummary={rewashReturnRows} pendingItems={[]} onNext={handleNext} />
+                <BatchStepVendorSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnDisplayRows} rewashReturnSummary={rewashReturnRows} pendingItems={[]} onNext={handleNext} />
             </div>
         );
     }
@@ -136,7 +150,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     </Link>
                     <div><h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">FO เซ็นรับจบ</h1></div>
                 </div>
-                <BatchStepFoSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnRows} rewashReturnSummary={rewashReturnRows} onDone={handleDone} />
+                <BatchStepFoSign batchId={batch.id} items={items} rewashEvents={data.rewash_events ?? []} returnSummary={returnDisplayRows} rewashReturnSummary={rewashReturnRows} onDone={handleDone} />
             </div>
         );
     }
@@ -144,8 +158,8 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     // Detail View (fo_return_signed, closed, partial, disputed)
     const dirtyTotal = items.filter(i => !i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
     const dayuseTotal = items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
-    const detailReturnRows = returnRows.length > 0
-        ? returnRows
+    const detailReturnRows = returnDisplayRows.length > 0
+        ? returnDisplayRows
         : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
     const returnTotal = detailReturnRows.reduce((sum, item) => sum + item.qty, 0);
     const rewashReturnTotal = rewashReturnRows.reduce((sum, item) => sum + item.qty, 0);

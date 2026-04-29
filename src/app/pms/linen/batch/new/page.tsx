@@ -8,7 +8,16 @@ import { BatchStepVendorSign } from "@/components/linen/batch-step-vendor-sign";
 import { BatchStepFoSign } from "@/components/linen/batch-step-fo-sign";
 import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import { useLinenBatchDetail } from "@/hooks/use-linen-batch";
-import { formatLinenSummaryLines, toResolvedRewashSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    formatLinenSummaryLines,
+    formatPendingSummaryLines,
+    formatReturnSummaryLines,
+    formatReturnSummaryRowsForDisplay,
+    toAdjustedPendingSummaryRows,
+    toResolvedRewashSummaryRows,
+    toReturnSummaryRows,
+    toRewashSummaryRows,
+} from "@/lib/linen/rewash-summary";
 
 export default function NewBatchWizardPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -25,9 +34,19 @@ export default function NewBatchWizardPage() {
         const dayuse = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0);
         const rewash = toRewashSummaryRows(data.rewash_events ?? []);
         const rewashReturns = toResolvedRewashSummaryRows(data.resolved_rewash_events ?? []);
-        const returns = returnSummary.length > 0
-            ? returnSummary
-            : data.items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+        const eventReturns = toReturnSummaryRows(data.events ?? [], [
+            ...data.items,
+            ...(data.return_sources ?? []),
+        ]);
+        const returns = eventReturns.length > 0
+            ? eventReturns
+            : returnSummary.length > 0
+                ? returnSummary
+                : data.items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+        const pending = toAdjustedPendingSummaryRows(data.pending_items ?? [], data.events ?? [], [
+            ...data.items,
+            ...(data.return_sources ?? []),
+        ]);
 
         let text = `สรุปรายการผ้า [รอบ ${data.batch.pickup_round}]\nวันที่: ${data.batch.business_date}\n`;
         if (dirty.length > 0) {
@@ -40,10 +59,13 @@ export default function NewBatchWizardPage() {
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + returns.map(i => `${i.name}: ${i.qty} ชิ้น`).join("\n");
+            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
         }
         if (rewashReturns.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
+        }
+        if (pending.length > 0) {
+            text += `\n\n--- ผ้าค้าง ---\n` + formatPendingSummaryLines(pending);
         }
         return text;
     }, [data, returnSummary]);
@@ -67,6 +89,14 @@ export default function NewBatchWizardPage() {
         setVendorToken(token);
         setStep(5);
     };
+
+    const stepReturnRows = data
+        ? formatReturnSummaryRowsForDisplay(toReturnSummaryRows(data.events ?? [], [
+            ...data.items,
+            ...(data.return_sources ?? []),
+        ]))
+        : [];
+    const activeReturnRows = stepReturnRows.length > 0 ? stepReturnRows : returnSummary;
 
     return (
         <div className="p-4 md:p-8 max-w-lg mx-auto pb-20">
@@ -115,6 +145,7 @@ export default function NewBatchWizardPage() {
                         batchId={batchId} 
                         items={data.items} 
                         rewashEvents={data.rewash_events ?? []}
+                        returnSummary={activeReturnRows}
                         rewashReturnSummary={toResolvedRewashSummaryRows(data.resolved_rewash_events ?? [])}
                         pendingItems={[]} 
                         onNext={handleStep3Done} 
@@ -126,7 +157,7 @@ export default function NewBatchWizardPage() {
                         batchId={batchId}
                         items={data.items}
                         rewashEvents={data.rewash_events ?? []}
-                        returnSummary={returnSummary}
+                        returnSummary={activeReturnRows}
                         rewashReturnSummary={toResolvedRewashSummaryRows(data.resolved_rewash_events ?? [])}
                         onDone={handleStep4Done}
                     />

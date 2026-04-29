@@ -26,6 +26,7 @@ import { loadReservationSheetSyncGroups, pushToGoogleSheet } from "@/lib/google-
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cleanBookingNameInput } from "@/lib/text-normalization";
+import { normalizePhoneForStorage } from "@/lib/phone";
 
 function isLegacyCreateRpcMismatch(message?: string | null): boolean {
   if (!message) return false;
@@ -247,6 +248,7 @@ export async function POST(request: NextRequest) {
 
   const payload = parsed.data;
   const normalizedGuestName = cleanBookingNameInput(payload.guest_name);
+  const normalizedPhone = normalizePhoneForStorage(payload.phone);
   if (!normalizedGuestName) {
     return NextResponse.json({ error: "Guest Name is required." }, { status: 400 });
   }
@@ -407,7 +409,7 @@ export async function POST(request: NextRequest) {
     p_checkin_date: payload.checkin_date,
     p_checkout_date: payload.checkout_date,
     p_source: payload.source,
-    p_phone: payload.phone?.trim() || null,
+    p_phone: normalizedPhone,
     p_checkin_time: payload.checkin_time?.trim() || null,
     p_note: payload.note?.trim() || null,
     p_ota_prices: normalizedOtaPrices
@@ -430,7 +432,7 @@ export async function POST(request: NextRequest) {
       p_guest_name: normalizedGuestName,
       p_note: payload.note?.trim() || null,
       p_ota_prices: normalizedOtaPrices,
-      p_phone: payload.phone?.trim() || null,
+      p_phone: normalizedPhone,
       p_room_number: roomNumber,
       p_room_type_id: normalizedRoomTypeId,
       p_source: payload.source
