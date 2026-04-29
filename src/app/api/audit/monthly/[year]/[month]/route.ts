@@ -1,6 +1,6 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { computeSummary, type MonthlyAuditEntry } from "@/lib/monthly-audit";
+import { computeSummary, loadMonthlyPosSalesSummary, type MonthlyAuditEntry } from "@/lib/monthly-audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -220,7 +220,9 @@ export async function GET(
     }
 
     // Compute summary from filtered entries
-    const summary = computeSummary(entries);
+    const savedPosSales = (period.summary_json as any)?.pos_sales;
+    const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
+    const summary = computeSummary(entries, posSales);
 
     // Available sources for filter dropdown
     const allSources = Array.from(

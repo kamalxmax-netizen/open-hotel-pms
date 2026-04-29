@@ -1,7 +1,14 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { computeSummary, type MonthlyAuditEntry } from "@/lib/monthly-audit";
+import {
+  computeSummary,
+  loadMonthlyPosSalesSummary,
+  previewMonth,
+  type MonthlyAuditEntry,
+  type MonthlyAuditPosSalesSummary,
+} from "@/lib/monthly-audit";
 import { NextRequest, NextResponse } from "next/server";
+import * as XLSX from "xlsx";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +24,11 @@ const querySchema = z.object({
   tax_invoice: z.enum(["true", "false"]).optional(),
   has_corrections: z.enum(["true", "false"]).optional(),
   search: z.string().trim().max(200).optional(),
-  format: z.enum(["json", "csv"]).optional().default("json"),
+  filter_dayuse: z.enum(["only", "exclude"]).optional(),
+  sort_by: z.enum(["checkout_date", "guest_name", "room_number", "source", "total_revenue"]).optional().default("checkout_date"),
+  sort_dir: z.enum(["asc", "desc"]).optional().default("asc"),
+  mode: z.enum(["snapshot", "preview"]).optional().default("snapshot"),
+  format: z.enum(["json", "csv", "xlsx"]).optional().default("json"),
 });
 
 function num(value: unknown): number {
@@ -36,6 +47,264 @@ function csvEscape(value: unknown): string {
     return `"${protectedValue.replace(/"/g, '""')}"`;
   }
   return protectedValue;
+}
+
+function sortEntries<T extends MonthlyAuditEntry & { is_corrected?: boolean }>(
+  entries: T[],
+  sortBy: "checkout_date" | "guest_name" | "room_number" | "source" | "total_revenue",
+  sortDir: "asc" | "desc"
+): T[] {
+  const sorted = [...entries].sort((a, b) => {
+    const av =
+      sortBy === "total_revenue"
+        ? Number(a.total_revenue ?? 0)
+        : String((a as any)[sortBy] ?? "").toLowerCase();
+    const bv =
+      sortBy === "total_revenue"
+        ? Number(b.total_revenue ?? 0)
+        : String((b as any)[sortBy] ?? "").toLowerCase();
+
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+    return 0;
+  });
+
+  if (sortDir === "desc") sorted.reverse();
+  return sorted;
+}
+
+function applyEntryFilters<T extends MonthlyAuditEntry & { is_corrected?: boolean }>(
+  entries: T[],
+  query: z.infer<typeof querySchema>
+) {
+  let filtered = entries;
+
+  if (query.source) filtered = filtered.filter((entry) => entry.source === query.source);
+  if (query.tax_invoice === "true") filtered = filtered.filter((entry) => entry.tax_invoice_requested);
+  if (query.tax_invoice === "false") filtered = filtered.filter((entry) => !entry.tax_invoice_requested);
+  if (query.has_corrections === "true") filtered = filtered.filter((entry) => Boolean(entry.is_corrected));
+  if (query.has_corrections === "false") filtered = filtered.filter((entry) => !entry.is_corrected);
+
+  if (query.search) {
+    const needle = query.search.toLowerCase();
+    filtered = filtered.filter((entry) =>
+      entry.guest_name.toLowerCase().includes(needle) ||
+      (entry.booking_code ?? "").toLowerCase().includes(needle) ||
+      (entry.room_number ?? "").toLowerCase().includes(needle)
+    );
+  }
+
+  return sortEntries(filtered, query.sort_by, query.sort_dir);
+}
+
+function buildMonthlyAuditWorkbook(params: {
+  year: number;
+  month: number;
+  status: string;
+  mode: "snapshot" | "preview";
+  entries: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
+  posSales: MonthlyAuditPosSalesSummary;
+}) {
+  const { year, month, status, mode, entries, posSales } = params;
+  const summary = computeSummary(entries, posSales);
+  const workbook = XLSX.utils.book_new();
+
+  const summaryRows: unknown[][] = [
+    ["Monthly Audit", `${year}-${String(month).padStart(2, "0")}`, mode === "preview" ? "Preview Live" : status],
+    [],
+    ["Source", "Count", "Room Revenue", "Extra Revenue", "POS Revenue", "Total Revenue", "Cash", "Transfer", "Credit Card", "Other", "Total Paid", "Refund", "Outstanding", "Tax Invoice"],
+    ...Object.entries(summary.by_source)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([source, row]) => [
+        source,
+        row.count,
+        row.room_revenue,
+        row.extra_revenue,
+        row.pos_revenue,
+        row.total_revenue,
+        row.paid_cash,
+        row.paid_transfer,
+        row.paid_credit_card,
+        row.paid_other,
+        row.total_paid,
+        row.refund_total,
+        row.outstanding,
+        row.tax_invoice_count,
+      ]),
+    [
+      "Total",
+      summary.totals.count,
+      summary.totals.room_revenue,
+      summary.totals.extra_revenue,
+      summary.totals.pos_revenue,
+      summary.totals.total_revenue,
+      summary.totals.paid_cash,
+      summary.totals.paid_transfer,
+      summary.totals.paid_credit_card,
+      summary.totals.paid_other,
+      summary.totals.total_paid,
+      summary.totals.refund_total,
+      summary.totals.outstanding,
+      summary.totals.tax_invoice_count,
+    ],
+  ];
+
+  const entryRows: unknown[][] = [
+    [
+      "Booking Code",
+      "Guest Name",
+      "Source",
+      "Room",
+      "Room Type",
+      "Check-in",
+      "Check-out",
+      "Nights",
+      "Room Revenue",
+      "Extra Revenue",
+      "POS Revenue",
+      "Total Revenue",
+      "Cash",
+      "Transfer",
+      "Credit Card",
+      "Other",
+      "Total Paid",
+      "Refund",
+      "Outstanding",
+      "Tax Invoice",
+      "Corrected",
+    ],
+    ...entries.map((entry) => [
+      entry.booking_code ?? "",
+      entry.guest_name ?? "",
+      entry.source,
+      entry.room_number ?? "",
+      entry.room_type_name ?? "",
+      entry.checkin_date,
+      entry.checkout_date,
+      entry.total_nights,
+      entry.room_revenue,
+      entry.extra_revenue,
+      entry.pos_revenue,
+      entry.total_revenue,
+      entry.paid_cash,
+      entry.paid_transfer,
+      entry.paid_credit_card,
+      entry.paid_other,
+      entry.total_paid,
+      entry.refund_total,
+      entry.outstanding,
+      entry.tax_invoice_requested ? "Yes" : "No",
+      entry.is_corrected ? "Yes" : "No",
+    ]),
+  ];
+
+  const posRows: unknown[][] = [
+    ["POS Sales", `${year}-${String(month).padStart(2, "0")}`, mode === "preview" ? "Preview Live" : status],
+    [],
+    ["Items", posSales.item_count],
+    ["Orders", posSales.order_count],
+    ["Total Qty", posSales.total_quantity],
+    ["Walk-in Total", posSales.walkin_total],
+    ["Guest Charge Total", posSales.guest_charge_total],
+    ["Total Sales", posSales.total_sales],
+    [],
+    ["Item", "Qty", "Walk-in Qty", "Walk-in", "Guest Charge Qty", "Guest Charge", "Total Sales", "Orders"],
+    ...posSales.items.map((item) => [
+      item.product_name,
+      item.quantity,
+      item.walkin_quantity,
+      item.walkin_total,
+      item.guest_charge_quantity,
+      item.guest_charge_total,
+      item.total_sales,
+      item.order_count,
+    ]),
+  ];
+
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  const entriesSheet = XLSX.utils.aoa_to_sheet(entryRows);
+  const posSheet = XLSX.utils.aoa_to_sheet(posRows);
+  summarySheet["!cols"] = [
+    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 14 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 },
+  ];
+  entriesSheet["!cols"] = [
+    { wch: 24 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 16 },
+    { wch: 12 }, { wch: 12 }, { wch: 8 },
+    ...Array.from({ length: 11 }, () => ({ wch: 12 })),
+    { wch: 12 }, { wch: 10 },
+  ];
+  posSheet["!cols"] = [
+    { wch: 32 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 10 },
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+  XLSX.utils.book_append_sheet(workbook, posSheet, "POS Sales");
+  XLSX.utils.book_append_sheet(workbook, entriesSheet, "Entries");
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
+function buildCsvResponse(params: {
+  year: number;
+  month: number;
+  entries: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
+  filePrefix: string;
+}) {
+  const { year, month, entries, filePrefix } = params;
+  const headers = [
+    "Booking Code", "Guest Name", "Source", "Room", "Room Type",
+    "Check-in", "Check-out", "Nights",
+    "Room Revenue", "Extra Revenue", "POS Revenue", "Total Revenue",
+    "Cash", "Transfer", "Credit Card", "Other", "Total Paid",
+    "Refund", "Outstanding",
+    "Tax Invoice", "Corrected",
+  ];
+
+  const csvRows = [headers.map(csvEscape).join(",")];
+  for (const e of entries) {
+    const rowValues = [
+      e.booking_code ?? "",
+      e.guest_name ?? "",
+      e.source,
+      e.room_number ?? "",
+      e.room_type_name ?? "",
+      e.checkin_date,
+      e.checkout_date,
+      e.total_nights,
+      e.room_revenue,
+      e.extra_revenue,
+      e.pos_revenue,
+      e.total_revenue,
+      e.paid_cash,
+      e.paid_transfer,
+      e.paid_credit_card,
+      e.paid_other,
+      e.total_paid,
+      e.refund_total,
+      e.outstanding,
+      e.tax_invoice_requested ? "Yes" : "No",
+      e.is_corrected ? "Yes" : "No",
+    ];
+    csvRows.push(rowValues.map(csvEscape).join(","));
+  }
+
+  const csvContent = csvRows.join("\n");
+  const fileName = `${filePrefix}-${year}-${String(month).padStart(2, "0")}.csv`;
+
+  return new NextResponse(csvContent, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+    },
+  });
 }
 
 export async function GET(
@@ -63,6 +332,10 @@ export async function GET(
       tax_invoice: request.nextUrl.searchParams.get("tax_invoice") ?? undefined,
       has_corrections: request.nextUrl.searchParams.get("has_corrections") ?? undefined,
       search: request.nextUrl.searchParams.get("search") ?? undefined,
+      filter_dayuse: request.nextUrl.searchParams.get("filter_dayuse") ?? undefined,
+      sort_by: request.nextUrl.searchParams.get("sort_by") ?? undefined,
+      sort_dir: request.nextUrl.searchParams.get("sort_dir") ?? undefined,
+      mode: request.nextUrl.searchParams.get("mode") ?? undefined,
       format: request.nextUrl.searchParams.get("format") ?? undefined,
     });
     if (!parsedQuery.success) {
@@ -75,10 +348,51 @@ export async function GET(
     const { year, month } = parsedParams.data;
     const query = parsedQuery.data;
 
+    if (query.mode === "preview") {
+      const preview = await previewMonth({ supabase, year, month, filterDayuse: query.filter_dayuse });
+      const entries = applyEntryFilters(
+        preview.entries.map((entry) => ({ ...entry, is_corrected: false })),
+        query
+      );
+      const summary = computeSummary(entries, preview.summary.pos_sales);
+
+      if (query.format === "xlsx") {
+        const buffer = buildMonthlyAuditWorkbook({
+          year,
+          month,
+          status: "preview",
+          mode: "preview",
+          entries,
+          posSales: preview.summary.pos_sales,
+        });
+        const body = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+        const fileName = `monthly-audit-preview-${year}-${String(month).padStart(2, "0")}.xlsx`;
+        return new NextResponse(body, {
+          headers: {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": `attachment; filename="${fileName}"`,
+          },
+        });
+      }
+
+      if (query.format === "csv") {
+        return buildCsvResponse({ year, month, entries, filePrefix: "monthly-audit-preview" });
+      }
+
+      return NextResponse.json({
+        success: true,
+        year,
+        month,
+        status: "preview",
+        entries,
+        summary,
+      });
+    }
+
     // Load period — must be audited or locked
     const { data: period, error: periodError } = await supabase
       .from("monthly_audit_periods")
-      .select("id, status")
+      .select("id, status, summary_json")
       .eq("year", year)
       .eq("month", month)
       .maybeSingle();
@@ -163,70 +477,33 @@ export async function GET(
       is_corrected: correctedEntryIds.has(String(e.id)),
     }));
 
-    if (query.has_corrections === "true") {
-      entries = entries.filter((entry) => entry.is_corrected);
-    } else if (query.has_corrections === "false") {
-      entries = entries.filter((entry) => !entry.is_corrected);
-    }
+    entries = applyEntryFilters(entries, query);
 
-    if (query.search) {
-      const needle = query.search.toLowerCase();
-      entries = entries.filter((entry) =>
-        entry.guest_name.toLowerCase().includes(needle) ||
-        (entry.booking_code ?? "").toLowerCase().includes(needle) ||
-        (entry.room_number ?? "").toLowerCase().includes(needle)
-      );
-    }
+    const savedPosSales = (period.summary_json as any)?.pos_sales;
+    const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
+    const summary = computeSummary(entries, posSales);
 
-    const summary = computeSummary(entries);
-
-    if (query.format === "csv") {
-      const headers = [
-        "Booking Code", "Guest Name", "Source", "Room", "Room Type",
-        "Check-in", "Check-out", "Nights",
-        "Room Revenue", "Extra Revenue", "POS Revenue", "Total Revenue",
-        "Cash", "Transfer", "Credit Card", "Other", "Total Paid",
-        "Refund", "Outstanding",
-        "Tax Invoice", "Corrected",
-      ];
-
-      const csvRows = [headers.map(csvEscape).join(",")];
-      for (const e of entries) {
-        const rowValues = [
-          e.booking_code ?? "",
-          e.guest_name ?? "",
-          e.source,
-          e.room_number ?? "",
-          e.room_type_name ?? "",
-          e.checkin_date,
-          e.checkout_date,
-          e.total_nights,
-          e.room_revenue,
-          e.extra_revenue,
-          e.pos_revenue,
-          e.total_revenue,
-          e.paid_cash,
-          e.paid_transfer,
-          e.paid_credit_card,
-          e.paid_other,
-          e.total_paid,
-          e.refund_total,
-          e.outstanding,
-          e.tax_invoice_requested ? "Yes" : "No",
-          e.is_corrected ? "Yes" : "No",
-        ];
-        csvRows.push(rowValues.map(csvEscape).join(","));
-      }
-
-      const csvContent = csvRows.join("\n");
-      const fileName = `monthly-audit-${year}-${String(month).padStart(2, "0")}.csv`;
-
-      return new NextResponse(csvContent, {
+    if (query.format === "xlsx") {
+      const buffer = buildMonthlyAuditWorkbook({
+        year,
+        month,
+        status: String(period.status),
+        mode: "snapshot",
+        entries,
+        posSales,
+      });
+      const body = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+      const fileName = `monthly-audit-${year}-${String(month).padStart(2, "0")}.xlsx`;
+      return new NextResponse(body, {
         headers: {
-          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="${fileName}"`,
         },
       });
+    }
+
+    if (query.format === "csv") {
+      return buildCsvResponse({ year, month, entries, filePrefix: "monthly-audit" });
     }
 
     return NextResponse.json({

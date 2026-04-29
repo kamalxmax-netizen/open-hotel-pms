@@ -92,6 +92,7 @@ export interface MonthlyAuditSummary {
   total_reservations: number;
   by_source: Record<string, SourceSummary>;
   totals: SourceSummary;
+  pos_sales: MonthlyAuditPosSalesSummary;
 }
 
 export interface SourceSummary {
@@ -108,6 +109,28 @@ export interface SourceSummary {
   refund_total: number;
   outstanding: number;
   tax_invoice_count: number;
+}
+
+export interface MonthlyAuditPosSalesItem {
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  walkin_quantity: number;
+  walkin_total: number;
+  guest_charge_quantity: number;
+  guest_charge_total: number;
+  total_sales: number;
+  order_count: number;
+}
+
+export interface MonthlyAuditPosSalesSummary {
+  item_count: number;
+  order_count: number;
+  total_quantity: number;
+  walkin_total: number;
+  guest_charge_total: number;
+  total_sales: number;
+  items: MonthlyAuditPosSalesItem[];
 }
 
 export interface MonthlyAuditPreviewResult {
@@ -185,6 +208,65 @@ function str(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+type MonthlyFolioAgg = {
+  room_revenue: number;
+  extra_revenue: number;
+  pos_revenue: number;
+  paid_cash: number;
+  paid_transfer: number;
+  paid_credit_card: number;
+  paid_other: number;
+  refund_total: number;
+};
+
+function emptyFolioAgg(): MonthlyFolioAgg {
+  return {
+    room_revenue: 0,
+    extra_revenue: 0,
+    pos_revenue: 0,
+    paid_cash: 0,
+    paid_transfer: 0,
+    paid_credit_card: 0,
+    paid_other: 0,
+    refund_total: 0,
+  };
+}
+
+function applyRevenueByCategory(agg: MonthlyFolioAgg, category: string, amount: number): void {
+  if (category === "room_revenue" || category === "dayuse_revenue") agg.room_revenue += amount;
+  else if (category === "extra_charge" || category === "no_show_fee") agg.extra_revenue += amount;
+  else if (category === "pos_revenue") agg.pos_revenue += amount;
+}
+
+function applyFolioPaymentRow(agg: MonthlyFolioAgg, row: Record<string, unknown>): void {
+  const amount = num(row.amount);
+  const txType = str(row.tx_type).toLowerCase();
+  const category = str(row.revenue_category).toLowerCase();
+  const method = str(row.method).toLowerCase();
+
+  if (txType === "refund") {
+    if (category === "deposit") return;
+    agg.refund_total += amount;
+    applyRevenueByCategory(agg, category, -amount);
+    return;
+  }
+
+  if (txType !== "payment") return;
+
+  // This table stores both revenue category and payment method on payment rows.
+  // Refund rows reverse both the collected money and the revenue category above,
+  // so void/replacement payment flows settle back to zero outstanding.
+  applyRevenueByCategory(agg, category, amount);
+
+  // Payment method breakdown (only for non-deposit)
+  if (category !== "deposit") {
+    if (method === "cash") agg.paid_cash += amount;
+    else if (method === "transfer") agg.paid_transfer += amount;
+    else if (method === "credit_card") agg.paid_credit_card += amount;
+    else agg.paid_other += amount;
+  }
+}
+
 function emptySourceSummary(): SourceSummary {
   return {
     count: 0,
@@ -219,7 +301,22 @@ function addToSummary(summary: SourceSummary, entry: MonthlyAuditEntry): void {
   if (entry.tax_invoice_requested) summary.tax_invoice_count += 1;
 }
 
-export function computeSummary(entries: MonthlyAuditEntry[]): MonthlyAuditSummary {
+function emptyPosSalesSummary(): MonthlyAuditPosSalesSummary {
+  return {
+    item_count: 0,
+    order_count: 0,
+    total_quantity: 0,
+    walkin_total: 0,
+    guest_charge_total: 0,
+    total_sales: 0,
+    items: [],
+  };
+}
+
+export function computeSummary(
+  entries: MonthlyAuditEntry[],
+  posSales: MonthlyAuditPosSalesSummary = emptyPosSalesSummary()
+): MonthlyAuditSummary {
   const bySource: Record<string, SourceSummary> = {};
   const totals = emptySourceSummary();
 
@@ -234,6 +331,106 @@ export function computeSummary(entries: MonthlyAuditEntry[]): MonthlyAuditSummar
     total_reservations: entries.length,
     by_source: bySource,
     totals,
+    pos_sales: posSales,
+  };
+}
+
+export async function loadMonthlyPosSalesSummary(params: {
+  supabase: SupabaseLike;
+  year: number;
+  month: number;
+}): Promise<MonthlyAuditPosSalesSummary> {
+  const { supabase, year, month } = params;
+  const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
+
+  const rows: any[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("pos_order_items")
+      .select(
+        "order_id, product_id, product_name, quantity, line_total, pos_orders!inner(id, order_date, order_type, status)"
+      )
+      .gte("pos_orders.order_date", dateFrom)
+      .lte("pos_orders.order_date", dateTo)
+      .eq("pos_orders.status", "completed")
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      throw new MonthlyAuditError(`Failed to load POS sales summary: ${error.message}`, 500);
+    }
+
+    rows.push(...((data ?? []) as any[]));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const byProduct = new Map<string, MonthlyAuditPosSalesItem & { order_ids: Set<string> }>();
+  const allOrderIds = new Set<string>();
+
+  for (const row of rows) {
+    const order = Array.isArray(row.pos_orders) ? row.pos_orders[0] : row.pos_orders;
+    const orderId = str(row.order_id || order?.id);
+    const orderType = str(order?.order_type).toLowerCase();
+    const productId = row.product_id ? String(row.product_id) : null;
+    const productName = str(row.product_name) || "Unknown item";
+    const productKey = productId || productName.toLowerCase();
+    const quantity = num(row.quantity);
+    const lineTotal = num(row.line_total);
+
+    if (!byProduct.has(productKey)) {
+      byProduct.set(productKey, {
+        product_id: productId,
+        product_name: productName,
+        quantity: 0,
+        walkin_quantity: 0,
+        walkin_total: 0,
+        guest_charge_quantity: 0,
+        guest_charge_total: 0,
+        total_sales: 0,
+        order_count: 0,
+        order_ids: new Set<string>(),
+      });
+    }
+
+    const item = byProduct.get(productKey)!;
+    item.quantity += quantity;
+    item.total_sales = num(item.total_sales + lineTotal);
+
+    if (orderType === "guest_charge") {
+      item.guest_charge_quantity += quantity;
+      item.guest_charge_total = num(item.guest_charge_total + lineTotal);
+    } else {
+      item.walkin_quantity += quantity;
+      item.walkin_total = num(item.walkin_total + lineTotal);
+    }
+
+    if (orderId) {
+      item.order_ids.add(orderId);
+      allOrderIds.add(orderId);
+    }
+  }
+
+  const items = Array.from(byProduct.values())
+    .map(({ order_ids, ...item }) => ({
+      ...item,
+      quantity: num(item.quantity),
+      walkin_quantity: num(item.walkin_quantity),
+      guest_charge_quantity: num(item.guest_charge_quantity),
+      order_count: order_ids.size,
+    }))
+    .sort((a, b) => {
+      if (b.total_sales !== a.total_sales) return b.total_sales - a.total_sales;
+      return a.product_name.localeCompare(b.product_name);
+    });
+
+  return {
+    item_count: items.length,
+    order_count: allOrderIds.size,
+    total_quantity: num(items.reduce((sum, item) => sum + item.quantity, 0)),
+    walkin_total: num(items.reduce((sum, item) => sum + item.walkin_total, 0)),
+    guest_charge_total: num(items.reduce((sum, item) => sum + item.guest_charge_total, 0)),
+    total_sales: num(items.reduce((sum, item) => sum + item.total_sales, 0)),
+    items,
   };
 }
 
@@ -283,6 +480,7 @@ export async function closeMonth(params: {
   }
 
   const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
+  const posSales = await loadMonthlyPosSalesSummary({ supabase, year, month });
 
   // 2. Load checked-out reservations in this month
   const { data: reservations, error: resError } = await supabase
@@ -357,61 +555,14 @@ export async function closeMonth(params: {
 
   // 6. Build lookup maps
   // Folio: group by reservation_id
-  type FolioAgg = {
-    room_revenue: number;
-    extra_revenue: number;
-    pos_revenue: number;
-    paid_cash: number;
-    paid_transfer: number;
-    paid_credit_card: number;
-    paid_other: number;
-    refund_total: number;
-  };
-
-  const folioMap = new Map<string, FolioAgg>();
+  const folioMap = new Map<string, MonthlyFolioAgg>();
   for (const row of (folioRows ?? []) as any[]) {
     const resId = String(row.reservation_id);
     if (!folioMap.has(resId)) {
-      folioMap.set(resId, {
-        room_revenue: 0,
-        extra_revenue: 0,
-        pos_revenue: 0,
-        paid_cash: 0,
-        paid_transfer: 0,
-        paid_credit_card: 0,
-        paid_other: 0,
-        refund_total: 0,
-      });
+      folioMap.set(resId, emptyFolioAgg());
     }
     const agg = folioMap.get(resId)!;
-    const amount = num(row.amount);
-    const txType = str(row.tx_type).toLowerCase();
-    const category = str(row.revenue_category).toLowerCase();
-    const method = str(row.method).toLowerCase();
-
-    if (txType === "refund") {
-      if (category !== "deposit") {
-        agg.refund_total += amount;
-      }
-    } else if (txType === "payment") {
-      // This table stores both revenue category and payment method on the same payment row.
-      // We intentionally aggregate both dimensions from the same rows:
-      // - revenue side: by revenue_category (room/extra/pos)
-      // - payment side: by method (cash/transfer/card/other)
-      // Outstanding remains: total_revenue - total_paid + refund_total.
-      if (category === "room_revenue" || category === "dayuse_revenue") agg.room_revenue += amount;
-      else if (category === "extra_charge" || category === "no_show_fee") agg.extra_revenue += amount;
-      else if (category === "pos_revenue") agg.pos_revenue += amount;
-      // Skip deposit category
-
-      // Payment method breakdown (only for non-deposit)
-      if (category !== "deposit") {
-        if (method === "cash") agg.paid_cash += amount;
-        else if (method === "transfer") agg.paid_transfer += amount;
-        else if (method === "credit_card") agg.paid_credit_card += amount;
-        else agg.paid_other += amount;
-      }
-    }
+    applyFolioPaymentRow(agg, row);
   }
 
   // Room: first occurrence per reservation (sorted desc by stay_date, so first = latest)
@@ -460,16 +611,7 @@ export async function closeMonth(params: {
 
   for (const res of reservationRows) {
     const resId = String(res.id);
-    const folio = folioMap.get(resId) ?? {
-      room_revenue: 0,
-      extra_revenue: 0,
-      pos_revenue: 0,
-      paid_cash: 0,
-      paid_transfer: 0,
-      paid_credit_card: 0,
-      paid_other: 0,
-      refund_total: 0,
-    };
+    const folio = folioMap.get(resId) ?? emptyFolioAgg();
     const room = roomMap.get(resId) ?? { room_number: "", room_type_name: "" };
     const profile = guestProfileMap.get(String(res.guest_profile_id ?? ""));
     const nightCount = nightCountMap.get(resId) ?? 1;
@@ -563,7 +705,7 @@ export async function closeMonth(params: {
   }
 
   // 10. Compute and save summary
-  const summary = computeSummary(entries);
+  const summary = computeSummary(entries, posSales);
 
   const { error: summaryError } = await supabase
     .from("monthly_audit_periods")
@@ -626,6 +768,7 @@ export async function previewMonth(params: {
 }): Promise<MonthlyAuditPreviewResult> {
   const { supabase, year, month, filterDayuse } = params;
   const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
+  const posSales = await loadMonthlyPosSalesSummary({ supabase, year, month });
 
   // 1) Load checked-out reservations in this month
   const { data: reservations, error: resError } = await supabase
@@ -652,7 +795,7 @@ export async function previewMonth(params: {
       year,
       month,
       entries: [],
-      summary: computeSummary([]),
+      summary: computeSummary([], posSales),
       available_sources: [],
       generated_at: new Date().toISOString(),
     };
@@ -698,54 +841,14 @@ export async function previewMonth(params: {
   }
 
   // 5) Build lookup maps
-  type FolioAgg = {
-    room_revenue: number;
-    extra_revenue: number;
-    pos_revenue: number;
-    paid_cash: number;
-    paid_transfer: number;
-    paid_credit_card: number;
-    paid_other: number;
-    refund_total: number;
-  };
-
-  const folioMap = new Map<string, FolioAgg>();
+  const folioMap = new Map<string, MonthlyFolioAgg>();
   for (const row of (folioRows ?? []) as any[]) {
     const resId = String(row.reservation_id);
     if (!folioMap.has(resId)) {
-      folioMap.set(resId, {
-        room_revenue: 0,
-        extra_revenue: 0,
-        pos_revenue: 0,
-        paid_cash: 0,
-        paid_transfer: 0,
-        paid_credit_card: 0,
-        paid_other: 0,
-        refund_total: 0,
-      });
+      folioMap.set(resId, emptyFolioAgg());
     }
     const agg = folioMap.get(resId)!;
-    const amount = num(row.amount);
-    const txType = str(row.tx_type).toLowerCase();
-    const category = str(row.revenue_category).toLowerCase();
-    const method = str(row.method).toLowerCase();
-
-    if (txType === "refund") {
-      if (category !== "deposit") {
-        agg.refund_total += amount;
-      }
-    } else if (txType === "payment") {
-      if (category === "room_revenue" || category === "dayuse_revenue") agg.room_revenue += amount;
-      else if (category === "extra_charge" || category === "no_show_fee") agg.extra_revenue += amount;
-      else if (category === "pos_revenue") agg.pos_revenue += amount;
-
-      if (category !== "deposit") {
-        if (method === "cash") agg.paid_cash += amount;
-        else if (method === "transfer") agg.paid_transfer += amount;
-        else if (method === "credit_card") agg.paid_credit_card += amount;
-        else agg.paid_other += amount;
-      }
-    }
+    applyFolioPaymentRow(agg, row);
   }
 
   const roomMap = new Map<string, { room_number: string; room_type_name: string }>();
@@ -773,16 +876,7 @@ export async function previewMonth(params: {
 
   for (const res of reservationRows) {
     const resId = String(res.id);
-    const folio = folioMap.get(resId) ?? {
-      room_revenue: 0,
-      extra_revenue: 0,
-      pos_revenue: 0,
-      paid_cash: 0,
-      paid_transfer: 0,
-      paid_credit_card: 0,
-      paid_other: 0,
-      refund_total: 0,
-    };
+    const folio = folioMap.get(resId) ?? emptyFolioAgg();
     const room = roomMap.get(resId) ?? { room_number: "", room_type_name: "" };
     const profile = guestProfileMap.get(String(res.guest_profile_id ?? ""));
     const nightCount = nightCountMap.get(resId) ?? 1;
@@ -825,7 +919,7 @@ export async function previewMonth(params: {
     });
   }
 
-  const summary = computeSummary(entries);
+  const summary = computeSummary(entries, posSales);
   const availableSources = Array.from(new Set(entries.map((e) => e.source).filter(Boolean))).sort();
 
   return {
@@ -1031,7 +1125,9 @@ export async function approveMonth(params: {
     guest_count: Number(e.guest_count ?? 1),
   }));
 
-  const summary = computeSummary(shapedEntries);
+  const savedPosSales = (period.summary_json as any)?.pos_sales;
+  const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
+  const summary = computeSummary(shapedEntries, posSales);
   const now = new Date().toISOString();
 
   const { error: updateError } = await supabase

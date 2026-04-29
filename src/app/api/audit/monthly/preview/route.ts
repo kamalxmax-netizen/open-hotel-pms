@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       month,
       period: null,
       entries,
-      summary: computeSummary(entries),
+      summary: computeSummary(entries, preview.summary.pos_sales),
       filters: {
         available_sources: preview.available_sources,
       },
