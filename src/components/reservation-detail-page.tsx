@@ -1074,6 +1074,8 @@ export default function ReservationDetailPage({
 
     // Guest Info
     const [guestName, setGuestName] = useState("");
+    const [identityFirstName, setIdentityFirstName] = useState("");
+    const [identityLastName, setIdentityLastName] = useState("");
     const [initialBookedGuestName, setInitialBookedGuestName] = useState("");
     const [phone, setPhone] = useState("");
     const [identityText, setIdentityText] = useState("");
@@ -1279,7 +1281,23 @@ export default function ReservationDetailPage({
     const [roomTypes, setRoomTypes] = useState<any[]>([]);
     const [rooms, setRooms] = useState<any[]>([]);
 
+    const applyIdentityNameParts = useCallback((
+        firstName: string,
+        lastName: string,
+        options?: { syncGuestName?: boolean }
+    ) => {
+        const nextFirstName = cleanFloatingThaiMarks(String(firstName || "")).trim();
+        const nextLastName = cleanFloatingThaiMarks(String(lastName || "")).trim();
+        setIdentityFirstName(nextFirstName);
+        setIdentityLastName(nextLastName);
+        if (options?.syncGuestName !== false) {
+            setGuestName(joinGuestName(nextFirstName, nextLastName));
+        }
+    }, []);
+
     const resetProfileDraft = useCallback(() => {
+        setIdentityFirstName("");
+        setIdentityLastName("");
         setProfileGender("");
         setProfileNationalityCode("");
         setProfileCountry("");
@@ -1321,6 +1339,8 @@ export default function ReservationDetailPage({
         if (options?.overwriteGuest !== false) {
             if (fullName) setGuestName(fullName);
         }
+        setIdentityFirstName(firstName);
+        setIdentityLastName(lastName);
         setLinkedProfileName(fullName);
         const phoneValue = String(profile.phone || "").trim();
         if (phoneValue) setPhone(formatPhoneInput(phoneValue));
@@ -1545,7 +1565,7 @@ export default function ReservationDetailPage({
 
         const preferredName = buildPreferredCardName(payload);
         if (preferredName.fullName) {
-            setGuestName(preferredName.fullName);
+            applyIdentityNameParts(preferredName.firstName, preferredName.lastName);
         }
 
         const normalizedGender = normalizeThaiCardGender(payload.gender);
@@ -1568,7 +1588,7 @@ export default function ReservationDetailPage({
             const cleaned = removeThaiCardNameBlock(current);
             return upsertBookedMainGuestNameNote(cleaned, options?.bookedMainGuestName || "");
         });
-    }, []);
+    }, [applyIdentityNameParts]);
 
     const findProfileByThaiId = useCallback(async (citizenId: string) => {
         const normalized = normalizeThaiCardCitizenId(citizenId);
@@ -1864,7 +1884,10 @@ export default function ReservationDetailPage({
         const familyName = String(payload.familyName || "").trim();
         if (firstName || familyName) {
             const currentGuestNameParts = splitGuestName(guestName);
-            setGuestName(joinGuestName(firstName || currentGuestNameParts.firstName, familyName || currentGuestNameParts.lastName));
+            applyIdentityNameParts(
+                firstName || identityFirstName || currentGuestNameParts.firstName,
+                familyName || identityLastName || currentGuestNameParts.lastName
+            );
         }
 
         const passportNumber = normalizePassportNumber(payload.passportNumber);
@@ -1885,7 +1908,7 @@ export default function ReservationDetailPage({
 
         const dob = normalizeDobYmd(payload.dateOfBirth);
         if (dob) setProfileDob(dob);
-    }, [guestName]);
+    }, [applyIdentityNameParts, guestName, identityFirstName, identityLastName]);
 
     const findProfileByPassport = useCallback(async (passportNumber: string) => {
         const normalized = normalizePassportNumber(passportNumber);
@@ -2453,6 +2476,8 @@ export default function ReservationDetailPage({
                     setRoomId(res.room_id || "");
                     setInitialAssignedRoomId(res.room_id || "");
                     setGuestName(res.guest_name || "");
+                    const loadedGuestNameParts = splitGuestName(res.guest_name || "");
+                    applyIdentityNameParts(loadedGuestNameParts.firstName, loadedGuestNameParts.lastName, { syncGuestName: false });
                     setInitialBookedGuestName(res.guest_name || "");
                     setPhone(formatPhoneInput(res.phone || ""));
                     setGuestProfileId(res.guest_profile_id || null);
@@ -2553,7 +2578,7 @@ export default function ReservationDetailPage({
             })
             .catch(() => { })
             .finally(() => setFetching(false));
-    }, [mode, reservationId, resetProfileDraft, reloadToken]);
+    }, [applyIdentityNameParts, mode, reservationId, resetProfileDraft, reloadToken]);
 
     const canManageAssignedRoomLock = Boolean(
         reservationId &&
@@ -4253,7 +4278,9 @@ export default function ReservationDetailPage({
         }
     };
 
-    const guestNameParts = splitGuestName(guestName);
+    const guestNameParts = identityFirstName || identityLastName
+        ? { firstName: identityFirstName, lastName: identityLastName }
+        : splitGuestName(guestName);
     const normalizedNationalityCode = normalizeNationalityCode(profileNationalityCode);
     const isThaiNationality = normalizedNationalityCode === "THA";
     const thaiProvinceSuggestions = useMemo(
@@ -5192,7 +5219,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             className={`form-input h-10 text-sm ${checkinFieldErrorClass("first_name")}`}
                                                             value={guestNameParts.firstName}
-                                                            onChange={(e) => setGuestName(joinGuestName(e.target.value, guestNameParts.lastName))}
+                                                            onChange={(e) => applyIdentityNameParts(e.target.value, guestNameParts.lastName)}
                                                             disabled={isReadonly}
                                                         />
                                                     </div>
@@ -5202,7 +5229,7 @@ export default function ReservationDetailPage({
                                                             type="text"
                                                             className={`form-input h-10 text-sm ${checkinFieldErrorClass("last_name")}`}
                                                             value={guestNameParts.lastName}
-                                                            onChange={(e) => setGuestName(joinGuestName(guestNameParts.firstName, e.target.value))}
+                                                            onChange={(e) => applyIdentityNameParts(guestNameParts.firstName, e.target.value)}
                                                             disabled={isReadonly}
                                                         />
                                                     </div>

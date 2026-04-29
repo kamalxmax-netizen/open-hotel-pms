@@ -19,6 +19,8 @@ export type MobileCheckinRole = "admin" | "frontdesk" | "supervisor" | "mobile" 
 
 export type MobileGuestInfoInput = {
   full_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   passport_no?: string | null;
   nationality?: string | null;
   date_of_birth?: string | null;
@@ -27,6 +29,8 @@ export type MobileGuestInfoInput = {
 
 export type MobileAccompanyingInput = {
   full_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   passport_no?: string | null;
   nationality?: string | null;
   date_of_birth?: string | null;
@@ -123,6 +127,21 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
     firstName: tokens.slice(0, -1).join(" "),
     lastName: tokens[tokens.length - 1],
   };
+}
+
+function resolveNameParts(input: { full_name: string; first_name?: string | null; last_name?: string | null }): {
+  firstName: string;
+  lastName: string;
+} {
+  const explicitFirst = normalizeWhitespace(input.first_name);
+  const explicitLast = normalizeWhitespace(input.last_name);
+  if (explicitFirst || explicitLast) {
+    return {
+      firstName: explicitFirst,
+      lastName: explicitLast || "Unknown",
+    };
+  }
+  return splitFullName(input.full_name);
 }
 
 export function normalizeForNameMatch(value: string): string {
@@ -326,7 +345,7 @@ export async function fetchProfileCompleteness(
 
 function buildGuestProfilePatch(guestInfo: MobileGuestInfoInput, passportRaw?: Record<string, unknown> | null) {
   const fullName = normalizeWhitespace(guestInfo.full_name);
-  const { firstName, lastName } = splitFullName(fullName);
+  const { firstName, lastName } = resolveNameParts({ ...guestInfo, full_name: fullName });
   const passportNo = normalizePassportNo(guestInfo.passport_no);
   const nationalityCode = normalizeNationalityCode(guestInfo.nationality ?? null);
   const country = getCountryByCode(nationalityCode);
@@ -499,7 +518,7 @@ export async function resolvePrimaryGuestProfile(params: {
     return { guestProfileId: profileId, fullName: fallbackName };
   }
 
-  const { firstName, lastName } = splitFullName(fallbackName);
+  const { firstName, lastName } = resolveNameParts({ ...guestInfo, full_name: fallbackName });
   const passportNo = normalizePassportNo(guestInfo.passport_no);
   const nationalityCode = normalizeNationalityCode(guestInfo.nationality ?? null);
 
@@ -574,6 +593,8 @@ export async function syncAccompanyingGuests(params: {
     .map((guest) => ({
       ...guest,
       full_name: normalizeWhitespace(guest.full_name),
+      first_name: normalizeWhitespace(guest.first_name),
+      last_name: normalizeWhitespace(guest.last_name),
       passport_no: normalizePassportNo(guest.passport_no),
       nationality: normalizeWhitespace(guest.nationality),
       date_of_birth: normalizeIsoDate(guest.date_of_birth),
@@ -603,7 +624,7 @@ export async function syncAccompanyingGuests(params: {
 
   for (let idx = 0; idx < cleaned.length; idx += 1) {
     const guest = cleaned[idx];
-    const { firstName, lastName } = splitFullName(guest.full_name);
+    const { firstName, lastName } = resolveNameParts(guest);
     const nationalityCode = normalizeNationalityCode(guest.nationality ?? null);
     let profileId = "";
     if (guest.passport_no) {
@@ -651,6 +672,8 @@ export async function syncAccompanyingGuests(params: {
     const patch = buildGuestProfilePatch(
       {
         full_name: guest.full_name,
+        first_name: guest.first_name,
+        last_name: guest.last_name,
         passport_no: guest.passport_no,
         nationality: nationalityCode,
         date_of_birth: guest.date_of_birth,

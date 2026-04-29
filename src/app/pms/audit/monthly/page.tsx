@@ -87,6 +87,29 @@ type AuditSummary = {
   total_reservations: number;
   by_source: Record<string, SourceSummary>;
   totals: SourceSummary;
+  pos_sales: PosSalesSummary;
+};
+
+type PosSalesItem = {
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  walkin_quantity: number;
+  walkin_total: number;
+  guest_charge_quantity: number;
+  guest_charge_total: number;
+  total_sales: number;
+  order_count: number;
+};
+
+type PosSalesSummary = {
+  item_count: number;
+  order_count: number;
+  total_quantity: number;
+  walkin_total: number;
+  guest_charge_total: number;
+  total_sales: number;
+  items: PosSalesItem[];
 };
 
 // ============================================================
@@ -323,6 +346,19 @@ export default function MonthlyAuditPage() {
     params.set("format", "csv");
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (taxFilter !== "all") params.set("tax_invoice", taxFilter);
+    if (correctionFilter !== "all") params.set("has_corrections", correctionFilter);
+    if (search.trim()) params.set("search", search.trim());
+    window.open(`/api/audit/monthly/${selectedYear}/${selectedMonth}/export?${params.toString()}`, "_blank");
+  };
+
+  const handleExportExcel = () => {
+    const params = new URLSearchParams();
+    params.set("format", "xlsx");
+    if (previewEnabled) params.set("mode", "preview");
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
+    if (taxFilter !== "all") params.set("tax_invoice", taxFilter);
+    if (correctionFilter !== "all") params.set("has_corrections", correctionFilter);
+    if (search.trim()) params.set("search", search.trim());
     window.open(`/api/audit/monthly/${selectedYear}/${selectedMonth}/export?${params.toString()}`, "_blank");
   };
 
@@ -418,6 +454,7 @@ export default function MonthlyAuditPage() {
   const displayedEntries = isPreviewMode ? previewEntries : entries;
   const displayedSummary = isPreviewMode ? previewSummary : summary;
   const displayedSources = isPreviewMode ? previewSources : availableSources;
+  const displayedPosSales = displayedSummary?.pos_sales ?? null;
 
   const yearOptions = useMemo(() => {
     const years: number[] = [];
@@ -533,6 +570,14 @@ export default function MonthlyAuditPage() {
             className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors dark:border-white/10"
           >
             Export CSV
+          </button>
+        )}
+        {(previewEnabled || canExport) && (
+          <button
+            onClick={handleExportExcel}
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition-colors"
+          >
+            Export Excel
           </button>
         )}
         <Link
@@ -684,6 +729,85 @@ export default function MonthlyAuditPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* POS Sales Summary */}
+      {!loading && !previewLoading && displayedSummary && (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] overflow-hidden dark:border-white/10">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-3 dark:border-white/10">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">POS Sales Summary</h2>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                สรุปยอดขายสินค้า POS แยกจากยอดห้องพัก
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-4">
+              <div className="rounded-md bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Items</div>
+                <div className="font-mono text-sm font-semibold text-[var(--text-primary)]">{displayedPosSales?.item_count ?? 0}</div>
+              </div>
+              <div className="rounded-md bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Orders</div>
+                <div className="font-mono text-sm font-semibold text-[var(--text-primary)]">{displayedPosSales?.order_count ?? 0}</div>
+              </div>
+              <div className="rounded-md bg-[var(--bg-muted)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Qty</div>
+                <div className="font-mono text-sm font-semibold text-[var(--text-primary)]">{fmt(displayedPosSales?.total_quantity ?? 0)}</div>
+              </div>
+              <div className="rounded-md bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+                <div className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Total Sales</div>
+                <div className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300">{fmt(displayedPosSales?.total_sales ?? 0)}</div>
+              </div>
+            </div>
+          </div>
+
+          {displayedPosSales && displayedPosSales.items.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)] dark:border-white/10">
+                    <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Item</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Qty</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Walk-in Qty</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Walk-in</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Guest Charge Qty</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Guest Charge</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Total Sales</th>
+                    <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedPosSales.items.map((item) => (
+                    <tr key={item.product_id ?? item.product_name} className="border-b border-[var(--border)] hover:bg-[var(--bg-muted)] dark:border-white/10">
+                      <td className="p-2 font-medium text-[var(--text-primary)]">{item.product_name}</td>
+                      <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{fmt(item.quantity)}</td>
+                      <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{item.walkin_quantity > 0 ? fmt(item.walkin_quantity) : "-"}</td>
+                      <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{item.walkin_total > 0 ? fmt(item.walkin_total) : "-"}</td>
+                      <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{item.guest_charge_quantity > 0 ? fmt(item.guest_charge_quantity) : "-"}</td>
+                      <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{item.guest_charge_total > 0 ? fmt(item.guest_charge_total) : "-"}</td>
+                      <td className="p-2 text-right font-mono font-semibold text-[var(--text-primary)]">{fmt(item.total_sales)}</td>
+                      <td className="p-2 text-right text-[var(--text-secondary)]">{item.order_count}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-[var(--bg-muted)] font-semibold">
+                    <td className="p-2 text-[var(--text-primary)]">Total</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedPosSales.total_quantity)}</td>
+                    <td className="p-2 text-right text-[var(--text-muted)]">-</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedPosSales.walkin_total)}</td>
+                    <td className="p-2 text-right text-[var(--text-muted)]">-</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedPosSales.guest_charge_total)}</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedPosSales.total_sales)}</td>
+                    <td className="p-2 text-right text-[var(--text-primary)]">{displayedPosSales.order_count}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-sm text-[var(--text-muted)]">
+              No POS sales for this month.
+            </div>
+          )}
         </div>
       )}
 

@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
     const ocrName = `${String(parsed.firstName ?? "").trim()} ${String(parsed.familyName ?? "").trim()}`.trim();
     const guestInfo: MobileGuestInfoInput = {
       full_name: ocrName || "Unknown Guest",
+      first_name: parsed.firstName || null,
+      last_name: parsed.familyName || null,
       passport_no: parsed.passportNumber || null,
       nationality: parsed.nationality || null,
       date_of_birth: parsed.dateOfBirth || null,
@@ -167,6 +169,8 @@ export async function POST(request: NextRequest) {
         if (profile) {
           existingInfos.push({
             full_name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim(),
+            first_name: profile.first_name || null,
+            last_name: profile.last_name || null,
             passport_no: profile.passport_no || profile.id_number || null,
             nationality: profile.nationality_code || null,
             date_of_birth: profile.dob || null,
