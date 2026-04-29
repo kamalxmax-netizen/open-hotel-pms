@@ -11,6 +11,7 @@ import type { LaundryRewashPendingResponse, LinenEditAuditLog } from "@/lib/type
 import { LinenSummaryCards } from "@/components/linen/linen-summary-cards";
 import { LinenQuickLinks } from "@/components/linen/linen-quick-links";
 import { LinenRecentActivity } from "@/components/linen/linen-recent-activity";
+import { LinenDailySnapshotSection } from "@/components/linen/linen-daily-snapshot-section";
 
 export default function LinenDashboardPage() {
     const { dashboard, isLoading } = useLinenDashboard();
@@ -50,6 +51,8 @@ export default function LinenDashboardPage() {
             </header>
 
             <LinenSummaryCards data={summaryData} isLoading={combinedLoading} />
+
+            <LinenDailySnapshotSection />
             
             <LinenQuickLinks />
 

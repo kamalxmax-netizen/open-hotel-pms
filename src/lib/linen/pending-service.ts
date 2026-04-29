@@ -11,6 +11,10 @@ export type PendingResolveInput = {
   pending_item_id: string;
 };
 
+type PendingRebuildOptions = {
+  createdByBatchId?: string | null;
+};
+
 function ensureNonNegativeInt(value: unknown, field: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${field} must be a non-negative integer.`);
@@ -34,6 +38,63 @@ export async function listPendingItems(supabase: SupabaseClient) {
   }));
 }
 
+export async function rebuildOpenPendingItemsForSourceBatches(
+  supabase: SupabaseClient,
+  sourceBatchIds: string[],
+  options: PendingRebuildOptions = {}
+) {
+  const batchIds = Array.from(new Set(sourceBatchIds.map((id) => String(id ?? "").trim()).filter(Boolean)));
+  if (batchIds.length === 0) return [];
+
+  const { data: sourceItems, error: sourceItemsError } = await supabase
+    .from("laundry_batch_items")
+    .select("batch_id, linen_item_id, sent_by_hotel, received_back")
+    .in("batch_id", batchIds);
+  if (sourceItemsError) throw new Error(sourceItemsError.message);
+
+  const { error: deleteError } = await supabase
+    .from("laundry_pending_items")
+    .delete()
+    .in("source_batch_id", batchIds)
+    .is("resolved_at", null);
+  if (deleteError) throw new Error(deleteError.message);
+
+  const pendingByItem = new Map<string, { source_batch_id: string; linen_item_id: number; pending_qty: number }>();
+  for (const item of sourceItems ?? []) {
+    const sourceBatchId = String((item as any).batch_id ?? "");
+    const linenItemId = Number((item as any).linen_item_id ?? 0);
+    if (!sourceBatchId || !linenItemId) continue;
+
+    const sentQty = ensureNonNegativeInt((item as any).sent_by_hotel, "sent_by_hotel");
+    const receivedQty = ensureNonNegativeInt((item as any).received_back, "received_back");
+    const pendingQty = Math.max(0, sentQty - receivedQty);
+    if (pendingQty <= 0) continue;
+
+    const key = `${sourceBatchId}:${linenItemId}`;
+    const current = pendingByItem.get(key) ?? {
+      source_batch_id: sourceBatchId,
+      linen_item_id: linenItemId,
+      pending_qty: 0,
+    };
+    current.pending_qty += pendingQty;
+    pendingByItem.set(key, current);
+  }
+
+  const rows = Array.from(pendingByItem.values()).map((row) => ({
+    ...row,
+    created_by_batch_id: options.createdByBatchId ?? null,
+    reason: "return_short",
+  }));
+  if (rows.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("laundry_pending_items")
+    .insert(rows)
+    .select();
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function applyReturnsToSourceBatches(
   supabase: SupabaseClient,
   currentBatchId: string,
@@ -41,14 +102,17 @@ export async function applyReturnsToSourceBatches(
 ) {
   await supabase.from("laundry_pending_items").delete().eq("created_by_batch_id", currentBatchId).is("resolved_at", null);
 
-  const applied: Array<{ source_batch_id: string; linen_item_id: number; received_qty: number; pending_qty: number }> = [];
+  const applied: Array<{ source_batch_id: string; linen_item_id: number; received_qty: number; pending_qty: number; is_dayuse: boolean }> = [];
+  const affectedSourceBatchIds = new Set<string>();
 
   for (const input of returnItems) {
     const receivedQty = ensureNonNegativeInt(input.received_qty, "received_qty");
+    const sourceBatchId = String(input.source_batch_id ?? "").trim();
+    if (sourceBatchId) affectedSourceBatchIds.add(sourceBatchId);
     const { data: existing, error: existingError } = await supabase
       .from("laundry_batch_items")
-      .select("id, sent_by_hotel, received_back")
-      .eq("batch_id", input.source_batch_id)
+      .select("id, sent_by_hotel, received_back, is_dayuse")
+      .eq("batch_id", sourceBatchId)
       .eq("linen_item_id", input.linen_item_id)
       .eq("is_dayuse", Boolean(input.is_dayuse))
       .maybeSingle();
@@ -66,24 +130,19 @@ export async function applyReturnsToSourceBatches(
     if (updateError) throw new Error(updateError.message);
 
     const pendingQty = Math.max(0, sentQty - nextReceived);
-    if (pendingQty > 0) {
-      const { error: pendingError } = await supabase.from("laundry_pending_items").insert({
-        source_batch_id: input.source_batch_id,
-        linen_item_id: input.linen_item_id,
-        pending_qty: pendingQty,
-        created_by_batch_id: currentBatchId,
-        reason: "return_short",
-      });
-      if (pendingError) throw new Error(pendingError.message);
-    }
 
     applied.push({
-      source_batch_id: input.source_batch_id,
+      source_batch_id: sourceBatchId,
       linen_item_id: input.linen_item_id,
       received_qty: receivedQty,
       pending_qty: pendingQty,
+      is_dayuse: Boolean((existing as any).is_dayuse),
     });
   }
+
+  await rebuildOpenPendingItemsForSourceBatches(supabase, [...affectedSourceBatchIds], {
+    createdByBatchId: currentBatchId,
+  });
 
   return applied;
 }
@@ -93,7 +152,8 @@ export async function resolvePendingItems(
   currentBatchId: string,
   pendingItems: PendingResolveInput[] = []
 ) {
-  const resolved: Array<{ pending_item_id: string; source_batch_id: string; linen_item_id: number; qty: number }> = [];
+  const resolved: Array<{ pending_item_id: string; source_batch_id: string; linen_item_id: number; qty: number; is_dayuse: boolean }> = [];
+  const affectedSourceBatchIds = new Set<string>();
 
   for (const input of pendingItems) {
     const { data: pending, error: pendingError } = await supabase
@@ -105,10 +165,11 @@ export async function resolvePendingItems(
 
     if (pendingError) throw new Error(pendingError.message);
     if (!pending) continue;
+    affectedSourceBatchIds.add(String((pending as any).source_batch_id));
 
     const { data: item, error: itemError } = await supabase
       .from("laundry_batch_items")
-      .select("id, received_back")
+      .select("id, received_back, is_dayuse")
       .eq("batch_id", (pending as any).source_batch_id)
       .eq("linen_item_id", (pending as any).linen_item_id)
       .maybeSingle();
@@ -134,8 +195,13 @@ export async function resolvePendingItems(
       source_batch_id: String((pending as any).source_batch_id),
       linen_item_id: Number((pending as any).linen_item_id),
       qty,
+      is_dayuse: Boolean((item as any).is_dayuse),
     });
   }
+
+  await rebuildOpenPendingItemsForSourceBatches(supabase, [...affectedSourceBatchIds], {
+    createdByBatchId: currentBatchId,
+  });
 
   return resolved;
 }

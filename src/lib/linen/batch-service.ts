@@ -3,6 +3,7 @@ import type { LaundryBatchStatus } from "@/lib/types";
 import { deleteR2Objects } from "@/lib/r2";
 import {
   applyReturnsToSourceBatches,
+  rebuildOpenPendingItemsForSourceBatches,
   resolvePendingItems,
   type PendingResolveInput,
   type ReturnItemInput,
@@ -90,15 +91,19 @@ async function logEvent(
 
 async function rollbackReturnEffects(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
   const batchId = String((detail.batch as any).id);
-  const returnEvents = (detail.events as any[]).filter((event) => event.event_type === "fo_return_counted");
+  const returnEvents = getActiveBatchEvents(detail, "fo_return_counted");
+  const affectedSourceBatchIds = new Set<string>();
   for (const event of returnEvents) {
     const returns = Array.isArray(event.data?.returns) ? event.data.returns : [];
     for (const item of returns) {
+      const sourceBatchId = String(item.source_batch_id ?? "");
+      if (sourceBatchId) affectedSourceBatchIds.add(sourceBatchId);
       const { data: sourceItem, error: sourceError } = await supabase
         .from("laundry_batch_items")
         .select("id, received_back")
-        .eq("batch_id", item.source_batch_id)
+        .eq("batch_id", sourceBatchId)
         .eq("linen_item_id", item.linen_item_id)
+        .eq("is_dayuse", Boolean(item.is_dayuse))
         .maybeSingle();
       if (sourceError) throw new Error(sourceError.message);
       if (!sourceItem) continue;
@@ -113,11 +118,14 @@ async function rollbackReturnEffects(supabase: SupabaseClient, detail: Awaited<R
 
     const resolved = Array.isArray(event.data?.resolved) ? event.data.resolved : [];
     for (const item of resolved) {
+      const sourceBatchId = String(item.source_batch_id ?? "");
+      if (sourceBatchId) affectedSourceBatchIds.add(sourceBatchId);
       const { data: sourceItem, error: sourceError } = await supabase
         .from("laundry_batch_items")
         .select("id, received_back")
-        .eq("batch_id", item.source_batch_id)
+        .eq("batch_id", sourceBatchId)
         .eq("linen_item_id", item.linen_item_id)
+        .eq("is_dayuse", Boolean(item.is_dayuse))
         .maybeSingle();
       if (sourceError) throw new Error(sourceError.message);
       if (sourceItem) {
@@ -143,10 +151,12 @@ async function rollbackReturnEffects(supabase: SupabaseClient, detail: Awaited<R
     .eq("created_by_batch_id", batchId)
     .is("resolved_at", null);
   if (pendingError) throw new Error(pendingError.message);
+
+  await rebuildOpenPendingItemsForSourceBatches(supabase, [...affectedSourceBatchIds]);
 }
 
 async function rollbackRewashEffects(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
-  const rewashEvents = (detail.events as any[]).filter((event) => event.event_type === "rewash_resolved");
+  const rewashEvents = getActiveBatchEvents(detail, "rewash_resolved");
   for (const event of rewashEvents) {
     const rewashEventId = Number(event.data?.rewash_event_id ?? 0);
     const appliedQty = Number(event.data?.resolved_qty ?? 0);
@@ -177,6 +187,17 @@ async function rollbackRewashEffects(supabase: SupabaseClient, detail: Awaited<R
       .eq("id", rewashEventId);
     if (updateError) throw new Error(updateError.message);
   }
+}
+
+function getActiveBatchEvents(detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>, eventType: string) {
+  const events = detail.events as any[];
+  const latestReopenIndex = events.reduce(
+    (latest, event, index) => event.event_type === "reopened" ? index : latest,
+    -1
+  );
+  return events
+    .slice(latestReopenIndex + 1)
+    .filter((event) => event.event_type === eventType);
 }
 
 async function restoreDayuseAccumulator(supabase: SupabaseClient, detail: Awaited<ReturnType<typeof getLaundryBatchDetail>>) {
