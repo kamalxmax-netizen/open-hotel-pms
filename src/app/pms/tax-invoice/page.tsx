@@ -36,6 +36,7 @@ interface InvoiceHistoryItem {
   status: TaxInvoiceStatus;
   grand_total: number;
   language: TaxInvoiceLanguage;
+  can_edit?: boolean;
   can_reuse_invoice_no?: boolean;
   has_edit_log?: boolean;
 }
@@ -233,6 +234,7 @@ export default function TaxInvoiceListPage() {
             status: String(row.status || "draft") as TaxInvoiceStatus,
             grand_total: Number(row.grand_total || 0),
             language: (String(row.language || "th") === "en" ? "en" : "th") as TaxInvoiceLanguage,
+            can_edit: Boolean(row.can_edit),
             can_reuse_invoice_no: Boolean(row.can_reuse_invoice_no),
             has_edit_log: Boolean(row.has_edit_log),
           }))
@@ -476,7 +478,7 @@ export default function TaxInvoiceListPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {!isCancelled && (
+                          {!isCancelled && (isAdmin || h.can_edit) && (
                             <Link
                               href={`/pms/tax-invoice/edit/${h.id}`}
                               className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-brand-600 transition"

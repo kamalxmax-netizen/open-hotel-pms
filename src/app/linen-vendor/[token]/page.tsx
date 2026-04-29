@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
 import type { LinenVendorView } from "@/lib/types";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
-import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import { splitReturnSummaryRowsForDisplay, toResolvedRewashSummaryRows, toRewashSummaryRows } from "@/lib/linen/rewash-summary";
 
 import { MobileBatchStepSummary } from "@/components/linen/mobile-batch-step-summary";
 
@@ -71,12 +71,13 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
     const dirtyItems = data.items.filter(i => !i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const dayuseItems = data.items.filter(i => i.is_dayuse && i.sent_by_hotel > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.sent_by_hotel }));
     const rewashItems = toRewashSummaryRows(data.rewash_items ?? []).map(i => ({ name: i.name, qty: i.qty }));
-    const returnItems = data.return_summary?.length
-        ? data.return_summary.map((item) => ({
-            name: item.source === "pending_resolved" ? `${item.name} (คืนผ้าค้าง)` : item.name,
-            qty: item.qty,
-        }))
-        : data.return_items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+    const rewashReturnItems = toResolvedRewashSummaryRows(data.rewash_return_items ?? []).map(i => ({ name: i.name, qty: i.qty }));
+    const splitReturns = splitReturnSummaryRowsForDisplay(data.return_summary ?? []);
+    const hasReturnSummary = Boolean(data.return_summary?.length);
+    const fallbackReturnItems = data.return_items
+        .filter(i => i.received_back > 0)
+        .map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
+    const returnItems = hasReturnSummary ? splitReturns.normal : fallbackReturnItems;
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-thai transition-colors">
@@ -123,7 +124,9 @@ export default function VendorDetailViewPage({ params }: { params: { token: stri
                     <MobileBatchStepSummary title="ผ้าวันนี้" items={dirtyItems} />
                     <MobileBatchStepSummary title="ผ้าเก่า" items={dayuseItems} />
                     <MobileBatchStepSummary title="ผ้าซักใหม่" items={rewashItems} />
-                    <MobileBatchStepSummary title="ผ้ารับคืน" items={returnItems} totalLabel="รวมรับคืน" />
+                    <MobileBatchStepSummary title="รับคืนผ้าซักปกติ" items={returnItems} totalLabel="รวมรับคืน" />
+                    <MobileBatchStepSummary title="รับคืนผ้าค้างเก่า" items={splitReturns.pending} totalLabel="รวมผ้าค้างที่คืน" />
+                    <MobileBatchStepSummary title="รับคืนผ้าซักใหม่" items={rewashReturnItems} totalLabel="รวมรับคืนผ้าซักใหม่" />
 
                     {data.pending_items.length > 0 && (
                         <div className="bg-slate-900 dark:bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl border border-slate-800 dark:border-slate-800 mt-6 relative overflow-hidden">

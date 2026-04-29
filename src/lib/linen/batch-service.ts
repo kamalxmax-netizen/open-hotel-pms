@@ -421,7 +421,7 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
       .filter(Boolean);
   }
 
-  const returnSources = (returnSourcesRes.data ?? [])
+  const allReturnSources = (returnSourcesRes.data ?? [])
     .map((row: any) => {
       const sentQty = Number(row.sent_by_hotel ?? 0);
       const receivedQty = Number(row.received_back ?? 0);
@@ -435,12 +435,15 @@ export async function getLaundryBatchDetail(supabase: SupabaseClient, batchId: s
         remaining_qty: Math.max(0, sentQty - receivedQty),
       };
     })
-    .filter((row: any) => row.remaining_qty > 0)
+    .filter((row: any) => Number(row.sent_by_hotel ?? 0) > 0)
     .sort((a: any, b: any) => {
       const dateCompare = String(a.source_business_date).localeCompare(String(b.source_business_date));
       if (dateCompare !== 0) return dateCompare;
       return Number(a.source_pickup_round ?? 0) - Number(b.source_pickup_round ?? 0);
     });
+  const returnSources = String((batch as any).status) === "fo_dirty_counted"
+    ? allReturnSources.filter((row: any) => row.remaining_qty > 0)
+    : allReturnSources;
 
   return {
     batch,

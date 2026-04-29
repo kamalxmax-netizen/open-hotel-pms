@@ -63,7 +63,7 @@ const NAV_ITEMS = [
                 href: "/pms/preview",
                 label: "Abbr. Preview",
                 icon: FileTextIcon,
-                permissionHrefs: ["/pms/tax-invoice/abbreviated", "/pms/tax-invoice"],
+                exactPermissionHrefs: ["/pms/tax-invoice/abbreviated"],
             },
             { href: "/pms/scb-transfers", label: "SCB Transfers", icon: ScbTransferIcon }
         ]
@@ -172,7 +172,17 @@ function isAllowed(href: string, allowedPages: string[]): boolean {
     });
 }
 
-function isNavItemAllowed(item: { href: string; permissionHrefs?: string[] }, allowedPages: string[]): boolean {
+function hasExactPermission(href: string, allowedPages: string[]): boolean {
+    return allowedPages.includes("*") || allowedPages.includes(href);
+}
+
+function isNavItemAllowed(
+    item: { href: string; permissionHrefs?: string[]; exactPermissionHrefs?: string[] },
+    allowedPages: string[]
+): boolean {
+    if (item.exactPermissionHrefs?.length) {
+        return item.exactPermissionHrefs.some((href) => hasExactPermission(href, allowedPages));
+    }
     return [item.href, ...(item.permissionHrefs ?? [])].some((href) => isAllowed(href, allowedPages));
 }
 

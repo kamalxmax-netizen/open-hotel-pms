@@ -2019,6 +2019,7 @@ export interface LinenVendorView {
   batch: LaundryBatch;
   items: LaundryBatchItem[];           // dirty sent today
   rewash_items: LaundryRewashEvent[];  // rewash sent today
+  rewash_return_items?: LaundryRewashEvent[]; // rewash returned today
   return_items: LaundryBatchItem[];    // clean returned today
   return_summary?: {
     name: string;

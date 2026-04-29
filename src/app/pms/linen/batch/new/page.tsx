@@ -11,8 +11,9 @@ import { useLinenBatchDetail } from "@/hooks/use-linen-batch";
 import {
     formatLinenSummaryLines,
     formatPendingSummaryLines,
-    formatReturnSummaryLines,
+    formatReturnSummarySections,
     formatReturnSummaryRowsForDisplay,
+    type ReturnSummaryDisplayRow,
     toAdjustedPendingSummaryRows,
     toResolvedRewashSummaryRows,
     toReturnSummaryRows,
@@ -23,7 +24,7 @@ export default function NewBatchWizardPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
     const [batchId, setBatchId] = useState<string | null>(null);
     const [vendorToken, setVendorToken] = useState<string | null>(null);
-    const [returnSummary, setReturnSummary] = useState<{ name: string; qty: number }[]>([]);
+    const [returnSummary, setReturnSummary] = useState<ReturnSummaryDisplayRow[]>([]);
 
     // Fetch batch detail from Step 2 onwards
     const { data, isLoading, mutate } = useLinenBatchDetail(batchId);
@@ -59,7 +60,7 @@ export default function NewBatchWizardPage() {
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
+            text += `\n\n` + formatReturnSummarySections(returns);
         }
         if (rewashReturns.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);
@@ -75,7 +76,7 @@ export default function NewBatchWizardPage() {
         setStep(2);
     };
 
-    const handleStep2Done = async (summary: { name: string; qty: number }[] = []) => {
+    const handleStep2Done = async (summary: ReturnSummaryDisplayRow[] = []) => {
         setReturnSummary(summary);
         await mutate();
         setStep(3);

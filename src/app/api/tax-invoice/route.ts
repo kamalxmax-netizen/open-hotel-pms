@@ -5,7 +5,9 @@ import {
   buildLineItemsForReservation,
   buildLineItemsForReservations,
   assertReservationsCanCombine,
+  canFoEditInvoiceByBusinessDate,
   extractReservationIdsFromBookingSnapshot,
+  getBusinessDateFromSettings,
   getSellerSnapshotFromSettings,
   isAdminRole,
   loadReservationInvoiceContexts,
@@ -163,6 +165,7 @@ export async function GET(request: NextRequest) {
     }
     const viewerRole = await getUserRole(supabase, user.id).catch(() => null);
     const viewerIsAdmin = isAdminRole(viewerRole);
+    const businessDate = await getBusinessDateFromSettings(supabase);
 
     const parsed = listQuerySchema.safeParse({
       date_from: request.nextUrl.searchParams.get("date_from") ?? undefined,
@@ -265,6 +268,13 @@ export async function GET(request: NextRequest) {
 
     const listRows = invoiceRows.map((row) => ({
       ...toInvoiceListItem(row, reservationMap.get(String(row.reservation_id)) ?? null),
+      can_edit:
+        row.status !== "cancelled" &&
+        (viewerIsAdmin ||
+          canFoEditInvoiceByBusinessDate(
+            businessDate,
+            reservationMap.get(String(row.reservation_id))?.checkout_date ?? null
+          )),
       can_reuse_invoice_no:
         row.status === "issued" &&
         Boolean(strOrNull(row.invoice_no)) &&
@@ -434,6 +444,7 @@ export async function GET(request: NextRequest) {
       pending_reservations: pendingReservations,
       viewer_role: viewerRole,
       viewer_is_admin: viewerIsAdmin,
+      viewer_business_date: businessDate,
       pagination: {
         page,
         per_page: perPage,

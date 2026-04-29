@@ -2,14 +2,18 @@
 
 import React, { useState, useMemo } from "react";
 import { SignatureCanvas } from "./signature-canvas";
-import { toRewashSummaryRows } from "@/lib/linen/rewash-summary";
+import {
+    splitReturnSummaryRowsForDisplay,
+    toRewashSummaryRows,
+    type ReturnSummaryDisplayRow,
+} from "@/lib/linen/rewash-summary";
 import type { LaundryBatchItem, LaundryPendingItem, LaundryRewashEvent } from "@/lib/types";
 
 interface BatchStepVendorSignProps {
     batchId: string;
     items: LaundryBatchItem[];
     rewashEvents?: LaundryRewashEvent[];
-    returnSummary?: { name: string; qty: number }[];
+    returnSummary?: ReturnSummaryDisplayRow[];
     rewashReturnSummary?: { name: string; qty: number }[];
     pendingItems: LaundryPendingItem[]; // all active global pending, or specific to what's left? 
                                         // The backend will leave pending items unresolved if they weren't checked in step 2.
@@ -25,19 +29,21 @@ export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnS
     const dayuseTotal = useMemo(() => items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0), [items]);
     const rewashItemsList = useMemo(() => toRewashSummaryRows(rewashEvents), [rewashEvents]);
     const rewashTotal = useMemo(() => rewashItemsList.reduce((sum, item) => sum + item.qty, 0), [rewashItemsList]);
+    const splitReturns = useMemo(() => splitReturnSummaryRowsForDisplay(returnSummary), [returnSummary]);
+    const pendingReturnTotal = useMemo(() => splitReturns.pending.reduce((sum, item) => sum + item.qty, 0), [splitReturns.pending]);
     const returnTotal = useMemo(() => {
-        if (returnSummary.length > 0) return returnSummary.reduce((sum, item) => sum + item.qty, 0);
+        if (splitReturns.normal.length > 0) return splitReturns.normal.reduce((sum, item) => sum + item.qty, 0);
         return items.reduce((sum, item) => sum + item.received_back, 0);
-    }, [items, returnSummary]);
+    }, [items, splitReturns.normal]);
     const rewashReturnTotal = useMemo(() => rewashReturnSummary.reduce((sum, item) => sum + item.qty, 0), [rewashReturnSummary]);
     // Note: If we just resolved some pending items in step 2, they will still be in pendingItems list unless we mutate SWR or wait for real backend state. 
     // We'll just show a count of any unresolved pending for simplicity or rely on server state.
     
     // Group return items
     const returnItemsList = useMemo(() => {
-        if (returnSummary.length > 0) return returnSummary.map((item, index) => ({ id: `summary-${index}`, name_th: item.name, received_back: item.qty }));
+        if (splitReturns.normal.length > 0) return splitReturns.normal.map((item, index) => ({ id: `summary-${index}`, name_th: item.name, received_back: item.qty }));
         return items.filter(i => i.received_back > 0);
-    }, [items, returnSummary]);
+    }, [items, splitReturns.normal]);
 
     const handleSubmit = async () => {
         if (!signatureBlob || !vendorName.trim()) return;
@@ -134,7 +140,7 @@ export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnS
                         <div className="flex items-center justify-between pb-1">
                             <h4 className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
                                 <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-                                ผ้าที่ส่งคืนโรงแรมวันนี้
+                                ผ้าซักปกติที่ส่งคืนโรงแรมวันนี้
                             </h4>
                             <span className="font-bold text-lg text-emerald-700 dark:text-emerald-400">{returnTotal} ชิ้น</span>
                         </div>
@@ -146,6 +152,26 @@ export function BatchStepVendorSign({ batchId, items, rewashEvents = [], returnS
                                         <span className="font-medium text-slate-600 dark:text-slate-300">{i.received_back}</span>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+
+                        {pendingReturnTotal > 0 && (
+                            <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
+                                        <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                                        รับคืนผ้าค้างเก่า
+                                    </h4>
+                                    <span className="font-bold text-lg text-amber-700 dark:text-amber-400">{pendingReturnTotal} ชิ้น</span>
+                                </div>
+                                <div className="mt-2 pl-4 space-y-1">
+                                    {splitReturns.pending.map((item, index) => (
+                                        <div key={`pending-return-${index}`} className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span>• {item.name}</span>
+                                            <span className="font-medium text-amber-700 dark:text-amber-300">{item.qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

@@ -76,6 +76,7 @@ type LinenNameSource = {
   source_batch_id?: string | null;
   source_business_date?: string | null;
   source_pickup_round?: number | string | null;
+  is_dayuse?: boolean | null;
 };
 
 type ReturnEventItem = {
@@ -87,6 +88,7 @@ type ReturnEventItem = {
   qty?: number | string | null;
   pending_qty?: number | string | null;
   is_dayuse?: boolean | null;
+  source?: "normal" | "pending_resolved" | null;
 };
 
 export type ReturnSummaryRow = {
@@ -96,6 +98,12 @@ export type ReturnSummaryRow = {
   qty: number;
   is_dayuse: boolean;
   source: "normal" | "pending_resolved";
+};
+
+export type ReturnSummaryDisplayRow = {
+  name: string;
+  qty: number;
+  source?: ReturnSummaryRow["source"];
 };
 
 export type PendingSummarySource = {
@@ -131,6 +139,60 @@ function buildNameByItemId(nameSources: LinenNameSource[] | null | undefined) {
     if (itemId > 0 && item.name_th) nameByItemId.set(itemId, item.name_th);
   }
   return nameByItemId;
+}
+
+function buildReturnSourceByKey(nameSources: LinenNameSource[] | null | undefined) {
+  const sourceByKey = new Map<string, { date: string; round: number }>();
+  for (const item of nameSources ?? []) {
+    const sourceBatchId = String(item.source_batch_id ?? "");
+    const itemId = Number(item.linen_item_id ?? 0);
+    if (!sourceBatchId || itemId <= 0) continue;
+    sourceByKey.set(`${sourceBatchId}:${itemId}:${Boolean(item.is_dayuse)}`, {
+      date: String(item.source_business_date ?? ""),
+      round: Number(item.source_pickup_round ?? 0),
+    });
+  }
+  return sourceByKey;
+}
+
+function returnItemKey(item: ReturnEventItem) {
+  const sourceBatchId = String(item.source_batch_id ?? "");
+  const itemId = Number(item.linen_item_id ?? 0);
+  if (!sourceBatchId || itemId <= 0) return "";
+  return `${sourceBatchId}:${itemId}:${Boolean(item.is_dayuse)}`;
+}
+
+function compareReturnSource(a: { date: string; round: number }, b: { date: string; round: number }) {
+  const dateCompare = a.date.localeCompare(b.date);
+  if (dateCompare !== 0) return dateCompare;
+  return a.round - b.round;
+}
+
+function inferLatestNormalReturnKeys(
+  returns: ReturnEventItem[],
+  nameSources: LinenNameSource[] | null | undefined
+) {
+  const sourceByKey = buildReturnSourceByKey(nameSources);
+  let latest: { date: string; round: number } | null = null;
+
+  for (const item of returns) {
+    const source = sourceByKey.get(returnItemKey(item));
+    if (!source?.date) continue;
+    if (!latest || compareReturnSource(source, latest) > 0) latest = source;
+  }
+
+  const normalKeys = new Set<string>();
+  if (!latest) return normalKeys;
+
+  for (const item of returns) {
+    const key = returnItemKey(item);
+    const source = sourceByKey.get(key);
+    if (source?.date === latest.date && source.round === latest.round) {
+      normalKeys.add(key);
+    }
+  }
+
+  return normalKeys;
 }
 
 export function toReturnSummaryRows(
@@ -169,8 +231,21 @@ export function toReturnSummaryRows(
   const returns = Array.isArray(latestReturnEvent.data.returns) ? latestReturnEvent.data.returns : [];
   const resolved = Array.isArray(latestReturnEvent.data.resolved) ? latestReturnEvent.data.resolved : [];
   for (const item of resolved as ReturnEventItem[]) addRow(item, "qty", "pending_resolved");
-  for (const item of returns as ReturnEventItem[]) {
+  const typedReturns = returns as ReturnEventItem[];
+  const normalReturnKeys = inferLatestNormalReturnKeys(typedReturns, nameSources);
+  for (const item of typedReturns) {
     const receivedQty = Number(item.received_qty ?? 0);
+    if (item.source === "normal" || item.source === "pending_resolved") {
+      addRow(item, "received_qty", item.source, receivedQty);
+      continue;
+    }
+
+    const key = returnItemKey(item);
+    if (normalReturnKeys.size > 0) {
+      addRow(item, "received_qty", normalReturnKeys.has(key) ? "normal" : "pending_resolved", receivedQty);
+      continue;
+    }
+
     const returnedPendingQty = Math.min(receivedQty, Math.max(0, Number(item.returned_pending_qty ?? 0)));
     addRow(item, "received_qty", "pending_resolved", returnedPendingQty);
     addRow(item, "received_qty", "normal", receivedQty - returnedPendingQty);
@@ -197,11 +272,45 @@ export function formatReturnSummaryLines(rows: Array<{ name: string; qty: number
   return lines.join("\n");
 }
 
-export function formatReturnSummaryRowsForDisplay(rows: ReturnSummaryRow[]) {
+export function formatReturnSummarySections(rows: Array<{ name: string; qty: number; source?: string }>) {
+  const pendingRows = rows.filter((row) => row.source === "pending_resolved");
+  const normalRows = rows.filter((row) => row.source !== "pending_resolved");
+  const sections: string[] = [];
+
+  if (normalRows.length > 0) {
+    sections.push(`--- รับคืนผ้าซักปกติ ---\n${formatLinenSummaryLines(normalRows)}`);
+  }
+  if (pendingRows.length > 0) {
+    sections.push(`--- รับคืนผ้าค้างเก่า ---\n${formatLinenSummaryLines(pendingRows)}`);
+  }
+
+  return sections.join("\n\n");
+}
+
+export function formatReturnSummaryRowsForDisplay(rows: ReturnSummaryRow[]): ReturnSummaryDisplayRow[] {
   return rows.map((row) => ({
     name: row.source === "pending_resolved" ? `${row.name} (คืนผ้าค้าง)` : row.name,
     qty: row.qty,
+    source: row.source,
   }));
+}
+
+export function splitReturnSummaryRowsForDisplay(rows: ReturnSummaryDisplayRow[] | null | undefined) {
+  const normal: ReturnSummaryDisplayRow[] = [];
+  const pending: ReturnSummaryDisplayRow[] = [];
+
+  for (const row of rows ?? []) {
+    if (row.source === "pending_resolved") {
+      pending.push({
+        ...row,
+        name: row.name.replace(/\s*\(คืนผ้าค้าง\)\s*$/, ""),
+      });
+    } else {
+      normal.push(row);
+    }
+  }
+
+  return { normal, pending };
 }
 
 export function toAdjustedPendingSummaryRows(

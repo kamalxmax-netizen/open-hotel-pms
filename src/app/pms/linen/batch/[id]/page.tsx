@@ -14,8 +14,9 @@ import { StatusBadge } from "@/components/linen/status-badge";
 import {
     formatLinenSummaryLines,
     formatPendingSummaryLines,
-    formatReturnSummaryLines,
+    formatReturnSummarySections,
     formatReturnSummaryRowsForDisplay,
+    splitReturnSummaryRowsForDisplay,
     toAdjustedPendingSummaryRows,
     toResolvedRewashSummaryRows,
     toReturnSummaryRows,
@@ -40,6 +41,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const rewashTotal = rewashRows.reduce((sum, item) => sum + item.qty, 0);
     const returnRows = toReturnSummaryRows(data.events ?? [], [...items, ...returnSources]);
     const returnDisplayRows = formatReturnSummaryRowsForDisplay(returnRows);
+    const splitReturnDisplayRows = splitReturnSummaryRowsForDisplay(returnDisplayRows);
     const rewashReturnRows = toResolvedRewashSummaryRows(data.resolved_rewash_events ?? []);
     const pendingRows = toAdjustedPendingSummaryRows(data.pending_items ?? [], data.events ?? [], [...items, ...returnSources]);
     const summaryText = (() => {
@@ -60,7 +62,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashRows);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
+            text += `\n\n` + formatReturnSummarySections(returns);
         }
         if (rewashReturnRows.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturnRows);
@@ -158,10 +160,11 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     // Detail View (fo_return_signed, closed, partial, disputed)
     const dirtyTotal = items.filter(i => !i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
     const dayuseTotal = items.filter(i => i.is_dayuse).reduce((sum, item) => sum + item.sent_by_hotel, 0);
-    const detailReturnRows = returnDisplayRows.length > 0
-        ? returnDisplayRows
+    const detailReturnRows = returnRows.length > 0
+        ? splitReturnDisplayRows.normal
         : items.filter(i => i.received_back > 0).map(i => ({ name: i.name_th ?? `Item ${i.linen_item_id}`, qty: i.received_back }));
     const returnTotal = detailReturnRows.reduce((sum, item) => sum + item.qty, 0);
+    const pendingReturnTotal = splitReturnDisplayRows.pending.reduce((sum, item) => sum + item.qty, 0);
     const rewashReturnTotal = rewashReturnRows.reduce((sum, item) => sum + item.qty, 0);
 
     return (
@@ -196,7 +199,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     <h3 className="font-semibold text-slate-800 dark:text-slate-200">สรุปจำนวนผ้า</h3>
                 </div>
                 <div className="p-0 border-b border-slate-100 dark:border-slate-800">
-                    <div className={`grid ${rewashTotal > 0 || rewashReturnTotal > 0 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-3"} divide-x divide-slate-100 dark:divide-slate-800`}>
+                    <div className={`grid ${rewashTotal > 0 || rewashReturnTotal > 0 || pendingReturnTotal > 0 ? "grid-cols-2 md:grid-cols-6" : "grid-cols-3"} divide-x divide-slate-100 dark:divide-slate-800`}>
                         <div className="p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">ส่งซัก</p>
                             <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{dirtyTotal}</p>
@@ -212,9 +215,15 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
                         <div className="p-4 text-center bg-emerald-50/30 dark:bg-emerald-500/5">
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">รับคืน</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">รับคืนปกติ</p>
                             <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{returnTotal}</p>
                         </div>
+                        {pendingReturnTotal > 0 && (
+                            <div className="p-4 text-center bg-amber-50/30 dark:bg-amber-500/5">
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">รับคืนผ้าค้าง</p>
+                                <p className="text-2xl font-bold text-amber-700 dark:text-amber-500">{pendingReturnTotal}</p>
+                            </div>
+                        )}
                         {rewashReturnTotal > 0 && (
                             <div className="p-4 text-center bg-fuchsia-50/30 dark:bg-fuchsia-500/5">
                                 <p className="text-xs text-fuchsia-600 dark:text-fuchsia-400 mb-1">รับคืน Rewash</p>
@@ -253,12 +262,25 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                     {detailReturnRows.length > 0 && (
                         <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                             <div className="mb-2 text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
-                                ผ้ารับคืน
+                                ผ้ารับคืนปกติ
                             </div>
                             {detailReturnRows.map((item, index) => (
                                 <div key={`detail-return-${index}`} className="flex justify-between items-center py-1 text-sm">
                                     <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
                                     <span className="font-bold text-emerald-700 dark:text-emerald-300">{item.qty}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {splitReturnDisplayRows.pending.length > 0 && (
+                        <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-300">
+                                รับคืนผ้าค้างเก่า
+                            </div>
+                            {splitReturnDisplayRows.pending.map((item, index) => (
+                                <div key={`detail-pending-return-${index}`} className="flex justify-between items-center py-1 text-sm">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
+                                    <span className="font-bold text-amber-700 dark:text-amber-300">{item.qty}</span>
                                 </div>
                             ))}
                         </div>

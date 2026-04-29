@@ -23,6 +23,7 @@ const ALL_PAGES = [
   { path: "/pms/guests", label: "Guest Profiles", section: "Client Relations" },
   { path: "/pms/rates", label: "Rate Grid", section: "Revenue" },
   { path: "/pms/revenue", label: "Revenue Report", section: "Revenue" },
+  { path: "/pms/tax-invoice", label: "Tax Invoice", section: "Revenue" },
   { path: "/pms/payments", label: "Payment Report", section: "Revenue" },
   { path: "/pms/payment-daily", label: "Payment Daily", section: "Revenue" },
   { path: "/pms/accounting", label: "Com and Tips", section: "Revenue" },

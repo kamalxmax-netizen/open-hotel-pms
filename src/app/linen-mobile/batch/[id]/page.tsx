@@ -11,15 +11,16 @@ import { BatchQrShare } from "@/components/linen/batch-qr-share";
 import {
     formatLinenSummaryLines,
     formatPendingSummaryLines,
-    formatReturnSummaryLines,
+    formatReturnSummarySections,
     formatReturnSummaryRowsForDisplay,
+    type ReturnSummaryDisplayRow,
     toAdjustedPendingSummaryRows,
     toResolvedRewashSummaryRows,
     toReturnSummaryRows,
     toRewashSummaryRows,
 } from "@/lib/linen/rewash-summary";
 
-type ReturnSummaryItem = { name: string; qty: number };
+type ReturnSummaryItem = ReturnSummaryDisplayRow;
 
 export default function MobileBatchWizardPage() {
     const params = useParams();
@@ -183,7 +184,7 @@ export default function MobileBatchWizardPage() {
             text += `\n\n--- ผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewash);
         }
         if (returns.length > 0) {
-            text += `\n\n--- รับคืน ---\n` + formatReturnSummaryLines(returns);
+            text += `\n\n` + formatReturnSummarySections(returns);
         }
         if (rewashReturns.length > 0) {
             text += `\n\n--- รับคืนผ้าซักใหม่ ---\n` + formatLinenSummaryLines(rewashReturns);

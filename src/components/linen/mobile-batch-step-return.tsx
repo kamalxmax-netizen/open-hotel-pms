@@ -5,6 +5,7 @@ import useSWR from "@/hooks/use-simple-swr";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
 import { MobileItemRow } from "./mobile-item-row";
 import type { LaundryRewashPendingResponse } from "@/lib/types";
+import type { ReturnSummaryDisplayRow } from "@/lib/linen/rewash-summary";
 
 interface ReturnItem {
     source_batch_id: string;
@@ -22,7 +23,7 @@ interface MobileBatchStepReturnProps {
     returnSources: ReturnItem[];
     initialReturnQtys?: Record<string, string>;
     onBack: () => void;
-    onNext: (summary?: { name: string; qty: number }[], qtys?: Record<string, string>) => void;
+    onNext: (summary?: ReturnSummaryDisplayRow[], qtys?: Record<string, string>) => void;
 }
 
 export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQtys, onBack, onNext }: MobileBatchStepReturnProps) {
@@ -160,12 +161,16 @@ export function MobileBatchStepReturn({ batchId, returnSources, initialReturnQty
 
             const result = await res.json().catch(() => null);
             if (!res.ok) throw new Error(result?.error || "Failed to submit returns");
+            const latestKeys = new Set(
+                latestSources.map((source) => `${source.source_batch_id}_${source.linen_item_id}_${source.is_dayuse}`)
+            );
             const summary = returnSources
                 .map((source) => {
                     const key = `${source.source_batch_id}_${source.linen_item_id}_${source.is_dayuse}`;
                     return {
                         name: `${source.name_th ?? `Item ${source.linen_item_id}`}${source.is_dayuse ? " (Day Use)" : ""}`,
                         qty: parseInt(returnQtys[key] || "0", 10),
+                        source: latestKeys.has(key) ? "normal" as const : "pending_resolved" as const,
                     };
                 })
                 .filter((item) => item.qty > 0);
