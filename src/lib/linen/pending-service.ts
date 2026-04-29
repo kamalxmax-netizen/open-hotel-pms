@@ -102,7 +102,14 @@ export async function applyReturnsToSourceBatches(
 ) {
   await supabase.from("laundry_pending_items").delete().eq("created_by_batch_id", currentBatchId).is("resolved_at", null);
 
-  const applied: Array<{ source_batch_id: string; linen_item_id: number; received_qty: number; pending_qty: number; is_dayuse: boolean }> = [];
+  const applied: Array<{
+    source_batch_id: string;
+    linen_item_id: number;
+    received_qty: number;
+    returned_pending_qty: number;
+    pending_qty: number;
+    is_dayuse: boolean;
+  }> = [];
   const affectedSourceBatchIds = new Set<string>();
 
   for (const input of returnItems) {
@@ -122,6 +129,17 @@ export async function applyReturnsToSourceBatches(
 
     const nextReceived = ensureNonNegativeInt((existing as any).received_back, "received_back") + receivedQty;
     const sentQty = ensureNonNegativeInt((existing as any).sent_by_hotel, "sent_by_hotel");
+    const { data: oldPendingRows, error: oldPendingError } = await supabase
+      .from("laundry_pending_items")
+      .select("pending_qty")
+      .eq("source_batch_id", sourceBatchId)
+      .eq("linen_item_id", input.linen_item_id)
+      .is("resolved_at", null);
+    if (oldPendingError) throw new Error(oldPendingError.message);
+    const oldPendingQty = (oldPendingRows ?? []).reduce(
+      (sum: number, row: any) => sum + ensureNonNegativeInt(row.pending_qty, "pending_qty"),
+      0
+    );
 
     const { error: updateError } = await supabase
       .from("laundry_batch_items")
@@ -135,6 +153,7 @@ export async function applyReturnsToSourceBatches(
       source_batch_id: sourceBatchId,
       linen_item_id: input.linen_item_id,
       received_qty: receivedQty,
+      returned_pending_qty: Math.min(receivedQty, oldPendingQty),
       pending_qty: pendingQty,
       is_dayuse: Boolean((existing as any).is_dayuse),
     });
