@@ -56,6 +56,7 @@ const ALL_PAGES = [
   { path: "/pms/inventory/settings", label: "Inventory Settings", section: "System" },
   { path: "/pms/settings", label: "Settings", section: "System" },
   { path: "/pms/team", label: "Team & Shifts", section: "System" },
+  { path: "/pms/staff-schedule", label: "Staff Schedule", section: "System" },
   { path: "/pms/logbook", label: "Logbook", section: "Front Desk" },
   { path: "/pms/analytics", label: "Data Analysis", section: "Analytics" },
   { path: "/pms/analytics/material", label: "Material Analytics", section: "Analytics" },

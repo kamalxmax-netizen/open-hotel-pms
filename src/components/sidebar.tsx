@@ -153,6 +153,7 @@ const NAV_ITEMS = [
             { href: "/pms/setup/operations", label: "Operations Setup", icon: SettingsIcon },
             { href: "/pms/setup/room-blocks", label: "Room Blocks (OOO)", icon: HouseKeepingIcon },
             { href: "/pms/inventory/settings", label: "Inventory Settings", icon: PackageIcon },
+            { href: "/pms/staff-schedule", label: "Staff Schedule", icon: CalendarIcon },
             { href: "/pms/team", label: "Team & Shifts", icon: GuestsIcon },
             { href: "/pms/setup/permissions", label: "Permissions", icon: ShieldIcon },
             { href: "/pms/admin/backup-status", label: "Backup Status", icon: BackupIcon },

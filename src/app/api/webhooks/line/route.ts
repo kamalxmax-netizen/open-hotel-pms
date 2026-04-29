@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { formatLineStaffScheduleReply, getLineStaffSchedule } from "@/lib/staff-schedule";
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -196,6 +197,28 @@ async function handleInHouseQuery(replyToken: string) {
   await replyLineText(replyToken, lines.join("\n"));
 }
 
+async function handleScheduleQuery(params: {
+  replyToken: string;
+  lineUserId: string;
+  nextMonth: boolean;
+}) {
+  const supabase = createServerSupabaseClient();
+  const result = await getLineStaffSchedule(supabase, {
+    lineUserId: params.lineUserId,
+    nextMonth: params.nextMonth,
+  });
+
+  if (!result.ok) {
+    await replyLineText(
+      params.replyToken,
+      "ยังไม่ได้ผูก LINE กับบัญชี Staff\nกรุณาพิมพ์ BIND <token> เพื่อผูกบัญชีก่อนใช้งาน"
+    );
+    return;
+  }
+
+  await replyLineText(params.replyToken, formatLineStaffScheduleReply(result));
+}
+
 async function handleBindCommand(params: {
   token: string;
   lineUserId: string;
@@ -357,6 +380,29 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // --- Staff schedule query ---
+        const scheduleCommands = new Set([
+          "schedule",
+          "shift",
+          "ตารางเวร",
+          "เวร",
+          "schedule next",
+          "shift next",
+          "ตารางเวรเดือนหน้า",
+          "ตารางเวร เดือนหน้า",
+          "เวรเดือนหน้า",
+          "เวร เดือนหน้า",
+        ]);
+        const isScheduleQuery = scheduleCommands.has(norm);
+        if (isScheduleQuery) {
+          await handleScheduleQuery({
+            replyToken,
+            lineUserId,
+            nextMonth: norm.includes("next") || norm.includes("เดือนหน้า"),
+          });
+          continue;
+        }
+
         // --- Help ---
         if (norm === "help" || norm === "ช่วยเหลือ" || norm === "คำสั่ง" || norm === "?" || norm === "menu" || norm === "เมนู") {
           await replyLineText(
@@ -364,6 +410,8 @@ export async function POST(request: NextRequest) {
             "📖 คำสั่งที่ใช้ได้:\n\n" +
             "• checkout / co / เช็คเอาท์\n  → ยอด Check-out วันนี้\n\n" +
             "• inhouse / ih / in house\n  → ห้องที่มีแขกพักอยู่ตอนนี้\n\n" +
+            "• schedule / shift / ตารางเวร / เวร\n  → ตารางเวรของตัวเองถึงสิ้นเดือน\n\n" +
+            "• schedule next / เวรเดือนหน้า\n  → ตารางเวรของตัวเองเดือนถัดไป\n\n" +
             "• BIND <token>\n  → ผูก LINE กับบัญชี Staff\n\n" +
             "พิมพ์ help เพื่อดูคำสั่งทั้งหมด"
           );

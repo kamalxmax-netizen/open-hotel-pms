@@ -152,6 +152,29 @@ html.high-contrast .form-input[aria-invalid="true"] {
 
 html.high-contrast .badge { @apply !bg-white !border-black !border-[1.5px] !text-black; }
 
+html.high-contrast .staff-schedule-surface,
+html.high-contrast .staff-schedule-cell {
+  @apply !border-black !bg-white !text-black shadow-none;
+}
+
+html.high-contrast .staff-schedule-weekend {
+  @apply !bg-cyan-100;
+}
+
+html.high-contrast .staff-schedule-pill {
+  @apply !border-[1.5px] !border-black !text-black shadow-none;
+  background-color: var(--staff-color) !important;
+}
+
+html.high-contrast .staff-schedule-shift-band {
+  @apply !border-[1.5px] !border-black !text-black shadow-none;
+}
+
+html.high-contrast .staff-shift-morning { @apply !bg-blue-200; }
+html.high-contrast .staff-shift-afternoon { @apply !bg-amber-200; }
+html.high-contrast .staff-shift-night { @apply !bg-violet-300; }
+html.high-contrast .staff-shift-off { @apply !bg-slate-200; }
+
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
