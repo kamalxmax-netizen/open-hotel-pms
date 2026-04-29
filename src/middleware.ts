@@ -9,6 +9,7 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/of
 const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
 const MAID_HOME_PATH = "/maid";
+const STAFF_SCHEDULE_PATH = "/pms/staff-schedule";
 const EXACT_PERMISSION_PATHS = new Set([
   "/pms/inventory",
   "/pms/housekeeping",
@@ -130,18 +131,19 @@ export async function middleware(request: NextRequest) {
       .eq("user_id", user.id)
       .maybeSingle();
     const role = String(profile?.role ?? "").trim().toLowerCase();
+    const isStaffSchedulePath = pathname === STAFF_SCHEDULE_PATH || pathname.startsWith(`${STAFF_SCHEDULE_PATH}/`);
 
     if (role === "mobile") {
       const isMobilePath = pathname === MOBILE_HOME_PATH || pathname.startsWith(`${MOBILE_HOME_PATH}/`);
-      if (!isMobilePath) {
+      if (!isMobilePath && !isStaffSchedulePath) {
         return NextResponse.redirect(new URL(MOBILE_HOME_PATH, request.url));
       }
-      return response;
+      if (isMobilePath) return response;
     }
 
     if (role === "maid") {
       const isMaidPath = pathname === MAID_HOME_PATH || pathname.startsWith(`${MAID_HOME_PATH}/`);
-      if (!isMaidPath) {
+      if (!isMaidPath && !isStaffSchedulePath) {
         return NextResponse.redirect(new URL(MAID_HOME_PATH, request.url));
       }
     }
