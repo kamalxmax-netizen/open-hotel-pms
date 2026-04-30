@@ -24,6 +24,10 @@ const ReservationDetailPage = dynamic(() => import("@/components/reservation-det
 type RoomStatus = "available" | "reserved" | "dirty" | "cleaning" | "approved" | "closed" | "ooo" | "oos";
 type DiaryState = "available" | "due_in" | "inhouse" | "back_to_back" | "due_out";
 type HousekeepingRawStatus = "dirty" | "in_progress" | "paused" | "cleaned" | "approved";
+type HkLayerVisual = {
+    color: string;
+    title: string;
+};
 
 type ApiRoom = {
     room_id: string;
@@ -244,6 +248,70 @@ const HK_STRIPE_COLOR_BY_STATUS: Partial<Record<HousekeepingRawStatus, string>> 
     cleaned: "rgba(34, 197, 94, 0.95)",
 };
 
+const HK_IN_HOUSE_LAYER_COLORS = {
+    noAction: "#b45309",
+    noService: "#0891b2",
+    dirty: "#dc2626",
+    inProgress: "#0284c7",
+    paused: "#9333ea",
+    complete: "#15803d",
+} as const;
+
+function isTrueStayover(room: ApiRoom, boardDate: string | null): boolean {
+    if (room.is_dayuse) return false;
+    if (room.diary_state !== "inhouse") return false;
+    if (room.status !== "reserved") return false;
+
+    if (boardDate) {
+        if (room.guest_checkin_date && room.guest_checkin_date >= boardDate) return false;
+        if (room.guest_checkout_date && room.guest_checkout_date <= boardDate) return false;
+    }
+
+    return true;
+}
+
+function resolveHkStripeLayerVisual(room: ApiRoom): HkLayerVisual | null {
+    if (!room.hk_status) return null;
+    const color = HK_STRIPE_COLOR_BY_STATUS[room.hk_status];
+    if (!color) return null;
+
+    if (room.hk_status === "in_progress") {
+        return { color, title: "HK in progress" };
+    }
+    if (room.hk_status === "paused") {
+        return { color, title: "HK paused" };
+    }
+    if (room.hk_status === "cleaned" || room.hk_finished_at || room.hk_status === "approved" || room.hk_approved_at) {
+        return { color, title: "HK complete" };
+    }
+    return { color, title: "Dirty" };
+}
+
+function resolveHkInHouseLayerVisual(room: ApiRoom, boardDate: string | null): HkLayerVisual | null {
+    if (!isTrueStayover(room, boardDate)) return null;
+
+    if (room.hk_status === "approved" || room.hk_approved_at || room.hk_status === "cleaned" || room.hk_finished_at) {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.complete, title: "Stayover complete" };
+    }
+    if (room.hk_status === "in_progress") {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.inProgress, title: "Stayover cleaning" };
+    }
+    if (room.hk_status === "paused") {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.paused, title: "Stayover paused" };
+    }
+    if (room.hk_is_no_service === true && room.hk_status) {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.noService, title: "No Service pending" };
+    }
+    if (room.hk_status === "dirty") {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.dirty, title: "Stayover dirty" };
+    }
+    if (!room.hk_status) {
+        return { color: HK_IN_HOUSE_LAYER_COLORS.noAction, title: "Stayover: HK not selected" };
+    }
+
+    return null;
+}
+
 function normalizeBookingSource(value: unknown): "walkin" | "ota" | "direct" | "agent" {
     if (value === "walkin" || value === "ota" || value === "direct" || value === "agent") {
         return value;
@@ -301,7 +369,7 @@ function shiftDateString(baseDate: string, offsetDays: number): string {
 }
 
 function RoomCard({
-    room, selected, viewMode, isMobile, isMatched, groupHighlight, groupPeers, hkLayerEnabled, nowMs, alertsEnabled, onGroupHoverChange, onClick, clickable = true
+    room, selected, viewMode, isMobile, isMatched, groupHighlight, groupPeers, hkLayerEnabled, hkInHouseLayerEnabled, boardDate, nowMs, alertsEnabled, onGroupHoverChange, onClick, clickable = true
 }: {
     room: ApiRoom;
     selected: boolean;
@@ -311,6 +379,8 @@ function RoomCard({
     groupHighlight: "none" | "focus" | "fade";
     groupPeers: ApiRoom[];
     hkLayerEnabled: boolean;
+    hkInHouseLayerEnabled: boolean;
+    boardDate: string | null;
     nowMs: number;
     alertsEnabled: boolean;
     onGroupHoverChange: (groupId: string | null) => void;
@@ -345,16 +415,23 @@ function RoomCard({
     const diary = diaryState ? DIARY_STYLE[diaryState] : null;
     const shouldFade = (groupHighlight === "fade" || !isMatched) && room.status !== "closed";
     const isGroupFocused = groupHighlight === "focus";
-    const hkStripeColor = room.hk_status ? HK_STRIPE_COLOR_BY_STATUS[room.hk_status] : null;
-    const hkLayerOpacity =
-        room.hk_status === "in_progress" || room.hk_status === "paused"
-            ? 1.00
-            : 0.13;
-    const shouldShowHkLayer =
+    const hkInHouseLayerVisual = hkInHouseLayerEnabled
+        ? resolveHkInHouseLayerVisual(room, boardDate)
+        : null;
+    const hkStripeLayerVisual = hkLayerEnabled
+        ? resolveHkStripeLayerVisual(room)
+        : null;
+    const shouldShowHkStripeLayer =
         hkLayerEnabled &&
         room.sellable &&
         !isBlocked &&
-        Boolean(hkStripeColor);
+        Boolean(hkStripeLayerVisual);
+    const shouldShowHkInHouseLayer =
+        hkInHouseLayerEnabled &&
+        room.sellable &&
+        !isBlocked &&
+        Boolean(hkInHouseLayerVisual);
+    const activeHkLayerTitle = hkInHouseLayerVisual?.title ?? hkStripeLayerVisual?.title ?? undefined;
     const hasDayUseAlertCandidate =
         alertsEnabled &&
         Boolean(room.is_dayuse) &&
@@ -524,14 +601,32 @@ function RoomCard({
           ${s.card} status-${room.status} ${selected ? "ring-2 ring-brand-400" : ""} ${isGroupFocused ? "ring-2 ring-indigo-400 shadow-md" : ""}
           ${clickable ? "cursor-pointer" : "cursor-default"} text-left overflow-hidden transition-all z-10`}
                 style={shouldFade ? { filter: "saturate(30%)", opacity: 0.45 } : undefined}
+                title={activeHkLayerTitle}
             >
-                {shouldShowHkLayer && (
+                {shouldShowHkStripeLayer && hkStripeLayerVisual && (
                     <div
                         className="absolute inset-0 pointer-events-none z-0"
+                        title={hkStripeLayerVisual.title}
                         style={{
-                            opacity: hkLayerOpacity,
+                            opacity:
+                                room.hk_status === "in_progress" || room.hk_status === "paused"
+                                    ? 1
+                                    : room.hk_status === "cleaned" || room.hk_finished_at || room.hk_status === "approved" || room.hk_approved_at
+                                        ? 0.18
+                                        : 0.13,
                             backgroundImage:
-                                `repeating-linear-gradient(45deg, ${hkStripeColor} 0 12px, rgba(255, 255, 255, 0) 12px 24px)`,
+                                `repeating-linear-gradient(45deg, ${hkStripeLayerVisual.color} 0 12px, rgba(255, 255, 255, 0) 12px 24px)`,
+                        }}
+                    />
+                )}
+
+                {shouldShowHkInHouseLayer && hkInHouseLayerVisual && (
+                    <div
+                        className="absolute bottom-0 left-0 h-[48%] aspect-square pointer-events-none z-0"
+                        title={hkInHouseLayerVisual.title}
+                        style={{
+                            backgroundColor: hkInHouseLayerVisual.color,
+                            clipPath: "polygon(0 0, 100% 100%, 0 100%)",
                         }}
                     />
                 )}
@@ -839,6 +934,7 @@ export default function BoardPage() {
     const [viewMode, setViewMode] = useState<"compact" | "detail">("compact");
     const [hideFadedRooms, setHideFadedRooms] = useState(false);
     const [showHkDirtyLayer, setShowHkDirtyLayer] = useState(true);
+    const [showHkInHouseLayer, setShowHkInHouseLayer] = useState(false);
     const [mobileSheet, setMobileSheet] = useState<ApiRoom | null>(null);
     const [showLegend, setShowLegend] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -869,6 +965,8 @@ export default function BoardPage() {
         if (saved) setViewMode(saved);
         const savedDirtyLayer = localStorage.getItem("board-hk-dirty-layer");
         if (savedDirtyLayer === "0") setShowHkDirtyLayer(false);
+        const savedInHouseLayer = localStorage.getItem("board-hk-inhouse-layer");
+        if (savedInHouseLayer === "1") setShowHkInHouseLayer(true);
     }, []);
 
     // Persist viewMode on change
@@ -885,6 +983,10 @@ export default function BoardPage() {
     useEffect(() => {
         localStorage.setItem("board-hk-dirty-layer", showHkDirtyLayer ? "1" : "0");
     }, [showHkDirtyLayer]);
+
+    useEffect(() => {
+        localStorage.setItem("board-hk-inhouse-layer", showHkInHouseLayer ? "1" : "0");
+    }, [showHkInHouseLayer]);
 
     useEffect(() => {
         dayUseSnapshotRef.current = dayUseData;
@@ -1281,6 +1383,8 @@ export default function BoardPage() {
                 viewMode={viewMode}
                 isMobile={isMobile}
                 hkLayerEnabled={showHkDirtyLayer}
+                hkInHouseLayerEnabled={showHkInHouseLayer}
+                boardDate={data?.date ?? null}
                 nowMs={nowMs}
                 alertsEnabled={!isHistoricalDiaryView}
                 isMatched={matchesAnyFilter(mapped, activeFilters)}
@@ -1404,16 +1508,28 @@ export default function BoardPage() {
                             );
                         })}
                     </div>
-                    <button
-                        onClick={() => setShowHkDirtyLayer((v) => !v)}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${showHkDirtyLayer
-                            ? "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30"
-                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
-                            }`}
-                        title="Toggle dirty housekeeping pattern layer on room cards"
-                    >
-                        HK Layer {showHkDirtyLayer ? "ON" : "OFF"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setShowHkDirtyLayer((v) => !v)}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${showHkDirtyLayer
+                                ? "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30"
+                                : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
+                                }`}
+                            title="Toggle housekeeping stripe layer on room cards"
+                        >
+                            HK Layer {showHkDirtyLayer ? "ON" : "OFF"}
+                        </button>
+                        <button
+                            onClick={() => setShowHkInHouseLayer((v) => !v)}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${showHkInHouseLayer
+                                ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/15 dark:text-amber-300"
+                                : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]"
+                                }`}
+                            title="Toggle stayover housekeeping decision layer on room cards"
+                        >
+                            HK In-house {showHkInHouseLayer ? "ON" : "OFF"}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -1476,6 +1592,8 @@ export default function BoardPage() {
                                                     viewMode={viewMode}
                                                     isMobile={isMobile}
                                                     hkLayerEnabled={showHkDirtyLayer}
+                                                    hkInHouseLayerEnabled={showHkInHouseLayer}
+                                                    boardDate={data?.date ?? null}
                                                     nowMs={nowMs}
                                                     alertsEnabled={!isHistoricalDiaryView}
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
@@ -1525,6 +1643,8 @@ export default function BoardPage() {
                                                     viewMode={viewMode}
                                                     isMobile={isMobile}
                                                     hkLayerEnabled={showHkDirtyLayer}
+                                                    hkInHouseLayerEnabled={showHkInHouseLayer}
+                                                    boardDate={data?.date ?? null}
                                                     nowMs={nowMs}
                                                     alertsEnabled={!isHistoricalDiaryView}
                                                     isMatched={matchesAnyFilter(room, activeFilters)}
