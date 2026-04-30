@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
 import { clearPermissionCache, readPermissionCache, writePermissionCache } from "@/lib/middleware-permission-cache";
+import { resolvePostLoginPath } from "@/lib/auth-routing";
 
 // Routes that are always public (no auth required)
 const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/offline", "/linen-vendor"];
@@ -50,13 +51,6 @@ function isPublicMutationApiPath(pathname: string): boolean {
 
 function isOwnerSafeMutationApiPath(pathname: string): boolean {
   return OWNER_SAFE_MUTATION_API_PATTERNS.some((pattern) => pattern.test(pathname));
-}
-
-function resolvePostLoginPath(role: string | null | undefined): string {
-  const normalizedRole = String(role ?? "").trim().toLowerCase();
-  if (normalizedRole === "mobile") return MOBILE_HOME_PATH;
-  if (normalizedRole === "maid") return MAID_HOME_PATH;
-  return "/pms/board";
 }
 
 function isStrictPermissionPath(pathname: string): boolean {
