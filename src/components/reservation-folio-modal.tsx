@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock, ShieldAlert, CheckCircle2, Printer } from "lucide-react";
+import { RotateCw, WalletCards, ReceiptText, Landmark, FileClock, ShieldAlert, CheckCircle2, Printer, PencilLine } from "lucide-react";
 import PmsModal from "./pms-modal";
 import { toBangkokDateString } from "@/lib/audit-utils";
 import { PostChargeModal } from "./post-charge-modal";
@@ -42,6 +42,12 @@ interface ReservationFolioModalProps {
 }
 
 type FolioFilter = "all" | "charges" | "payments" | "deposits";
+type PaymentMethodEditState = {
+  row: ReservationFolioLedgerRow;
+  method: PaymentMethod;
+  reason: string;
+  referenceNote: string;
+};
 
 const FILTERS: Array<{ key: FolioFilter; label: string }> = [
   { key: "all", label: "All" },
@@ -103,6 +109,10 @@ function getAmountPrefix(row: ReservationFolioLedgerRow): string {
   return "";
 }
 
+function isOperatorPaymentMethod(method: PaymentMethod | null): method is "cash" | "transfer" | "credit_card" {
+  return method === "cash" || method === "transfer" || method === "credit_card";
+}
+
 export function ReservationFolioModal({
   open,
   onClose,
@@ -132,6 +142,8 @@ export function ReservationFolioModal({
   const [taxInvoiceLoading, setTaxInvoiceLoading] = useState(false);
   const [taxInvoiceNo, setTaxInvoiceNo] = useState<string | null>(null);
   const [businessDate, setBusinessDate] = useState<string>(toBangkokDateString());
+  const [paymentMethodEdit, setPaymentMethodEdit] = useState<PaymentMethodEditState | null>(null);
+  const [submittingMethodEdit, setSubmittingMethodEdit] = useState(false);
 
   const loadFolio = useCallback(async () => {
     if (!reservationId) return;
@@ -144,6 +156,9 @@ export function ReservationFolioModal({
         throw new Error(data?.error || "Failed to load folio.");
       }
       setFolio(data);
+      if (typeof data.business_date === "string" && data.business_date.trim()) {
+        setBusinessDate(data.business_date.trim());
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load folio.");
       setFolio(null);
@@ -206,6 +221,19 @@ export function ReservationFolioModal({
   const canAddPayment = open && !!reservationId && !isReadonly && mode !== "create";
   const canPostCharge = open && !!reservationId && !isReadonly && mode === "inhouse";
   const canOpenSettlement = open && !!reservationId && !isReadonly && mode === "checkout";
+  const canEditPaymentMethod = useCallback(
+    (row: ReservationFolioLedgerRow) => {
+      if (isReadonly || !reservationId) return false;
+      if (row.type !== "payment" && row.type !== "deposit") return false;
+      if (row.tx_type !== "payment" && row.tx_type !== "deposit") return false;
+      if (!isOperatorPaymentMethod(row.method)) return false;
+      if (row.paid_date !== businessDate) return false;
+      if (row.is_record_only || row.is_void_reversal || row.is_correction || row.void_of) return false;
+      if (voidedRowIds.has(row.id)) return false;
+      return true;
+    },
+    [businessDate, isReadonly, reservationId, voidedRowIds]
+  );
   const depositHeld = folio?.summary.deposit_held ?? 0;
   const depositHeldNote =
     depositHeld <= 0
@@ -256,6 +284,42 @@ export function ReservationFolioModal({
       setError(submitError instanceof Error ? submitError.message : "Failed to add payment.");
     } finally {
       setSubmittingPayment(false);
+    }
+  };
+
+  const handlePaymentMethodEditSubmit = async () => {
+    if (!paymentMethodEdit || !reservationId) return;
+    const reason = paymentMethodEdit.reason.trim();
+    if (reason.length < 3) {
+      setError("Reason is required to edit payment method.");
+      return;
+    }
+
+    try {
+      setSubmittingMethodEdit(true);
+      setError("");
+      const response = await fetch(`/api/bookings/${reservationId}/payments/${paymentMethodEdit.row.id}/method`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: paymentMethodEdit.method,
+          reason,
+          reference_note: paymentMethodEdit.referenceNote.trim() || undefined,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to update payment method.");
+      }
+
+      setPaymentMethodEdit(null);
+      window.dispatchEvent(new CustomEvent("billing-panel-refresh"));
+      onInlineRefresh?.();
+      await loadFolio();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Failed to update payment method.");
+    } finally {
+      setSubmittingMethodEdit(false);
     }
   };
 
@@ -468,7 +532,28 @@ export function ReservationFolioModal({
                                 )}
                               </div>
                             </td>
-                          <td className="px-4 py-3 text-[var(--text-table-cell)]">{getMethodLabel(row.method)}</td>
+                          <td className="px-4 py-3 text-[var(--text-table-cell)]">
+                            <div className="flex items-center gap-2">
+                              <span>{getMethodLabel(row.method)}</span>
+                              {canEditPaymentMethod(row) && isOperatorPaymentMethod(row.method) ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] transition hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]"
+                                  title="Edit payment method before Night Audit"
+                                  onClick={() =>
+                                    setPaymentMethodEdit({
+                                      row,
+                                      method: row.method as PaymentMethod,
+                                      reason: "",
+                                      referenceNote: "",
+                                    })
+                                  }
+                                >
+                                  <PencilLine className="h-3.5 w-3.5" />
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
                           <td className={`whitespace-nowrap px-4 py-3 font-mono font-semibold ${getAmountTone(row)}`}>
                             {getAmountPrefix(row)}฿{formatMoney(row.amount)}
                           </td>
@@ -687,6 +772,109 @@ export function ReservationFolioModal({
           </div>
         </div>
       </PmsModal>
+
+      {paymentMethodEdit && (
+        <PmsModal
+          title="Edit Payment Method"
+          size="sm"
+          onClose={() => {
+            if (!submittingMethodEdit) setPaymentMethodEdit(null);
+          }}
+          footer={
+            <div className="flex w-full items-center justify-end gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setPaymentMethodEdit(null)}
+                disabled={submittingMethodEdit}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void handlePaymentMethodEditSubmit()}
+                disabled={submittingMethodEdit || paymentMethodEdit.reason.trim().length < 3}
+              >
+                {submittingMethodEdit ? "Updating..." : "Update Method"}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+              This changes only the payment method bucket before Night Audit. Amount, payment date, and payment time stay unchanged.
+            </div>
+
+            <div className="grid gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--text-secondary)]">Current method</span>
+                <span className="font-semibold text-[var(--text-primary)]">{getMethodLabel(paymentMethodEdit.row.method)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--text-secondary)]">Amount</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">฿{formatMoney(paymentMethodEdit.row.amount)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--text-secondary)]">Paid date</span>
+                <span className="font-semibold text-[var(--text-primary)]">{paymentMethodEdit.row.paid_date || "—"}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">New method</label>
+              <select
+                className="form-select"
+                value={paymentMethodEdit.method}
+                onChange={(event) =>
+                  setPaymentMethodEdit((current) =>
+                    current
+                      ? { ...current, method: event.target.value as PaymentMethod }
+                      : current
+                  )
+                }
+                disabled={submittingMethodEdit}
+              >
+                {PAYMENT_METHODS.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label">Reason</label>
+              <input
+                className="form-input"
+                type="text"
+                value={paymentMethodEdit.reason}
+                onChange={(event) =>
+                  setPaymentMethodEdit((current) =>
+                    current ? { ...current, reason: event.target.value } : current
+                  )
+                }
+                disabled={submittingMethodEdit}
+                placeholder="Wrong method selected by FO"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Reference / note</label>
+              <input
+                className="form-input"
+                type="text"
+                value={paymentMethodEdit.referenceNote}
+                onChange={(event) =>
+                  setPaymentMethodEdit((current) =>
+                    current ? { ...current, referenceNote: event.target.value } : current
+                  )
+                }
+                disabled={submittingMethodEdit}
+                placeholder="Optional bank ref or context"
+              />
+            </div>
+          </div>
+        </PmsModal>
+      )}
 
       {showPostCharge && (
         <PostChargeModal

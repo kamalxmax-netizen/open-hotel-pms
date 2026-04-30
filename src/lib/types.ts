@@ -46,6 +46,7 @@ export interface ReservationFolioSummary {
 export interface ReservationFolioLedgerRow {
   id: string;
   occurred_at: string;
+  paid_date?: string | null;
   type: FolioLedgerRowType;
   tx_type?: string | null;
   method: PaymentMethod | null;
@@ -67,6 +68,7 @@ export interface ReservationFolioLedgerRow {
 export interface ReservationFolioResponse {
   success: true;
   reservation_id: string;
+  business_date?: string;
   reservation: {
     id: string;
     booking_code: string | null;

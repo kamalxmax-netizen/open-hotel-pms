@@ -1,4 +1,4 @@
-import { computeFeeSummary, toLocalDate } from "@/lib/folio-fees";
+import { computeFeeSummary, resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { fromSatang, toSatang } from "@/lib/money";
 import { listNights } from "@/lib/dates";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
@@ -575,6 +575,7 @@ function normalizeLedgerRows(
     rows.push({
       id: row.id,
       occurred_at: row.paid_at || row.created_at,
+      paid_date: row.paid_date ?? null,
       type,
       tx_type: row.tx_type ?? null,
       method: row.method ?? null,
@@ -680,6 +681,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const roomNumber = await resolveReservationRoomNumber(supabase, reservationId);
+    const businessDate = await resolveBusinessDate(supabase);
     const linkedReservations = await resolveLinkedStayReservations(supabase, reservation);
     const checkOutTime = await resolveHotelCheckOutTime(supabase as any, "12:00");
     const linkedStay = await resolveLinkedStay(supabase as any, reservationId, checkOutTime);
@@ -729,6 +731,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const response: ReservationFolioResponse = {
       success: true,
       reservation_id: reservationId,
+      business_date: businessDate,
       reservation: {
         id: reservation.id,
         booking_code: reservation.booking_code ?? null,
