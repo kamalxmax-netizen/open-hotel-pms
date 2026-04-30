@@ -3,6 +3,7 @@
 import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { resolveRoleAwarePostLoginPath, sanitizePostLoginPath } from "@/lib/auth-routing";
 
 /* ── OpenHotel Geometric Logo (SVG) ──────────────────────────────────── */
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
@@ -52,7 +53,8 @@ const DIAMOND_PATTERN = `url("data:image/svg+xml,%3Csvg width='60' height='60' v
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/pms/board";
+  const next = sanitizePostLoginPath(searchParams.get("next"));
+  const lineError = resolveLineLoginError(searchParams.get("line_error"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,7 +75,7 @@ function LoginForm() {
         setError("Email หรือ Password ไม่ถูกต้อง");
         return;
       }
-      let destination = next === "/pms" ? "/pms/board" : next;
+      let destination = next;
       const userId = signInData.user?.id ?? null;
       if (userId) {
         const { data: profileData } = await supabase
@@ -81,14 +83,9 @@ function LoginForm() {
           .select("role")
           .eq("user_id", userId)
           .maybeSingle();
-        const role = String(profileData?.role ?? "").trim().toLowerCase();
-        if (role === "mobile") {
-          destination = destination.startsWith("/pms/mobile-checkin")
-            ? destination
-            : "/pms/mobile-checkin";
-        }
+        destination = resolveRoleAwarePostLoginPath(destination, profileData?.role);
       }
-      router.push(destination.startsWith("/pms") || destination === "/" ? destination : "/pms/board");
+      router.push(destination);
       router.refresh();
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
@@ -106,6 +103,28 @@ function LoginForm() {
         <h2 className="text-base font-semibold text-slate-700 mb-5 tracking-wide">
           เข้าสู่ระบบ
         </h2>
+
+        {lineError && (
+          <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-lg">
+            {lineError}
+          </div>
+        )}
+
+        <a
+          href={`/api/auth/line/start?next=${encodeURIComponent(next)}`}
+          className="mb-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#06C755] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#05b64d] focus:outline-none focus:ring-2 focus:ring-[#06C755]/30"
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-black text-[#06C755]">
+            L
+          </span>
+          Login with LINE
+        </a>
+
+        <div className="mb-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">or</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -166,6 +185,23 @@ function LoginForm() {
       </div>
     </div>
   );
+}
+
+function resolveLineLoginError(value: string | null): string | null {
+  switch (value) {
+    case "config":
+      return "ยังไม่ได้ตั้งค่า LINE Login Channel ในระบบ";
+    case "state":
+      return "LINE Login หมดอายุหรือไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง";
+    case "not_bound":
+      return "LINE account นี้ยังไม่ได้ผูกกับ Staff ใน PMS";
+    case "no_email":
+      return "Staff account นี้ไม่มี email สำหรับสร้าง session กรุณาติดต่อ Admin";
+    case "callback":
+      return "LINE Login ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    default:
+      return null;
+  }
 }
 
 /* ── Page ─────────────────────────────────────────────────────────────── */
