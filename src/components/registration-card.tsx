@@ -87,7 +87,7 @@ export default function RegistrationCard({ reservationId, onClose }: Registratio
   }, [data]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 p-4 overflow-auto">
+    <div className="fixed inset-0 z-[260] bg-slate-900/40 p-4 overflow-auto">
       <div className="mx-auto max-w-3xl bg-[var(--bg-surface)] rounded-xl shadow-xl">
         <div className="no-print flex items-center justify-between border-b border-[var(--border-default)] px-5 py-3">
           <h2 className="text-base font-bold text-[var(--text-primary)]">Registration Card</h2>
