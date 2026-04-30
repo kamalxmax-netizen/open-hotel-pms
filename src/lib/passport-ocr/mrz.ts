@@ -23,12 +23,21 @@ export type ParsedPassportMrz = {
 };
 
 const MRZ_ALLOWED_REGEX = /[^A-Z0-9<]/g;
+const SUPPORTED_LINE1_DOCUMENT_CODES = new Set(["P", "C"]);
 
 function cleanMrzLine(line: string) {
   return String(line || "")
     .toUpperCase()
     .replace(/«/g, "<")
     .replace(/\s+/g, "")
+    .replace(MRZ_ALLOWED_REGEX, "");
+}
+
+function cleanMrzLineWithSpaceFillers(line: string) {
+  return String(line || "")
+    .toUpperCase()
+    .replace(/«/g, "<")
+    .replace(/\s+/g, "<")
     .replace(MRZ_ALLOWED_REGEX, "");
 }
 
@@ -40,10 +49,10 @@ function fitToMrzLength(line: string) {
 function normalizeLine1Candidate(line: string) {
   if (!line) return null;
   let normalized = line;
-  const pIndex = normalized.search(/P[A-Z<]/);
-  if (pIndex > 0) normalized = normalized.slice(pIndex);
+  const documentIndex = normalized.search(/[PC][A-Z<]/);
+  if (documentIndex > 0) normalized = normalized.slice(documentIndex);
 
-  if (normalized.charAt(0) !== "P") {
+  if (!SUPPORTED_LINE1_DOCUMENT_CODES.has(normalized.charAt(0))) {
     return null;
   }
 
@@ -71,7 +80,7 @@ function normalizeLine2Candidate(line: string) {
 
 function looksLikeMrzLine1(line: string) {
   const normalized = fitToMrzLength(String(line || ""));
-  if (!normalized || normalized.charAt(0) !== "P") return false;
+  if (!normalized || !SUPPORTED_LINE1_DOCUMENT_CODES.has(normalized.charAt(0))) return false;
 
   const documentCode = normalized.slice(0, 2);
   const issuerField = normalized.slice(2, 5);
@@ -81,7 +90,7 @@ function looksLikeMrzLine1(line: string) {
   const given = cleanName(givenRaw);
   const normalizedIssuer = normalizeAlphaCode(issuerField.replace(/</g, ""));
 
-  const documentCodeLike = /^P[A-Z<]$/.test(documentCode);
+  const documentCodeLike = /^[PC][A-Z<]$/.test(documentCode);
   // Some issuers appear as single-character + fillers (e.g. "D<<").
   const issuerLike = normalizedIssuer.length >= 1 && normalizedIssuer.length <= 3;
   const namesLike = namesField.includes("<");
@@ -140,8 +149,8 @@ function looksLikeMrzLine2(line: string) {
 function extractMrzPairs(rawText: string): [string, string][] {
   const lines = String(rawText || "")
     .split(/\r?\n/)
-    .map(cleanMrzLine)
-    .filter((line) => line.length >= 20);
+    .flatMap((line) => [cleanMrzLineWithSpaceFillers(line), cleanMrzLine(line)])
+    .filter((line, index, allLines) => line.length >= 20 && allLines.indexOf(line) === index);
 
   const pairs: [string, string][] = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -335,7 +344,7 @@ function toIsoBirthDate(rawDate: string) {
 }
 
 function parseMrzFromLines(line1: string, line2: string): ParsedPassportMrz | null {
-  if (!line1 || !line2 || line1.charAt(0) !== "P") return null;
+  if (!line1 || !line2 || !SUPPORTED_LINE1_DOCUMENT_CODES.has(line1.charAt(0))) return null;
 
   const warnings: string[] = [];
   const fieldStatus: PassportOcrFieldMap = {
