@@ -2,7 +2,7 @@ import { toBangkokDateString } from "@/lib/audit-utils";
 
 type SupabaseLike = {
   from: (table: string) => any;
-  rpc: (fn: string, args?: Record<string, unknown>) => any;
+  rpc?: (fn: string, args?: Record<string, unknown>) => any;
 };
 
 export class MonthlyAuditError extends Error {
@@ -64,8 +64,16 @@ export interface MonthlyAuditEntry {
   passport_number: string | null;
   id_card_number: string | null;
   guest_count: number;
+  full_tax_invoice?: MonthlyAuditFullTaxInvoiceInfo | null;
   channel_flag?: MonthlyAuditEntryChannelFlag | null;
   corrections?: MonthlyAuditCorrection[];
+}
+
+export interface MonthlyAuditFullTaxInvoiceInfo {
+  id: string;
+  invoice_no: string | null;
+  issue_date: string | null;
+  grand_total: number;
 }
 
 export interface MonthlyAuditEntryChannelFlag {
@@ -93,6 +101,14 @@ export interface MonthlyAuditSummary {
   by_source: Record<string, SourceSummary>;
   totals: SourceSummary;
   pos_sales: MonthlyAuditPosSalesSummary;
+}
+
+export interface MonthlyAuditSplitResult<T extends MonthlyAuditEntry = MonthlyAuditEntry> {
+  normalEntries: T[];
+  fullTaxInvoiceEntries: T[];
+  summary: MonthlyAuditSummary;
+  fullTaxInvoiceSummary: MonthlyAuditSummary;
+  grandSummary: MonthlyAuditSummary;
 }
 
 export interface SourceSummary {
@@ -298,7 +314,23 @@ function addToSummary(summary: SourceSummary, entry: MonthlyAuditEntry): void {
   summary.total_paid += entry.total_paid;
   summary.refund_total += entry.refund_total;
   summary.outstanding += entry.outstanding;
-  if (entry.tax_invoice_requested) summary.tax_invoice_count += 1;
+  if (entry.tax_invoice_requested || entry.full_tax_invoice) summary.tax_invoice_count += 1;
+}
+
+function addSourceSummary(target: SourceSummary, source: SourceSummary): void {
+  target.count += source.count;
+  target.room_revenue += source.room_revenue;
+  target.extra_revenue += source.extra_revenue;
+  target.pos_revenue += source.pos_revenue;
+  target.total_revenue += source.total_revenue;
+  target.paid_cash += source.paid_cash;
+  target.paid_transfer += source.paid_transfer;
+  target.paid_credit_card += source.paid_credit_card;
+  target.paid_other += source.paid_other;
+  target.total_paid += source.total_paid;
+  target.refund_total += source.refund_total;
+  target.outstanding += source.outstanding;
+  target.tax_invoice_count += source.tax_invoice_count;
 }
 
 function emptyPosSalesSummary(): MonthlyAuditPosSalesSummary {
@@ -333,6 +365,93 @@ export function computeSummary(
     totals,
     pos_sales: posSales,
   };
+}
+
+export function combineMonthlyAuditSummaries(
+  left: MonthlyAuditSummary,
+  right: MonthlyAuditSummary
+): MonthlyAuditSummary {
+  const bySource: Record<string, SourceSummary> = {};
+  for (const [source, row] of Object.entries(left.by_source)) {
+    bySource[source] = { ...row };
+  }
+  for (const [source, row] of Object.entries(right.by_source)) {
+    if (!bySource[source]) bySource[source] = emptySourceSummary();
+    addSourceSummary(bySource[source], row);
+  }
+
+  const totals = emptySourceSummary();
+  addSourceSummary(totals, left.totals);
+  addSourceSummary(totals, right.totals);
+
+  return {
+    total_reservations: left.total_reservations + right.total_reservations,
+    by_source: bySource,
+    totals,
+    pos_sales: left.pos_sales,
+  };
+}
+
+export async function loadIssuedFullTaxInvoiceMap(
+  supabase: SupabaseLike,
+  reservationIds: string[]
+): Promise<Map<string, MonthlyAuditFullTaxInvoiceInfo>> {
+  const ids = Array.from(new Set(reservationIds.map((id) => String(id ?? "").trim()).filter(Boolean)));
+  const map = new Map<string, MonthlyAuditFullTaxInvoiceInfo>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, reservation_id, invoice_no, issue_date, grand_total, status, booking_snapshot")
+    .eq("status", "issued")
+    .order("issue_date", { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new MonthlyAuditError(`Failed to load full tax invoices: ${error.message}`, 500);
+  }
+
+  for (const row of (data ?? []) as any[]) {
+    const directReservationId = String(row.reservation_id ?? "").trim();
+    const snapshotReservationIds = Array.isArray(row.booking_snapshot?.reservation_ids)
+      ? row.booking_snapshot.reservation_ids.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
+      : [];
+    const invoiceReservationIds = Array.from(new Set([directReservationId, ...snapshotReservationIds].filter(Boolean)));
+
+    for (const reservationId of invoiceReservationIds) {
+      if (!ids.includes(reservationId) || map.has(reservationId)) continue;
+      map.set(reservationId, {
+        id: String(row.id),
+        invoice_no: row.invoice_no ?? null,
+        issue_date: row.issue_date ?? null,
+        grand_total: num(row.grand_total),
+      });
+    }
+  }
+
+  return map;
+}
+
+export function attachFullTaxInvoiceInfo<T extends MonthlyAuditEntry>(
+  entries: T[],
+  issuedInvoiceMap: Map<string, MonthlyAuditFullTaxInvoiceInfo>
+): T[] {
+  return entries.map((entry) => ({
+    ...entry,
+    full_tax_invoice: issuedInvoiceMap.get(entry.reservation_id) ?? null,
+  }));
+}
+
+export function splitMonthlyAuditEntries<T extends MonthlyAuditEntry>(
+  entries: T[],
+  posSales: MonthlyAuditPosSalesSummary = emptyPosSalesSummary()
+): MonthlyAuditSplitResult<T> {
+  const normalEntries = entries.filter((entry) => !entry.full_tax_invoice);
+  const fullTaxInvoiceEntries = entries.filter((entry) => Boolean(entry.full_tax_invoice));
+  const summary = computeSummary(normalEntries, posSales);
+  const fullTaxInvoiceSummary = computeSummary(fullTaxInvoiceEntries, emptyPosSalesSummary());
+  const grandSummary = combineMonthlyAuditSummaries(summary, fullTaxInvoiceSummary);
+  return { normalEntries, fullTaxInvoiceEntries, summary, fullTaxInvoiceSummary, grandSummary };
 }
 
 export async function loadMonthlyPosSalesSummary(params: {
@@ -742,8 +861,12 @@ export async function closeMonth(params: {
     }
   }
 
-  // 10. Compute and save summary
-  const summary = computeSummary(entries, posSales);
+  // 10. Compute and save summary. Full tax invoices are reported in their own
+  // section and excluded from the editable/abbreviated audit totals.
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase, reservationIds);
+  const entriesWithFullTax = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+  const split = splitMonthlyAuditEntries(entriesWithFullTax, posSales);
+  const summary = split.summary;
 
   const { error: summaryError } = await supabase
     .from("monthly_audit_periods")
@@ -789,7 +912,7 @@ export async function closeMonth(params: {
       note: null,
       created_at: String(period.created_at),
     },
-    entries,
+    entries: entriesWithFullTax,
     summary,
   };
 }
@@ -957,14 +1080,16 @@ export async function previewMonth(params: {
     });
   }
 
-  const summary = computeSummary(entries, posSales);
-  const availableSources = Array.from(new Set(entries.map((e) => e.source).filter(Boolean))).sort();
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase, reservationIds);
+  const entriesWithFullTax = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+  const split = splitMonthlyAuditEntries(entriesWithFullTax, posSales);
+  const availableSources = Array.from(new Set(entriesWithFullTax.map((e) => e.source).filter(Boolean))).sort();
 
   return {
     year,
     month,
-    entries,
-    summary,
+    entries: entriesWithFullTax,
+    summary: split.summary,
     available_sources: availableSources,
     generated_at: new Date().toISOString(),
   };
@@ -1003,6 +1128,14 @@ export async function applyCorrection(params: {
   if (periodStatus !== "reviewing") {
     throw new MonthlyAuditError(
       `Cannot correct entries in "${periodStatus}" period. Only "reviewing" periods allow corrections.`,
+      409
+    );
+  }
+
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase, [String((entry as any).reservation_id)]);
+  if (issuedFullTaxInvoiceMap.has(String((entry as any).reservation_id))) {
+    throw new MonthlyAuditError(
+      "This booking has an issued full tax invoice. Edit it from Booking > Tax Invoice, then re-generate Monthly Audit.",
       409
     );
   }
@@ -1165,7 +1298,15 @@ export async function approveMonth(params: {
 
   const savedPosSales = (period.summary_json as any)?.pos_sales;
   const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-  const summary = computeSummary(shapedEntries, posSales);
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(
+    supabase,
+    shapedEntries.map((entry) => entry.reservation_id)
+  );
+  const split = splitMonthlyAuditEntries(
+    attachFullTaxInvoiceInfo(shapedEntries, issuedFullTaxInvoiceMap),
+    posSales
+  );
+  const summary = split.summary;
   const now = new Date().toISOString();
 
   const { error: updateError } = await supabase

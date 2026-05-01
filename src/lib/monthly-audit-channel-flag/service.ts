@@ -1,5 +1,6 @@
 import type { BookingSource } from "@/lib/types";
 import type { ChannelFlagWithEntry, MonthlyAuditChannelFlag } from "@/lib/abbreviated-tax-invoice/types";
+import { loadIssuedFullTaxInvoiceMap } from "@/lib/monthly-audit";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -88,12 +89,21 @@ export async function setChannelFlag(
 
   const { data: entry, error: entryError } = await supabase
     .from("monthly_audit_entries")
-    .select("id, period_id")
+    .select("id, period_id, reservation_id")
     .eq("id", entryId)
     .maybeSingle();
 
   if (entryError) throw new MonthlyAuditChannelFlagError(entryError.message, 500);
   if (!entry) throw new MonthlyAuditChannelFlagError("Monthly audit entry not found.", 404);
+
+  const reservationId = String((entry as any).reservation_id ?? "").trim();
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase, [reservationId]);
+  if (issuedFullTaxInvoiceMap.has(reservationId)) {
+    throw new MonthlyAuditChannelFlagError(
+      "This booking has an issued full tax invoice. Edit it from Booking > Tax Invoice, then re-generate Monthly Audit.",
+      409
+    );
+  }
 
   const actualChannel = normalizeBookingSource(params.actualChannel);
   const taxInvoiceChannel = normalizeBookingSource(params.taxInvoiceChannel);

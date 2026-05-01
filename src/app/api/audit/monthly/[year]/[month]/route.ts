@@ -1,6 +1,13 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { computeSummary, loadMonthlyPosSalesSummary, type MonthlyAuditEntry } from "@/lib/monthly-audit";
+import {
+  attachFullTaxInvoiceInfo,
+  computeSummary,
+  loadIssuedFullTaxInvoiceMap,
+  loadMonthlyPosSalesSummary,
+  splitMonthlyAuditEntries,
+  type MonthlyAuditEntry,
+} from "@/lib/monthly-audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -219,10 +226,18 @@ export async function GET(
       );
     }
 
-    // Compute summary from filtered entries
+    const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(
+      supabase,
+      entries.map((entry) => entry.reservation_id)
+    );
+    entries = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+    const split = splitMonthlyAuditEntries(entries, period.summary_json?.pos_sales ?? undefined);
+
+    // Compute summary from filtered normal entries
     const savedPosSales = (period.summary_json as any)?.pos_sales;
     const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-    const summary = computeSummary(entries, posSales);
+    const summary = computeSummary(split.normalEntries, posSales);
+    const splitWithPos = splitMonthlyAuditEntries(entries, posSales);
 
     // Available sources for filter dropdown
     const allSources = Array.from(
@@ -241,8 +256,11 @@ export async function GET(
         closed_at: period.closed_at ?? null,
         audited_at: period.audited_at ?? null,
       },
-      entries,
+      entries: splitWithPos.normalEntries,
+      full_tax_invoice_entries: splitWithPos.fullTaxInvoiceEntries,
       summary,
+      full_tax_invoice_summary: splitWithPos.fullTaxInvoiceSummary,
+      grand_summary: splitWithPos.grandSummary,
       filters: {
         available_sources: allSources,
       },

@@ -220,7 +220,7 @@ export default function RR3Page() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Tax Invoice</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Full Tax Invoice</label>
             <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
               <input
                 type="checkbox"
@@ -228,7 +228,7 @@ export default function RR3Page() {
                 checked={taxInvoiceOnly}
                 onChange={(e) => setTaxInvoiceOnly(e.target.checked)}
               />
-              เฉพาะขอ Tax Invoice
+              เฉพาะ Full Tax Invoice ที่ออกแล้ว
             </label>
           </div>
 
