@@ -981,8 +981,8 @@ export default function MonthlyAuditPage() {
 
       {/* Correction modal */}
       {editingEntry && canCorrect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-2xl">
             <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
               Correct Entry
             </h3>
@@ -994,7 +994,7 @@ export default function MonthlyAuditPage() {
               <div>
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Field</label>
                 <select
-                  className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                  className="w-full rounded border border-[var(--border-input)] bg-[var(--bg-body)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
                   value={corrFieldName}
                   onChange={(e) => {
                     setCorrFieldName(e.target.value);
@@ -1040,7 +1040,7 @@ export default function MonthlyAuditPage() {
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">New Value</label>
                 {corrFieldName === "tax_invoice_requested" ? (
                   <select
-                    className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                    className="w-full rounded border border-[var(--border-input)] bg-[var(--bg-body)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
                     value={corrNewValue}
                     onChange={(e) => setCorrNewValue(e.target.value)}
                   >
@@ -1049,7 +1049,7 @@ export default function MonthlyAuditPage() {
                   </select>
                 ) : corrFieldName === "source" ? (
                   <select
-                    className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                    className="w-full rounded border border-[var(--border-input)] bg-[var(--bg-body)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
                     value={corrNewValue}
                     onChange={(e) => setCorrNewValue(e.target.value)}
                   >
@@ -1061,7 +1061,7 @@ export default function MonthlyAuditPage() {
                 ) : (
                   <input
                     type="text"
-                    className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                    className="w-full rounded border border-[var(--border-input)] bg-[var(--bg-body)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
                     value={corrNewValue}
                     onChange={(e) => setCorrNewValue(e.target.value)}
                   />
@@ -1073,7 +1073,7 @@ export default function MonthlyAuditPage() {
                 <input
                   type="text"
                   placeholder="Why is this being corrected?"
-                  className="w-full rounded border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                  className="w-full rounded border border-[var(--border-input)] bg-[var(--bg-body)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
                   value={corrReason}
                   onChange={(e) => setCorrReason(e.target.value)}
                 />
@@ -1084,7 +1084,7 @@ export default function MonthlyAuditPage() {
               <button
                 type="button"
                 onClick={() => setEditingEntry(null)}
-                className="rounded-lg border border-[var(--border)] px-4 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
+                className="rounded-lg border border-[var(--border-input)] px-4 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
               >
                 Cancel
               </button>
