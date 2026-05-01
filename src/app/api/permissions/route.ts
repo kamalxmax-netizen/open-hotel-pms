@@ -73,6 +73,22 @@ const ALL_PAGES = [
   { path: "/pms/setup/permissions", label: "Permissions", section: "System" },
 ];
 
+async function listAllAuthUsers(supabase: ReturnType<typeof createServerSupabaseClient>) {
+  const users: any[] = [];
+  const perPage = 1000;
+
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+
+    const pageUsers = data?.users ?? [];
+    users.push(...pageUsers);
+    if (pageUsers.length < perPage) break;
+  }
+
+  return users;
+}
+
 async function requirePermissionsAccess(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   request: NextRequest
@@ -120,11 +136,15 @@ export async function GET(request: NextRequest) {
   const auth = await requirePermissionsAccess(supabase, request);
   if (!auth.ok) return auth.response;
 
-  // 1. Fetch all auth users (service role only)
-  const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
-
-  const authUsers = authData?.users ?? [];
+  // 1. Fetch all auth users (service role only). Supabase paginates this list;
+  // new staff can otherwise disappear from the permissions screen.
+  let authUsers: any[] = [];
+  try {
+    authUsers = await listAllAuthUsers(supabase);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to list auth users";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   // 2. Auto-upsert a profiles row for each auth user that doesn't have one
   if (authUsers.length > 0) {
@@ -149,13 +169,19 @@ export async function GET(request: NextRequest) {
 
   // 4. Merge email from auth users into profiles
   const emailMap = new Map(authUsers.map((u) => [u.id, u.email ?? ""]));
-  const users = (profiles ?? []).map((p) => ({
-    user_id: p.user_id,
-    full_name: p.full_name,
-    email: emailMap.get(p.user_id) ?? "",
-    role: p.role,
-    allowed_pages: p.allowed_pages,
-  }));
+  const users = (profiles ?? [])
+    .map((p) => ({
+      user_id: p.user_id,
+      full_name: p.full_name,
+      email: emailMap.get(p.user_id) ?? "",
+      role: p.role,
+      allowed_pages: p.allowed_pages,
+    }))
+    .sort((a, b) => {
+      const aLabel = String(a.email || a.full_name || a.user_id).toLowerCase();
+      const bLabel = String(b.email || b.full_name || b.user_id).toLowerCase();
+      return aLabel.localeCompare(bLabel);
+    });
 
   return NextResponse.json({ success: true, users, all_pages: ALL_PAGES });
 }

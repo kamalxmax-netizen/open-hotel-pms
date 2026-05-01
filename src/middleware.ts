@@ -74,10 +74,10 @@ export async function middleware(request: NextRequest) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, allowed_pages")
           .eq("user_id", user.id)
           .maybeSingle();
-        return NextResponse.redirect(new URL(resolvePostLoginPath(profile?.role), request.url));
+        return NextResponse.redirect(new URL(resolvePostLoginPath(profile?.role, profile?.allowed_pages), request.url));
       }
     }
     return NextResponse.next();

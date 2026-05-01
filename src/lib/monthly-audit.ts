@@ -474,9 +474,32 @@ export async function closeMonth(params: {
       );
     }
 
-    // Delete existing open/reviewing period and its entries to re-snapshot
+    const { data: activeAbbreviatedInvoices, error: activeAbbreviatedError } = await supabase
+      .from("abbreviated_tax_invoice")
+      .select("id, invoice_no, source_type, status")
+      .eq("audit_period_id", existing.id)
+      .in("source_type", ["room", "dayuse"])
+      .neq("status", "cancelled")
+      .limit(1);
+
+    if (activeAbbreviatedError) {
+      throw new MonthlyAuditError(
+        `Failed to verify abbreviated tax invoices before re-snapshot: ${activeAbbreviatedError.message}`,
+        500
+      );
+    }
+    if ((activeAbbreviatedInvoices ?? []).length > 0) {
+      const invoiceNo = str((activeAbbreviatedInvoices as any[])[0]?.invoice_no) || "existing abbreviated tax invoice";
+      const sourceType = str((activeAbbreviatedInvoices as any[])[0]?.source_type) || "room";
+      throw new MonthlyAuditError(
+        `Cannot re-generate snapshot because ${invoiceNo} (${sourceType}) is already active. Cancel or resolve abbreviated tax invoices first.`,
+        409
+      );
+    }
+
+    // Re-snapshot returns to operational source truth. Deleting entries cascades
+    // corrections, channel flags, and pre-generate abbreviated invoice overrides.
     await supabase.from("monthly_audit_entries").delete().eq("period_id", existing.id);
-    await supabase.from("monthly_audit_periods").delete().eq("id", existing.id);
   }
 
   const { from: dateFrom, to: dateTo } = monthDateRange(year, month);
@@ -587,17 +610,32 @@ export async function closeMonth(params: {
     nightCountMap.set(resId, (nightCountMap.get(resId) ?? 0) + 1);
   }
 
-  // 7. Create period
+  // 7. Create or refresh period
   const now = new Date().toISOString();
-  const { data: period, error: periodError } = await supabase
-    .from("monthly_audit_periods")
-    .insert({
-      year,
-      month,
-      status: "reviewing",
-      closed_at: now,
-      closed_by: closedByUserId,
-    })
+  const periodMutation = existing
+    ? supabase
+        .from("monthly_audit_periods")
+        .update({
+          status: "reviewing",
+          closed_at: now,
+          closed_by: closedByUserId,
+          audited_at: null,
+          audited_by: null,
+          summary_json: null,
+          updated_at: now,
+        })
+        .eq("id", existing.id)
+    : supabase
+        .from("monthly_audit_periods")
+        .insert({
+          year,
+          month,
+          status: "reviewing",
+          closed_at: now,
+          closed_by: closedByUserId,
+        });
+
+  const { data: period, error: periodError } = await periodMutation
     .select("*")
     .single();
 

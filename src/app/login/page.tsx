@@ -80,10 +80,10 @@ function LoginForm() {
       if (userId) {
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, allowed_pages")
           .eq("user_id", userId)
           .maybeSingle();
-        destination = resolveRoleAwarePostLoginPath(destination, profileData?.role);
+        destination = resolveRoleAwarePostLoginPath(destination, profileData?.role, profileData?.allowed_pages);
       }
       router.push(destination);
       router.refresh();
