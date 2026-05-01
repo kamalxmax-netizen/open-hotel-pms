@@ -81,7 +81,7 @@ async function queryRR3GuestsFromMonthlyAudit(
 
   const { data: auditRows, error: auditError } = await supabase
     .from("monthly_audit_entries")
-    .select("id, reservation_id, source, checkin_date, checkout_date, total_revenue")
+    .select("id, reservation_id, booking_code, source, checkin_date, checkout_date, room_number, total_revenue")
     .eq("period_id", periodId);
 
   if (auditError) {
@@ -95,7 +95,6 @@ async function queryRR3GuestsFromMonthlyAudit(
 
   const auditEntryIds = auditEntries.map((row) => String(row.id));
   const reservationIds = auditEntries.map((row) => String(row.reservation_id)).filter(Boolean);
-  const auditEntryByReservationId = new Map(auditEntries.map((row) => [String(row.reservation_id), row]));
 
   const { data: channelFlags, error: channelFlagError } = await supabase
     .from("monthly_audit_channel_flag")
@@ -111,127 +110,77 @@ async function queryRR3GuestsFromMonthlyAudit(
   );
   const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase as any, reservationIds);
 
-  const { data: seedReservations, error: seedError } = await supabase
+  const { data: reservationRows, error: reservationError } = await supabase
     .from("reservations")
-    .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
+    .select("id, booking_code, checkin_date, checkout_date, checked_in_at, status")
     .in("id", reservationIds);
 
-  if (seedError) {
-    throw new Error(`Failed to load Monthly Audit reservations for รร.3: ${seedError.message}`);
+  if (reservationError) {
+    throw new Error(`Failed to load Monthly Audit reservations for รร.3: ${reservationError.message}`);
   }
 
-  const seedRows = (seedReservations ?? []) as any[];
-  const rootIds = Array.from(
-    new Set(seedRows.map((row) => String(row.parent_reservation_id ?? row.id ?? "")).filter(Boolean))
-  );
-  if (rootIds.length === 0) {
-    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
-  }
+  const reservationById = new Map(((reservationRows ?? []) as any[]).map((row) => [String(row.id), row]));
+  const includedAuditEntries: Array<{
+    auditEntry: any;
+    reservation: any;
+    reportSource: string;
+    hasIssuedFullTaxInvoice: boolean;
+  }> = [];
 
-  const [rootsResult, childrenResult] = await Promise.all([
-    supabase
-      .from("reservations")
-      .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
-      .in("id", rootIds),
-    supabase
-      .from("reservations")
-      .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, checked_in_at, tax_invoice_requested, guest_profile_id, status")
-      .in("parent_reservation_id", rootIds),
-  ]);
+  for (const auditEntry of auditEntries) {
+    const reservationId = String(auditEntry.reservation_id ?? "");
+    const reservation = reservationById.get(reservationId);
+    const checkoutDate = String(auditEntry.checkout_date ?? reservation?.checkout_date ?? "");
+    if (!reservationId || !checkoutDate || checkoutDate < dateFrom || checkoutDate > dateTo) continue;
+    if (reservation && isSuppressedLinkedStatus(reservation.status)) continue;
 
-  if (rootsResult.error) throw new Error(`Failed to load linked reservation roots: ${rootsResult.error.message}`);
-  if (childrenResult.error) throw new Error(`Failed to load linked reservation children: ${childrenResult.error.message}`);
-
-  const reservationChains = new Map<string, any[]>();
-  for (const row of ([...(rootsResult.data ?? []), ...(childrenResult.data ?? [])] as any[])) {
-    const rootId = String(row.parent_reservation_id ?? row.id ?? "").trim();
-    if (!rootId) continue;
-    const bucket = reservationChains.get(rootId) ?? [];
-    bucket.push(row);
-    reservationChains.set(rootId, bucket);
-  }
-
-  const includedChains = new Map<string, { rows: any[]; finalRow: any; reportSource: string; hasIssuedFullTaxInvoice: boolean; totalPrice: number }>();
-  for (const [rootId, rows] of reservationChains.entries()) {
-    const activeRows = rows
-      .filter((row) => !isSuppressedLinkedStatus(row.status) && row.checkin_date && row.checkout_date)
-      .sort((left, right) => {
-        const checkoutCompare = String(left.checkout_date ?? "").localeCompare(String(right.checkout_date ?? ""));
-        if (checkoutCompare !== 0) return checkoutCompare;
-        return String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? ""));
-      });
-    if (activeRows.length === 0) continue;
-
-    const finalRow = activeRows[activeRows.length - 1];
-    const finalCheckout = String(finalRow.checkout_date ?? "");
-    if (!finalCheckout || finalCheckout < dateFrom || finalCheckout > dateTo) continue;
-    if (normalizeStatus(finalRow.status) !== "checked_out") continue;
-
-    const chainEntries = activeRows
-      .map((row) => auditEntryByReservationId.get(String(row.id)))
-      .filter(Boolean);
-    if (chainEntries.length === 0) continue;
-
-    const hasIssuedFullTaxInvoice = activeRows.some((row) => issuedFullTaxInvoiceMap.has(String(row.id)));
-    const finalAuditEntry =
-      auditEntryByReservationId.get(String(finalRow.id)) ?? chainEntries[chainEntries.length - 1];
+    const hasIssuedFullTaxInvoice = issuedFullTaxInvoiceMap.has(reservationId);
     const reportSource = hasIssuedFullTaxInvoice
       ? "ota"
-      : (channelByEntryId.get(String(finalAuditEntry.id)) ?? normalizeAuditChannel(finalAuditEntry.source));
+      : (channelByEntryId.get(String(auditEntry.id)) ?? normalizeAuditChannel(auditEntry.source));
 
     if (!matchesRR3Source(reportSource, hasIssuedFullTaxInvoice, filters)) continue;
 
-    const totalPrice = chainEntries.reduce((sum, entry) => sum + Number(entry.total_revenue ?? 0), 0);
-    includedChains.set(rootId, { rows: activeRows, finalRow, reportSource, hasIssuedFullTaxInvoice, totalPrice });
+    includedAuditEntries.push({
+      auditEntry,
+      reservation,
+      reportSource,
+      hasIssuedFullTaxInvoice,
+    });
   }
 
-  if (includedChains.size === 0) {
+  if (includedAuditEntries.length === 0) {
     return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
-  }
-
-  const includedReservationIds = Array.from(
-    new Set(Array.from(includedChains.values()).flatMap((chain) => chain.rows.map((row) => String(row.id))))
-  );
-  const rootIdByReservationId = new Map<string, string>();
-  for (const [rootId, chain] of includedChains.entries()) {
-    for (const row of chain.rows) rootIdByReservationId.set(String(row.id), rootId);
   }
 
   const { data: guestRows, error: guestError } = await supabase
     .from("reservation_guests")
     .select("reservation_id, guest_profile_id, role, guest_profiles(id, first_name, last_name, gender, nationality_code, country, province, id_type, id_number, passport_no)")
-    .in("reservation_id", includedReservationIds);
+    .in("reservation_id", includedAuditEntries.map((item) => String(item.auditEntry.reservation_id)));
 
   if (guestError) throw new Error(`Failed to load reservation guests: ${guestError.message}`);
 
-  const { data: nightRows } = await supabase
-    .from("reservation_nights")
-    .select("reservation_id, rooms(room_number)")
-    .in("reservation_id", includedReservationIds)
-    .is("cancelled_at", null)
-    .order("stay_date", { ascending: false });
-
-  const roomMap = new Map<string, string>();
-  for (const row of (nightRows ?? []) as any[]) {
-    const resId = String(row.reservation_id);
-    if (roomMap.has(resId)) continue;
-    const roomObj = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
-    if (roomObj?.room_number) roomMap.set(resId, String(roomObj.room_number));
-  }
-
-  const guestAggregateByRootAndProfile = new Map<string, any>();
+  const guestsByReservationId = new Map<string, any[]>();
   for (const row of (guestRows ?? []) as any[]) {
     const resId = String(row.reservation_id);
-    const rootId = rootIdByReservationId.get(resId);
-    if (!rootId) continue;
-    const gp = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
-    if (!gp?.id) continue;
-    const role = String(row.role) as "primary" | "accompanying";
-    const key = `${rootId}:${String(gp.id)}`;
-    const existing = guestAggregateByRootAndProfile.get(key);
-    if (!existing) {
-      guestAggregateByRootAndProfile.set(key, {
-        rootId,
+    const bucket = guestsByReservationId.get(resId) ?? [];
+    bucket.push(row);
+    guestsByReservationId.set(resId, bucket);
+  }
+
+  const entries: RR3GuestRecord[] = [];
+  for (const item of includedAuditEntries) {
+    const auditEntry = item.auditEntry;
+    const reservationId = String(auditEntry.reservation_id);
+    const guests = guestsByReservationId.get(reservationId) ?? [];
+    for (const guestRow of guests) {
+      const gp = Array.isArray(guestRow.guest_profiles) ? guestRow.guest_profiles[0] : guestRow.guest_profiles;
+      if (!gp?.id) continue;
+      const role = String(guestRow.role) as "primary" | "accompanying";
+      if (!filters.include_accompanying && role === "accompanying") continue;
+
+      entries.push({
+        reservation_id: reservationId,
         guest_profile_id: String(gp.id),
         role,
         first_name: gp.first_name ?? null,
@@ -242,55 +191,17 @@ async function queryRR3GuestsFromMonthlyAudit(
         id_type: gp.id_type ?? null,
         id_number: gp.id_number ?? null,
         passport_no: gp.passport_no ?? null,
+        checkin_date: String(auditEntry.checkin_date ?? item.reservation?.checkin_date ?? ""),
+        checkout_date: String(auditEntry.checkout_date ?? item.reservation?.checkout_date ?? ""),
+        checked_in_at: item.reservation?.checked_in_at ?? null,
+        checked_out_at: null,
+        room_number: auditEntry.room_number ?? null,
+        source: item.reportSource,
+        tax_invoice_requested: item.hasIssuedFullTaxInvoice,
+        total_price: role === "primary" ? Math.round(Number(auditEntry.total_revenue ?? 0) * 100) / 100 : 0,
+        booking_code: auditEntry.booking_code ?? item.reservation?.booking_code ?? null,
       });
-      continue;
     }
-
-    if (existing.role !== "primary" && role === "primary") existing.role = "primary";
-    if (!existing.first_name && gp.first_name) existing.first_name = gp.first_name;
-    if (!existing.last_name && gp.last_name) existing.last_name = gp.last_name;
-    if (!existing.nationality_code && gp.nationality_code) existing.nationality_code = gp.nationality_code;
-    if (!existing.country && gp.country) existing.country = gp.country;
-    if (!existing.province && gp.province) existing.province = gp.province;
-    if (!existing.id_type && gp.id_type) existing.id_type = gp.id_type;
-    if (!existing.id_number && gp.id_number) existing.id_number = gp.id_number;
-    if (!existing.passport_no && gp.passport_no) existing.passport_no = gp.passport_no;
-  }
-
-  const entries: RR3GuestRecord[] = [];
-  for (const aggregate of guestAggregateByRootAndProfile.values()) {
-    const chain = includedChains.get(String(aggregate.rootId));
-    if (!chain) continue;
-    const role = aggregate.role as "primary" | "accompanying";
-    if (!filters.include_accompanying && role === "accompanying") continue;
-
-    const fullCheckin = String(chain.rows[0]?.checkin_date ?? "");
-    const finalRow = chain.finalRow;
-    const finalReservationId = String(finalRow?.id ?? "");
-    const fullCheckout = String(finalRow?.checkout_date ?? "");
-
-    entries.push({
-      reservation_id: finalReservationId,
-      guest_profile_id: String(aggregate.guest_profile_id),
-      role,
-      first_name: aggregate.first_name ?? null,
-      last_name: aggregate.last_name ?? null,
-      nationality_code: aggregate.nationality_code ?? null,
-      country: aggregate.country ?? null,
-      province: aggregate.province ?? null,
-      id_type: aggregate.id_type ?? null,
-      id_number: aggregate.id_number ?? null,
-      passport_no: aggregate.passport_no ?? null,
-      checkin_date: fullCheckin,
-      checkout_date: fullCheckout,
-      checked_in_at: chain.rows[0]?.checked_in_at ?? null,
-      checked_out_at: null,
-      room_number: roomMap.get(finalReservationId) ?? null,
-      source: chain.reportSource,
-      tax_invoice_requested: chain.hasIssuedFullTaxInvoice,
-      total_price: role === "primary" ? Math.round(chain.totalPrice * 100) / 100 : 0,
-      booking_code: finalRow?.booking_code ?? chain.rows[0]?.booking_code ?? null,
-    });
   }
 
   entries.sort((a, b) => {
