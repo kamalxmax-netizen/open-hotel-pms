@@ -23,7 +23,6 @@ export type ParsedPassportMrz = {
 };
 
 const MRZ_ALLOWED_REGEX = /[^A-Z0-9<]/g;
-const SUPPORTED_LINE1_DOCUMENT_CODES = new Set(["P", "C"]);
 
 function cleanMrzLine(line: string) {
   return String(line || "")
@@ -33,26 +32,70 @@ function cleanMrzLine(line: string) {
     .replace(MRZ_ALLOWED_REGEX, "");
 }
 
-function cleanMrzLineWithSpaceFillers(line: string) {
-  return String(line || "")
-    .toUpperCase()
-    .replace(/«/g, "<")
-    .replace(/\s+/g, "<")
-    .replace(MRZ_ALLOWED_REGEX, "");
-}
-
 function fitToMrzLength(line: string) {
   const normalized = String(line || "");
   return normalized.length >= 44 ? normalized.slice(0, 44) : normalized.padEnd(44, "<");
 }
 
+function isSupportedLine1Start(line: string) {
+  const normalized = String(line || "");
+  if (normalized.charAt(0) === "P") return true;
+
+  // Myanmar certificate of identity uses "CI" as the document code and "MMR"
+  // as issuer. Keep this intentionally narrow so labels like EXPIRATION DATE
+  // cannot be promoted into an MRZ name line.
+  return normalized.startsWith("CIMMR");
+}
+
+function isMyanmarLine1Start(line: string) {
+  const normalized = String(line || "");
+  return normalized.startsWith("P<MMR") || normalized.startsWith("CIMMR");
+}
+
+function repairMyanmarLine1NameSeparators(line: string) {
+  if (!isMyanmarLine1Start(line)) return null;
+
+  const prefix = line.slice(0, 5);
+  const body = line.slice(5);
+  const fillerIndex = body.search(/<{2,}/);
+  const nameEnd = fillerIndex >= 0 ? fillerIndex : body.length;
+  const namePart = body.slice(0, nameEnd);
+  const suffix = body.slice(nameEnd);
+  if (!namePart || namePart.includes("<")) return null;
+
+  const candidates: string[] = [];
+  for (let i = 1; i < namePart.length - 1; i += 1) {
+    if (!/[KEX]/.test(namePart.charAt(i))) continue;
+    candidates.push(`${prefix}${namePart.slice(0, i)}<${namePart.slice(i + 1)}${suffix}`);
+  }
+
+  if (namePart.length % 2 === 0) {
+    const midpoint = namePart.length / 2;
+    const left = namePart.slice(0, midpoint);
+    const right = namePart.slice(midpoint);
+    if (left.length >= 2 && left === right) {
+      candidates.push(`${prefix}${left}<${right}${suffix}`);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const fitted = fitToMrzLength(candidate);
+    if (looksLikeMrzLine1(fitted)) return fitted;
+  }
+  return null;
+}
+
 function normalizeLine1Candidate(line: string) {
   if (!line) return null;
   let normalized = line;
-  const documentIndex = normalized.search(/[PC][A-Z<]/);
+  const pIndex = normalized.search(/P[A-Z<]/);
+  const ciMyanmarIndex = normalized.search(/CIMMR/);
+  const indexes = [pIndex, ciMyanmarIndex].filter((index) => index >= 0);
+  if (indexes.length === 0) return null;
+  const documentIndex = Math.min(...indexes);
   if (documentIndex > 0) normalized = normalized.slice(documentIndex);
 
-  if (!SUPPORTED_LINE1_DOCUMENT_CODES.has(normalized.charAt(0))) {
+  if (!isSupportedLine1Start(normalized)) {
     return null;
   }
 
@@ -67,7 +110,11 @@ function normalizeLine1Candidate(line: string) {
   }
 
   normalized = fitToMrzLength(normalized);
-  if (!looksLikeMrzLine1(normalized)) return null;
+  if (!looksLikeMrzLine1(normalized)) {
+    const repaired = repairMyanmarLine1NameSeparators(normalized);
+    if (!repaired) return null;
+    return repaired;
+  }
   return normalized;
 }
 
@@ -80,7 +127,7 @@ function normalizeLine2Candidate(line: string) {
 
 function looksLikeMrzLine1(line: string) {
   const normalized = fitToMrzLength(String(line || ""));
-  if (!normalized || !SUPPORTED_LINE1_DOCUMENT_CODES.has(normalized.charAt(0))) return false;
+  if (!normalized || !isSupportedLine1Start(normalized)) return false;
 
   const documentCode = normalized.slice(0, 2);
   const issuerField = normalized.slice(2, 5);
@@ -90,9 +137,12 @@ function looksLikeMrzLine1(line: string) {
   const given = cleanName(givenRaw);
   const normalizedIssuer = normalizeAlphaCode(issuerField.replace(/</g, ""));
 
-  const documentCodeLike = /^[PC][A-Z<]$/.test(documentCode);
+  const documentCodeLike = /^P[A-Z<]$/.test(documentCode) || documentCode === "CI";
   // Some issuers appear as single-character + fillers (e.g. "D<<").
-  const issuerLike = normalizedIssuer.length >= 1 && normalizedIssuer.length <= 3;
+  const issuerLike =
+    normalized.startsWith("CI")
+      ? normalizedIssuer === "MMR"
+      : normalizedIssuer.length >= 1 && normalizedIssuer.length <= 3;
   const namesLike = namesField.includes("<");
   const nameStructureLike = family.length >= 2 && given.length >= 1;
 
@@ -149,8 +199,8 @@ function looksLikeMrzLine2(line: string) {
 function extractMrzPairs(rawText: string): [string, string][] {
   const lines = String(rawText || "")
     .split(/\r?\n/)
-    .flatMap((line) => [cleanMrzLineWithSpaceFillers(line), cleanMrzLine(line)])
-    .filter((line, index, allLines) => line.length >= 20 && allLines.indexOf(line) === index);
+    .map(cleanMrzLine)
+    .filter((line) => line.length >= 20);
 
   const pairs: [string, string][] = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -344,7 +394,7 @@ function toIsoBirthDate(rawDate: string) {
 }
 
 function parseMrzFromLines(line1: string, line2: string): ParsedPassportMrz | null {
-  if (!line1 || !line2 || !SUPPORTED_LINE1_DOCUMENT_CODES.has(line1.charAt(0))) return null;
+  if (!line1 || !line2 || !isSupportedLine1Start(line1)) return null;
 
   const warnings: string[] = [];
   const fieldStatus: PassportOcrFieldMap = {
