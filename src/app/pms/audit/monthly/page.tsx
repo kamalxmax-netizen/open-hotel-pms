@@ -281,7 +281,11 @@ export default function MonthlyAuditPage() {
   // ============================================================
 
   const handleCloseMonth = async () => {
-    if (!confirm(`Close month ${MONTHS[selectedMonth - 1]} ${selectedYear}?\n\nThis will generate a snapshot of all checked-out reservations.`)) return;
+    const isRegenerate = Boolean(period);
+    const message = isRegenerate
+      ? `Re-generate snapshot for ${MONTHS[selectedMonth - 1]} ${selectedYear}?\n\nThis will rebuild from Operation Source and clear existing corrections, channel flags, and abbreviated invoice overrides. Active abbreviated tax invoices must be cancelled or resolved first.`
+      : `Close month ${MONTHS[selectedMonth - 1]} ${selectedYear}?\n\nThis will generate a snapshot of all checked-out reservations.`;
+    if (!confirm(message)) return;
     setClosing(true);
     setError(null);
     try {
@@ -446,6 +450,7 @@ export default function MonthlyAuditPage() {
   // ============================================================
 
   const statusBadge = period ? STATUS_BADGE[period.status] ?? STATUS_BADGE.open : null;
+  const canGenerateSnapshot = !period || period.status === "open" || period.status === "reviewing";
   const canCorrect = period?.status === "reviewing";
   const canApprove = period?.status === "reviewing";
   const canExport = period?.status === "audited" || period?.status === "locked";
@@ -538,7 +543,7 @@ export default function MonthlyAuditPage() {
             Back to Snapshot
           </button>
         )}
-        {(!period || period.status === "reviewing") && (
+        {canGenerateSnapshot && (
           <button
             onClick={handleCloseMonth}
             disabled={closing}
