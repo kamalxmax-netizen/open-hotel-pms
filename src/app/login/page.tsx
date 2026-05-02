@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, FormEvent, Suspense } from "react";
+import { useState, FormEvent, Suspense, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { resolveRoleAwarePostLoginPath, sanitizePostLoginPath } from "@/lib/auth-routing";
+import QRCode from "react-qr-code";
 
 /* ── OpenHotel Geometric Logo (SVG) ──────────────────────────────────── */
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
@@ -110,6 +111,14 @@ function LoginForm() {
           </div>
         )}
 
+        <LineQrLogin next={next} />
+
+        <div className="mb-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">fallback</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
         <a
           href={`/api/auth/line/start?next=${encodeURIComponent(next)}`}
           className="mb-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#06C755] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#05b64d] focus:outline-none focus:ring-2 focus:ring-[#06C755]/30"
@@ -122,7 +131,7 @@ function LoginForm() {
 
         <div className="mb-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">or</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">or password</span>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
@@ -185,6 +194,166 @@ function LoginForm() {
       </div>
     </div>
   );
+}
+
+type LineQrChallenge = {
+  qrUrl: string;
+  expiresAt: string;
+  pollIntervalMs: number;
+};
+
+type LineQrStatusResponse = {
+  success: boolean;
+  status?: "pending" | "authenticated" | "expired" | "failed" | "cancelled" | "consumed";
+  redirectTo?: string;
+  expiresAt?: string;
+  error?: string;
+};
+
+function LineQrLogin({ next }: { next: string }) {
+  const router = useRouter();
+  const [challenge, setChallenge] = useState<LineQrChallenge | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [statusText, setStatusText] = useState("กำลังสร้าง QR...");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startQr = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setStatusText("กำลังสร้าง QR...");
+    try {
+      const response = await fetch("/api/auth/line/qr/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ next }),
+      });
+      const data = await response.json().catch(() => null) as (LineQrChallenge & { success?: boolean; error?: string }) | null;
+      if (!response.ok || !data?.success || !data.qrUrl || !data.expiresAt) {
+        throw new Error(data?.error || "create_failed");
+      }
+      setChallenge({
+        qrUrl: data.qrUrl,
+        expiresAt: data.expiresAt,
+        pollIntervalMs: data.pollIntervalMs || 2000,
+      });
+      setTimeLeft(Math.max(0, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000)));
+      setStatusText("สแกน QR ด้วยมือถือที่ผูก LINE ไว้");
+    } catch {
+      setChallenge(null);
+      setError("สร้าง QR Login ไม่สำเร็จ กรุณาลองใหม่");
+      setStatusText("QR Login ไม่พร้อมใช้งาน");
+    } finally {
+      setLoading(false);
+    }
+  }, [next]);
+
+  useEffect(() => {
+    void startQr();
+  }, [startQr]);
+
+  useEffect(() => {
+    if (!challenge) return;
+    const timer = window.setInterval(() => {
+      const remaining = Math.max(0, Math.floor((new Date(challenge.expiresAt).getTime() - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) setStatusText("QR หมดอายุแล้ว");
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [challenge]);
+
+  useEffect(() => {
+    if (!challenge || timeLeft <= 0) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/auth/line/qr/status", { cache: "no-store" });
+        const data = await response.json().catch(() => null) as LineQrStatusResponse | null;
+        if (cancelled || !data?.success) return;
+
+        if (data.status === "authenticated" && data.redirectTo) {
+          setStatusText("เข้าสู่ระบบสำเร็จ กำลังเปิด PMS...");
+          setChallenge(null);
+          router.replace(data.redirectTo);
+          router.refresh();
+          return;
+        }
+
+        if (data.status === "failed") {
+          setError(resolveLineQrError(data.error));
+          setStatusText("ยืนยัน LINE ไม่สำเร็จ");
+          setChallenge(null);
+          return;
+        }
+
+        if (data.status === "expired" || data.status === "cancelled" || data.status === "consumed") {
+          setError("QR นี้หมดอายุแล้ว กรุณาสร้างใหม่");
+          setStatusText("QR หมดอายุแล้ว");
+          setChallenge(null);
+        }
+      } catch {
+        if (!cancelled) setStatusText("กำลังรอการสแกน...");
+      }
+    };
+    void poll();
+    const interval = window.setInterval(poll, challenge.pollIntervalMs);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [challenge, router, timeLeft]);
+
+  return (
+    <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+      <div className="mb-3">
+        <p className="text-sm font-semibold text-slate-700">QR Login with LINE</p>
+        <p className="mt-1 text-xs text-slate-500">{statusText}</p>
+      </div>
+
+      <div className="mx-auto flex h-[190px] w-[190px] items-center justify-center rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        {challenge?.qrUrl && timeLeft > 0 ? (
+          <QRCode value={challenge.qrUrl} size={164} />
+        ) : (
+          <div className="px-4 text-xs leading-5 text-slate-400">
+            {loading ? "กำลังสร้าง QR..." : "QR หมดอายุ"}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium text-slate-500">
+          {timeLeft > 0 ? `หมดอายุใน ${timeLeft}s` : "หมดอายุแล้ว"}
+        </span>
+        <button
+          type="button"
+          onClick={() => void startQr()}
+          disabled={loading}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-600 transition hover:border-[#C9903A] hover:text-[#9A6B27] disabled:cursor-wait disabled:opacity-50"
+        >
+          สร้าง QR ใหม่
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs text-rose-600">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function resolveLineQrError(value: string | null | undefined): string {
+  switch (value) {
+    case "not_bound":
+      return "LINE account นี้ยังไม่ได้ผูกกับ Staff ใน PMS";
+    case "inactive_staff":
+      return "Staff account นี้ถูกปิดใช้งาน กรุณาติดต่อ Admin";
+    case "no_email":
+      return "Staff account นี้ไม่มี email สำหรับสร้าง session กรุณาติดต่อ Admin";
+    default:
+      return "LINE QR Login ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  }
 }
 
 function resolveLineLoginError(value: string | null): string | null {
