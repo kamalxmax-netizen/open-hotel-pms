@@ -4194,7 +4194,9 @@ export default function ReservationDetailPage({
                 if (pendingCheckinPayments.length > 0) {
                     checkinPayload.payments = pendingCheckinPayments;
                 }
-                if (policyFeePayload) {
+                if (policyFeePayload?.waived) {
+                    checkinPayload.early_checkin_fee_waived = true;
+                } else if (policyFeePayload) {
                     checkinPayload.policy_fee = policyFeePayload;
                 }
                 const res = await fetch(`/api/bookings/${reservationId}/checkin`, {

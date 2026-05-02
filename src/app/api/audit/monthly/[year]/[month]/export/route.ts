@@ -1,9 +1,13 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+  attachFullTaxInvoiceInfo,
   computeSummary,
+  getMonthlyAuditTaxChannel,
+  loadIssuedFullTaxCoverageMap,
   loadMonthlyPosSalesSummary,
   previewMonth,
+  splitMonthlyAuditEntries,
   type MonthlyAuditEntry,
   type MonthlyAuditPosSalesSummary,
 } from "@/lib/monthly-audit";
@@ -79,7 +83,7 @@ function applyEntryFilters<T extends MonthlyAuditEntry & { is_corrected?: boolea
 ) {
   let filtered = entries;
 
-  if (query.source) filtered = filtered.filter((entry) => entry.source === query.source);
+  if (query.source) filtered = filtered.filter((entry) => getMonthlyAuditTaxChannel(entry) === query.source);
   if (query.tax_invoice === "true") filtered = filtered.filter((entry) => entry.tax_invoice_requested);
   if (query.tax_invoice === "false") filtered = filtered.filter((entry) => !entry.tax_invoice_requested);
   if (query.has_corrections === "true") filtered = filtered.filter((entry) => Boolean(entry.is_corrected));
@@ -103,10 +107,12 @@ function buildMonthlyAuditWorkbook(params: {
   status: string;
   mode: "snapshot" | "preview";
   entries: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
+  fullTaxInvoiceEntries?: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
   posSales: MonthlyAuditPosSalesSummary;
 }) {
-  const { year, month, status, mode, entries, posSales } = params;
+  const { year, month, status, mode, entries, fullTaxInvoiceEntries = [], posSales } = params;
   const summary = computeSummary(entries, posSales);
+  const fullTaxInvoiceSummary = computeSummary(fullTaxInvoiceEntries);
   const workbook = XLSX.utils.book_new();
 
   const summaryRows: unknown[][] = [
@@ -198,6 +204,85 @@ function buildMonthlyAuditWorkbook(params: {
     ]),
   ];
 
+  const fullTaxInvoiceRows: unknown[][] = [
+    [
+      "Invoice No",
+      "Issue Date",
+      "Booking Code",
+      "Guest Name",
+      "Source",
+      "Room",
+      "Room Type",
+      "Check-in",
+      "Check-out",
+      "Nights",
+      "Room Revenue",
+      "Extra Revenue",
+      "POS Revenue",
+      "Total Revenue",
+      "Cash",
+      "Transfer",
+      "Credit Card",
+      "Other",
+      "Total Paid",
+      "Refund",
+      "Outstanding",
+      "Tax Invoice",
+      "Corrected",
+    ],
+    ...fullTaxInvoiceEntries.map((entry) => [
+      entry.full_tax_invoice?.invoice_no ?? "",
+      entry.full_tax_invoice?.issue_date ?? "",
+      entry.booking_code ?? "",
+      entry.guest_name ?? "",
+      entry.source,
+      entry.room_number ?? "",
+      entry.room_type_name ?? "",
+      entry.checkin_date,
+      entry.checkout_date,
+      entry.total_nights,
+      entry.room_revenue,
+      entry.extra_revenue,
+      entry.pos_revenue,
+      entry.total_revenue,
+      entry.paid_cash,
+      entry.paid_transfer,
+      entry.paid_credit_card,
+      entry.paid_other,
+      entry.total_paid,
+      entry.refund_total,
+      entry.outstanding,
+      entry.tax_invoice_requested ? "Yes" : "No",
+      entry.is_corrected ? "Yes" : "No",
+    ]),
+    [],
+    [
+      "Total",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      fullTaxInvoiceSummary.totals.room_revenue,
+      fullTaxInvoiceSummary.totals.extra_revenue,
+      fullTaxInvoiceSummary.totals.pos_revenue,
+      fullTaxInvoiceSummary.totals.total_revenue,
+      fullTaxInvoiceSummary.totals.paid_cash,
+      fullTaxInvoiceSummary.totals.paid_transfer,
+      fullTaxInvoiceSummary.totals.paid_credit_card,
+      fullTaxInvoiceSummary.totals.paid_other,
+      fullTaxInvoiceSummary.totals.total_paid,
+      fullTaxInvoiceSummary.totals.refund_total,
+      fullTaxInvoiceSummary.totals.outstanding,
+      fullTaxInvoiceSummary.totals.tax_invoice_count,
+      "",
+    ],
+  ];
+
   const posRows: unknown[][] = [
     ["POS Sales", `${year}-${String(month).padStart(2, "0")}`, mode === "preview" ? "Preview Live" : status],
     [],
@@ -223,6 +308,7 @@ function buildMonthlyAuditWorkbook(params: {
 
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
   const entriesSheet = XLSX.utils.aoa_to_sheet(entryRows);
+  const fullTaxInvoiceSheet = XLSX.utils.aoa_to_sheet(fullTaxInvoiceRows);
   const posSheet = XLSX.utils.aoa_to_sheet(posRows);
   summarySheet["!cols"] = [
     { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 14 },
@@ -232,6 +318,12 @@ function buildMonthlyAuditWorkbook(params: {
   entriesSheet["!cols"] = [
     { wch: 24 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 16 },
     { wch: 12 }, { wch: 12 }, { wch: 8 },
+    ...Array.from({ length: 11 }, () => ({ wch: 12 })),
+    { wch: 12 }, { wch: 10 },
+  ];
+  fullTaxInvoiceSheet["!cols"] = [
+    { wch: 16 }, { wch: 12 }, { wch: 24 }, { wch: 26 }, { wch: 12 },
+    { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 8 },
     ...Array.from({ length: 11 }, () => ({ wch: 12 })),
     { wch: 12 }, { wch: 10 },
   ];
@@ -249,6 +341,7 @@ function buildMonthlyAuditWorkbook(params: {
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
   XLSX.utils.book_append_sheet(workbook, posSheet, "POS Sales");
   XLSX.utils.book_append_sheet(workbook, entriesSheet, "Entries");
+  XLSX.utils.book_append_sheet(workbook, fullTaxInvoiceSheet, "Full Tax Invoice");
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
@@ -256,9 +349,10 @@ function buildCsvResponse(params: {
   year: number;
   month: number;
   entries: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
+  fullTaxInvoiceEntries?: Array<MonthlyAuditEntry & { is_corrected?: boolean }>;
   filePrefix: string;
 }) {
-  const { year, month, entries, filePrefix } = params;
+  const { year, month, entries, fullTaxInvoiceEntries = [], filePrefix } = params;
   const headers = [
     "Booking Code", "Guest Name", "Source", "Room", "Room Type",
     "Check-in", "Check-out", "Nights",
@@ -294,6 +388,45 @@ function buildCsvResponse(params: {
       e.is_corrected ? "Yes" : "No",
     ];
     csvRows.push(rowValues.map(csvEscape).join(","));
+  }
+
+  if (fullTaxInvoiceEntries.length > 0) {
+    csvRows.push("");
+    csvRows.push(["Full Tax Invoice"].map(csvEscape).join(","));
+    csvRows.push([
+      "Invoice No",
+      "Issue Date",
+      ...headers,
+    ].map(csvEscape).join(","));
+
+    for (const e of fullTaxInvoiceEntries) {
+      const rowValues = [
+        e.full_tax_invoice?.invoice_no ?? "",
+        e.full_tax_invoice?.issue_date ?? "",
+        e.booking_code ?? "",
+        e.guest_name ?? "",
+        e.source,
+        e.room_number ?? "",
+        e.room_type_name ?? "",
+        e.checkin_date,
+        e.checkout_date,
+        e.total_nights,
+        e.room_revenue,
+        e.extra_revenue,
+        e.pos_revenue,
+        e.total_revenue,
+        e.paid_cash,
+        e.paid_transfer,
+        e.paid_credit_card,
+        e.paid_other,
+        e.total_paid,
+        e.refund_total,
+        e.outstanding,
+        e.tax_invoice_requested ? "Yes" : "No",
+        e.is_corrected ? "Yes" : "No",
+      ];
+      csvRows.push(rowValues.map(csvEscape).join(","));
+    }
   }
 
   const csvContent = csvRows.join("\n");
@@ -350,11 +483,12 @@ export async function GET(
 
     if (query.mode === "preview") {
       const preview = await previewMonth({ supabase, year, month, filterDayuse: query.filter_dayuse });
-      const entries = applyEntryFilters(
+      const filteredEntries = applyEntryFilters(
         preview.entries.map((entry) => ({ ...entry, is_corrected: false })),
         query
       );
-      const summary = computeSummary(entries, preview.summary.pos_sales);
+      const split = splitMonthlyAuditEntries(filteredEntries, preview.summary.pos_sales);
+      const summary = split.summary;
 
       if (query.format === "xlsx") {
         const buffer = buildMonthlyAuditWorkbook({
@@ -362,7 +496,8 @@ export async function GET(
           month,
           status: "preview",
           mode: "preview",
-          entries,
+          entries: split.normalEntries,
+          fullTaxInvoiceEntries: split.fullTaxInvoiceEntries,
           posSales: preview.summary.pos_sales,
         });
         const body = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
@@ -376,7 +511,13 @@ export async function GET(
       }
 
       if (query.format === "csv") {
-        return buildCsvResponse({ year, month, entries, filePrefix: "monthly-audit-preview" });
+        return buildCsvResponse({
+          year,
+          month,
+          entries: split.normalEntries,
+          fullTaxInvoiceEntries: split.fullTaxInvoiceEntries,
+          filePrefix: "monthly-audit-preview",
+        });
       }
 
       return NextResponse.json({
@@ -384,8 +525,11 @@ export async function GET(
         year,
         month,
         status: "preview",
-        entries,
+        entries: split.normalEntries,
+        full_tax_invoice_entries: split.fullTaxInvoiceEntries,
         summary,
+        full_tax_invoice_summary: split.fullTaxInvoiceSummary,
+        grand_summary: split.grandSummary,
       });
     }
 
@@ -420,7 +564,6 @@ export async function GET(
       .eq("period_id", period.id)
       .order("checkout_date", { ascending: true });
 
-    if (query.source) entriesQuery = entriesQuery.eq("source", query.source);
     if (query.tax_invoice === "true") entriesQuery = entriesQuery.eq("tax_invoice_requested", true);
     if (query.tax_invoice === "false") entriesQuery = entriesQuery.eq("tax_invoice_requested", false);
 
@@ -432,6 +575,7 @@ export async function GET(
     // Load corrections for marking which entries were corrected
     const entryIds = ((entriesData ?? []) as any[]).map((e: any) => String(e.id));
     const correctedEntryIds = new Set<string>();
+    let channelFlagMap = new Map<string, any>();
 
     if (entryIds.length > 0) {
       const { data: corrections } = await supabase
@@ -442,6 +586,19 @@ export async function GET(
       for (const c of (corrections ?? []) as any[]) {
         correctedEntryIds.add(String(c.entry_id));
       }
+
+      const { data: channelFlags, error: channelFlagError } = await supabase
+        .from("monthly_audit_channel_flag")
+        .select("*")
+        .in("entry_id", entryIds);
+
+      if (channelFlagError) {
+        return NextResponse.json({ success: false, error: channelFlagError.message }, { status: 500 });
+      }
+
+      channelFlagMap = new Map(
+        ((channelFlags ?? []) as any[]).map((flag: any) => [String(flag.entry_id), flag])
+      );
     }
 
     let entries: (MonthlyAuditEntry & { is_corrected: boolean })[] = ((entriesData ?? []) as any[]).map((e: any) => ({
@@ -474,6 +631,19 @@ export async function GET(
       passport_number: e.passport_number ?? null,
       id_card_number: e.id_card_number ?? null,
       guest_count: Number(e.guest_count ?? 1),
+      channel_flag: (() => {
+        const flag = channelFlagMap?.get(String(e.id));
+        const actual = str(flag?.actual_channel || e.source);
+        const taxInvoice = str(flag?.tax_invoice_channel || actual);
+        return {
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          display_label: actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : taxInvoice,
+          reason: flag?.reason ?? null,
+          flagged_by_user_id: flag?.flagged_by_user_id ?? null,
+          flagged_at: flag?.flagged_at ? String(flag.flagged_at) : null,
+        };
+      })(),
       is_corrected: correctedEntryIds.has(String(e.id)),
     }));
 
@@ -481,7 +651,10 @@ export async function GET(
 
     const savedPosSales = (period.summary_json as any)?.pos_sales;
     const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-    const summary = computeSummary(entries, posSales);
+    const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
+    entries = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+    const split = splitMonthlyAuditEntries(entries, posSales);
+    const summary = split.summary;
 
     if (query.format === "xlsx") {
       const buffer = buildMonthlyAuditWorkbook({
@@ -489,7 +662,8 @@ export async function GET(
         month,
         status: String(period.status),
         mode: "snapshot",
-        entries,
+        entries: split.normalEntries,
+        fullTaxInvoiceEntries: split.fullTaxInvoiceEntries,
         posSales,
       });
       const body = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
@@ -503,7 +677,13 @@ export async function GET(
     }
 
     if (query.format === "csv") {
-      return buildCsvResponse({ year, month, entries, filePrefix: "monthly-audit" });
+      return buildCsvResponse({
+        year,
+        month,
+        entries: split.normalEntries,
+        fullTaxInvoiceEntries: split.fullTaxInvoiceEntries,
+        filePrefix: "monthly-audit",
+      });
     }
 
     return NextResponse.json({
@@ -511,8 +691,11 @@ export async function GET(
       year,
       month,
       status: period.status,
-      entries,
+      entries: split.normalEntries,
+      full_tax_invoice_entries: split.fullTaxInvoiceEntries,
       summary,
+      full_tax_invoice_summary: split.fullTaxInvoiceSummary,
+      grand_summary: split.grandSummary,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

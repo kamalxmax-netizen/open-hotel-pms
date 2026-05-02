@@ -4,6 +4,7 @@ import {
   getBusinessDate,
   requireMobileCheckinAuth,
   toBangkokDate,
+  toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
 import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
 import {
@@ -64,6 +65,8 @@ export async function GET(request: NextRequest) {
     await requireMobileCheckinAuth(supabase, request);
 
     const businessDate = await getBusinessDate(supabase);
+    const nowBangkokTime = toBangkokTimeHHmm();
+    const earlyCheckinFeeRequired = nowBangkokTime >= "04:00" && nowBangkokTime < "09:00";
 
     const { data: dueRows, error: dueError } = await supabase
       .from("reservations")
@@ -250,6 +253,9 @@ export async function GET(request: NextRequest) {
           hk_status: readiness?.hk_status ?? null,
           room_ready_for_checkin: readiness?.room_ready_for_checkin ?? true,
           room_ready_reason: readiness?.room_ready_reason ?? null,
+          early_checkin_fee_required: earlyCheckinFeeRequired,
+          early_checkin_fee_suggested: earlyCheckinFeeRequired ? round2(roomTotal * 0.5) : 0,
+          early_checkin_time: nowBangkokTime,
         };
       })
       .sort((a, b) =>
@@ -312,6 +318,9 @@ export async function GET(request: NextRequest) {
           hk_status: null,
           room_ready_for_checkin: true,
           room_ready_reason: null,
+          early_checkin_fee_required: false,
+          early_checkin_fee_suggested: 0,
+          early_checkin_time: nowBangkokTime,
         })).sort((a, b) =>
           toSortableRoom(a.room_number).localeCompare(toSortableRoom(b.room_number), undefined, {
             numeric: true,

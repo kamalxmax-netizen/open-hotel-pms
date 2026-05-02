@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       entries: result.entries,
       validations: result.validations,
       summary: result.summary,
+      price_summary: result.price_summary,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

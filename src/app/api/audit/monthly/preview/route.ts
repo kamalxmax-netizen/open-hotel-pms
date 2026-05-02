@@ -1,6 +1,6 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { computeSummary, MonthlyAuditError, previewMonth, type MonthlyAuditEntry } from "@/lib/monthly-audit";
+import { MonthlyAuditError, previewMonth, splitMonthlyAuditEntries, type MonthlyAuditEntry } from "@/lib/monthly-audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -94,14 +94,19 @@ export async function GET(request: NextRequest) {
 
     entries = sortEntries(entries, sort_by, sort_dir);
 
+    const split = splitMonthlyAuditEntries(entries, preview.summary.pos_sales);
+
     return NextResponse.json({
       success: true,
       mode: "preview",
       year,
       month,
       period: null,
-      entries,
-      summary: computeSummary(entries, preview.summary.pos_sales),
+      entries: split.normalEntries,
+      full_tax_invoice_entries: split.fullTaxInvoiceEntries,
+      summary: split.summary,
+      full_tax_invoice_summary: split.fullTaxInvoiceSummary,
+      grand_summary: split.grandSummary,
       filters: {
         available_sources: preview.available_sources,
       },

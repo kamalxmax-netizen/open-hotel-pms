@@ -111,6 +111,67 @@ export interface RR3GuestRecord {
   tax_invoice_requested: boolean;
   total_price: number;
   booking_code: string | null;
+  rr3_override?: RR3RowOverrideFields | null;
+}
+
+export interface RR3PriceSummaryRow {
+  unit_price: number;
+  quantity: number;
+  total: number;
+}
+
+export interface RR3PriceSummaryGroup {
+  label: string;
+  rows: RR3PriceSummaryRow[];
+  total_quantity: number;
+  total_amount: number;
+  copy_text: string;
+}
+
+export interface RR3PriceSummary {
+  ota_tax: RR3PriceSummaryGroup;
+  walkin_direct: RR3PriceSummaryGroup;
+}
+
+export type RR3PrintGroupKey = "ota_tax" | "walkin_direct";
+
+export interface RR3RowOverrideFields {
+  checkin_datetime: string;
+  room_number: string;
+  full_name: string;
+  nationality: string;
+  id_or_passport: string;
+  current_address: string;
+  occupation: string;
+  coming_from: string;
+  going_to: string;
+  checkout_datetime: string;
+  remarks: string;
+}
+
+export interface RR3RowOverride extends RR3RowOverrideFields {
+  id: string;
+  period_id: string;
+  reservation_id: string;
+  guest_profile_id: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RR3PrintableRow {
+  seq_no: number;
+  checkin_datetime: string;
+  room_number: string;
+  full_name: string;
+  nationality: string;
+  id_or_passport: string;
+  current_address: string;
+  occupation: string;
+  coming_from: string;
+  going_to: string;
+  checkout_datetime: string;
+  remarks: string;
+  row_kind: "system" | "override";
 }
 
 /** รร.3 filter parameters */

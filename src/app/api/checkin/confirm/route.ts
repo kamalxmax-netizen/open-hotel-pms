@@ -14,6 +14,7 @@ import {
   toBangkokTimeHHmm,
 } from "@/lib/mobile-checkin";
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
+import { fetchExtraFeeTemplate, insertExtraFeePayment } from "@/lib/folio-fees";
 import { assertPrimaryGuestAvailableForCheckin, PrimaryGuestCheckinConflictError } from "@/lib/guest-primary-checkin";
 import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { ensureReservationRoomReadyForMobileCheckin } from "@/lib/mobile-checkin-room-readiness";
@@ -52,6 +53,12 @@ const bodySchema = z.object({
   payment_amount: z.number().optional(),
   deposit_method: z.string().optional(),
   deposit_amount: z.number().optional(),
+  early_checkin_fee: z.object({
+    amount: z.number(),
+    payment_method: z.string(),
+    note: z.string().optional().nullable(),
+  }).optional().nullable(),
+  early_checkin_fee_waived: z.boolean().optional().default(false),
   scan_id: z.string().uuid().optional(),
   force_draft: z.boolean().optional().default(false),
   cashier_name: z.string().optional(),
@@ -281,6 +288,23 @@ export async function POST(request: NextRequest) {
     const nowCheckinTime = toBangkokTimeHHmm(now);
     const existingCheckinTime = String((reservation as any)?.checkin_time ?? "").trim();
     const capturedCheckinTime = existingCheckinTime || nowCheckinTime;
+    const isEarlyCheckinWindow = capturedCheckinTime >= "04:00" && capturedCheckinTime < "09:00";
+    const earlyFeePayload = payload.early_checkin_fee ?? null;
+    const earlyFeeMethod = earlyFeePayload ? mapCheckinPaymentMethod(earlyFeePayload.payment_method) : null;
+    const earlyFeeAmount = Number(earlyFeePayload?.amount ?? 0);
+    const earlyFeeWaived = payload.early_checkin_fee_waived === true;
+
+    if (!isDraft && isEarlyCheckinWindow && !earlyFeeWaived) {
+      if (!earlyFeePayload) {
+        throw new MobileCheckinError("Early check-in decision required for 04:00-08:59 check-in.", 409, "EARLY_CHECKIN_DECISION_REQUIRED");
+      }
+      if (!earlyFeeMethod) {
+        throw new MobileCheckinError("Invalid early check-in fee payment method.", 400, "EARLY_CHECKIN_METHOD_INVALID");
+      }
+      if (!Number.isFinite(earlyFeeAmount) || earlyFeeAmount <= 0) {
+        throw new MobileCheckinError("Early check-in fee amount must be greater than 0.", 400, "EARLY_CHECKIN_AMOUNT_INVALID");
+      }
+    }
 
     const beforeJson = {
       status: reservationStatus,
@@ -381,6 +405,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!isDraft && isEarlyCheckinWindow && earlyFeePayload && !earlyFeeWaived) {
+      const template = await fetchExtraFeeTemplate(supabase, "EARLY_CHECKIN_FEE");
+      if (!template || !template.is_active) {
+        throw new MobileCheckinError("EARLY_CHECKIN_FEE template is not available.", 409, "EARLY_CHECKIN_TEMPLATE_UNAVAILABLE");
+      }
+      await insertExtraFeePayment(supabase, {
+        reservationId: payload.reservation_id,
+        feeTemplateCode: template.code,
+        amount: earlyFeeAmount,
+        method: earlyFeeMethod,
+        note: earlyFeePayload.note?.trim() || `Early check-in ${capturedCheckinTime}`,
+        cashierName: payload.cashier_name || "FO Mobile",
+        paidDate: businessDate,
+        paidAt: nowIso,
+      });
+    }
+
     await insertCheckinAudit({
       supabase,
       actorUserId: auth.userId,
@@ -395,6 +436,13 @@ export async function POST(request: NextRequest) {
         is_draft: isDraft,
         draft_reason: draftReason,
         checkin_time: capturedCheckinTime,
+        early_checkin_fee: isEarlyCheckinWindow && earlyFeePayload && !earlyFeeWaived ? {
+          code: "EARLY_CHECKIN_FEE",
+          amount: earlyFeeAmount,
+          method: earlyFeeMethod,
+          note: earlyFeePayload.note?.trim() || `Early check-in ${capturedCheckinTime}`,
+        } : null,
+        early_checkin_fee_waived: isEarlyCheckinWindow && earlyFeeWaived,
         scan_confidence: scanNameMatchConfidence,
         missing_fields: completeness.missing_fields,
         hk_status: roomReadiness.hk_status,
@@ -421,6 +469,8 @@ export async function POST(request: NextRequest) {
         missing_fields: completeness.missing_fields,
         checked_in_at: isDraft ? null : nowIso,
         checkin_time: capturedCheckinTime,
+        early_checkin_fee_recorded: Boolean(isEarlyCheckinWindow && earlyFeePayload && !earlyFeeWaived),
+        early_checkin_fee_waived: Boolean(isEarlyCheckinWindow && earlyFeeWaived),
         room_number: roomReadiness.room_number,
         hk_status: roomReadiness.hk_status,
       },

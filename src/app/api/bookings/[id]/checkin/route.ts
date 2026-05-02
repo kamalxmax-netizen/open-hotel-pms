@@ -251,6 +251,8 @@ export async function POST(
         const checkedInTime = (checkinTimeInput && /^\d{2}:\d{2}$/.test(checkinTimeInput))
             ? checkinTimeInput
             : toLocalTime(checkedInAtDate);
+        const isEarlyCheckinWindow = checkedInTime >= "04:00" && checkedInTime < "09:00";
+        const earlyCheckinFeeWaived = body.early_checkin_fee_waived === true;
         const policyFeeRaw = (body.policy_fee && typeof body.policy_fee === "object")
             ? body.policy_fee as Record<string, unknown>
             : null;
@@ -277,9 +279,15 @@ export async function POST(
             if (policyFeeAmountSatang <= 0) {
                 return NextResponse.json({ error: "policy_fee.amount must be > 0." }, { status: 400 });
             }
-            if (!(checkedInTime >= "04:00" && checkedInTime < "09:00")) {
+            if (!isEarlyCheckinWindow) {
                 return NextResponse.json({ error: "EARLY_CHECKIN_FEE is only allowed for 04:00-08:59 check-in." }, { status: 409 });
             }
+        }
+        if (isEarlyCheckinWindow && !policyFee && !earlyCheckinFeeWaived) {
+            return NextResponse.json(
+                { error: "Early check-in decision required for 04:00-08:59 check-in." },
+                { status: 409 }
+            );
         }
 
         // Verify reservation
@@ -517,6 +525,7 @@ export async function POST(
                         method: policyFee.method,
                         note: policyFee.note,
                     } : null,
+                    early_checkin_fee_waived: earlyCheckinFeeWaived,
                     guest_profile_id: reservation.guest_profile_id,
                 }
             },
@@ -585,6 +594,7 @@ export async function POST(
             payments_recorded: pendingPayments.length,
             payment_amount: paymentTotal,
             policy_fee_recorded: Boolean(policyFee),
+            early_checkin_fee_waived: earlyCheckinFeeWaived,
             checked_in_at: checkedInAtIso,
             checkin_time: checkedInTime
         });

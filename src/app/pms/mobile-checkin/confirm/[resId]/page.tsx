@@ -15,6 +15,10 @@ export default function ConfirmStep() {
   const [submitting, setSubmitting] = useState(false);
   const [roomData, setRoomData] = useState<any>(null);
   const [sessionData, setSessionData] = useState<any>(null);
+  const [waiveEarlyFee, setWaiveEarlyFee] = useState(false);
+  const [earlyFeeAmount, setEarlyFeeAmount] = useState("");
+  const [earlyFeeMethod, setEarlyFeeMethod] = useState("cash");
+  const [earlyFeeNote, setEarlyFeeNote] = useState("Early check-in fee");
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,12 +51,41 @@ export default function ConfirmStep() {
     loadData();
   }, [resId, router]);
 
+  useEffect(() => {
+    if (!roomData?.early_checkin_fee_required) return;
+    if (!earlyFeeAmount) {
+      setEarlyFeeAmount(String(Number(roomData.early_checkin_fee_suggested ?? 0)));
+    }
+    if (sessionData?.payment_method && !earlyFeeMethod) {
+      setEarlyFeeMethod(sessionData.payment_method);
+    }
+  }, [earlyFeeAmount, earlyFeeMethod, roomData, sessionData]);
+
   const onConfirm = async () => {
+    const needsEarlyFeeDecision = Boolean(roomData?.early_checkin_fee_required) && !isDraft;
+    const parsedEarlyFee = Number.parseFloat(earlyFeeAmount);
+    if (needsEarlyFeeDecision && !waiveEarlyFee && (!Number.isFinite(parsedEarlyFee) || parsedEarlyFee <= 0)) {
+      setError("Please enter a valid Early Check-in fee amount or choose No fee.");
+      return;
+    }
+
     setSubmitting(true);
     
     const payload = {
       reservation_id: resId,
-      ...sessionData
+      ...sessionData,
+      ...(needsEarlyFeeDecision && waiveEarlyFee
+        ? { early_checkin_fee_waived: true }
+        : {}),
+      ...(needsEarlyFeeDecision && !waiveEarlyFee
+        ? {
+            early_checkin_fee: {
+              amount: parsedEarlyFee,
+              payment_method: earlyFeeMethod,
+              note: earlyFeeNote.trim() || "Early check-in fee",
+            },
+          }
+        : {}),
     };
 
     try {
@@ -68,7 +101,9 @@ export default function ConfirmStep() {
       const result = json.data;
 
       // Check if any part of the payment is transfer
-      const isTransfer = sessionData.payment_method === "transfer" || sessionData.deposit_method === "transfer";
+      const earlyFeeIsTransfer = needsEarlyFeeDecision && !waiveEarlyFee && earlyFeeMethod === "transfer";
+      const earlyFeeTransferAmount = earlyFeeIsTransfer ? parsedEarlyFee : 0;
+      const isTransfer = sessionData.payment_method === "transfer" || sessionData.deposit_method === "transfer" || earlyFeeIsTransfer;
 
       // Create QR request if transfer
       if (isTransfer) {
@@ -82,7 +117,7 @@ export default function ConfirmStep() {
             target_type: "reservation",
             target_id: resId,
             channel: "mobile_checkin",
-            room_amount: roomIsTransfer ? (sessionData.payment_amount || 0) : 0,
+            room_amount: (roomIsTransfer ? (sessionData.payment_amount || 0) : 0) + earlyFeeTransferAmount,
             deposit_amount: depositIsTransfer ? (sessionData.deposit_amount || 0) : 0,
           })
         });
@@ -122,6 +157,12 @@ export default function ConfirmStep() {
     ? roomData?.room_ready_reason || "ห้องยังไม่พร้อมเข้าพัก ระบบจะบันทึกเป็น Draft ให้ก่อน"
     : "ข้อมูลประวัติยังไม่ครบถ้วน กรุณากรอกเพิ่มเติมภายหลัง จากหน้า Booking Desktop";
   const isDraft = roomBlockedDraft;
+  const needsEarlyFeeDecision = Boolean(roomData?.early_checkin_fee_required) && !isDraft;
+  const paymentOptions = [
+    { id: "cash", label: "Cash", icon: "฿" },
+    { id: "transfer", label: "Transfer", icon: "↔" },
+    { id: "credit_card", label: "Card", icon: "CC" },
+  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-muted)] pb-24">
@@ -240,6 +281,73 @@ export default function ConfirmStep() {
                 </div>
               </div>
             </div>
+
+            {needsEarlyFeeDecision && (
+              <div className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
+                <div className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 rounded-lg">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300 uppercase mb-1">
+                      Early Check-in Fee
+                    </p>
+                    <p className="text-sm font-semibold text-[var(--text-secondary)]">
+                      Detected {roomData?.early_checkin_time || "before 09:00"} · suggested 50% of first night
+                    </p>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={waiveEarlyFee}
+                      onChange={(event) => setWaiveEarlyFee(event.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--border-input)] text-amber-600"
+                    />
+                    No fee / waive charge
+                  </label>
+
+                  {!waiveEarlyFee && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        {paymentOptions.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setEarlyFeeMethod(opt.id)}
+                            className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                              earlyFeeMethod === opt.id
+                                ? "border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+                                : "border-[var(--border-default)] bg-[var(--bg-muted)] text-[var(--text-secondary)]"
+                            }`}
+                          >
+                            <span className="block text-sm">{opt.icon}</span>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={earlyFeeAmount}
+                          onChange={(event) => setEarlyFeeAmount(event.target.value)}
+                          className="h-12 rounded-xl border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 text-lg font-black text-[var(--text-primary)]"
+                          placeholder="Fee amount"
+                        />
+                        <input
+                          type="text"
+                          value={earlyFeeNote}
+                          onChange={(event) => setEarlyFeeNote(event.target.value)}
+                          className="h-12 rounded-xl border border-[var(--border-input)] bg-[var(--bg-surface)] px-4 text-sm font-semibold text-[var(--text-primary)]"
+                          placeholder="Note"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
           </div>
         </section>

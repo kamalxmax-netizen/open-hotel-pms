@@ -8,6 +8,7 @@ import {
   TaxInvoiceBookingSnapshot,
   TaxInvoiceLanguage,
   BuildLineItemsResult,
+  TaxInvoiceAvailableExtraItem,
 } from "@/lib/tax-invoice/types";
 import {
   fmtMoney,
@@ -114,6 +115,10 @@ export default function TaxInvoiceForm({
   const [lineItems, setLineItems] = useState<TaxInvoiceLineItem[]>(
     initialData?.line_items || []
   );
+  const [availableExtraItems, setAvailableExtraItems] = useState<TaxInvoiceAvailableExtraItem[]>(
+    initialData?.available_extra_items || []
+  );
+  const [showExtraPicker, setShowExtraPicker] = useState(false);
   const [booking, setBooking] = useState<TaxInvoiceBookingSnapshot | null>(
     initialData?.booking_snapshot || null
   );
@@ -205,9 +210,11 @@ export default function TaxInvoiceForm({
       if (!result.success)
         throw new Error(result.error || "Failed to refresh folio");
       const newItems: TaxInvoiceLineItem[] = result.data?.line_items || [];
+      const newExtraItems: TaxInvoiceAvailableExtraItem[] = result.data?.available_extra_items || [];
       const newBooking: TaxInvoiceBookingSnapshot | null =
         result.data?.booking_snapshot || null;
       setLineItems(newItems);
+      setAvailableExtraItems(newExtraItems);
       setBooking(newBooking);
       // Reset range to full new period
       setEditFrom(newBooking?.checkin_date ?? "");
@@ -217,6 +224,82 @@ export default function TaxInvoiceForm({
     } finally {
       setRefreshLoading(false);
     }
+  };
+
+  const selectedExtraIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of lineItems) {
+      for (const id of item.merged_extra_charge_ids ?? []) ids.add(id);
+    }
+    return ids;
+  }, [lineItems]);
+
+  const addExtraToRoomCharge = (extra: TaxInvoiceAvailableExtraItem) => {
+    if (selectedExtraIds.has(extra.id)) return;
+    setLineItems((current) => {
+      const targetIndex = current.findIndex((item) => {
+        if (item.kind !== "room_charge") return false;
+        if (item.reservation_id && item.reservation_id !== extra.reservation_id) return false;
+        if (extra.paid_date && item.stay_dates?.length && !item.stay_dates.includes(extra.paid_date)) return false;
+        return true;
+      });
+      const fallbackIndex = current.findIndex(
+        (item) => item.kind === "room_charge" && (!item.reservation_id || item.reservation_id === extra.reservation_id)
+      );
+      const index = targetIndex >= 0 ? targetIndex : fallbackIndex;
+      if (index < 0) return current;
+
+      const target = current[index];
+      const targetDates = target.stay_dates ?? [];
+      const existingMergedIds = target.merged_extra_charge_ids ?? [];
+      if (
+        extra.paid_date &&
+        target.kind === "room_charge" &&
+        targetDates.length > 1 &&
+        targetDates.includes(extra.paid_date) &&
+        existingMergedIds.length === 0
+      ) {
+        const baseQuantity = Number(target.quantity || targetDates.length) || targetDates.length;
+        const baseRoomAmount = Math.max(0, round2(target.amount - (target.merged_extra_charge_total ?? 0)));
+        const baseUnitPrice = round2(baseRoomAmount / Math.max(1, baseQuantity));
+        const splitDates = [...targetDates].sort();
+        const makeRoomLine = (dates: string[], extraAmount = 0): TaxInvoiceLineItem | null => {
+          if (dates.length === 0) return null;
+          const amount = round2(baseUnitPrice * dates.length + extraAmount);
+          return {
+            ...target,
+            stay_dates: dates,
+            quantity: dates.length,
+            amount,
+            unit_price: round2(amount / dates.length),
+            merged_extra_charge_ids: extraAmount > 0 ? [extra.id] : undefined,
+            merged_extra_charge_total: extraAmount > 0 ? round2(extraAmount) : undefined,
+          };
+        };
+        const before = makeRoomLine(splitDates.filter((date) => date < extra.paid_date!));
+        const selected = makeRoomLine([extra.paid_date], extra.amount);
+        const after = makeRoomLine(splitDates.filter((date) => date > extra.paid_date!));
+
+        return [
+          ...current.slice(0, index),
+          ...[before, selected, after].filter((item): item is TaxInvoiceLineItem => Boolean(item)),
+          ...current.slice(index + 1),
+        ];
+      }
+
+      return current.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const nextAmount = round2(item.amount + extra.amount);
+        const nextQuantity = Number(item.quantity || 0) || 1;
+        return {
+          ...item,
+          amount: nextAmount,
+          unit_price: round2(nextAmount / nextQuantity),
+          merged_extra_charge_ids: [...(item.merged_extra_charge_ids ?? []), extra.id],
+          merged_extra_charge_total: round2((item.merged_extra_charge_total ?? 0) + extra.amount),
+        };
+      });
+    });
   };
 
   // ── Lookup ─────────────────────────────────────────────────────────────────
@@ -644,11 +727,54 @@ export default function TaxInvoiceForm({
                 </span>
               </h2>
               {mode === "issue" && (
-                <button className="text-[10px] uppercase font-bold text-brand-600 hover:text-brand-700">
-                  + Add Custom Item
+                <button
+                  type="button"
+                  onClick={() => setShowExtraPicker((value) => !value)}
+                  className="text-[10px] uppercase font-bold text-brand-600 hover:text-brand-700"
+                >
+                  + Add Item
                 </button>
               )}
             </div>
+
+            {showExtraPicker && (
+              <div className="border-b border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Available extra charges</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">เลือกแล้วจะรวมเข้า Room charge</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {availableExtraItems.length === 0 ? (
+                    <p className="text-xs text-[var(--text-muted)]">ไม่มี Extra charge สำหรับ folio นี้</p>
+                  ) : (
+                    availableExtraItems.map((extra) => {
+                      const selected = selectedExtraIds.has(extra.id);
+                      return (
+                        <button
+                          key={extra.id}
+                          type="button"
+                          disabled={selected}
+                          onClick={() => addExtraToRoomCharge(extra)}
+                          className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                            selected
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 opacity-70 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                              : "border-[var(--border-default)] bg-[var(--bg-muted)] text-[var(--text-primary)] hover:border-brand-400"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-semibold">{extra.description}</span>
+                            <span className="font-mono font-bold">{fmtMoney(extra.amount)}</span>
+                          </div>
+                          <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+                            Room {extra.room_number ?? "-"} · {extra.paid_date ?? "-"} {selected ? "· Added" : ""}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             <table className="w-full text-left">
               <thead className="border-b border-[var(--border-default)]">

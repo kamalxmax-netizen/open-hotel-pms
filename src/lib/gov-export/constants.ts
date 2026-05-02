@@ -80,6 +80,41 @@ export function toThaiGovDate(isoDate: string | null | undefined): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+function toBuddhistYear(year: number): number {
+  return year >= 2400 ? year : year + 543;
+}
+
+/**
+ * Format YYYY-MM-DD → DD/MM/BBBB for รร.3 print/edit output.
+ */
+export function toThaiGovBuddhistDate(isoDate: string | null | undefined): string {
+  if (!isoDate) return "";
+  const parts = isoDate.slice(0, 10).split("-");
+  if (parts.length !== 3) return "";
+  const year = Number(parts[0]);
+  if (!Number.isFinite(year)) return "";
+  return `${parts[2]}/${parts[1]}/${toBuddhistYear(year)}`;
+}
+
+/**
+ * Normalize stored RR3 date text to date-only DD/MM/BBBB.
+ * Supports old overrides saved as DD/MM/YYYY HH:mm or ISO timestamps.
+ */
+export function normalizeThaiGovBuddhistDateText(value: string | null | undefined): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return toThaiGovBuddhistDate(trimmed.slice(0, 10));
+  }
+  const dateOnly = trimmed.split(/\s+/)[0]?.replace(/,$/, "") ?? trimmed;
+  const slash = dateOnly.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slash) return dateOnly;
+  const [, day, month, rawYear] = slash;
+  const year = Number(rawYear);
+  if (!Number.isFinite(year)) return dateOnly;
+  return `${day}/${month}/${toBuddhistYear(year)}`;
+}
+
 /**
  * Format ISO datetime → DD/MM/YYYY HH:mm
  * For checked_in_at / checked_out_at timestamps.

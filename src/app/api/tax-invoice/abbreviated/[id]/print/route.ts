@@ -57,6 +57,7 @@ export async function GET(
     let invoicesQuery = actor.supabase
       .from("abbreviated_tax_invoice")
       .select("*, lines:abbreviated_tax_invoice_line(*)")
+      .neq("status", "cancelled")
       .order("issue_date", { ascending: true })
       .order("invoice_no", { ascending: true });
 

@@ -2,7 +2,7 @@ import { toBangkokDateString } from "@/lib/audit-utils";
 
 type SupabaseLike = {
   from: (table: string) => any;
-  rpc: (fn: string, args?: Record<string, unknown>) => any;
+  rpc?: (fn: string, args?: Record<string, unknown>) => any;
 };
 
 export class MonthlyAuditError extends Error {
@@ -64,8 +64,32 @@ export interface MonthlyAuditEntry {
   passport_number: string | null;
   id_card_number: string | null;
   guest_count: number;
+  full_tax_invoice?: MonthlyAuditFullTaxInvoiceInfo | null;
   channel_flag?: MonthlyAuditEntryChannelFlag | null;
   corrections?: MonthlyAuditCorrection[];
+}
+
+export interface MonthlyAuditFullTaxInvoiceInfo {
+  id: string;
+  invoice_no: string | null;
+  issue_date: string | null;
+  grand_total: number;
+  covered_amount: number;
+  covered_room_revenue: number;
+  covered_extra_revenue: number;
+  residual_amount: number;
+  residual_room_revenue: number;
+  residual_extra_revenue: number;
+  full_tax_paid_cash: number;
+  full_tax_paid_transfer: number;
+  full_tax_paid_credit_card: number;
+  full_tax_paid_other: number;
+  full_tax_total_paid: number;
+  residual_paid_cash: number;
+  residual_paid_transfer: number;
+  residual_paid_credit_card: number;
+  residual_paid_other: number;
+  residual_total_paid: number;
 }
 
 export interface MonthlyAuditEntryChannelFlag {
@@ -93,6 +117,14 @@ export interface MonthlyAuditSummary {
   by_source: Record<string, SourceSummary>;
   totals: SourceSummary;
   pos_sales: MonthlyAuditPosSalesSummary;
+}
+
+export interface MonthlyAuditSplitResult<T extends MonthlyAuditEntry = MonthlyAuditEntry> {
+  normalEntries: T[];
+  fullTaxInvoiceEntries: T[];
+  summary: MonthlyAuditSummary;
+  fullTaxInvoiceSummary: MonthlyAuditSummary;
+  grandSummary: MonthlyAuditSummary;
 }
 
 export interface SourceSummary {
@@ -298,7 +330,27 @@ function addToSummary(summary: SourceSummary, entry: MonthlyAuditEntry): void {
   summary.total_paid += entry.total_paid;
   summary.refund_total += entry.refund_total;
   summary.outstanding += entry.outstanding;
-  if (entry.tax_invoice_requested) summary.tax_invoice_count += 1;
+  if (entry.tax_invoice_requested || entry.full_tax_invoice) summary.tax_invoice_count += 1;
+}
+
+export function getMonthlyAuditTaxChannel(entry: Pick<MonthlyAuditEntry, "source" | "channel_flag">): string {
+  return str(entry.channel_flag?.tax_invoice_channel || entry.source || "unknown").toLowerCase();
+}
+
+function addSourceSummary(target: SourceSummary, source: SourceSummary): void {
+  target.count += source.count;
+  target.room_revenue += source.room_revenue;
+  target.extra_revenue += source.extra_revenue;
+  target.pos_revenue += source.pos_revenue;
+  target.total_revenue += source.total_revenue;
+  target.paid_cash += source.paid_cash;
+  target.paid_transfer += source.paid_transfer;
+  target.paid_credit_card += source.paid_credit_card;
+  target.paid_other += source.paid_other;
+  target.total_paid += source.total_paid;
+  target.refund_total += source.refund_total;
+  target.outstanding += source.outstanding;
+  target.tax_invoice_count += source.tax_invoice_count;
 }
 
 function emptyPosSalesSummary(): MonthlyAuditPosSalesSummary {
@@ -321,7 +373,7 @@ export function computeSummary(
   const totals = emptySourceSummary();
 
   for (const entry of entries) {
-    const src = entry.source || "unknown";
+    const src = getMonthlyAuditTaxChannel(entry);
     if (!bySource[src]) bySource[src] = emptySourceSummary();
     addToSummary(bySource[src], entry);
     addToSummary(totals, entry);
@@ -333,6 +385,274 @@ export function computeSummary(
     totals,
     pos_sales: posSales,
   };
+}
+
+export function combineMonthlyAuditSummaries(
+  left: MonthlyAuditSummary,
+  right: MonthlyAuditSummary
+): MonthlyAuditSummary {
+  const bySource: Record<string, SourceSummary> = {};
+  for (const [source, row] of Object.entries(left.by_source)) {
+    bySource[source] = { ...row };
+  }
+  for (const [source, row] of Object.entries(right.by_source)) {
+    if (!bySource[source]) bySource[source] = emptySourceSummary();
+    addSourceSummary(bySource[source], row);
+  }
+
+  const totals = emptySourceSummary();
+  addSourceSummary(totals, left.totals);
+  addSourceSummary(totals, right.totals);
+
+  return {
+    total_reservations: left.total_reservations + right.total_reservations,
+    by_source: bySource,
+    totals,
+    pos_sales: left.pos_sales,
+  };
+}
+
+export async function loadIssuedFullTaxInvoiceMap(
+  supabase: SupabaseLike,
+  reservationIds: string[]
+): Promise<Map<string, MonthlyAuditFullTaxInvoiceInfo>> {
+  const ids = Array.from(new Set(reservationIds.map((id) => String(id ?? "").trim()).filter(Boolean)));
+  const map = new Map<string, MonthlyAuditFullTaxInvoiceInfo>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, reservation_id, invoice_no, issue_date, grand_total, status, booking_snapshot")
+    .eq("status", "issued")
+    .order("issue_date", { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new MonthlyAuditError(`Failed to load full tax invoices: ${error.message}`, 500);
+  }
+
+  for (const row of (data ?? []) as any[]) {
+    const directReservationId = String(row.reservation_id ?? "").trim();
+    const snapshotReservationIds = Array.isArray(row.booking_snapshot?.reservation_ids)
+      ? row.booking_snapshot.reservation_ids.map((id: unknown) => String(id ?? "").trim()).filter(Boolean)
+      : [];
+    const invoiceReservationIds = Array.from(new Set([directReservationId, ...snapshotReservationIds].filter(Boolean)));
+
+    for (const reservationId of invoiceReservationIds) {
+      if (!ids.includes(reservationId) || map.has(reservationId)) continue;
+      map.set(reservationId, {
+        id: String(row.id),
+        invoice_no: row.invoice_no ?? null,
+        issue_date: row.issue_date ?? null,
+        grand_total: num(row.grand_total),
+        covered_amount: num(row.grand_total),
+        covered_room_revenue: num(row.grand_total),
+        covered_extra_revenue: 0,
+        residual_amount: 0,
+        residual_room_revenue: 0,
+        residual_extra_revenue: 0,
+        full_tax_paid_cash: 0,
+        full_tax_paid_transfer: 0,
+        full_tax_paid_credit_card: 0,
+        full_tax_paid_other: 0,
+        full_tax_total_paid: 0,
+        residual_paid_cash: 0,
+        residual_paid_transfer: 0,
+        residual_paid_credit_card: 0,
+        residual_paid_other: 0,
+        residual_total_paid: 0,
+      });
+    }
+  }
+
+  return map;
+}
+
+function scaleAmount(value: number, ratio: number): number {
+  return num(value * ratio);
+}
+
+export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
+  supabase: SupabaseLike,
+  entries: T[]
+): Promise<Map<string, MonthlyAuditFullTaxInvoiceInfo>> {
+  const reservationIds = Array.from(new Set(entries.map((entry) => entry.reservation_id).filter(Boolean)));
+  const entryByReservationId = new Map(entries.map((entry) => [entry.reservation_id, entry]));
+  const map = new Map<string, MonthlyAuditFullTaxInvoiceInfo>();
+  if (reservationIds.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, reservation_id, invoice_no, issue_date, grand_total, status, line_items, booking_snapshot")
+    .eq("status", "issued")
+    .order("issue_date", { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new MonthlyAuditError(`Failed to load full tax invoice coverage: ${error.message}`, 500);
+  }
+
+  const wanted = new Set(reservationIds);
+  for (const row of (data ?? []) as any[]) {
+    const directReservationId = str(row.reservation_id);
+    const snapshotReservationIds = Array.isArray(row.booking_snapshot?.reservation_ids)
+      ? row.booking_snapshot.reservation_ids.map((id: unknown) => str(id)).filter(Boolean)
+      : [];
+    const invoiceReservationIds = Array.from(new Set([directReservationId, ...snapshotReservationIds].filter(Boolean)))
+      .filter((id) => wanted.has(id));
+    if (invoiceReservationIds.length === 0) continue;
+
+    const relatedEntries = invoiceReservationIds
+      .map((id) => entryByReservationId.get(id))
+      .filter((entry): entry is T => Boolean(entry));
+    if (relatedEntries.length === 0) continue;
+
+    const invoiceTotal = Math.max(0, num(row.grand_total));
+    const allocated = new Map<string, { room: number; extra: number }>();
+    const lineItems = Array.isArray(row.line_items) ? row.line_items : [];
+
+    for (const item of lineItems) {
+      const itemReservationId = str((item as any)?.reservation_id);
+      if (!itemReservationId || !wanted.has(itemReservationId) || !entryByReservationId.has(itemReservationId)) {
+        continue;
+      }
+      const lineAmount = Math.max(0, num((item as any)?.amount));
+      if (lineAmount <= 0) continue;
+
+      const mergedExtra = Math.min(lineAmount, Math.max(0, num((item as any)?.merged_extra_charge_total)));
+      const current = allocated.get(itemReservationId) ?? { room: 0, extra: 0 };
+      current.room = num(current.room + Math.max(0, lineAmount - mergedExtra));
+      current.extra = num(current.extra + mergedExtra);
+      allocated.set(itemReservationId, current);
+    }
+
+    const metadataTotal = Array.from(allocated.values()).reduce(
+      (sum, value) => num(sum + value.room + value.extra),
+      0
+    );
+
+    if (metadataTotal > 0 && metadataTotal !== invoiceTotal) {
+      const ratio = invoiceTotal > 0 ? invoiceTotal / metadataTotal : 0;
+      for (const [reservationId, value] of allocated.entries()) {
+        allocated.set(reservationId, {
+          room: scaleAmount(value.room, ratio),
+          extra: scaleAmount(value.extra, ratio),
+        });
+      }
+    }
+
+    if (metadataTotal <= 0) {
+      let remaining = invoiceTotal;
+      for (const entry of relatedEntries) {
+        const amount = Math.min(remaining, Math.max(0, num(entry.room_revenue)));
+        allocated.set(entry.reservation_id, { room: amount, extra: 0 });
+        remaining = num(remaining - amount);
+      }
+
+      if (remaining > 0) {
+        for (const entry of relatedEntries) {
+          if (remaining <= 0) break;
+          const current = allocated.get(entry.reservation_id) ?? { room: 0, extra: 0 };
+          const amount = Math.min(remaining, Math.max(0, num(entry.extra_revenue)));
+          current.extra = amount;
+          allocated.set(entry.reservation_id, current);
+          remaining = num(remaining - amount);
+        }
+      }
+    }
+
+    for (const entry of relatedEntries) {
+      if (map.has(entry.reservation_id)) continue;
+      const current = allocated.get(entry.reservation_id) ?? { room: 0, extra: 0 };
+      const coveredRoom = Math.min(num(entry.room_revenue), num(current.room));
+      const coveredExtra = Math.min(num(entry.extra_revenue), num(current.extra));
+      const covered = Math.min(num(entry.total_revenue), num(coveredRoom + coveredExtra));
+      const residualRoom = Math.max(0, num(entry.room_revenue - coveredRoom));
+      const residualExtra = Math.max(0, num(entry.extra_revenue - coveredExtra));
+      const residual = Math.max(0, num(entry.total_revenue - covered));
+      const ratio = entry.total_revenue > 0 ? Math.min(1, covered / entry.total_revenue) : 0;
+
+      const fullTaxPaidCash = scaleAmount(entry.paid_cash, ratio);
+      const fullTaxPaidTransfer = scaleAmount(entry.paid_transfer, ratio);
+      const fullTaxPaidCreditCard = scaleAmount(entry.paid_credit_card, ratio);
+      const fullTaxPaidOther = scaleAmount(entry.paid_other, ratio);
+
+      map.set(entry.reservation_id, {
+        id: String(row.id),
+        invoice_no: row.invoice_no ?? null,
+        issue_date: row.issue_date ?? null,
+        grand_total: invoiceTotal,
+        covered_amount: covered,
+        covered_room_revenue: coveredRoom,
+        covered_extra_revenue: coveredExtra,
+        residual_amount: residual,
+        residual_room_revenue: residualRoom,
+        residual_extra_revenue: residualExtra,
+        full_tax_paid_cash: fullTaxPaidCash,
+        full_tax_paid_transfer: fullTaxPaidTransfer,
+        full_tax_paid_credit_card: fullTaxPaidCreditCard,
+        full_tax_paid_other: fullTaxPaidOther,
+        full_tax_total_paid: num(fullTaxPaidCash + fullTaxPaidTransfer + fullTaxPaidCreditCard + fullTaxPaidOther),
+        residual_paid_cash: num(entry.paid_cash - fullTaxPaidCash),
+        residual_paid_transfer: num(entry.paid_transfer - fullTaxPaidTransfer),
+        residual_paid_credit_card: num(entry.paid_credit_card - fullTaxPaidCreditCard),
+        residual_paid_other: num(entry.paid_other - fullTaxPaidOther),
+        residual_total_paid: num(entry.total_paid - (fullTaxPaidCash + fullTaxPaidTransfer + fullTaxPaidCreditCard + fullTaxPaidOther)),
+      });
+    }
+  }
+
+  return map;
+}
+
+export function attachFullTaxInvoiceInfo<T extends MonthlyAuditEntry>(
+  entries: T[],
+  issuedInvoiceMap: Map<string, MonthlyAuditFullTaxInvoiceInfo>
+): T[] {
+  return entries.map((entry) => ({
+    ...entry,
+    full_tax_invoice: issuedInvoiceMap.get(entry.reservation_id) ?? null,
+  }));
+}
+
+export function splitMonthlyAuditEntries<T extends MonthlyAuditEntry>(
+  entries: T[],
+  posSales: MonthlyAuditPosSalesSummary = emptyPosSalesSummary()
+): MonthlyAuditSplitResult<T> {
+  const normalEntries = entries.flatMap((entry) => {
+    if (!entry.full_tax_invoice) return [entry];
+    if (entry.full_tax_invoice.residual_amount <= 0) return [];
+    return [{
+      ...entry,
+      room_revenue: entry.full_tax_invoice.residual_room_revenue,
+      extra_revenue: entry.full_tax_invoice.residual_extra_revenue,
+      total_revenue: entry.full_tax_invoice.residual_amount,
+      paid_cash: entry.full_tax_invoice.residual_paid_cash,
+      paid_transfer: entry.full_tax_invoice.residual_paid_transfer,
+      paid_credit_card: entry.full_tax_invoice.residual_paid_credit_card,
+      paid_other: entry.full_tax_invoice.residual_paid_other,
+      total_paid: entry.full_tax_invoice.residual_total_paid,
+      outstanding: 0,
+    } as T];
+  });
+  const fullTaxInvoiceEntries = entries
+    .filter((entry) => Boolean(entry.full_tax_invoice))
+    .map((entry) => ({
+      ...entry,
+      room_revenue: entry.full_tax_invoice?.covered_room_revenue ?? 0,
+      extra_revenue: entry.full_tax_invoice?.covered_extra_revenue ?? 0,
+      total_revenue: entry.full_tax_invoice?.covered_amount ?? 0,
+      paid_cash: entry.full_tax_invoice?.full_tax_paid_cash ?? 0,
+      paid_transfer: entry.full_tax_invoice?.full_tax_paid_transfer ?? 0,
+      paid_credit_card: entry.full_tax_invoice?.full_tax_paid_credit_card ?? 0,
+      paid_other: entry.full_tax_invoice?.full_tax_paid_other ?? 0,
+      total_paid: entry.full_tax_invoice?.full_tax_total_paid ?? 0,
+      outstanding: 0,
+    } as T));
+  const summary = computeSummary(normalEntries, posSales);
+  const fullTaxInvoiceSummary = computeSummary(fullTaxInvoiceEntries, emptyPosSalesSummary());
+  const grandSummary = combineMonthlyAuditSummaries(summary, fullTaxInvoiceSummary);
+  return { normalEntries, fullTaxInvoiceEntries, summary, fullTaxInvoiceSummary, grandSummary };
 }
 
 export async function loadMonthlyPosSalesSummary(params: {
@@ -499,6 +819,7 @@ export async function closeMonth(params: {
 
     // Re-snapshot returns to operational source truth. Deleting entries cascades
     // corrections, channel flags, and pre-generate abbreviated invoice overrides.
+    await supabase.from("rr3_row_overrides").delete().eq("period_id", existing.id);
     await supabase.from("monthly_audit_entries").delete().eq("period_id", existing.id);
   }
 
@@ -742,8 +1063,12 @@ export async function closeMonth(params: {
     }
   }
 
-  // 10. Compute and save summary
-  const summary = computeSummary(entries, posSales);
+  // 10. Compute and save summary. Full tax invoices are reported in their own
+  // section and excluded from the editable/abbreviated audit totals.
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
+  const entriesWithFullTax = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+  const split = splitMonthlyAuditEntries(entriesWithFullTax, posSales);
+  const summary = split.summary;
 
   const { error: summaryError } = await supabase
     .from("monthly_audit_periods")
@@ -789,7 +1114,7 @@ export async function closeMonth(params: {
       note: null,
       created_at: String(period.created_at),
     },
-    entries,
+    entries: entriesWithFullTax,
     summary,
   };
 }
@@ -957,14 +1282,16 @@ export async function previewMonth(params: {
     });
   }
 
-  const summary = computeSummary(entries, posSales);
-  const availableSources = Array.from(new Set(entries.map((e) => e.source).filter(Boolean))).sort();
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
+  const entriesWithFullTax = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+  const split = splitMonthlyAuditEntries(entriesWithFullTax, posSales);
+  const availableSources = Array.from(new Set(entriesWithFullTax.map((e) => e.source).filter(Boolean))).sort();
 
   return {
     year,
     month,
-    entries,
-    summary,
+    entries: entriesWithFullTax,
+    summary: split.summary,
     available_sources: availableSources,
     generated_at: new Date().toISOString(),
   };
@@ -1003,6 +1330,14 @@ export async function applyCorrection(params: {
   if (periodStatus !== "reviewing") {
     throw new MonthlyAuditError(
       `Cannot correct entries in "${periodStatus}" period. Only "reviewing" periods allow corrections.`,
+      409
+    );
+  }
+
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase, [String((entry as any).reservation_id)]);
+  if (issuedFullTaxInvoiceMap.has(String((entry as any).reservation_id))) {
+    throw new MonthlyAuditError(
+      "This booking has an issued full tax invoice. Edit it from Booking > Tax Invoice, then re-generate Monthly Audit.",
       409
     );
   }
@@ -1165,7 +1500,12 @@ export async function approveMonth(params: {
 
   const savedPosSales = (period.summary_json as any)?.pos_sales;
   const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-  const summary = computeSummary(shapedEntries, posSales);
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, shapedEntries);
+  const split = splitMonthlyAuditEntries(
+    attachFullTaxInvoiceInfo(shapedEntries, issuedFullTaxInvoiceMap),
+    posSales
+  );
+  const summary = split.summary;
   const now = new Date().toISOString();
 
   const { error: updateError } = await supabase

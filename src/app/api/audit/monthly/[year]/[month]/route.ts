@@ -1,6 +1,14 @@
 import { assertAdminOrSupervisor, getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { computeSummary, loadMonthlyPosSalesSummary, type MonthlyAuditEntry } from "@/lib/monthly-audit";
+import {
+  attachFullTaxInvoiceInfo,
+  computeSummary,
+  getMonthlyAuditTaxChannel,
+  loadIssuedFullTaxCoverageMap,
+  loadMonthlyPosSalesSummary,
+  splitMonthlyAuditEntries,
+  type MonthlyAuditEntry,
+} from "@/lib/monthly-audit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -101,15 +109,6 @@ export async function GET(
       .eq("period_id", period.id)
       .order(query.sort_by, { ascending: query.sort_dir === "asc" });
 
-    if (query.source) {
-      entriesQuery = entriesQuery.eq("source", query.source);
-    }
-    if (query.tax_invoice === "true") {
-      entriesQuery = entriesQuery.eq("tax_invoice_requested", true);
-    } else if (query.tax_invoice === "false") {
-      entriesQuery = entriesQuery.eq("tax_invoice_requested", false);
-    }
-
     const { data: entriesData, error: entriesError } = await entriesQuery;
     if (entriesError) {
       return NextResponse.json({ success: false, error: entriesError.message }, { status: 500 });
@@ -203,7 +202,22 @@ export async function GET(
       corrections: correctionsMap.get(String(e.id)) ?? [],
     }));
 
+    const savedPosSales = (period.summary_json as any)?.pos_sales;
+    const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
+    const monthCoverageMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
+    const monthEntries = attachFullTaxInvoiceInfo(entries, monthCoverageMap);
+    const monthSplit = splitMonthlyAuditEntries(monthEntries, posSales);
+
     // Apply filters
+    if (query.source) {
+      entries = entries.filter((e) => getMonthlyAuditTaxChannel(e) === query.source);
+    }
+    if (query.tax_invoice === "true") {
+      entries = entries.filter((e) => e.tax_invoice_requested);
+    } else if (query.tax_invoice === "false") {
+      entries = entries.filter((e) => !e.tax_invoice_requested);
+    }
+
     if (query.has_corrections === "true") {
       entries = entries.filter((e) => (e.corrections?.length ?? 0) > 0);
     } else if (query.has_corrections === "false") {
@@ -219,14 +233,17 @@ export async function GET(
       );
     }
 
-    // Compute summary from filtered entries
-    const savedPosSales = (period.summary_json as any)?.pos_sales;
-    const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-    const summary = computeSummary(entries, posSales);
+    const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
+    entries = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
+    const split = splitMonthlyAuditEntries(entries, period.summary_json?.pos_sales ?? undefined);
+
+    // Compute summary from filtered normal entries
+    const summary = computeSummary(split.normalEntries, posSales);
+    const splitWithPos = splitMonthlyAuditEntries(entries, posSales);
 
     // Available sources for filter dropdown
     const allSources = Array.from(
-      new Set(((entriesData ?? []) as any[]).map((e: any) => str(e.source)))
+      new Set(monthEntries.map((entry) => getMonthlyAuditTaxChannel(entry)))
     )
       .filter(Boolean)
       .sort();
@@ -241,8 +258,14 @@ export async function GET(
         closed_at: period.closed_at ?? null,
         audited_at: period.audited_at ?? null,
       },
-      entries,
+      entries: splitWithPos.normalEntries,
+      full_tax_invoice_entries: splitWithPos.fullTaxInvoiceEntries,
       summary,
+      full_tax_invoice_summary: splitWithPos.fullTaxInvoiceSummary,
+      grand_summary: splitWithPos.grandSummary,
+      month_summary: monthSplit.summary,
+      month_full_tax_invoice_summary: monthSplit.fullTaxInvoiceSummary,
+      month_grand_summary: monthSplit.grandSummary,
       filters: {
         available_sources: allSources,
       },

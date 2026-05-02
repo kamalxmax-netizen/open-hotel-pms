@@ -88,7 +88,7 @@ export async function setChannelFlag(
 
   const { data: entry, error: entryError } = await supabase
     .from("monthly_audit_entries")
-    .select("id, period_id")
+    .select("id, period_id, reservation_id")
     .eq("id", entryId)
     .maybeSingle();
 
