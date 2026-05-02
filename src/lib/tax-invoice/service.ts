@@ -322,6 +322,7 @@ export async function buildLineItemsForReservations(
   const displayRoomGroups = new Map<
     string,
     {
+      reservation_id: string;
       room_ids: (string | null)[];
       room_numbers: string[];
       unit_price_satang: number;
@@ -333,11 +334,10 @@ export async function buildLineItemsForReservations(
 
   for (const group of groupedRoomEntries) {
     const sortedDates = Array.from(new Set(group.stay_dates)).sort();
-    const combineKey = reservations.length > 1
-      ? `${group.unit_price_satang}::${sortedDates.join(",")}`
-      : `${group.room_number}::${group.unit_price_satang}::${sortedDates.join(",")}`;
+    const combineKey = `${group.reservation_id}::${group.room_number}::${group.unit_price_satang}::${sortedDates.join(",")}`;
 
     const bucket = displayRoomGroups.get(combineKey) ?? {
+      reservation_id: group.reservation_id,
       room_ids: [],
       room_numbers: [],
       unit_price_satang: group.unit_price_satang,
@@ -380,6 +380,7 @@ export async function buildLineItemsForReservations(
         stay_dates: sortedDates,
         room_id: group.room_ids[0] ?? null,
         room_number: roomNumbers.join(","),
+        reservation_id: group.reservation_id,
       };
     });
 
@@ -428,7 +429,7 @@ export async function buildLineItemsForReservations(
     });
   }
 
-  const extraLineItems: TaxInvoiceLineItem[] = extraChargeRows
+  const availableExtraItems = extraChargeRows
     .filter((row) => {
       const note = String(row.note ?? "").trim();
       const amount = normalizeMoney(row.amount);
@@ -441,20 +442,22 @@ export async function buildLineItemsForReservations(
       const templateName = row.fee_template_code ? feeNameByCode.get(row.fee_template_code) : null;
       const note = String(row.note ?? "").trim();
       const amount = normalizeMoney(row.amount);
+      const night = nights.find((item) => item.reservation_id === row.reservation_id);
+      const roomNumber = night?.room_id ? roomNumberById.get(night.room_id) ?? null : null;
 
       return {
-        kind: "extra_charge",
+        id: row.id,
+        reservation_id: row.reservation_id,
         description: templateName?.trim() || note || "Extra Charge",
-        quantity: 1,
-        unit: "รายการ",
-        unit_price: round2(amount),
         amount: round2(amount),
+        paid_date: row.paid_date,
+        room_number: roomNumber,
         fee_template_code: row.fee_template_code,
         note: row.note,
       };
     });
 
-  const lineItems = [...roomLineItems, ...extraLineItems];
+  const lineItems = roomLineItems;
   const grossTotal = lineItems.reduce((sum, item) => sum + normalizeMoney(item.amount), 0);
   const totals = computeVatInclusiveTotals(grossTotal, 0, 0.07);
 
@@ -492,6 +495,7 @@ export async function buildLineItemsForReservations(
       guest_profile_id: reservation.guest_profile_id,
     },
     line_items: lineItems,
+    available_extra_items: availableExtraItems,
     totals,
     booking_snapshot: bookingSnapshot,
   };
@@ -526,6 +530,13 @@ export function sanitizeLineItems(items: unknown): TaxInvoiceLineItem[] {
           : undefined,
         room_id: strOrNull(row.room_id),
         room_number: strOrNull(row.room_number),
+        reservation_id: strOrNull(row.reservation_id),
+        merged_extra_charge_ids: Array.isArray(row.merged_extra_charge_ids)
+          ? row.merged_extra_charge_ids.map((v) => String(v)).filter(Boolean)
+          : undefined,
+        merged_extra_charge_total: row.merged_extra_charge_total !== undefined
+          ? round2(normalizeMoney(row.merged_extra_charge_total))
+          : undefined,
         fee_template_code: strOrNull(row.fee_template_code),
         note: strOrNull(row.note),
       };

@@ -7,6 +7,7 @@ export interface PolicyFeePayload {
     amount: number;
     payment_method: string;
     note: string;
+    waived?: boolean;
     fee_collect_method?: "cash" | "transfer" | "credit_card";
     refund_method?: "cash" | "transfer";
     refund_note?: string;
@@ -50,7 +51,13 @@ export default function EarlyCheckinFeeModal({
     const handleSubmit = () => {
         setShowValidation(true);
         if (noFee) {
-            onConfirm(null); // Omit payload entirely
+            onConfirm({
+                fee_template_code: "EARLY_CHECKIN_FEE",
+                amount: 0,
+                payment_method: "cash",
+                note: "Early check-in fee waived",
+                waived: true,
+            });
             return;
         }
 

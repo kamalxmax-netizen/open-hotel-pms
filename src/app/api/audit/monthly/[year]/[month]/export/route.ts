@@ -3,7 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   attachFullTaxInvoiceInfo,
   computeSummary,
-  loadIssuedFullTaxInvoiceMap,
+  getMonthlyAuditTaxChannel,
+  loadIssuedFullTaxCoverageMap,
   loadMonthlyPosSalesSummary,
   previewMonth,
   splitMonthlyAuditEntries,
@@ -82,7 +83,7 @@ function applyEntryFilters<T extends MonthlyAuditEntry & { is_corrected?: boolea
 ) {
   let filtered = entries;
 
-  if (query.source) filtered = filtered.filter((entry) => entry.source === query.source);
+  if (query.source) filtered = filtered.filter((entry) => getMonthlyAuditTaxChannel(entry) === query.source);
   if (query.tax_invoice === "true") filtered = filtered.filter((entry) => entry.tax_invoice_requested);
   if (query.tax_invoice === "false") filtered = filtered.filter((entry) => !entry.tax_invoice_requested);
   if (query.has_corrections === "true") filtered = filtered.filter((entry) => Boolean(entry.is_corrected));
@@ -563,7 +564,6 @@ export async function GET(
       .eq("period_id", period.id)
       .order("checkout_date", { ascending: true });
 
-    if (query.source) entriesQuery = entriesQuery.eq("source", query.source);
     if (query.tax_invoice === "true") entriesQuery = entriesQuery.eq("tax_invoice_requested", true);
     if (query.tax_invoice === "false") entriesQuery = entriesQuery.eq("tax_invoice_requested", false);
 
@@ -575,6 +575,7 @@ export async function GET(
     // Load corrections for marking which entries were corrected
     const entryIds = ((entriesData ?? []) as any[]).map((e: any) => String(e.id));
     const correctedEntryIds = new Set<string>();
+    let channelFlagMap = new Map<string, any>();
 
     if (entryIds.length > 0) {
       const { data: corrections } = await supabase
@@ -585,6 +586,19 @@ export async function GET(
       for (const c of (corrections ?? []) as any[]) {
         correctedEntryIds.add(String(c.entry_id));
       }
+
+      const { data: channelFlags, error: channelFlagError } = await supabase
+        .from("monthly_audit_channel_flag")
+        .select("*")
+        .in("entry_id", entryIds);
+
+      if (channelFlagError) {
+        return NextResponse.json({ success: false, error: channelFlagError.message }, { status: 500 });
+      }
+
+      channelFlagMap = new Map(
+        ((channelFlags ?? []) as any[]).map((flag: any) => [String(flag.entry_id), flag])
+      );
     }
 
     let entries: (MonthlyAuditEntry & { is_corrected: boolean })[] = ((entriesData ?? []) as any[]).map((e: any) => ({
@@ -617,6 +631,19 @@ export async function GET(
       passport_number: e.passport_number ?? null,
       id_card_number: e.id_card_number ?? null,
       guest_count: Number(e.guest_count ?? 1),
+      channel_flag: (() => {
+        const flag = channelFlagMap?.get(String(e.id));
+        const actual = str(flag?.actual_channel || e.source);
+        const taxInvoice = str(flag?.tax_invoice_channel || actual);
+        return {
+          actual_channel: actual,
+          tax_invoice_channel: taxInvoice,
+          display_label: actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : taxInvoice,
+          reason: flag?.reason ?? null,
+          flagged_by_user_id: flag?.flagged_by_user_id ?? null,
+          flagged_at: flag?.flagged_at ? String(flag.flagged_at) : null,
+        };
+      })(),
       is_corrected: correctedEntryIds.has(String(e.id)),
     }));
 
@@ -624,10 +651,7 @@ export async function GET(
 
     const savedPosSales = (period.summary_json as any)?.pos_sales;
     const posSales = savedPosSales ?? await loadMonthlyPosSalesSummary({ supabase, year, month });
-    const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(
-      supabase,
-      entries.map((entry) => entry.reservation_id)
-    );
+    const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase, entries);
     entries = attachFullTaxInvoiceInfo(entries, issuedFullTaxInvoiceMap);
     const split = splitMonthlyAuditEntries(entries, posSales);
     const summary = split.summary;

@@ -63,6 +63,20 @@ type AuditEntry = {
     invoice_no: string | null;
     issue_date: string | null;
     grand_total: number;
+    covered_amount: number;
+    residual_amount: number;
+    residual_room_revenue: number;
+    residual_extra_revenue: number;
+    full_tax_paid_cash: number;
+    full_tax_paid_transfer: number;
+    full_tax_paid_credit_card: number;
+    full_tax_paid_other: number;
+    full_tax_total_paid: number;
+    residual_paid_cash: number;
+    residual_paid_transfer: number;
+    residual_paid_credit_card: number;
+    residual_paid_other: number;
+    residual_total_paid: number;
   } | null;
   channel_flag?: {
     actual_channel: string;
@@ -180,6 +194,9 @@ export default function MonthlyAuditPage() {
   const [summary, setSummary] = useState<AuditSummary | null>(null);
   const [fullTaxInvoiceSummary, setFullTaxInvoiceSummary] = useState<AuditSummary | null>(null);
   const [grandSummary, setGrandSummary] = useState<AuditSummary | null>(null);
+  const [monthSummary, setMonthSummary] = useState<AuditSummary | null>(null);
+  const [monthFullTaxInvoiceSummary, setMonthFullTaxInvoiceSummary] = useState<AuditSummary | null>(null);
+  const [monthGrandSummary, setMonthGrandSummary] = useState<AuditSummary | null>(null);
   const [availableSources, setAvailableSources] = useState<string[]>([]);
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -238,6 +255,9 @@ export default function MonthlyAuditPage() {
           setSummary(null);
           setFullTaxInvoiceSummary(null);
           setGrandSummary(null);
+          setMonthSummary(null);
+          setMonthFullTaxInvoiceSummary(null);
+          setMonthGrandSummary(null);
           setAvailableSources([]);
           return;
         }
@@ -250,6 +270,9 @@ export default function MonthlyAuditPage() {
       setSummary(json.summary ?? null);
       setFullTaxInvoiceSummary(json.full_tax_invoice_summary ?? null);
       setGrandSummary(json.grand_summary ?? null);
+      setMonthSummary(json.month_summary ?? null);
+      setMonthFullTaxInvoiceSummary(json.month_full_tax_invoice_summary ?? null);
+      setMonthGrandSummary(json.month_grand_summary ?? null);
       setAvailableSources(json.filters?.available_sources ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -442,26 +465,12 @@ export default function MonthlyAuditPage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      
-      // Update local state instead of full reload for snappy UX
-      setEntries(entries.map(e => e.id === entryId ? {
-        ...e,
-        channel_flag: {
-          actual_channel: actual,
-          tax_invoice_channel: taxInvoice,
-          display_label: json.display_label || (actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : SOURCE_LABELS[taxInvoice] || taxInvoice),
-          reason: reason || null
-        }
-      } : e));
-      setPreviewEntries(previewEntries.map(e => e.id === entryId ? {
-        ...e,
-        channel_flag: {
-          actual_channel: actual,
-          tax_invoice_channel: taxInvoice,
-          display_label: json.display_label || (actual === "walkin" && taxInvoice === "ota" ? "Walk-in(O)" : SOURCE_LABELS[taxInvoice] || taxInvoice),
-          reason: reason || null
-        }
-      } : e));
+
+      if (previewEnabled) {
+        await loadPreviewData();
+      } else {
+        await loadPeriodData();
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Save channel flag failed");
     } finally {
@@ -485,6 +494,9 @@ export default function MonthlyAuditPage() {
   const displayedSummary = isPreviewMode ? previewSummary : summary;
   const displayedFullTaxInvoiceSummary = isPreviewMode ? previewFullTaxInvoiceSummary : fullTaxInvoiceSummary;
   const displayedGrandSummary = isPreviewMode ? previewGrandSummary : grandSummary;
+  const displayedMonthSummary = isPreviewMode ? null : monthSummary;
+  const displayedMonthFullTaxInvoiceSummary = isPreviewMode ? null : monthFullTaxInvoiceSummary;
+  const displayedMonthGrandSummary = isPreviewMode ? null : monthGrandSummary;
   const displayedSources = isPreviewMode ? previewSources : availableSources;
   const displayedPosSales = displayedSummary?.pos_sales ?? null;
 
@@ -709,6 +721,37 @@ export default function MonthlyAuditPage() {
                 Full Tax Invoice แยกอีก {displayedFullTaxInvoiceSummary.total_reservations} bookings / {fmt(displayedFullTaxInvoiceSummary.totals.total_revenue)} บาท
                 {displayedGrandSummary ? ` · Grand total ${fmt(displayedGrandSummary.totals.total_revenue)} บาท` : ""}
               </p>
+            )}
+            {!isPreviewMode && displayedMonthSummary && displayedMonthGrandSummary && (
+              <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-2 dark:border-white/10">
+                  <div className="text-[var(--text-muted)]">Abbreviated / Normal</div>
+                  <div className="mt-1 font-mono font-semibold text-[var(--text-primary)]">
+                    {fmt(displayedSummary.totals.total_revenue)} filtered
+                  </div>
+                  <div className="font-mono text-[var(--text-muted)]">
+                    {fmt(displayedMonthSummary.totals.total_revenue)} full month
+                  </div>
+                </div>
+                <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-2">
+                  <div className="text-[var(--text-muted)]">Full Tax Invoice</div>
+                  <div className="mt-1 font-mono font-semibold text-[var(--text-primary)]">
+                    {fmt(displayedFullTaxInvoiceSummary?.totals.total_revenue ?? 0)} filtered
+                  </div>
+                  <div className="font-mono text-[var(--text-muted)]">
+                    {fmt(displayedMonthFullTaxInvoiceSummary?.totals.total_revenue ?? 0)} full month
+                  </div>
+                </div>
+                <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2">
+                  <div className="text-[var(--text-muted)]">Grand Total</div>
+                  <div className="mt-1 font-mono font-semibold text-[var(--text-primary)]">
+                    {fmt(displayedGrandSummary?.totals.total_revenue ?? 0)} filtered
+                  </div>
+                  <div className="font-mono text-[var(--text-muted)]">
+                    {fmt(displayedMonthGrandSummary.totals.total_revenue)} full month
+                  </div>
+                </div>
+              </div>
             )}
           </div>
           <div className="overflow-x-auto">
@@ -1040,9 +1083,13 @@ export default function MonthlyAuditPage() {
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Audit/Tax Channel</th>
                   <th className="p-2 text-left font-semibold text-[var(--text-muted)]">Room</th>
                   <th className="p-2 text-center font-semibold text-[var(--text-muted)]">In/Out</th>
-                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Revenue</th>
-                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Paid</th>
-                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Balance</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Invoice Amount</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Audit Revenue</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Residual</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Cash</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Transfer</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Credit</th>
+                  <th className="p-2 text-right font-semibold text-[var(--text-muted)]">Other</th>
                 </tr>
               </thead>
               <tbody>
@@ -1068,13 +1115,27 @@ export default function MonthlyAuditPage() {
                     <td className="p-2 text-center text-[var(--text-muted)]">
                       {fmtDate(entry.checkin_date)}-{fmtDate(entry.checkout_date)}
                     </td>
-                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(entry.total_revenue)}</td>
-                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(entry.total_paid)}</td>
-                    <td className={`p-2 text-right font-mono ${entry.outstanding > 0 ? "text-amber-600 font-semibold" : entry.outstanding < 0 ? "text-rose-600" : "text-[var(--text-muted)]"}`}>
-                      {entry.outstanding !== 0 ? fmt(entry.outstanding) : "-"}
+                    <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(entry.full_tax_invoice?.covered_amount ?? entry.total_revenue)}</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{fmt((entry.full_tax_invoice?.covered_amount ?? 0) + (entry.full_tax_invoice?.residual_amount ?? 0) || entry.total_revenue)}</td>
+                    <td className={`p-2 text-right font-mono ${(entry.full_tax_invoice?.residual_amount ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-[var(--text-muted)]"}`}>
+                      {(entry.full_tax_invoice?.residual_amount ?? 0) > 0 ? fmt(entry.full_tax_invoice?.residual_amount ?? 0) : "-"}
                     </td>
+                    <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{(entry.full_tax_invoice?.full_tax_paid_cash ?? 0) > 0 ? fmt(entry.full_tax_invoice?.full_tax_paid_cash ?? 0) : "-"}</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{(entry.full_tax_invoice?.full_tax_paid_transfer ?? 0) > 0 ? fmt(entry.full_tax_invoice?.full_tax_paid_transfer ?? 0) : "-"}</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{(entry.full_tax_invoice?.full_tax_paid_credit_card ?? 0) > 0 ? fmt(entry.full_tax_invoice?.full_tax_paid_credit_card ?? 0) : "-"}</td>
+                    <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{(entry.full_tax_invoice?.full_tax_paid_other ?? 0) > 0 ? fmt(entry.full_tax_invoice?.full_tax_paid_other ?? 0) : "-"}</td>
                   </tr>
                 ))}
+                <tr className="bg-[var(--bg-muted)] font-semibold">
+                  <td className="p-2 text-[var(--text-primary)]" colSpan={7}>Total</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedFullTaxInvoiceSummary?.totals.total_revenue ?? 0)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-secondary)]">{fmt(displayedFullTaxInvoiceEntries.reduce((sum, entry) => sum + (entry.full_tax_invoice?.covered_amount ?? 0) + (entry.full_tax_invoice?.residual_amount ?? 0), 0))}</td>
+                  <td className="p-2 text-right font-mono text-amber-600">{fmt(displayedFullTaxInvoiceEntries.reduce((sum, entry) => sum + (entry.full_tax_invoice?.residual_amount ?? 0), 0))}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedFullTaxInvoiceSummary?.totals.paid_cash ?? 0)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedFullTaxInvoiceSummary?.totals.paid_transfer ?? 0)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedFullTaxInvoiceSummary?.totals.paid_credit_card ?? 0)}</td>
+                  <td className="p-2 text-right font-mono text-[var(--text-primary)]">{fmt(displayedFullTaxInvoiceSummary?.totals.paid_other ?? 0)}</td>
+                </tr>
               </tbody>
             </table>
           </div>

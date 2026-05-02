@@ -31,7 +31,7 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
   const [recalculating, setRecalculating] = useState(false);
 
   // Modals state
-  const [successModal, setSuccessModal] = useState<{ count: number } | null>(null);
+  const [successModal, setSuccessModal] = useState<{ created: number; updated: number; cancelled: number } | null>(null);
   
   const [nightOverrideModal, setNightOverrideModal] = useState<{ 
     entryId: string, 
@@ -49,7 +49,7 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tax-invoice/abbreviated/preview?year=${year}&month=${month}`);
+      const res = await fetch(`/api/tax-invoice/abbreviated/preview?year=${year}&month=${month}`, { cache: "no-store" });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Failed to load preview");
       setData(json.data);
@@ -126,7 +126,12 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setSuccessModal({ count: json.data?.invoices_created || 0 });
+      setSuccessModal({
+        created: json.data?.invoices_created || 0,
+        updated: json.data?.invoices_updated || 0,
+        cancelled: json.data?.invoices_cancelled || 0,
+      });
+      await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to generate");
     } finally {
@@ -146,7 +151,9 @@ export default function AbbreviatedPreviewPage({ params }: { params: { year: str
                  <CheckCircle className="h-6 w-6" />
                </div>
                <h3 className="text-lg font-bold text-[var(--text-primary)]">สร้างใบกำกับภาษีสำเร็จ!</h3>
-               <p className="text-sm text-[var(--text-secondary)]">ระบบสร้างใบย่อทั้งหมด {successModal.count} ใบ</p>
+               <p className="text-sm text-[var(--text-secondary)]">
+                 สร้างใหม่ {successModal.created} ใบ / อัปเดตใบเดิม {successModal.updated} ใบ / ปิดใบเก่าค้าง {successModal.cancelled} ใบ
+               </p>
              </div>
              
              <div className="flex flex-col gap-3">

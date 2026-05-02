@@ -13,6 +13,20 @@ export type TaxInvoiceLineItem = {
   stay_dates?: string[];
   room_id?: string | null;
   room_number?: string | null;
+  reservation_id?: string | null;
+  merged_extra_charge_ids?: string[];
+  merged_extra_charge_total?: number;
+  fee_template_code?: string | null;
+  note?: string | null;
+};
+
+export type TaxInvoiceAvailableExtraItem = {
+  id: string;
+  reservation_id: string;
+  description: string;
+  amount: number;
+  paid_date: string | null;
+  room_number: string | null;
   fee_template_code?: string | null;
   note?: string | null;
 };
@@ -61,6 +75,7 @@ export type BuildLineItemsResult = {
     guest_profile_id: string | null;
   };
   line_items: TaxInvoiceLineItem[];
+  available_extra_items?: TaxInvoiceAvailableExtraItem[];
   totals: TaxInvoiceTotals;
   booking_snapshot: TaxInvoiceBookingSnapshot;
 };

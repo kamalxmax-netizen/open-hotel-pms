@@ -7,8 +7,15 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RR3GuestRecord, RR3FilterParams, RR3Validation } from "./types";
-import { loadIssuedFullTaxInvoiceMap } from "@/lib/monthly-audit";
+import type {
+  RR3GuestRecord,
+  RR3FilterParams,
+  RR3PriceSummary,
+  RR3PriceSummaryGroup,
+  RR3Validation,
+} from "./types";
+import { loadIssuedFullTaxCoverageMap } from "@/lib/monthly-audit";
+import { applyRR3RowOverrides, loadRR3RowOverrides } from "./rr3-row-overrides";
 
 function monthDateRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -24,6 +31,7 @@ export interface RR3QueryResult {
     total_entries: number;
     total_price: number;
   };
+  price_summary: RR3PriceSummary;
 }
 
 /**
@@ -64,6 +72,156 @@ function normalizeAuditChannel(value: unknown): string {
   return "walkin";
 }
 
+function emptyPriceSummaryGroup(label: string): RR3PriceSummaryGroup {
+  return {
+    label,
+    rows: [],
+    total_quantity: 0,
+    total_amount: 0,
+    copy_text: `${label}\nยอดรวม = 0`,
+  };
+}
+
+function emptyPriceSummary(): RR3PriceSummary {
+  return {
+    ota_tax: emptyPriceSummaryGroup("รร.3 OTA + Tax invoice"),
+    walkin_direct: emptyPriceSummaryGroup("รร.3 Walk-in + Direct"),
+  };
+}
+
+function roundMoney(value: unknown): number {
+  return Math.round(Number(value ?? 0) * 100) / 100;
+}
+
+function formatSummaryNumber(value: number): string {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function addPriceSummaryItem(bucket: Map<number, number>, unitPrice: unknown, quantity: unknown) {
+  const price = roundMoney(unitPrice);
+  const qty = Math.round(Number(quantity ?? 0));
+  if (price <= 0 || qty <= 0) return;
+  bucket.set(price, (bucket.get(price) ?? 0) + qty);
+}
+
+function buildPriceSummaryGroup(label: string, bucket: Map<number, number>): RR3PriceSummaryGroup {
+  const rows = Array.from(bucket.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([unitPrice, quantity]) => ({
+      unit_price: unitPrice,
+      quantity,
+      total: roundMoney(unitPrice * quantity),
+    }));
+  const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
+  const totalAmount = roundMoney(rows.reduce((sum, row) => sum + row.total, 0));
+  const maxPriceLength = rows.reduce((max, row) => Math.max(max, formatSummaryNumber(row.unit_price).length), 0);
+  const maxQtyLength = rows.reduce((max, row) => Math.max(max, String(row.quantity).length), 0);
+  const lines = [
+    label,
+    ...rows.map((row) => {
+      const price = formatSummaryNumber(row.unit_price).padStart(maxPriceLength, " ");
+      const qty = String(row.quantity).padStart(maxQtyLength, " ");
+      return `${price} × ${qty} = ${formatSummaryNumber(row.total)}`;
+    }),
+    "",
+    `ยอดรวม = ${formatSummaryNumber(totalAmount)}`,
+  ];
+
+  return {
+    label,
+    rows,
+    total_quantity: totalQuantity,
+    total_amount: totalAmount,
+    copy_text: lines.join("\n"),
+  };
+}
+
+function extractInvoiceLineItems(value: unknown): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => item && typeof item === "object");
+}
+
+function isRoomChargeLine(item: any): boolean {
+  const kind = String(item?.kind ?? "").trim().toLowerCase();
+  if (!kind) return true;
+  return kind === "room_charge";
+}
+
+async function buildRR3PriceSummaryFromDocuments(
+  supabase: SupabaseClient,
+  periodId: string,
+  auditEntries: any[]
+): Promise<RR3PriceSummary> {
+  const otaTaxBucket = new Map<number, number>();
+  const walkinDirectBucket = new Map<number, number>();
+
+  const { data: abbreviatedInvoices, error: abbreviatedError } = await supabase
+    .from("abbreviated_tax_invoice")
+    .select("id, source_type, channel_group")
+    .eq("audit_period_id", periodId)
+    .eq("source_type", "room")
+    .neq("status", "cancelled");
+
+  if (abbreviatedError) {
+    throw new Error(`Failed to load abbreviated tax invoices for รร.3 summary: ${abbreviatedError.message}`);
+  }
+
+  const invoiceRows = (abbreviatedInvoices ?? []) as any[];
+  const invoiceById = new Map(invoiceRows.map((row) => [String(row.id), row]));
+  if (invoiceRows.length > 0) {
+    const { data: lineRows, error: lineError } = await supabase
+      .from("abbreviated_tax_invoice_line")
+      .select("invoice_id, tax_group, quantity, unit_price, amount")
+      .in("invoice_id", invoiceRows.map((row) => String(row.id)));
+
+    if (lineError) {
+      throw new Error(`Failed to load abbreviated tax invoice lines for รร.3 summary: ${lineError.message}`);
+    }
+
+    for (const line of (lineRows ?? []) as any[]) {
+      const invoice = invoiceById.get(String(line.invoice_id));
+      if (!invoice || !line.tax_group) continue;
+      const bucket = String(invoice.channel_group) === "ota" ? otaTaxBucket : walkinDirectBucket;
+      addPriceSummaryItem(bucket, line.unit_price, line.quantity);
+    }
+  }
+
+  const reservationIds = Array.from(
+    new Set(auditEntries.map((entry) => String(entry.reservation_id ?? "")).filter(Boolean))
+  );
+  if (reservationIds.length > 0) {
+    const { data: fullTaxInvoices, error: fullTaxError } = await supabase
+      .from("invoices")
+      .select("id, reservation_id, grand_total, line_items")
+      .eq("status", "issued")
+      .is("cancelled_at", null)
+      .in("reservation_id", reservationIds);
+
+    if (fullTaxError) {
+      throw new Error(`Failed to load full tax invoices for รร.3 summary: ${fullTaxError.message}`);
+    }
+
+    for (const invoice of (fullTaxInvoices ?? []) as any[]) {
+      const roomLines = extractInvoiceLineItems(invoice.line_items).filter(isRoomChargeLine);
+      if (roomLines.length === 0) {
+        addPriceSummaryItem(otaTaxBucket, invoice.grand_total, 1);
+        continue;
+      }
+      for (const line of roomLines) {
+        addPriceSummaryItem(otaTaxBucket, line.unit_price ?? line.amount, line.quantity ?? 1);
+      }
+    }
+  }
+
+  return {
+    ota_tax: buildPriceSummaryGroup("รร.3 OTA + Tax invoice", otaTaxBucket),
+    walkin_direct: buildPriceSummaryGroup("รร.3 Walk-in + Direct", walkinDirectBucket),
+  };
+}
+
 function matchesRR3Source(reportSource: string, hasIssuedFullTaxInvoice: boolean, filters: RR3FilterParams): boolean {
   const normalizedFilterSources = filters.sources.map((s) => s.trim().toLowerCase());
   const hasSourceFilter = normalizedFilterSources.length > 0;
@@ -81,7 +239,7 @@ async function queryRR3GuestsFromMonthlyAudit(
 
   const { data: auditRows, error: auditError } = await supabase
     .from("monthly_audit_entries")
-    .select("id, reservation_id, booking_code, source, checkin_date, checkout_date, room_number, total_revenue")
+    .select("id, period_id, reservation_id, booking_code, guest_name, source, checkin_date, checkout_date, room_number, room_type_name, total_nights, room_revenue, extra_revenue, pos_revenue, total_revenue, paid_cash, paid_transfer, paid_credit_card, paid_other, total_paid, refund_total, outstanding, tax_invoice_requested, tax_invoice_name, tax_id, nationality, passport_number, id_card_number, guest_count")
     .eq("period_id", periodId);
 
   if (auditError) {
@@ -90,8 +248,10 @@ async function queryRR3GuestsFromMonthlyAudit(
 
   const auditEntries = (auditRows ?? []) as any[];
   if (auditEntries.length === 0) {
-    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
+    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 }, price_summary: emptyPriceSummary() };
   }
+
+  const priceSummary = await buildRR3PriceSummaryFromDocuments(supabase, periodId, auditEntries);
 
   const auditEntryIds = auditEntries.map((row) => String(row.id));
   const reservationIds = auditEntries.map((row) => String(row.reservation_id)).filter(Boolean);
@@ -108,7 +268,7 @@ async function queryRR3GuestsFromMonthlyAudit(
   const channelByEntryId = new Map(
     ((channelFlags ?? []) as any[]).map((row) => [String(row.entry_id), normalizeAuditChannel(row.tax_invoice_channel)])
   );
-  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxInvoiceMap(supabase as any, reservationIds);
+  const issuedFullTaxInvoiceMap = await loadIssuedFullTaxCoverageMap(supabase as any, auditEntries);
 
   const { data: reservationRows, error: reservationError } = await supabase
     .from("reservations")
@@ -150,7 +310,7 @@ async function queryRR3GuestsFromMonthlyAudit(
   }
 
   if (includedAuditEntries.length === 0) {
-    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
+    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 }, price_summary: priceSummary };
   }
 
   const { data: guestRows, error: guestError } = await supabase
@@ -198,7 +358,9 @@ async function queryRR3GuestsFromMonthlyAudit(
         room_number: auditEntry.room_number ?? null,
         source: item.reportSource,
         tax_invoice_requested: item.hasIssuedFullTaxInvoice,
-        total_price: role === "primary" ? Math.round(Number(auditEntry.total_revenue ?? 0) * 100) / 100 : 0,
+        total_price: role === "primary"
+          ? Math.round(Number(item.hasIssuedFullTaxInvoice ? issuedFullTaxInvoiceMap.get(reservationId)?.covered_amount : auditEntry.total_revenue ?? 0) * 100) / 100
+          : 0,
         booking_code: auditEntry.booking_code ?? item.reservation?.booking_code ?? null,
       });
     }
@@ -214,31 +376,34 @@ async function queryRR3GuestsFromMonthlyAudit(
     return 0;
   });
 
-  const validations = buildRR3Validations(entries);
+  const entriesWithOverrides = applyRR3RowOverrides(entries, await loadRR3RowOverrides(supabase, periodId));
+  const validations = buildRR3Validations(entriesWithOverrides);
   const totalPrice = entries
     .filter((entry) => entry.role === "primary")
     .reduce((sum, entry) => sum + entry.total_price, 0);
 
   return {
-    entries,
+    entries: entriesWithOverrides,
     validations,
     summary: {
       total_entries: entries.length,
       total_price: Math.round(totalPrice * 100) / 100,
     },
+    price_summary: priceSummary,
   };
 }
 
 function buildRR3Validations(entries: RR3GuestRecord[]): RR3Validation[] {
   const validations: RR3Validation[] = [];
   for (const e of entries) {
-    if (!e.first_name && !e.last_name) {
+    const override = e.rr3_override ?? null;
+    if (!override?.full_name && !e.first_name && !e.last_name) {
       validations.push({ reservation_id: e.reservation_id, guest_profile_id: e.guest_profile_id, field: "name", message: "ขาด: ชื่อ-สกุล" });
     }
-    if (!e.nationality_code) {
+    if (!override?.nationality && !e.nationality_code) {
       validations.push({ reservation_id: e.reservation_id, guest_profile_id: e.guest_profile_id, field: "nationality", message: "ขาด: สัญชาติ" });
     }
-    if (!e.id_number && !e.passport_no) {
+    if (!override?.id_or_passport && !e.id_number && !e.passport_no) {
       validations.push({ reservation_id: e.reservation_id, guest_profile_id: e.guest_profile_id, field: "id", message: "ขาด: เลขบัตร/passport" });
     }
   }
@@ -284,7 +449,7 @@ export async function queryRR3Guests(
 
   const reservationRows = (reservations ?? []) as any[];
   if (reservationRows.length === 0) {
-    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
+    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 }, price_summary: emptyPriceSummary() };
   }
 
   const rootIds = Array.from(
@@ -355,7 +520,7 @@ export async function queryRR3Guests(
   }
 
   if (includedChains.size === 0) {
-    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 } };
+    return { entries: [], validations: [], summary: { total_entries: 0, total_price: 0 }, price_summary: emptyPriceSummary() };
   }
 
   const reservationIds = Array.from(
@@ -541,5 +706,6 @@ export async function queryRR3Guests(
       total_entries: entries.length,
       total_price: Math.round(totalPrice * 100) / 100,
     },
+    price_summary: emptyPriceSummary(),
   };
 }

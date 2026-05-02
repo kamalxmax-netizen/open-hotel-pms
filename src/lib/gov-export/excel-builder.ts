@@ -11,6 +11,8 @@ import {
   TM30_SHEET_NAME,
   RR3_COLUMNS,
   toThaiGovDate,
+  toThaiGovBuddhistDate,
+  normalizeThaiGovBuddhistDateText,
   genderDisplay,
 } from "./constants";
 import { getCountryByCode, getDemonymByCode } from "../nationality-map";
@@ -18,7 +20,6 @@ import type { TM30GuestRecord, TM30ExportRow, RR3ExportRow, RR3GuestRecord } fro
 import {
   RR3_DEFAULT_OCCUPATION,
   RR3_DEFAULT_DESTINATION,
-  toThaiGovDatetime,
 } from "./constants";
 
 // ─── TM.30 ──────────────────────────────────────────────────
@@ -100,30 +101,33 @@ function buildRemarks(record: RR3GuestRecord): string {
   return `ขาด: ${missing.join(", ")}`;
 }
 
+function stripRR3Time(value: string): string {
+  return normalizeThaiGovBuddhistDateText(value);
+}
+
 /**
  * Convert raw RR3GuestRecord to formatted RR3ExportRow
  */
 export function formatRR3Row(record: RR3GuestRecord, seqNo: number): RR3ExportRow {
-  const fullName = [record.first_name, record.last_name].filter(Boolean).join(" ");
-  const natDisplay = getDemonymByCode(record.nationality_code) ?? getCountryByCode(record.nationality_code) ?? "";
-  const idOrPassport = record.passport_no || record.id_number || "";
-  const address = resolveAddress(record);
+  const override = record.rr3_override ?? null;
+  const fullName = override?.full_name || [record.first_name, record.last_name].filter(Boolean).join(" ");
+  const natDisplay = override?.nationality || (getDemonymByCode(record.nationality_code) ?? getCountryByCode(record.nationality_code) ?? "");
+  const idOrPassport = override?.id_or_passport || record.passport_no || record.id_number || "";
+  const address = override?.current_address || resolveAddress(record);
 
   return {
     seq_no: seqNo,
-    checkin_datetime: record.checked_in_at
-      ? toThaiGovDatetime(record.checked_in_at)
-      : toThaiGovDate(record.checkin_date),
-    room_number: record.room_number ?? "",
+    checkin_datetime: override?.checkin_datetime ? stripRR3Time(override.checkin_datetime) : toThaiGovBuddhistDate(record.checkin_date),
+    room_number: override?.room_number || (record.room_number ?? ""),
     full_name: fullName,
     nationality: natDisplay,
     id_or_passport: idOrPassport,
     current_address: address,
-    occupation: RR3_DEFAULT_OCCUPATION,
-    coming_from: address,
-    going_to: RR3_DEFAULT_DESTINATION,
-    checkout_datetime: toThaiGovDate(record.checkout_date),
-    remarks: buildRemarks(record),
+    occupation: override?.occupation || RR3_DEFAULT_OCCUPATION,
+    coming_from: override?.coming_from || address,
+    going_to: override?.going_to || RR3_DEFAULT_DESTINATION,
+    checkout_datetime: override?.checkout_datetime ? stripRR3Time(override.checkout_datetime) : toThaiGovBuddhistDate(record.checkout_date),
+    remarks: override ? override.remarks : buildRemarks(record),
     price: record.role === "primary" ? Math.round(record.total_price * 100) / 100 : 0,
   };
 }

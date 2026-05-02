@@ -22,6 +22,7 @@ import {
 import { getSellerSnapshotFromSettings } from "@/lib/tax-invoice/service";
 import { normalizeMoney, round2 } from "@/lib/tax-invoice/utils";
 import type { BookingSource } from "@/lib/types";
+import { loadIssuedFullTaxCoverageMap } from "@/lib/monthly-audit";
 import { normalizeBookingSource } from "@/lib/monthly-audit-channel-flag/service";
 
 type SupabaseLike = {
@@ -46,6 +47,7 @@ type AuditEntryRow = {
   checkout_date: string;
   room_revenue: number;
   extra_revenue: number;
+  total_revenue: number;
   outstanding: number;
 };
 
@@ -327,7 +329,7 @@ async function ensureAuditPeriodExists(
 async function loadAuditEntries(supabase: SupabaseLike, periodId: string): Promise<AuditEntryRow[]> {
   const { data, error } = await supabase
     .from("monthly_audit_entries")
-    .select("id, period_id, reservation_id, source, guest_name, checkin_date, checkout_date, room_revenue, extra_revenue, outstanding")
+    .select("id, period_id, reservation_id, source, guest_name, checkin_date, checkout_date, room_revenue, extra_revenue, total_revenue, outstanding")
     .eq("period_id", periodId)
     .limit(5000);
 
@@ -343,6 +345,7 @@ async function loadAuditEntries(supabase: SupabaseLike, periodId: string): Promi
     checkout_date: str(row.checkout_date),
     room_revenue: normalizeMoney(row.room_revenue),
     extra_revenue: normalizeMoney(row.extra_revenue),
+    total_revenue: normalizeMoney(row.total_revenue ?? Number(row.room_revenue ?? 0) + Number(row.extra_revenue ?? 0)),
     outstanding: normalizeMoney(row.outstanding),
   }));
 }
@@ -396,9 +399,7 @@ function shapeReservation(row: any): ReservationRow {
 
 async function loadNights(
   supabase: SupabaseLike,
-  reservationIds: string[],
-  dateFrom: string,
-  dateTo: string
+  reservationIds: string[]
 ): Promise<NightRow[]> {
   if (reservationIds.length === 0) return [];
 
@@ -406,8 +407,6 @@ async function loadNights(
     .from("reservation_nights")
     .select("id, reservation_id, room_id, stay_date, nightly_price, rooms(id, room_type_id, room_types(code, name_en))")
     .in("reservation_id", reservationIds)
-    .gte("stay_date", dateFrom)
-    .lte("stay_date", dateTo)
     .is("cancelled_at", null)
     .order("stay_date", { ascending: true });
 
@@ -580,6 +579,26 @@ function distributeExtra(total: number, count: number, index: number): number {
   const base = round2(total / count);
   if (index < count - 1) return base;
   return round2(total - base * (count - 1));
+}
+
+function distributeAuditTotalAcrossNights(total: number, nights: NightRow[]): number[] {
+  if (total <= 0 || nights.length === 0) return [];
+
+  const nightlyPrices = nights.map((night) => round2(night.nightly_price));
+  const nightlyTotal = round2(nightlyPrices.reduce((sum, price) => sum + price, 0));
+  if (nightlyTotal > 0) {
+    if (Math.abs(nightlyTotal - total) < 0.005) return nightlyPrices;
+
+    let allocated = 0;
+    return nightlyPrices.map((price, index) => {
+      if (index === nightlyPrices.length - 1) return round2(total - allocated);
+      const amount = round2((total * price) / nightlyTotal);
+      allocated = round2(allocated + amount);
+      return amount;
+    });
+  }
+
+  return nights.map((_, index) => distributeExtra(total, nights.length, index));
 }
 
 function buildDraftSummary(drafts: AbbreviatedInvoiceDraft[]) {
@@ -864,9 +883,32 @@ async function buildRoomPreview(
   const entryByReservationId = new Map(auditEntries.map((entry) => [entry.reservation_id, entry]));
   const reservations = await loadReservations(supabase, dateFrom, dateTo, auditEntries);
   const reservationIds = reservations.map((reservation) => reservation.id);
-  const nightsByReservationId = groupByReservation(await loadNights(supabase, reservationIds, dateFrom, dateTo));
+  const nightsByReservationId = groupByReservation(await loadNights(supabase, reservationIds));
   const roomGroupMap = await loadRoomGroupMap(supabase);
-  const fullTaxInvoiceByReservationId = await loadIssuedFullTaxReservationIds(supabase, reservationIds);
+  const fullTaxInvoiceByReservationId = await loadIssuedFullTaxCoverageMap(
+    supabase as any,
+    auditEntries.map((entry) => ({
+      ...entry,
+      booking_code: null,
+      room_number: null,
+      room_type_name: null,
+      total_nights: 0,
+      pos_revenue: 0,
+      paid_cash: 0,
+      paid_transfer: 0,
+      paid_credit_card: 0,
+      paid_other: 0,
+      total_paid: 0,
+      refund_total: 0,
+      tax_invoice_requested: false,
+      tax_invoice_name: null,
+      tax_id: null,
+      nationality: null,
+      passport_number: null,
+      id_card_number: null,
+      guest_count: 1,
+    }))
+  );
 
   const { data: flagRows, error: flagError } = await supabase
     .from("monthly_audit_channel_flag")
@@ -947,14 +989,14 @@ async function buildRoomPreview(
       continue;
     }
 
-    const fullTaxInvoiceId = fullTaxInvoiceByReservationId.get(reservation.id);
-    if (fullTaxInvoiceId) {
+    const fullTaxInvoice = fullTaxInvoiceByReservationId.get(reservation.id);
+    if (fullTaxInvoice && fullTaxInvoice.residual_amount <= 0) {
       excluded.push({
         entry_id: entryId,
         reservation_id: reservation.id,
         guest_name: guestName,
         reason: "full_tax_invoice_issued",
-        full_tax_invoice_id: fullTaxInvoiceId,
+        full_tax_invoice_id: fullTaxInvoice.id,
       });
       continue;
     }
@@ -964,12 +1006,14 @@ async function buildRoomPreview(
     const actualChannel = normalizeBookingSource(flag?.actual_channel ?? entry?.source ?? reservation.source);
     const taxInvoiceChannel = normalizeBookingSource(flag?.tax_invoice_channel ?? actualChannel);
     const channelGroup = mapActualChannelToGroup(taxInvoiceChannel);
+    const checksOutThisMonth = reservation.checkout_date >= dateFrom && reservation.checkout_date <= dateTo;
 
     const includedNights = nights.filter((night) => {
       const override = overrideByEntryDate.get(`${entryId}::${night.stay_date}`);
       if (override?.decision === "include_this_month") return true;
       if (override?.decision === "carry_to_next" || override?.decision === "excluded_full_tax") return false;
       if (outstanding > 0) return false;
+      if (checksOutThisMonth) return true;
       return night.stay_date >= dateFrom && night.stay_date <= dateTo;
     });
     const carriedNightDates = nights
@@ -991,11 +1035,13 @@ async function buildRoomPreview(
       });
     }
 
-    const auditTotal = round2(Math.max(0, entry.room_revenue + entry.extra_revenue));
+    const auditTotal = fullTaxInvoice
+      ? round2(Math.max(0, fullTaxInvoice.residual_room_revenue + fullTaxInvoice.residual_extra_revenue))
+      : round2(Math.max(0, entry.room_revenue + entry.extra_revenue));
     if (auditTotal <= 0 || includedNights.length === 0) continue;
 
-    let includedIndex = 0;
-    for (const night of includedNights) {
+    const distributedNightAmounts = distributeAuditTotalAcrossNights(auditTotal, includedNights);
+    for (const [includedIndex, night] of includedNights.entries()) {
       const roomGroup = night.room_type_code ? roomGroupMap.get(night.room_type_code.toUpperCase()) : null;
       if (!roomGroup) {
         throw new AbbreviatedTaxInvoiceError(
@@ -1004,9 +1050,8 @@ async function buildRoomPreview(
         );
       }
 
-      const unitPrice = distributeExtra(auditTotal, includedNights.length, includedIndex);
-      includedIndex += 1;
-      let issueDate = night.stay_date;
+      const unitPrice = distributedNightAmounts[includedIndex] ?? distributeExtra(auditTotal, includedNights.length, includedIndex);
+      let issueDate = checksOutThisMonth ? reservation.checkout_date : night.stay_date;
       let shiftedFromDate: string | null = null;
       let shiftSource: "auto" | "manual" | null = null;
 
@@ -1311,6 +1356,119 @@ export async function buildAbbreviatedPreview(
   return buildRoomPreview(supabase, period);
 }
 
+function buildPersistedLineRows(invoiceId: string, draft: AbbreviatedInvoiceDraft) {
+  return draft.lines.map((line, index) => ({
+    invoice_id: invoiceId,
+    line_order: index + 1,
+    tax_group: line.tax_group,
+    label_th: line.label_th,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    amount: line.amount,
+    source_entry_ids: line.source_entry_ids,
+    shifted_from_date: line.shifted_from_date,
+    shifted_reason: line.shift_source ? `${line.shift_source}_shift` : null,
+  }));
+}
+
+async function refreshPersistedAbbreviatedInvoice(
+  supabase: SupabaseLike,
+  invoiceId: string,
+  draft: AbbreviatedInvoiceDraft,
+  seller: unknown,
+  userId: string | null
+) {
+  const { error: updateError } = await supabase
+    .from("abbreviated_tax_invoice")
+    .update({
+      source_type: draft.source_type,
+      channel_group: draft.channel_group,
+      tax_invoice_channel: draft.tax_invoice_channel,
+      book_no: draft.book_no,
+      stay_date_from: draft.stay_date_from,
+      stay_date_to: draft.stay_date_to,
+      subtotal_inc_vat: draft.subtotal_inc_vat,
+      subtotal_ex_vat: draft.subtotal_ex_vat,
+      vat_rate: draft.vat_rate,
+      vat_amount: draft.vat_amount,
+      seller_snapshot: seller,
+      generated_by_user_id: userId,
+      generated_at: new Date().toISOString(),
+    })
+    .eq("id", invoiceId);
+
+  if (updateError) throw new AbbreviatedTaxInvoiceError(updateError.message, 500);
+
+  const { error: deleteLineError } = await supabase
+    .from("abbreviated_tax_invoice_line")
+    .delete()
+    .eq("invoice_id", invoiceId);
+  if (deleteLineError) throw new AbbreviatedTaxInvoiceError(deleteLineError.message, 500);
+
+  const lineRows = buildPersistedLineRows(invoiceId, draft);
+  if (lineRows.length > 0) {
+    const { error: insertLineError } = await supabase
+      .from("abbreviated_tax_invoice_line")
+      .insert(lineRows);
+    if (insertLineError) throw new AbbreviatedTaxInvoiceError(insertLineError.message, 500);
+  }
+}
+
+function abbreviatedDraftKey(draft: AbbreviatedInvoiceDraft) {
+  if (draft.source_type === "room") {
+    return `${draft.source_type}::${draft.issue_date}::${draft.channel_group ?? ""}`;
+  }
+  if (draft.source_type === "dayuse") {
+    return `${draft.source_type}::period`;
+  }
+  return `${draft.source_type}::${draft.issue_date}`;
+}
+
+function abbreviatedInvoiceKey(row: any) {
+  const sourceType = String(row.source_type ?? "room");
+  if (sourceType === "room") {
+    return `${sourceType}::${String(row.issue_date)}::${String(row.channel_group ?? "")}`;
+  }
+  if (sourceType === "dayuse") {
+    return `${sourceType}::period`;
+  }
+  return `${sourceType}::${String(row.issue_date)}`;
+}
+
+async function cancelStaleAbbreviatedInvoices(
+  supabase: SupabaseLike,
+  periodId: string,
+  sourceType: AbbreviatedSourceType,
+  preview: AbbreviatedPreviewResponse
+): Promise<string[]> {
+  const activeDraftKeys = new Set(preview.drafts.map(abbreviatedDraftKey));
+  const { data: existingRows, error: existingError } = await supabase
+    .from("abbreviated_tax_invoice")
+    .select("id, invoice_no, issue_date, source_type, channel_group")
+    .eq("audit_period_id", periodId)
+    .eq("source_type", sourceType)
+    .neq("status", "cancelled");
+  if (existingError) throw new AbbreviatedTaxInvoiceError(existingError.message, 500);
+
+  const staleIds = ((existingRows ?? []) as any[])
+    .filter((row) => !activeDraftKeys.has(abbreviatedInvoiceKey(row)))
+    .map((row) => String(row.id));
+
+  if (staleIds.length === 0) return [];
+
+  const { error: cancelError } = await supabase
+    .from("abbreviated_tax_invoice")
+    .update({
+      status: "cancelled",
+      cancelled_reason: "regenerated_without_draft",
+      cancelled_at: new Date().toISOString(),
+    })
+    .in("id", staleIds);
+  if (cancelError) throw new AbbreviatedTaxInvoiceError(cancelError.message, 500);
+
+  return staleIds;
+}
+
 export async function generateAbbreviatedInvoices(
   supabase: SupabaseLike,
   year: number,
@@ -1331,6 +1489,8 @@ export async function generateAbbreviatedInvoices(
   const invoiceIds: string[] = [];
   const warnings: string[] = [];
   let createdCount = 0;
+  let updatedCount = 0;
+  let cancelledCount = 0;
 
   for (const draft of preview.drafts) {
     let existingQuery = supabase
@@ -1354,8 +1514,11 @@ export async function generateAbbreviatedInvoices(
 
     if (existingError) throw new AbbreviatedTaxInvoiceError(existingError.message, 500);
     if (existing) {
-      invoiceIds.push(String((existing as any).id));
-      warnings.push(`Skipped existing invoice ${(existing as any).invoice_no}.`);
+      const invoiceId = String((existing as any).id);
+      await refreshPersistedAbbreviatedInvoice(supabase, invoiceId, draft, seller, userId);
+      invoiceIds.push(invoiceId);
+      updatedCount += 1;
+      warnings.push(`Updated existing invoice ${(existing as any).invoice_no}.`);
       continue;
     }
 
@@ -1386,18 +1549,7 @@ export async function generateAbbreviatedInvoices(
     if (invoiceError) throw new AbbreviatedTaxInvoiceError(invoiceError.message, 500);
     const invoiceId = String((invoice as any).id);
 
-    const lineRows = draft.lines.map((line, index) => ({
-      invoice_id: invoiceId,
-      line_order: index + 1,
-      tax_group: line.tax_group,
-      label_th: line.label_th,
-      quantity: line.quantity,
-      unit_price: line.unit_price,
-      amount: line.amount,
-      source_entry_ids: line.source_entry_ids,
-      shifted_from_date: line.shifted_from_date,
-      shifted_reason: line.shift_source ? `${line.shift_source}_shift` : null,
-    }));
+    const lineRows = buildPersistedLineRows(invoiceId, draft);
 
     if (lineRows.length > 0) {
       const { error: lineError } = await supabase.from("abbreviated_tax_invoice_line").insert(lineRows);
@@ -1408,7 +1560,17 @@ export async function generateAbbreviatedInvoices(
     invoiceIds.push(invoiceId);
   }
 
-  return { invoices_created: createdCount, invoice_ids: invoiceIds, warnings };
+  const cancelledInvoiceIds = await cancelStaleAbbreviatedInvoices(supabase, period.id, sourceType, preview);
+  cancelledCount = cancelledInvoiceIds.length;
+  if (cancelledCount > 0) warnings.push(`Cancelled ${cancelledCount} stale invoice(s) without current draft.`);
+
+  return {
+    invoices_created: createdCount,
+    invoices_updated: updatedCount,
+    invoices_cancelled: cancelledCount,
+    invoice_ids: invoiceIds,
+    warnings,
+  };
 }
 
 export async function recalculateAbbreviated(
@@ -1458,53 +1620,12 @@ export async function recalculateAbbreviated(
     if (!existing) continue;
 
     const invoiceId = String((existing as any).id);
-    const { error: updateError } = await supabase
-      .from("abbreviated_tax_invoice")
-      .update({
-        source_type: draft.source_type,
-        channel_group: draft.channel_group,
-        tax_invoice_channel: draft.tax_invoice_channel,
-        book_no: draft.book_no,
-        stay_date_from: draft.stay_date_from,
-        stay_date_to: draft.stay_date_to,
-        subtotal_inc_vat: draft.subtotal_inc_vat,
-        subtotal_ex_vat: draft.subtotal_ex_vat,
-        vat_rate: draft.vat_rate,
-        vat_amount: draft.vat_amount,
-        seller_snapshot: seller,
-      })
-      .eq("id", invoiceId);
-
-    if (updateError) throw new AbbreviatedTaxInvoiceError(updateError.message, 500);
-
-    const { error: deleteLineError } = await supabase
-      .from("abbreviated_tax_invoice_line")
-      .delete()
-      .eq("invoice_id", invoiceId);
-    if (deleteLineError) throw new AbbreviatedTaxInvoiceError(deleteLineError.message, 500);
-
-    const lineRows = draft.lines.map((line, index) => ({
-      invoice_id: invoiceId,
-      line_order: index + 1,
-      tax_group: line.tax_group,
-      label_th: line.label_th,
-      quantity: line.quantity,
-      unit_price: line.unit_price,
-      amount: line.amount,
-      source_entry_ids: line.source_entry_ids,
-      shifted_from_date: line.shifted_from_date,
-      shifted_reason: line.shift_source ? `${line.shift_source}_shift` : null,
-    }));
-
-    if (lineRows.length > 0) {
-      const { error: insertLineError } = await supabase
-        .from("abbreviated_tax_invoice_line")
-        .insert(lineRows);
-      if (insertLineError) throw new AbbreviatedTaxInvoiceError(insertLineError.message, 500);
-    }
+    await refreshPersistedAbbreviatedInvoice(supabase, invoiceId, draft, seller, _userId);
 
     changedInvoiceIds.push(invoiceId);
   }
+
+  const cancelledInvoiceIds = await cancelStaleAbbreviatedInvoices(supabase, String((period as any).id), sourceType, preview);
 
   const { data: existingRows, error: existingError } = await supabase
     .from("abbreviated_tax_invoice")
@@ -1520,6 +1641,7 @@ export async function recalculateAbbreviated(
     drafts_changed: preview.drafts.length,
     new_total_inc_vat: preview.summary.grand_total_inc_vat,
     changed_invoice_ids: changedInvoiceIds.filter((id) => existingIds.has(id)),
+    cancelled_invoice_ids: cancelledInvoiceIds,
   };
 }
 

@@ -337,6 +337,8 @@ export type ChannelFlagWithEntry = MonthlyAuditChannelFlag & {
 
 export type GenerateResult = {
   invoices_created: number;
+  invoices_updated: number;
+  invoices_cancelled: number;
   invoice_ids: string[];
   warnings: string[];
 };
@@ -345,6 +347,7 @@ export type RecalculateResult = {
   drafts_changed: number;
   new_total_inc_vat: number;
   changed_invoice_ids: string[];
+  cancelled_invoice_ids: string[];
 };
 
 // ============================================================
