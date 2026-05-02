@@ -7,8 +7,29 @@ import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_SHIFT_LOGOUT_TIMES = ["07:00", "15:00", "23:00"];
+
 function toLocalDate(date: Date, tz = "Asia/Bangkok"): string {
     return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(date);
+}
+
+function normalizeTimeList(value: unknown): string[] {
+    const values = Array.isArray(value) ? value : DEFAULT_SHIFT_LOGOUT_TIMES;
+    const normalized = Array.from(new Set(values
+        .map((entry) => String(entry ?? "").trim())
+        .filter((entry) => /^\d{2}:\d{2}$/.test(entry))
+        .filter((entry) => {
+            const [hour, minute] = entry.split(":").map(Number);
+            return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+        })))
+        .sort();
+    return normalized.length > 0 ? normalized.slice(0, 6) : DEFAULT_SHIFT_LOGOUT_TIMES;
+}
+
+function normalizeSnoozeMinutes(value: unknown, fallback = 15): number {
+    const raw = Number(value);
+    const normalized = Number.isFinite(raw) ? Math.trunc(raw) : fallback;
+    return Math.min(Math.max(normalized, 1), 1440);
 }
 
 /* ─── GET — fetch hotel settings ─────────────────── */
@@ -52,6 +73,8 @@ export async function GET() {
             identity_alert_over18_thai_id_enabled: data?.identity_alert_over18_thai_id_enabled ?? true,
             identity_alert_over18_passport_enabled: data?.identity_alert_over18_passport_enabled ?? true,
             identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
+            shift_logout_reminder_times: normalizeTimeList(data?.shift_logout_reminder_times),
+            shift_logout_snooze_min: normalizeSnoozeMinutes(data?.shift_logout_snooze_min),
         }, alertSettings);
 
         return NextResponse.json(
@@ -85,7 +108,9 @@ export async function PUT(request: NextRequest) {
             "identity_alert_under18_passport_enabled",
             "identity_alert_over18_thai_id_enabled",
             "identity_alert_over18_passport_enabled",
-            "identity_alert_birthday_enabled"
+            "identity_alert_birthday_enabled",
+            "shift_logout_reminder_times",
+            "shift_logout_snooze_min"
         ];
 
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -97,6 +122,10 @@ export async function PUT(request: NextRequest) {
                 const raw = Number(body[key]);
                 const normalized = Number.isFinite(raw) ? Math.trunc(raw) : 3;
                 updates[key] = Math.min(Math.max(normalized, 1), 30);
+            } else if (key === "shift_logout_reminder_times") {
+                updates[key] = normalizeTimeList(body[key]);
+            } else if (key === "shift_logout_snooze_min") {
+                updates[key] = normalizeSnoozeMinutes(body[key]);
             } else {
                 updates[key] = body[key];
             }

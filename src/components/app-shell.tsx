@@ -5,6 +5,7 @@ import BugReportButton from "@/components/bug-report-button";
 import AlertPendingPopup from "@/components/alert-pending-popup";
 import UrgentLogbookOverlay from "@/components/urgent-logbook-overlay";
 import UiEventLogProvider from "@/components/ui-event-log-provider";
+import { ShiftLogoutReminder } from "@/components/shift-logout-reminder";
 import { ensureCopyBoardFocusTracking } from "@/lib/copy-board";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -81,6 +82,7 @@ export default function AppShell({
         <main className="page-body">{children}</main>
       </div>
       <AlertPendingPopup pageName="PMS" />
+      <ShiftLogoutReminder />
       <UrgentLogbookOverlay hasNeighbor={showBugReport} />
       {showBugReport && <BugReportButton />}
     </div>

@@ -23,6 +23,8 @@ type Settings = {
     alert_start_time: string;
     alert_snooze_minutes: number;
     alert_prepayment_lead_days: number;
+    shift_logout_reminder_times: string[];
+    shift_logout_snooze_min: number;
 };
 
 type EodStatus = {
@@ -53,10 +55,28 @@ const DEFAULTS: Settings = {
     alert_start_time: "07:30",
     alert_snooze_minutes: 60,
     alert_prepayment_lead_days: 7,
+    shift_logout_reminder_times: ["07:00", "15:00", "23:00"],
+    shift_logout_snooze_min: 15,
 };
 
 const TIMEZONES = ["Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore", "UTC"];
 const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
+const HALF_HOUR_TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+    const hour = Math.floor(i / 2);
+    const minute = i % 2 === 0 ? "00" : "30";
+    return `${String(hour).padStart(2, "0")}:${minute}`;
+});
+const DEFAULT_SHIFT_LOGOUT_TIMES = ["07:00", "15:00", "23:00"];
+
+function normalizeShiftLogoutTimes(value: unknown): string[] {
+    if (!Array.isArray(value)) return DEFAULT_SHIFT_LOGOUT_TIMES;
+    const normalized = value
+        .map((entry) => String(entry ?? "").trim())
+        .filter((entry) => HALF_HOUR_TIME_OPTIONS.includes(entry));
+    const result = normalized.length > 0 ? normalized.slice(0, 6) : DEFAULT_SHIFT_LOGOUT_TIMES;
+    while (result.length < 3) result.push(DEFAULT_SHIFT_LOGOUT_TIMES[result.length] ?? "07:00");
+    return result;
+}
 
 function mergeDefaults(data: Partial<Settings> | null): Settings {
     return {
@@ -78,6 +98,8 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         alert_start_time: data?.alert_start_time ?? "07:30",
         alert_snooze_minutes: Number(data?.alert_snooze_minutes ?? 60),
         alert_prepayment_lead_days: Number(data?.alert_prepayment_lead_days ?? 7),
+        shift_logout_reminder_times: normalizeShiftLogoutTimes(data?.shift_logout_reminder_times),
+        shift_logout_snooze_min: Number(data?.shift_logout_snooze_min ?? 15),
     };
 }
 
@@ -112,8 +134,16 @@ export default function SettingsPage() {
 
     useEffect(() => { load(); }, [load]);
 
-    function setField(field: keyof Settings, value: string | number | boolean) {
+    function setField(field: keyof Settings, value: string | number | boolean | string[]) {
         setSettings(prev => ({ ...prev, [field]: value }));
+    }
+
+    function setShiftLogoutTime(index: number, value: string) {
+        setSettings((prev) => {
+            const times = normalizeShiftLogoutTimes(prev.shift_logout_reminder_times);
+            times[index] = value;
+            return { ...prev, shift_logout_reminder_times: times };
+        });
     }
 
     async function handleSave(e: React.FormEvent) {
@@ -456,6 +486,34 @@ export default function SettingsPage() {
 
                 {/* Prepayment Rules */}
                 <PrepaymentRulesSettings />
+
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-4">
+                    <h2 className="text-sm font-bold text-[var(--text-table-cell)] uppercase tracking-wide">Shift Logout Reminder</h2>
+                    <p className="text-xs text-[var(--text-muted)]">
+                        เตือนพนักงานให้ logout เมื่อเปลี่ยนเวรบนเครื่อง Front Office shared.
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                        {normalizeShiftLogoutTimes(settings.shift_logout_reminder_times).slice(0, 3).map((time, index) => (
+                            <div key={index}>
+                                <label className="form-label">Reminder {index + 1}</label>
+                                <select className="form-select" value={time} onChange={(e) => setShiftLogoutTime(index, e.target.value)}>
+                                    {HALF_HOUR_TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        ))}
+                    </div>
+                    <div>
+                        <label className="form-label">Snooze duration (minutes)</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="1440"
+                            className="form-input"
+                            value={settings.shift_logout_snooze_min}
+                            onChange={(e) => setField("shift_logout_snooze_min", Math.max(1, Math.min(1440, parseInt(e.target.value, 10) || 15)))}
+                        />
+                    </div>
+                </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={saving}>
                     {saving ? "Saving…" : "💾 Save Settings"}

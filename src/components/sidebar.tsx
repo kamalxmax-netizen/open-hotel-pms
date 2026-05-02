@@ -21,6 +21,11 @@ type SidebarPermissionCache = {
     exp: number;
 };
 
+type CurrentUserInfo = {
+    label: string;
+    detail: string | null;
+};
+
 const NAV_ITEMS = [
     {
         section: "Front Desk",
@@ -236,6 +241,7 @@ export default function Sidebar() {
     const router = useRouter();
     const [allowedPages, setAllowedPages] = useState<string[]>(["*"]);
     const [role, setRole] = useState<string | null>(null);
+    const [currentUser, setCurrentUser] = useState<CurrentUserInfo | null>(null);
     const { theme, setTheme } = useTheme();
 
     useEffect(() => {
@@ -254,14 +260,29 @@ export default function Sidebar() {
 
             const { data } = await supabase
                 .from("profiles")
-                .select("allowed_pages, role")
+                .select("allowed_pages, role, full_name")
                 .eq("user_id", userId)
                 .single();
             if (cancelled) return;
 
             const nextAllowedPages = normalizeAllowedPages(data?.allowed_pages);
             setAllowedPages(nextAllowedPages);
-            setRole(String(data?.role ?? "").trim().toLowerCase() || null);
+            const nextRole = String(data?.role ?? "").trim().toLowerCase() || null;
+            setRole(nextRole);
+            const { data: staffData } = await supabase
+                .from("staff")
+                .select("display_name, nickname")
+                .eq("id", userId)
+                .maybeSingle();
+            if (cancelled) return;
+
+            const staffName = String(staffData?.nickname || staffData?.display_name || "").trim();
+            const profileName = String(data?.full_name ?? "").trim();
+            const email = String(session?.user?.email ?? "").trim();
+            setCurrentUser({
+                label: staffName || profileName || email || "Staff",
+                detail: nextRole ? nextRole.toUpperCase() : null,
+            });
             writeSidebarPermissionCache(userId, nextAllowedPages);
         }
 
@@ -330,7 +351,16 @@ export default function Sidebar() {
             {/* Footer */}
             <div className="border-t p-3 space-y-1" style={{ borderColor: "var(--border-subtle)", width: "var(--sidebar-expanded-w)" }}>
                 <div className="flex items-center justify-between px-3 h-8">
-                    <p className="text-[10px] sidebar-text" style={{ color: "var(--text-muted)" }}>v0.8 — Internal Test</p>
+                    <div className="min-w-0 sidebar-text">
+                        <p className="truncate text-[10px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                            {currentUser?.label ?? "Logged in"}
+                        </p>
+                        {currentUser?.detail && (
+                            <p className="truncate text-[9px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                                {currentUser.detail}
+                            </p>
+                        )}
+                    </div>
                     <button
                         onClick={() => {
                             if (theme === "light") setTheme("dark");
