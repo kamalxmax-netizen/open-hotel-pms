@@ -117,7 +117,7 @@ function LoginForm() {
           <span className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-black text-[#06C755]">
             L
           </span>
-          Login with LINE
+          Login with LINE QR
         </a>
 
         <div className="mb-5 flex items-center gap-3">

@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("scope", "profile");
   authorizationUrl.searchParams.set("prompt", "login");
+  authorizationUrl.searchParams.set("disable_auto_login", "true");
+  authorizationUrl.searchParams.set("initial_amr_display", "lineqr");
+  authorizationUrl.searchParams.set("switch_amr", "false");
+  authorizationUrl.searchParams.set("max_age", "0");
 
   const response = NextResponse.redirect(authorizationUrl);
   response.cookies.set(getLineLoginStateCookieName(), cookieValue, {
