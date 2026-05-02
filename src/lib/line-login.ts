@@ -2,16 +2,11 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 const STATE_COOKIE_NAME = "pms_line_login_state";
 const STATE_TTL_SECONDS = 10 * 60;
-const QR_DESKTOP_COOKIE_NAME = "pms_line_qr_desktop";
-const QR_CHALLENGE_TTL_SECONDS = 2 * 60;
 
 type LineLoginStatePayload = {
   state: string;
   next: string;
   created_at: number;
-  mode?: "web" | "qr_mobile";
-  challenge_id?: string;
-  qr_token_hash?: string;
 };
 
 export type LineLoginProfile = {
@@ -38,38 +33,16 @@ export function getLineLoginStateTtlSeconds() {
   return STATE_TTL_SECONDS;
 }
 
-export function getLineQrDesktopCookieName() {
-  return QR_DESKTOP_COOKIE_NAME;
-}
-
-export function getLineQrChallengeTtlSeconds() {
-  return QR_CHALLENGE_TTL_SECONDS;
-}
-
-export function createLineLoginState(
-  next: string,
-  options?: Pick<LineLoginStatePayload, "mode" | "challenge_id" | "qr_token_hash">
-) {
+export function createLineLoginState(next: string) {
   const payload: LineLoginStatePayload = {
     state: randomBytes(24).toString("base64url"),
     next,
     created_at: Date.now(),
-    mode: options?.mode ?? "web",
-    challenge_id: options?.challenge_id,
-    qr_token_hash: options?.qr_token_hash,
   };
   return {
     state: payload.state,
     cookieValue: signLineLoginState(payload),
   };
-}
-
-export function createLineQrRawToken() {
-  return randomBytes(32).toString("base64url");
-}
-
-export function hashLineQrToken(token: string): string {
-  return createHmac("sha256", getStateSecret()).update(token).digest("base64url");
 }
 
 export function readLineLoginState(cookieValue: string | undefined): LineLoginStatePayload | null {
@@ -134,29 +107,6 @@ export async function getLineLoginProfile(accessToken: string): Promise<LineLogi
     throw new Error("LINE profile lookup failed.");
   }
   return data;
-}
-
-export async function revokeLineLoginAccessToken(accessToken: string): Promise<void> {
-  const config = getLineLoginConfig();
-  if (!config.configured) return;
-
-  const response = await fetch("https://api.line.me/oauth2/v2.1/revoke", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      access_token: accessToken,
-      client_id: config.channelId,
-      client_secret: config.channelSecret,
-    }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.warn("LINE access token revoke failed", { status: response.status, body });
-  }
 }
 
 function signLineLoginState(payload: LineLoginStatePayload): string {
