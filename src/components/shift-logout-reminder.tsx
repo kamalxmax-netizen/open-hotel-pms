@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: ReminderSettings = {
 };
 
 const SNOOZE_PREFIX = "pms.shift-logout.snooze.";
+const ACK_PREFIX = "pms.shift-logout.ack.";
 
 export function ShiftLogoutReminder() {
   const router = useRouter();
@@ -90,6 +91,10 @@ export function ShiftLogoutReminder() {
         setActiveOccurrence(null);
         return;
       }
+      if (isAcknowledged(userInfo.id, occurrence.id)) {
+        setActiveOccurrence(null);
+        return;
+      }
       if (isSnoozed(userInfo.id, occurrence.id)) {
         setActiveOccurrence(null);
         return;
@@ -110,6 +115,8 @@ export function ShiftLogoutReminder() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
+      acknowledgeOccurrence(visibleUser.id, visibleOccurrence);
+      setActiveOccurrence(null);
       const supabase = createBrowserSupabaseClient();
       await supabase.auth.signOut();
       router.replace("/login");
@@ -219,12 +226,29 @@ function isSnoozed(userId: string, occurrenceId: string): boolean {
   }
 }
 
+function isAcknowledged(userId: string, occurrenceId: string): boolean {
+  try {
+    return window.localStorage.getItem(`${ACK_PREFIX}${userId}.${occurrenceId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function setSnooze(userId: string, occurrenceId: string, minutes: number) {
   try {
     window.localStorage.setItem(
       `${SNOOZE_PREFIX}${userId}.${occurrenceId}`,
       String(Date.now() + minutes * 60_000)
     );
+  } catch {
+    // ignore localStorage errors
+  }
+}
+
+function acknowledgeOccurrence(userId: string, occurrenceId: string) {
+  try {
+    window.localStorage.setItem(`${ACK_PREFIX}${userId}.${occurrenceId}`, "1");
+    window.localStorage.removeItem(`${SNOOZE_PREFIX}${userId}.${occurrenceId}`);
   } catch {
     // ignore localStorage errors
   }
