@@ -3,6 +3,9 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { logUiEvent } from "@/lib/ui-event-log-client";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+const AUTH_SESSION_LOG_PREFIX = "pms.auth-activity.session-started.";
 
 function shouldTrackPath(pathname: string): boolean {
   if (!pathname.startsWith("/pms")) return false;
@@ -51,6 +54,42 @@ export default function UiEventLogProvider() {
         title: document.title,
       },
     });
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!shouldTrackPath(pathname)) return;
+
+    let cancelled = false;
+    async function logSessionStarted() {
+      const supabase = createBrowserSupabaseClient();
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      const session = data.session;
+      const userId = session?.user?.id ?? null;
+      if (!userId) return;
+
+      const sessionKey = `${AUTH_SESSION_LOG_PREFIX}${userId}.${session?.expires_at ?? "unknown"}`;
+      try {
+        if (window.sessionStorage.getItem(sessionKey) === "1") return;
+        window.sessionStorage.setItem(sessionKey, "1");
+      } catch {
+        // If sessionStorage is unavailable, still log once for this mount.
+      }
+
+      logUiEvent({
+        pathname,
+        event_type: "auth_activity",
+        event_name: "session_started",
+        metadata: {
+          entry_path: pathname,
+        },
+      });
+    }
+
+    void logSessionStarted();
+    return () => {
+      cancelled = true;
+    };
   }, [pathname]);
 
   useEffect(() => {

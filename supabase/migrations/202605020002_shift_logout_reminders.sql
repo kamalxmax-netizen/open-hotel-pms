@@ -1,6 +1,7 @@
 alter table public.hotel_settings
   add column if not exists shift_logout_reminder_times text[] not null default array['07:00', '15:00', '23:00'],
-  add column if not exists shift_logout_snooze_min integer not null default 15;
+  add column if not exists shift_logout_snooze_min integer not null default 15,
+  add column if not exists shift_logout_snooze_enabled boolean not null default true;
 
 alter table public.hotel_settings
   drop constraint if exists hotel_settings_shift_logout_snooze_min_check;
