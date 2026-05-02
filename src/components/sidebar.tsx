@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useTheme } from "@/components/theme-provider";
+import { logUiEvent } from "@/lib/ui-event-log-client";
 
 const SIDEBAR_PERMISSION_CACHE_PREFIX = "pms.sidebar.allowed-pages.";
 const SIDEBAR_PERMISSION_CACHE_TTL_MS = 60_000;
@@ -295,6 +296,14 @@ export default function Sidebar() {
     async function handleLogout() {
         const supabase = createBrowserSupabaseClient();
         const { data: { session } } = await supabase.auth.getSession();
+        logUiEvent({
+            pathname,
+            event_type: "auth_activity",
+            event_name: "logout_clicked",
+            metadata: {
+                source: "sidebar",
+            },
+        });
         clearSidebarPermissionCache(session?.user?.id ?? null);
         await supabase.auth.signOut();
         router.push("/login");

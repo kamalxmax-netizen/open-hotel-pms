@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { logUiEvent } from "@/lib/ui-event-log-client";
 
 type ReminderSettings = {
   hotel_timezone: string;
   shift_logout_reminder_times: string[];
   shift_logout_snooze_min: number;
+  shift_logout_snooze_enabled: boolean;
 };
 
 type UserInfo = {
@@ -20,6 +22,7 @@ const DEFAULT_SETTINGS: ReminderSettings = {
   hotel_timezone: "Asia/Bangkok",
   shift_logout_reminder_times: ["07:00", "15:00", "23:00"],
   shift_logout_snooze_min: 15,
+  shift_logout_snooze_enabled: true,
 };
 
 const SNOOZE_PREFIX = "pms.shift-logout.snooze.";
@@ -59,6 +62,7 @@ export function ShiftLogoutReminder() {
             hotel_timezone: String(payload.settings.hotel_timezone ?? DEFAULT_SETTINGS.hotel_timezone),
             shift_logout_reminder_times: normalizeTimes(payload.settings.shift_logout_reminder_times),
             shift_logout_snooze_min: clampMinutes(payload.settings.shift_logout_snooze_min, DEFAULT_SETTINGS.shift_logout_snooze_min),
+            shift_logout_snooze_enabled: payload.settings.shift_logout_snooze_enabled ?? DEFAULT_SETTINGS.shift_logout_snooze_enabled,
           });
         }
       }
@@ -117,6 +121,15 @@ export function ShiftLogoutReminder() {
     try {
       acknowledgeOccurrence(visibleUser.id, visibleOccurrence);
       setActiveOccurrence(null);
+      logUiEvent({
+        pathname: window.location.pathname,
+        event_type: "auth_activity",
+        event_name: "logout_clicked",
+        metadata: {
+          source: "shift_logout_reminder",
+          occurrence: visibleOccurrence,
+        },
+      });
       const supabase = createBrowserSupabaseClient();
       await supabase.auth.signOut();
       router.replace("/login");
@@ -151,13 +164,15 @@ export function ShiftLogoutReminder() {
           >
             {loggingOut ? "Logging out..." : "Log out"}
           </button>
-          <button
-            type="button"
-            onClick={handleSnooze}
-            className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-          >
-            Snooze {settings.shift_logout_snooze_min}m
-          </button>
+          {settings.shift_logout_snooze_enabled ? (
+            <button
+              type="button"
+              onClick={handleSnooze}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              Snooze {settings.shift_logout_snooze_min}m
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

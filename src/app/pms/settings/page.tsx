@@ -25,6 +25,7 @@ type Settings = {
     alert_prepayment_lead_days: number;
     shift_logout_reminder_times: string[];
     shift_logout_snooze_min: number;
+    shift_logout_snooze_enabled: boolean;
 };
 
 type EodStatus = {
@@ -57,6 +58,7 @@ const DEFAULTS: Settings = {
     alert_prepayment_lead_days: 7,
     shift_logout_reminder_times: ["07:00", "15:00", "23:00"],
     shift_logout_snooze_min: 15,
+    shift_logout_snooze_enabled: true,
 };
 
 const TIMEZONES = ["Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore", "UTC"];
@@ -100,6 +102,7 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         alert_prepayment_lead_days: Number(data?.alert_prepayment_lead_days ?? 7),
         shift_logout_reminder_times: normalizeShiftLogoutTimes(data?.shift_logout_reminder_times),
         shift_logout_snooze_min: Number(data?.shift_logout_snooze_min ?? 15),
+        shift_logout_snooze_enabled: data?.shift_logout_snooze_enabled ?? true,
     };
 }
 
@@ -502,7 +505,29 @@ export default function SettingsPage() {
                             </div>
                         ))}
                     </div>
-                    <div>
+                    <button
+                        type="button"
+                        onClick={() => setField("shift_logout_snooze_enabled", !settings.shift_logout_snooze_enabled)}
+                        className="flex w-full items-center justify-between rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-left"
+                    >
+                        <span>
+                            <span className="block text-sm font-semibold text-[var(--text-table-cell)]">Snooze button</span>
+                            <span className="block text-xs text-[var(--text-muted)]">แสดงปุ่มเลื่อนเตือนใน popup เปลี่ยนเวร</span>
+                        </span>
+                        <span
+                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                                settings.shift_logout_snooze_enabled ? "bg-emerald-600" : "bg-slate-300"
+                            }`}
+                            aria-hidden="true"
+                        >
+                            <span
+                                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                    settings.shift_logout_snooze_enabled ? "translate-x-5" : "translate-x-0.5"
+                                }`}
+                            />
+                        </span>
+                    </button>
+                    <div className={!settings.shift_logout_snooze_enabled ? "opacity-50" : ""}>
                         <label className="form-label">Snooze duration (minutes)</label>
                         <input
                             type="number"
@@ -510,6 +535,7 @@ export default function SettingsPage() {
                             max="1440"
                             className="form-input"
                             value={settings.shift_logout_snooze_min}
+                            disabled={!settings.shift_logout_snooze_enabled}
                             onChange={(e) => setField("shift_logout_snooze_min", Math.max(1, Math.min(1440, parseInt(e.target.value, 10) || 15)))}
                         />
                     </div>

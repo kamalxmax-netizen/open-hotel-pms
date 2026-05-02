@@ -34,21 +34,15 @@ function sanitizeMetadata(value: Record<string, unknown> | undefined): Record<st
   }
 }
 
+function shouldBypassCaptureEmailFilter(eventType: string): boolean {
+  return eventType === "auth_activity";
+}
+
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient();
   const user = await getAuthenticatedUser(supabase, request);
   if (!user) {
     return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
-  }
-
-  const { data: hotelSettings } = await supabase
-    .from("hotel_settings")
-    .select("ui_event_log_capture_emails")
-    .eq("id", 1)
-    .maybeSingle();
-
-  if (!isUiEventLogEmailAllowed(user.email ?? null, hotelSettings?.ui_event_log_capture_emails)) {
-    return NextResponse.json({ success: true, skipped: true });
   }
 
   const parsed = createLogSchema.safeParse(await request.json().catch(() => null));
@@ -57,6 +51,19 @@ export async function POST(request: NextRequest) {
       { success: false, error: "Invalid payload.", details: parsed.error.flatten() },
       { status: 400 }
     );
+  }
+
+  const { data: hotelSettings } = await supabase
+    .from("hotel_settings")
+    .select("ui_event_log_capture_emails")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (
+    !shouldBypassCaptureEmailFilter(parsed.data.event_type) &&
+    !isUiEventLogEmailAllowed(user.email ?? null, hotelSettings?.ui_event_log_capture_emails)
+  ) {
+    return NextResponse.json({ success: true, skipped: true });
   }
 
   const { data: profile } = await supabase

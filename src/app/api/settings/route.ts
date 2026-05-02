@@ -75,6 +75,7 @@ export async function GET() {
             identity_alert_birthday_enabled: data?.identity_alert_birthday_enabled ?? true,
             shift_logout_reminder_times: normalizeTimeList(data?.shift_logout_reminder_times),
             shift_logout_snooze_min: normalizeSnoozeMinutes(data?.shift_logout_snooze_min),
+            shift_logout_snooze_enabled: data?.shift_logout_snooze_enabled ?? true,
         }, alertSettings);
 
         return NextResponse.json(
@@ -110,7 +111,8 @@ export async function PUT(request: NextRequest) {
             "identity_alert_over18_passport_enabled",
             "identity_alert_birthday_enabled",
             "shift_logout_reminder_times",
-            "shift_logout_snooze_min"
+            "shift_logout_snooze_min",
+            "shift_logout_snooze_enabled"
         ];
 
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
