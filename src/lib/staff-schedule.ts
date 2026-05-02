@@ -44,7 +44,16 @@ export type StaffScheduleView = {
 };
 
 export type LineStaffScheduleResult =
-  | { ok: true; staff: StaffScheduleStaff; month: StaffScheduleMonth; today: string; shifts: StaffScheduleShift[]; is_next_month: boolean }
+  | {
+      ok: true;
+      staff: StaffScheduleStaff;
+      month: StaffScheduleMonth;
+      today: string;
+      shifts: StaffScheduleShift[];
+      is_next_month: boolean;
+      range_label: string;
+      empty_label: string;
+    }
   | { ok: false; reason: "unbound" };
 
 const MONTH_LABELS = [
@@ -91,6 +100,12 @@ function monthFromIso(iso: string): { year: number; month: number } {
 
 function addMonth(year: number, month: number): { year: number; month: number } {
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+}
+
+function addDays(iso: string, days: number): string {
+  const date = new Date(`${iso}T12:00:00+07:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -240,11 +255,14 @@ export async function getStaffScheduleView(
 
 export async function getLineStaffSchedule(
   supabase: SupabaseServerClient,
-  params: { lineUserId: string; nextMonth?: boolean; today?: string }
+  params: { lineUserId: string; nextMonth?: boolean; period?: "week" | "month"; today?: string }
 ): Promise<LineStaffScheduleResult> {
   const today = params.today ?? bangkokToday();
   const allowed = getAllowedScheduleMonths(today);
   const targetMonth = params.nextMonth ? allowed[1] : allowed[0];
+  const period = params.nextMonth ? "month" : (params.period ?? "month");
+  const rangeStart = period === "week" ? today : params.nextMonth ? targetMonth.first_date : today;
+  const rangeEnd = period === "week" ? addDays(today, 6) : targetMonth.last_date;
 
   const { data: staffRow, error: staffError } = await supabase
     .from("staff")
@@ -268,8 +286,8 @@ export async function getLineStaffSchedule(
     .from("staff_shifts")
     .select("id, staff_id, shift_date, shift_type, is_generated")
     .eq("staff_id", staff.id)
-    .gte("shift_date", params.nextMonth ? targetMonth.first_date : today)
-    .lte("shift_date", targetMonth.last_date)
+    .gte("shift_date", rangeStart)
+    .lte("shift_date", rangeEnd)
     .order("shift_date", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -282,6 +300,12 @@ export async function getLineStaffSchedule(
     month: targetMonth,
     today,
     is_next_month: Boolean(params.nextMonth),
+    range_label: period === "week" ? "7 วันนี้" : targetMonth.label,
+    empty_label: period === "week"
+      ? "ยังไม่มีเวรใน 7 วันนี้"
+      : params.nextMonth
+        ? "ยังไม่มีตารางเวรสำหรับเดือนหน้า"
+        : "ยังไม่มีเวรตั้งแต่วันนี้ถึงสิ้นเดือน",
     shifts: (shiftRows ?? []).map((row: any): StaffScheduleShift => ({
       id: String(row.id),
       staff_id: String(row.staff_id),
@@ -296,12 +320,10 @@ export function formatLineStaffScheduleReply(result: Extract<LineStaffScheduleRe
   const displayName = result.staff.nickname || result.staff.display_name || "พนักงาน";
   const title = result.is_next_month
     ? `ตารางเวร ${displayName} เดือนหน้า (${result.month.label})`
-    : `ตารางเวร ${displayName} (${result.month.label})`;
+    : `ตารางเวร ${displayName} (${result.range_label})`;
 
   if (result.shifts.length === 0) {
-    return result.is_next_month
-      ? `📅 ${title}\n\nยังไม่มีตารางเวรสำหรับเดือนหน้า`
-      : `📅 ${title}\n\nยังไม่มีเวรตั้งแต่วันนี้ถึงสิ้นเดือน`;
+    return `📅 ${title}\n\n${result.empty_label}`;
   }
 
   const grouped = new Map<string, StaffScheduleShiftType[]>();

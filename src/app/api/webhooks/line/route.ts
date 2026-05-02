@@ -17,6 +17,12 @@ type LineWebhookBody = {
   events?: LineEvent[];
 };
 
+type LineStaffAccess = {
+  isBound: boolean;
+  isFo: boolean;
+  departmentCode: string | null;
+};
+
 function getLineSecrets() {
   return {
     channelSecret: process.env.LINE_CHANNEL_SECRET ?? "",
@@ -82,6 +88,32 @@ async function resolveLineBusinessDate() {
 
   const businessDate = String(data?.business_date ?? "").trim() || calendarDate;
   return { supabase, businessDate, calendarDate };
+}
+
+async function resolveLineStaffAccess(lineUserId: string): Promise<LineStaffAccess> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("staff")
+    .select("id, department:departments(code)")
+    .eq("line_user_id", lineUserId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error("line staff access lookup failed", error);
+    return { isBound: false, isFo: false, departmentCode: null };
+  }
+
+  const department = Array.isArray((data as any)?.department)
+    ? (data as any).department[0]
+    : (data as any)?.department;
+  const departmentCode = department?.code ? String(department.code).toUpperCase() : null;
+
+  return {
+    isBound: Boolean(data?.id),
+    isFo: departmentCode === "FO",
+    departmentCode,
+  };
 }
 
 async function handleCheckoutQuery(replyToken: string) {
@@ -201,11 +233,13 @@ async function handleScheduleQuery(params: {
   replyToken: string;
   lineUserId: string;
   nextMonth: boolean;
+  period: "week" | "month";
 }) {
   const supabase = createServerSupabaseClient();
   const result = await getLineStaffSchedule(supabase, {
     lineUserId: params.lineUserId,
     nextMonth: params.nextMonth,
+    period: params.period,
   });
 
   if (!result.ok) {
@@ -217,6 +251,88 @@ async function handleScheduleQuery(params: {
   }
 
   await replyLineText(params.replyToken, formatLineStaffScheduleReply(result));
+}
+
+function isScheduleQuery(norm: string): boolean {
+  const scheduleCommands = new Set([
+    "schedule",
+    "schedule week",
+    "schedule this week",
+    "schedule next",
+    "shift",
+    "shift week",
+    "shift this week",
+    "shift next",
+    "work schedule",
+    "roster",
+    "roster next",
+    "ตารางเวร",
+    "ตารางกะ",
+    "เวร",
+    "กะ",
+    "กะทำงาน",
+    "เวลาทำงาน",
+    "ตารางงาน",
+    "งานอาทิตย์นี้",
+    "งานสัปดาห์นี้",
+    "ตารางเวรเดือนหน้า",
+    "ตารางเวร เดือนหน้า",
+    "เวรเดือนหน้า",
+    "เวร เดือนหน้า",
+    "กะเดือนหน้า",
+    "กะ เดือนหน้า",
+  ]);
+  if (scheduleCommands.has(norm)) return true;
+  return (
+    norm.includes("กะทำงาน") ||
+    norm.includes("เวลาทำงาน") ||
+    norm.includes("ตารางกะ") ||
+    norm.includes("ตารางงาน") ||
+    norm.includes("ตารางเวร") ||
+    norm.includes("เข้าเวร") ||
+    norm.includes("เข้ากะ") ||
+    norm.includes("ทำงานวันไหน") ||
+    norm.includes("ต้องเข้ามาทำงาน") ||
+    norm.includes("work schedule")
+  );
+}
+
+function isScheduleNextMonthQuery(norm: string): boolean {
+  return norm.includes("next") || norm.includes("เดือนหน้า");
+}
+
+function isScheduleWeekQuery(norm: string): boolean {
+  return (
+    norm.includes("week") ||
+    norm.includes("อาทิตย์นี้") ||
+    norm.includes("สัปดาห์นี้") ||
+    norm.includes("7 วัน") ||
+    norm.includes("เจ็ดวัน") ||
+    norm === "shift" ||
+    norm === "กะ" ||
+    norm === "กะทำงาน" ||
+    norm === "เวลาทำงาน" ||
+    norm.includes("ทำงานวันไหน") ||
+    norm.includes("ต้องเข้ามาทำงาน")
+  );
+}
+
+async function replyFoLineHelp(replyToken: string) {
+  await replyLineText(
+    replyToken,
+    "📖 คำสั่งสำหรับ FO:\n\n" +
+    "• shift / กะ / กะทำงาน / เวลาทำงาน\n  → ตารางกะของตัวเอง 7 วันนี้\n\n" +
+    "• schedule\n  → ตารางกะของตัวเองถึงสิ้นเดือน\n\n" +
+    "• shift next / เวรเดือนหน้า\n  → ตารางกะของตัวเองเดือนถัดไป"
+  );
+}
+
+async function replyFoRestricted(replyToken: string) {
+  await replyLineText(
+    replyToken,
+    "บัญชี LINE นี้เป็น FO จึงดูได้เฉพาะตารางกะของตัวเองเท่านั้น\n\n" +
+    "ลองพิมพ์: shift, กะทำงาน, เวลาทำงาน หรือ เวรเดือนหน้า"
+  );
 }
 
 async function handleBindCommand(params: {
@@ -336,6 +452,13 @@ export async function POST(request: NextRequest) {
 
         const upper = text.toUpperCase();
         const norm = text.toLowerCase().replace(/\s+/g, " ").trim();
+        const isHelpQuery =
+          norm === "help" ||
+          norm === "ช่วยเหลือ" ||
+          norm === "คำสั่ง" ||
+          norm === "?" ||
+          norm === "menu" ||
+          norm === "เมนู";
 
         // --- BIND command ---
         if (upper.startsWith("BIND")) {
@@ -346,6 +469,19 @@ export async function POST(request: NextRequest) {
             continue;
           }
           await handleBindCommand({ token, lineUserId, replyToken });
+          continue;
+        }
+
+        const staffAccess = await resolveLineStaffAccess(lineUserId);
+        const scheduleQuery = isScheduleQuery(norm);
+
+        if (staffAccess.isFo && isHelpQuery) {
+          await replyFoLineHelp(replyToken);
+          continue;
+        }
+
+        if (staffAccess.isFo && !scheduleQuery) {
+          await replyFoRestricted(replyToken);
           continue;
         }
 
@@ -381,30 +517,19 @@ export async function POST(request: NextRequest) {
         }
 
         // --- Staff schedule query ---
-        const scheduleCommands = new Set([
-          "schedule",
-          "shift",
-          "ตารางเวร",
-          "เวร",
-          "schedule next",
-          "shift next",
-          "ตารางเวรเดือนหน้า",
-          "ตารางเวร เดือนหน้า",
-          "เวรเดือนหน้า",
-          "เวร เดือนหน้า",
-        ]);
-        const isScheduleQuery = scheduleCommands.has(norm);
-        if (isScheduleQuery) {
+        if (scheduleQuery) {
+          const nextMonth = isScheduleNextMonthQuery(norm);
           await handleScheduleQuery({
             replyToken,
             lineUserId,
-            nextMonth: norm.includes("next") || norm.includes("เดือนหน้า"),
+            nextMonth,
+            period: !nextMonth && isScheduleWeekQuery(norm) ? "week" : "month",
           });
           continue;
         }
 
         // --- Help ---
-        if (norm === "help" || norm === "ช่วยเหลือ" || norm === "คำสั่ง" || norm === "?" || norm === "menu" || norm === "เมนู") {
+        if (isHelpQuery) {
           await replyLineText(
             replyToken,
             "📖 คำสั่งที่ใช้ได้:\n\n" +
