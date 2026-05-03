@@ -4,6 +4,7 @@ import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { resolveRoleAwarePostLoginPath, sanitizePostLoginPath } from "@/lib/auth-routing";
+import { markShiftLogoutFreshLogin } from "@/components/shift-logout-reminder";
 
 /* ── OpenHotel Geometric Logo (SVG) ──────────────────────────────────── */
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
@@ -77,6 +78,7 @@ function LoginForm() {
       }
       let destination = next;
       const userId = signInData.user?.id ?? null;
+      markShiftLogoutFreshLogin(userId);
       if (userId) {
         const { data: profileData } = await supabase
           .from("profiles")

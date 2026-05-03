@@ -27,6 +27,18 @@ const DEFAULT_SETTINGS: ReminderSettings = {
 
 const SNOOZE_PREFIX = "pms.shift-logout.snooze.";
 const ACK_PREFIX = "pms.shift-logout.ack.";
+const FRESH_LOGIN_PREFIX = "pms.shift-logout.fresh-login.";
+const LAST_USER_KEY = "pms.shift-logout.last-user";
+const FRESH_LOGIN_TTL_MS = 10 * 60_000;
+
+export function markShiftLogoutFreshLogin(userId: string | null | undefined) {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${FRESH_LOGIN_PREFIX}${userId}`, String(Date.now()));
+  } catch {
+    // ignore localStorage errors
+  }
+}
 
 export function ShiftLogoutReminder() {
   const router = useRouter();
@@ -54,6 +66,7 @@ export function ShiftLogoutReminder() {
       const session = sessionData.session;
       const userId = session?.user?.id ?? null;
       if (!userId) return;
+      markFreshLoginOnUserSwitch(userId);
 
       if (settingsResponse?.ok) {
         const payload = await settingsResponse.json().catch(() => null);
@@ -92,6 +105,11 @@ export function ShiftLogoutReminder() {
     const check = () => {
       const occurrence = getDueOccurrence(new Date(), settings.hotel_timezone, sortedTimes);
       if (!occurrence) {
+        setActiveOccurrence(null);
+        return;
+      }
+      if (consumeFreshLogin(userInfo.id)) {
+        acknowledgeOccurrence(userInfo.id, occurrence.id);
         setActiveOccurrence(null);
         return;
       }
@@ -246,6 +264,31 @@ function isAcknowledged(userId: string, occurrenceId: string): boolean {
     return window.localStorage.getItem(`${ACK_PREFIX}${userId}.${occurrenceId}`) === "1";
   } catch {
     return false;
+  }
+}
+
+function consumeFreshLogin(userId: string): boolean {
+  try {
+    const key = `${FRESH_LOGIN_PREFIX}${userId}`;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return false;
+    window.localStorage.removeItem(key);
+    const markedAt = Number(raw);
+    return Number.isFinite(markedAt) && Date.now() - markedAt <= FRESH_LOGIN_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markFreshLoginOnUserSwitch(userId: string) {
+  try {
+    const previousUserId = window.localStorage.getItem(LAST_USER_KEY);
+    window.localStorage.setItem(LAST_USER_KEY, userId);
+    if (previousUserId && previousUserId !== userId) {
+      markShiftLogoutFreshLogin(userId);
+    }
+  } catch {
+    // ignore localStorage errors
   }
 }
 
