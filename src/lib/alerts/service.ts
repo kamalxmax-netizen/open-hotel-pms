@@ -178,11 +178,13 @@ function buildRoomLabel(reservation: ReservationAlertRow) {
 function isThaiCustomer(reservation: ReservationAlertRow) {
   const profile = firstRow(reservation.guest_profiles) as any;
   if (reservation.is_thai_manual === true) return true;
-  if (String(profile?.nationality_code ?? "").trim().toUpperCase() === "TH") return true;
+  const nationalityCode = String(profile?.nationality_code ?? "").trim().toUpperCase();
+  if (nationalityCode === "TH" || nationalityCode === "THA") return true;
   const nationality = String(profile?.nationality ?? "").trim().toLowerCase();
-  if (nationality === "thai" || nationality === "ไทย") return true;
+  if (nationality === "thai" || nationality === "thailand" || nationality === "ไทย" || nationality === "ประเทศไทย") return true;
   const fullName = `${String(profile?.first_name ?? "")} ${String(profile?.last_name ?? "")}`;
-  return /[\u0E00-\u0E7F]/.test(fullName);
+  if (/[\u0E00-\u0E7F]/.test(fullName)) return true;
+  return /[\u0E00-\u0E7F]/.test(String(reservation.guest_name ?? ""));
 }
 
 function mapAlertRuleRow(row: any): AlertRule {
