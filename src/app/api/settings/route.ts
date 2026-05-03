@@ -32,6 +32,10 @@ function normalizeSnoozeMinutes(value: unknown, fallback = 15): number {
     return Math.min(Math.max(normalized, 1), 1440);
 }
 
+function isShiftLogoutSnoozeEnabledMissingError(message: string): boolean {
+    return /shift_logout_snooze_enabled|schema cache/i.test(message);
+}
+
 /* ─── GET — fetch hotel settings ─────────────────── */
 export async function GET() {
     noStore(); // Completely disable all Next.js caching for this request
@@ -133,11 +137,23 @@ export async function PUT(request: NextRequest) {
             }
         }
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from("hotel_settings")
             .upsert({ id: 1, ...updates })
             .select("*")
             .maybeSingle();
+
+        if (error && "shift_logout_snooze_enabled" in updates && isShiftLogoutSnoozeEnabledMissingError(error.message)) {
+            const retryUpdates = { ...updates };
+            delete retryUpdates.shift_logout_snooze_enabled;
+            const retry = await supabase
+                .from("hotel_settings")
+                .upsert({ id: 1, ...retryUpdates })
+                .select("*")
+                .maybeSingle();
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

@@ -102,7 +102,6 @@ Deno.serve(async (req) => {
       const { error: updateError } = await supabase
         .from("passport_scans")
         .update({
-          image_path: null,
           ocr_raw: null,
           cleaned_at: nowIso(),
         })
