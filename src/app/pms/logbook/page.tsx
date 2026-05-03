@@ -97,6 +97,7 @@ export default function LogbookPage() {
   const positionDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const contentAbortControllers = useRef<Map<string, AbortController>>(new Map())
   const contentDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const contentSaveVersions = useRef<Map<string, number>>(new Map())
   const historyBuckets = useRef<Map<string, NoteHistoryBucket>>(new Map())
   const historyFlushTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const archiveUndoTimer = useRef<NodeJS.Timeout | null>(null)
@@ -310,8 +311,9 @@ export default function LogbookPage() {
   )
 
   const persistContentUpdate = useCallback(
-    (noteId: string, updates: Partial<LogbookNote>, immediate: boolean) => {
+    (noteId: string, updates: Partial<LogbookNote>, immediate: boolean, version: number) => {
       const run = async () => {
+        contentDebounceTimers.current.delete(noteId)
         const controller = new AbortController()
         contentAbortControllers.current.set(noteId, controller)
         try {
@@ -325,7 +327,7 @@ export default function LogbookPage() {
           if (!res.ok || !data?.success) {
             throw new Error(data?.error || "Failed to save note")
           }
-          if (data.data) {
+          if (data.data && contentSaveVersions.current.get(noteId) === version) {
             replaceNote(noteId, data.data)
           }
         } catch (error) {
@@ -411,7 +413,9 @@ export default function LogbookPage() {
       }
 
       setNotes((prev) => prev.map((note) => (note.id === id ? { ...note, ...updates } : note)))
-      persistContentUpdate(id, updates, saveMode === "immediate")
+      const nextVersion = (contentSaveVersions.current.get(id) ?? 0) + 1
+      contentSaveVersions.current.set(id, nextVersion)
+      persistContentUpdate(id, updates, saveMode === "immediate", nextVersion)
     },
     [notes, persistContentUpdate, pushImmediateHistory, stageCoalescedHistory]
   )
@@ -489,6 +493,8 @@ export default function LogbookPage() {
         )
       )
 
+      const nextVersion = (contentSaveVersions.current.get(noteId) ?? 0) + 1
+      contentSaveVersions.current.set(noteId, nextVersion)
       persistContentUpdate(
         noteId,
         {
@@ -498,7 +504,8 @@ export default function LogbookPage() {
           note_type: snapshot.note_type,
           remind_at: snapshot.remind_at,
         },
-        true
+        true,
+        nextVersion
       )
 
       try {
