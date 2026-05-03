@@ -81,6 +81,21 @@ function getMinimizedNoteWidth(note: LogbookNote) {
   return Math.min(560, titleWidth + 118)
 }
 
+function mergeFetchedNotesPreservingDirty(
+  current: LogbookNote[],
+  incoming: LogbookNote[],
+  dirtyIds: Set<string>
+): LogbookNote[] {
+  if (dirtyIds.size === 0) return incoming
+  const currentById = new Map(current.map((note) => [note.id, note]))
+  const incomingIds = new Set(incoming.map((note) => note.id))
+  const merged = incoming.map((note) => (dirtyIds.has(note.id) ? currentById.get(note.id) ?? note : note))
+  for (const note of current) {
+    if (dirtyIds.has(note.id) && !incomingIds.has(note.id)) merged.push(note)
+  }
+  return merged
+}
+
 export default function LogbookPage() {
   const [notes, setNotes] = useState<LogbookNote[]>([])
   const [archivedNotes, setArchivedNotes] = useState<LogbookNote[]>([])
@@ -97,6 +112,7 @@ export default function LogbookPage() {
   const positionDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const contentAbortControllers = useRef<Map<string, AbortController>>(new Map())
   const contentDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const contentSaveVersions = useRef<Map<string, number>>(new Map())
   const historyBuckets = useRef<Map<string, NoteHistoryBucket>>(new Map())
   const historyFlushTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const archiveUndoTimer = useRef<NodeJS.Timeout | null>(null)
@@ -124,15 +140,23 @@ export default function LogbookPage() {
     setArchivedNotes((prev) => prev.map((note) => (note.id === noteId ? next : note)))
   }, [])
 
+  const getDirtyContentNoteIds = useCallback(() => {
+    return new Set<string>([
+      ...Array.from(contentDebounceTimers.current.keys()),
+      ...Array.from(contentAbortControllers.current.keys()),
+    ])
+  }, [])
+
   const refreshSingleNote = useCallback(
     async (noteId: string) => {
       const res = await fetch(`/api/logbook/notes/${noteId}`, { cache: "no-store" })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.success && data.data) {
+        if (getDirtyContentNoteIds().has(noteId)) return
         replaceNote(noteId, data.data)
       }
     },
-    [replaceNote]
+    [getDirtyContentNoteIds, replaceNote]
   )
 
   const fetchNotes = useCallback(async () => {
@@ -145,7 +169,9 @@ export default function LogbookPage() {
         return
       }
       setFetchError(null)
-      setNotes(Array.isArray(data.data) ? data.data : [])
+      const incomingNotes = Array.isArray(data.data) ? data.data : []
+      const dirtyIds = getDirtyContentNoteIds()
+      setNotes((current) => mergeFetchedNotesPreservingDirty(current, incomingNotes, dirtyIds))
     } catch (error) {
       console.error("Failed to fetch notes", error)
       const message =
@@ -156,7 +182,7 @@ export default function LogbookPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchWithTimeout])
+  }, [fetchWithTimeout, getDirtyContentNoteIds])
 
   const fetchArchivedNotes = useCallback(async () => {
     try {
@@ -310,8 +336,9 @@ export default function LogbookPage() {
   )
 
   const persistContentUpdate = useCallback(
-    (noteId: string, updates: Partial<LogbookNote>, immediate: boolean) => {
+    (noteId: string, updates: Partial<LogbookNote>, immediate: boolean, version: number) => {
       const run = async () => {
+        contentDebounceTimers.current.delete(noteId)
         const controller = new AbortController()
         contentAbortControllers.current.set(noteId, controller)
         try {
@@ -325,7 +352,7 @@ export default function LogbookPage() {
           if (!res.ok || !data?.success) {
             throw new Error(data?.error || "Failed to save note")
           }
-          if (data.data) {
+          if (data.data && contentSaveVersions.current.get(noteId) === version) {
             replaceNote(noteId, data.data)
           }
         } catch (error) {
@@ -411,7 +438,9 @@ export default function LogbookPage() {
       }
 
       setNotes((prev) => prev.map((note) => (note.id === id ? { ...note, ...updates } : note)))
-      persistContentUpdate(id, updates, saveMode === "immediate")
+      const nextVersion = (contentSaveVersions.current.get(id) ?? 0) + 1
+      contentSaveVersions.current.set(id, nextVersion)
+      persistContentUpdate(id, updates, saveMode === "immediate", nextVersion)
     },
     [notes, persistContentUpdate, pushImmediateHistory, stageCoalescedHistory]
   )
@@ -489,6 +518,8 @@ export default function LogbookPage() {
         )
       )
 
+      const nextVersion = (contentSaveVersions.current.get(noteId) ?? 0) + 1
+      contentSaveVersions.current.set(noteId, nextVersion)
       persistContentUpdate(
         noteId,
         {
@@ -498,7 +529,8 @@ export default function LogbookPage() {
           note_type: snapshot.note_type,
           remind_at: snapshot.remind_at,
         },
-        true
+        true,
+        nextVersion
       )
 
       try {
