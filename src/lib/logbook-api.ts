@@ -65,6 +65,7 @@ export function buildRichBody(input: {
     };
   } | null;
 } {
+  const hasBody = input.body !== undefined && input.body !== null;
   const body = String(input.body ?? "");
   const bodyRichRaw =
     input.body_rich && typeof input.body_rich === "object"
@@ -97,7 +98,7 @@ export function buildRichBody(input: {
   };
 
   return {
-    body: stripHtmlToPlainText(normalized.html),
+    body: hasBody ? body : stripHtmlToPlainText(normalized.html),
     body_rich: normalized,
   };
 }
