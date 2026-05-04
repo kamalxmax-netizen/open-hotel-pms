@@ -1,0 +1,139 @@
+/* ──────────────────────────────────────────────────────────
+   logbook-theme.css
+   Scoped under .logbook-shell — must not leak to global app.
+   All tokens prefixed --logbook-*.
+   ────────────────────────────────────────────────────────── */
+
+/* ═══════ Light (default) ═══════ */
+.logbook-shell {
+  /* Universal */
+  --logbook-pill-radius: 50px;
+  --logbook-card-radius: 12px;
+  --logbook-press-scale: 0.95;
+  --logbook-ease-press: cubic-bezier(.4,0,.2,1);
+  --logbook-duration-press: 200ms;
+  --logbook-duration-expand: 300ms;
+  --logbook-tracking: -0.01em;
+  --logbook-tracking-tight: -0.16px;
+  --logbook-font-base: "Inter", system-ui, sans-serif;
+  font-family: var(--logbook-font-base);
+
+  /* Spacing — Starbucks rem scale */
+  --logbook-space-1: 4px;
+  --logbook-space-2: 8px;
+  --logbook-space-3: 16px;
+  --logbook-space-4: 24px;
+  --logbook-space-5: 32px;
+  --logbook-space-6: 40px;
+  --logbook-space-7: 48px;
+  --logbook-space-8: 56px;
+  --logbook-space-9: 64px;
+
+  /* Surfaces */
+  --logbook-canvas: #f2f0eb;
+  --logbook-canvas-alt: #edebe9;
+  --logbook-card: #ffffff;
+  --logbook-header-bg: #e7dfd2;
+  --logbook-header-border: #d6cdbf;
+  --logbook-card-shadow: 0 0 .5px rgba(0,0,0,.14), 0 1px 1px rgba(0,0,0,.24);
+  --logbook-card-border: none;
+  --logbook-frap-shadow: 0 0 6px rgba(0,0,0,.24), 0 8px 12px rgba(0,0,0,.14);
+
+  /* Brand */
+  --logbook-brand-heading: #006241;
+  --logbook-cta-fill: #00754A;
+  --logbook-cta-text: #ffffff;
+  --logbook-cta-outline-text: #00754A;
+  --logbook-band-deep: #1E3932;
+  --logbook-band-soft: #2b5148;
+  --logbook-tint-green: #d4e9e2;
+  --logbook-gold: #cba258;
+
+  /* Text */
+  --logbook-text-primary: rgba(0,0,0,.87);
+  --logbook-text-secondary: rgba(0,0,0,.58);
+  --logbook-text-on-dark: #ffffff;
+  --logbook-text-on-dark-soft: rgba(255,255,255,.70);
+
+  /* Functional */
+  --logbook-danger: #c82014;
+  --logbook-warning: #fbbc05;
+  --logbook-field-border: #d6dbde;
+  --logbook-hairline: #e7e7e7;
+
+  /* Note type stripe colors */
+  --logbook-note-general: #64748b;
+  --logbook-note-task:    #eab308;
+  --logbook-note-urgent:  #f43f5e;
+  --logbook-note-stock:   #10b981;
+  --logbook-note-vip:     #8b5cf6;
+
+  /* Calendar bar fills */
+  --logbook-bar-general: #64748b;
+  --logbook-bar-task:    #d99a00;
+  --logbook-bar-urgent:  #e11d48;
+  --logbook-bar-stock:   #00754a;
+  --logbook-bar-vip:     #7c3aed;
+
+  /* Shift log */
+  --logbook-row-now: rgba(200,32,20,.08);
+  --logbook-now-line: #c82014;
+
+  /* Overlay */
+  --logbook-overlay-bg: rgba(0,0,0,.4);
+}
+
+/* ═══════ Dark ═══════ */
+html.dark .logbook-shell {
+  --logbook-canvas: #1E3932;
+  --logbook-canvas-alt: #2b5148;
+  --logbook-card: #2b5148;
+  --logbook-header-bg: #17342e;
+  --logbook-header-border: rgba(255,255,255,.14);
+  --logbook-card-shadow: 0 0 0 1px rgba(255,255,255,.08);
+  --logbook-card-border: 1px solid rgba(255,255,255,.06);
+  --logbook-frap-shadow: 0 0 6px rgba(0,0,0,.6), 0 8px 12px rgba(0,0,0,.4);
+
+  --logbook-brand-heading: #ffffff;
+  --logbook-cta-fill: #ffffff;
+  --logbook-cta-text: #00754A;
+  --logbook-cta-outline-text: #ffffff;
+  --logbook-band-deep: #000000;
+  --logbook-band-soft: #1E3932;
+  --logbook-tint-green: rgba(212,233,226,.12);
+  --logbook-gold: #cba258;
+
+  --logbook-text-primary: #ffffff;
+  --logbook-text-secondary: rgba(255,255,255,.70);
+  --logbook-text-on-dark: #ffffff;
+  --logbook-text-on-dark-soft: rgba(255,255,255,.70);
+
+  --logbook-danger: #ff6b5e;
+  --logbook-warning: #fbbc05;
+  --logbook-field-border: rgba(255,255,255,.20);
+  --logbook-hairline: rgba(255,255,255,.10);
+
+  --logbook-note-general: #94a3b8;
+  --logbook-note-task:    #fbbf24;
+  --logbook-note-urgent:  #fb7185;
+  --logbook-note-stock:   #34d399;
+  --logbook-note-vip:     #a78bfa;
+
+  --logbook-bar-general: #94a3b8;
+  --logbook-bar-task:    #f59e0b;
+  --logbook-bar-urgent:  #fb7185;
+  --logbook-bar-stock:   #34d399;
+  --logbook-bar-vip:     #a78bfa;
+
+  --logbook-row-now: rgba(255,107,94,.12);
+  --logbook-now-line: #ff6b5e;
+}
+
+/* ═══════ High Contrast ═══════
+   Per D14: Logbook renders as its own LIGHT scheme
+   when the app is in High Contrast mode.
+   Intentionally no overrides — falls through to .logbook-shell light.
+   ═══════ */
+html.high-contrast .logbook-shell {
+  /* Intentionally inherits .logbook-shell light values */
+}

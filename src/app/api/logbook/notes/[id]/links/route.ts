@@ -3,7 +3,7 @@ import {
   HttpError,
   normalizeLogbookLinkInput,
 } from "@/lib/logbook-api";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -26,7 +26,8 @@ const bodySchema = z.object({
 export async function POST(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
     }
     const noteId = params.data.id;
 
-    await assertCanManageLogbookNote(supabase, user?.id ?? null, noteId);
+    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const json = await request.json().catch(() => null);
     const parsed = bodySchema.safeParse(json);

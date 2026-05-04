@@ -9,13 +9,9 @@ export const fetchCache = "force-no-store";
 
 const paramsSchema = z.object({
   id: z.string().uuid(),
-  linkId: z.string().uuid(),
 });
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: { id: string; linkId: string } }
-) {
+export async function POST(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
     const auth = await requireStaffAuth(supabase, request);
@@ -24,39 +20,30 @@ export async function DELETE(
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
       return NextResponse.json(
-        { success: false, error: "Invalid params.", details: params.error.flatten() },
+        { success: false, error: "Invalid note id.", details: params.error.flatten() },
         { status: 400 }
       );
     }
-    const noteId = params.data.id;
-    const linkId = params.data.linkId;
 
+    const noteId = params.data.id;
     await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
-    const { data: existing, error: findError } = await supabase
-      .from("logbook_note_links")
-      .select("id")
-      .eq("id", linkId)
-      .eq("note_id", noteId)
-      .maybeSingle();
-
-    if (findError) throw new HttpError(500, findError.message);
-    if (!existing) throw new HttpError(404, "Link not found.");
-
     const { error } = await supabase
-      .from("logbook_note_links")
-      .delete()
-      .eq("id", linkId)
-      .eq("note_id", noteId);
+      .from("logbook_notes")
+      .update({
+        closed_at: null,
+        closed_by: null,
+      })
+      .eq("id", noteId);
 
     if (error) throw new HttpError(500, error.message);
-
-    return NextResponse.json({ success: true });
+    console.info("[logbook] note reopened", { noteId, actorUserId: auth.user.id });
+    return new NextResponse(null, { status: 204 });
   } catch (err) {
     if (err instanceof HttpError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
-    console.error("api/logbook/notes/[id]/links/[linkId] DELETE failed", err);
+    console.error("api/logbook/notes/[id]/reopen POST failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

@@ -1,26 +1,37 @@
+"use client"
+
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { LogbookCreateModal } from "../_components/LogbookCreateModal"
 
 export default function NewNotePage() {
-    return (
-        <div className="max-w-3xl mx-auto p-6 space-y-6">
-            <div className="flex items-center gap-4 border-b pb-4">
-                <Link href="/pms/logbook">
-                    <Button variant="outline" size="sm" className="shadow-sm">← Back to Board</Button>
-                </Link>
-                <h1 className="text-xl font-bold text-[var(--text-primary)]">Create New Note</h1>
-            </div>
+  const router = useRouter()
 
-            <div className="bg-[var(--bg-surface)] p-6 rounded-2xl border shadow-sm text-center text-[var(--text-secondary)] flex flex-col items-center gap-3 py-24">
-                <p className="text-5xl mb-2">📝</p>
-                <h3 className="font-bold text-[var(--text-table-cell)] text-lg">Note Form Generation Pending</h3>
-                <p className="max-w-md mx-auto text-sm leading-relaxed">
-                    The complex Logbook Note Form (with @mentions, room relations, and priority settings) will be implemented in Phase 12C.
-                </p>
-                <div className="mt-4 bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200 uppercase tracking-wider">
-                    Waiting for Backend RPC "create_logbook_note"
-                </div>
-            </div>
+  const returnToBoard = () => {
+    router.push("/pms/logbook")
+  }
+
+  return (
+    <div className="logbook-shell flex min-h-[100dvh] w-full flex-col bg-[var(--logbook-canvas)]">
+      <div className="flex w-full min-w-0 flex-none border-b border-[var(--logbook-header-border)] bg-[var(--logbook-header-bg)] px-6 py-4 shadow-[var(--logbook-card-shadow)]">
+        <div className="flex w-full min-w-0 items-center gap-5 overflow-x-auto">
+          <h1 className="whitespace-nowrap text-2xl font-bold text-[var(--logbook-brand-heading)] tracking-[0]">Logbook</h1>
+          <div className="flex items-center rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1">
+            <Link href="/pms/logbook" className="rounded-[var(--logbook-pill-radius)] px-3 py-1 text-sm font-semibold text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]">
+              Board
+            </Link>
+            <Link href="/pms/logbook/calendar" className="rounded-[var(--logbook-pill-radius)] px-3 py-1 text-sm font-semibold text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]">
+              Calendar
+            </Link>
+          </div>
         </div>
-    )
+      </div>
+
+      <div className="flex flex-1 items-center justify-center p-6 text-sm text-[var(--logbook-text-secondary)]">
+        Opening new note...
+      </div>
+
+      <LogbookCreateModal isOpen onClose={returnToBoard} />
+    </div>
+  )
 }

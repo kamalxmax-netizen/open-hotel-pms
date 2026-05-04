@@ -1,8 +1,5 @@
-import {
-  assertCanManageLogbookNote,
-  HttpError,
-  normalizeLogbookMentionInput,
-} from "@/lib/logbook-api";
+import { HttpError } from "@/lib/logbook-api";
+import { assertShiftLogDate, assertShiftLogHour, upsertShiftLogEntry } from "@/lib/shift-log-api";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
@@ -12,15 +9,19 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 const paramsSchema = z.object({
-  id: z.string().uuid(),
+  date: z.string(),
+  hour: z.string(),
 });
 
 const bodySchema = z.object({
-  mention_type: z.enum(["staff", "group_all", "group_frontdesk"]),
-  staff_id: z.string().uuid().optional().nullable(),
+  body: z.string().max(10000),
+  body_rich: z.record(z.string(), z.any()).nullable().optional(),
 });
 
-export async function POST(request: NextRequest, context: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  context: { params: { date: string; hour: string } }
+) {
   try {
     const supabase = createServerSupabaseClient();
     const auth = await requireStaffAuth(supabase, request);
@@ -29,13 +30,10 @@ export async function POST(request: NextRequest, context: { params: { id: string
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
       return NextResponse.json(
-        { success: false, error: "Invalid note id.", details: params.error.flatten() },
+        { success: false, error: "Invalid params.", details: params.error.flatten() },
         { status: 400 }
       );
     }
-    const noteId = params.data.id;
-
-    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const json = await request.json().catch(() => null);
     const parsed = bodySchema.safeParse(json);
@@ -46,31 +44,20 @@ export async function POST(request: NextRequest, context: { params: { id: string
       );
     }
 
-    const normalized = await normalizeLogbookMentionInput(supabase, parsed.data);
+    const entry = await upsertShiftLogEntry(supabase, {
+      userId: auth.user.id,
+      logDate: assertShiftLogDate(params.data.date),
+      hourSlot: assertShiftLogHour(params.data.hour),
+      body: parsed.data.body,
+      body_rich: parsed.data.body_rich ?? null,
+    });
 
-    const { data, error } = await supabase
-      .from("logbook_note_mentions")
-      .insert({
-        note_id: noteId,
-        mention_type: normalized.mention_type,
-        staff_id: normalized.staff_id,
-      })
-      .select("id, note_id, mention_type, staff_id, is_acknowledged, created_at")
-      .maybeSingle();
-
-    if (error) {
-      if (String((error as { code?: string }).code ?? "") === "23505") {
-        throw new HttpError(409, "Mention already exists on this note.");
-      }
-      throw new HttpError(500, error.message);
-    }
-
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data: entry });
   } catch (err) {
     if (err instanceof HttpError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
-    console.error("api/logbook/notes/[id]/mentions POST failed", err);
+    console.error("api/shift-log/[date]/[hour] PATCH failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

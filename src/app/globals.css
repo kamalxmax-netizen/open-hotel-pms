@@ -294,6 +294,15 @@ html.dark .sidebar:hover {
   overflow-x: hidden;
 }
 
+.app-shell-logbook .main-content {
+  background: var(--logbook-canvas, var(--bg-body));
+}
+
+.page-body.page-body-flush {
+  padding: 0;
+  overflow: auto;
+}
+
 /* ─── Cards ───────────────────────────────────── */
 .card {
   @apply rounded-2xl border shadow-sm;
