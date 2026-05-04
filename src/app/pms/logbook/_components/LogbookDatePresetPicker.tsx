@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { formatLogbookDateTime } from "./logbook-date-format";
 
 type Props = {
   startAt: Date;
@@ -24,17 +25,7 @@ function getBkkEndOfDay(baseDate: Date, offsetDays: number): Date {
 }
 
 function formatBkk(date: Date): string {
-  if (Number.isNaN(date.getTime())) return "";
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Bangkok",
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return formatter.format(date);
+  return formatLogbookDateTime(date);
 }
 
 export function LogbookDatePresetPicker({ startAt, value, onChange }: Props) {

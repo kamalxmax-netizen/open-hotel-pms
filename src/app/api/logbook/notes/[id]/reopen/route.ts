@@ -31,6 +31,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
     const { error } = await supabase
       .from("logbook_notes")
       .update({
+        status: "open",
         closed_at: null,
         closed_by: null,
       })

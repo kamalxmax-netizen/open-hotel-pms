@@ -13,6 +13,7 @@ import {
   plainTextToHtml,
 } from "./logbook-rich"
 import { resolveLogbookLinkHref } from "./logbook-link-navigation"
+import { formatLogbookCompactDateTime, formatLogbookDateTime } from "./logbook-date-format"
 
 type NoteUpdateOptions = {
   historyMode?: "coalesced" | "immediate" | "none"
@@ -73,19 +74,7 @@ const NOTE_TYPE_META: Record<LogbookNote["note_type"], { label: string; dot: str
 }
 
 function formatCompactCreatedAt(value: string | null | undefined): string {
-  if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Bangkok",
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    hour12: false,
-  }).formatToParts(date)
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ""
-  return `${get("hour")}:${get("minute")} ${get("day")}/${get("month")}`.trim()
+  return formatLogbookCompactDateTime(value)
 }
 
 type InlineAtAction =
@@ -788,7 +777,7 @@ export function LogbookNoteCard({
               {createdMeta ? ` ${createdMeta}` : ""}
             </span>
             {note.remind_at ? (
-              <span className="truncate font-medium">{new Date(note.remind_at).toLocaleString()}</span>
+              <span className="truncate font-medium">{formatLogbookDateTime(note.remind_at)}</span>
             ) : null}
           </div>
 

@@ -46,6 +46,7 @@ const querySchema = z.object({
   range_start: z.string().regex(dateRegex, "range_start must be YYYY-MM-DD").optional(),
   range_end: z.string().regex(dateRegex, "range_end must be YYYY-MM-DD").optional(),
   range_mode: z.enum(["board", "calendar"]).optional().default("board"),
+  all_active: booleanQueryParam.default(false),
   past: booleanQueryParam.default(false),
   type: z.string().optional(),
   staff_id: z.string().uuid().optional(),
@@ -137,6 +138,7 @@ export async function GET(request: NextRequest) {
       range_start: request.nextUrl.searchParams.get("range_start") ?? undefined,
       range_end: request.nextUrl.searchParams.get("range_end") ?? undefined,
       range_mode: request.nextUrl.searchParams.get("range_mode") ?? undefined,
+      all_active: request.nextUrl.searchParams.get("all_active") ?? undefined,
       past: request.nextUrl.searchParams.get("past") ?? undefined,
       type: request.nextUrl.searchParams.get("type") ?? undefined,
       staff_id: request.nextUrl.searchParams.get("staff_id") ?? undefined,
@@ -154,8 +156,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { staff_id, status, limit, offset, archived, past, q, range_mode } = parsed.data;
-    const date = parsed.data.date ?? (!parsed.data.range_start && !parsed.data.range_end && !past && !archived
+    const { staff_id, status, limit, offset, archived, past, q, range_mode, all_active } = parsed.data;
+    const date = parsed.data.date ?? (!parsed.data.range_start && !parsed.data.range_end && !past && !archived && !all_active
       ? getBangkokDateForInstant(new Date())
       : undefined);
     const rangeStart = parsed.data.range_start;
@@ -186,11 +188,14 @@ export async function GET(request: NextRequest) {
       const nowIso = new Date().toISOString();
       query = query
         .is("archived_at", null)
-        .or(`closed_at.not.is.null,end_at.lt.${nowIso}`);
+        .or(`end_at.lt.${nowIso},and(end_at.is.null,closed_at.not.is.null)`);
     } else if (range_mode === "calendar") {
       // Calendar is a timeline/history surface: include active, closed, and archived notes.
     } else {
-      query = query.is("archived_at", null).is("closed_at", null);
+      const nowIso = new Date().toISOString();
+      query = query
+        .is("archived_at", null)
+        .or(`end_at.is.null,end_at.gte.${nowIso}`);
     }
     if (status) query = query.eq("status", status);
     if (staff_id) query = query.eq("created_by", staff_id);
@@ -210,12 +215,19 @@ export async function GET(request: NextRequest) {
         .lte("start_at", to)
         .or(`end_at.is.null,end_at.gte.${from}`);
     }
-    query = query.order("updated_at", { ascending: false });
+    query = archived
+      ? query.order("archived_at", { ascending: false })
+      : query.order("updated_at", { ascending: false });
 
     const { data, error, count } = await query;
     if (error) throw new HttpError(500, error.message);
 
     const notes = (await hydrateLogbookNotes(supabase, (data ?? []) as LogbookNoteRow[])).sort((a, b) => {
+      if (archived) {
+        const aArchivedAt = Date.parse(a.archived_at ?? a.updated_at);
+        const bArchivedAt = Date.parse(b.archived_at ?? b.updated_at);
+        return bArchivedAt - aArchivedAt;
+      }
       const aPriority = PRIORITY_RANK[a.priority] ?? 0;
       const bPriority = PRIORITY_RANK[b.priority] ?? 0;
       if (aPriority !== bPriority) return bPriority - aPriority;

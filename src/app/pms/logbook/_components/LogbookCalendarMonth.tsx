@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { LogbookNote } from "@/lib/types";
+import { formatLogbookDate } from "./logbook-date-format";
 
 interface LogbookCalendarMonthProps {
   currentDate: Date;
@@ -58,7 +59,9 @@ export function LogbookCalendarMonth({
     return res;
   }, [days]);
 
-  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
+  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+  const monthName = `${formatLogbookDate(monthStart)} - ${formatLogbookDate(monthEnd)}`;
   const todayKey = normalizeDate(new Date()).getTime();
 
   const toggleWeek = (weekIdx: number) => {
@@ -70,7 +73,7 @@ export function LogbookCalendarMonth({
       <div className="flex items-center justify-between p-4 border-b border-[var(--logbook-hairline)]">
         <div className="flex items-center gap-2">
           <button onClick={onPrevMonth} className="px-2 py-1 hover:bg-[var(--logbook-canvas-alt)] rounded">&lt;</button>
-          <h2 className="font-bold text-[var(--logbook-brand-heading)] w-32 text-center">{monthName}</h2>
+          <h2 className="w-56 text-center font-bold text-[var(--logbook-brand-heading)]">{monthName}</h2>
           <button onClick={onNextMonth} className="px-2 py-1 hover:bg-[var(--logbook-canvas-alt)] rounded">&gt;</button>
         </div>
       </div>
