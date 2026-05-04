@@ -32,6 +32,8 @@ type NoteHistoryBucket = {
   pendingSnapshot: NoteSnapshot | null
 }
 
+const CONTENT_REFRESH_PROTECTION_MS = 45_000
+
 function cloneSnapshot(note: LogbookNote): NoteSnapshot {
   return {
     title: note.title,
@@ -113,6 +115,7 @@ export default function LogbookPage() {
   const contentAbortControllers = useRef<Map<string, AbortController>>(new Map())
   const contentDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const contentSaveVersions = useRef<Map<string, number>>(new Map())
+  const contentEditedAt = useRef<Map<string, number>>(new Map())
   const historyBuckets = useRef<Map<string, NoteHistoryBucket>>(new Map())
   const historyFlushTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const archiveUndoTimer = useRef<NodeJS.Timeout | null>(null)
@@ -141,10 +144,19 @@ export default function LogbookPage() {
   }, [])
 
   const getDirtyContentNoteIds = useCallback(() => {
-    return new Set<string>([
+    const now = Date.now()
+    const dirtyIds = new Set<string>([
       ...Array.from(contentDebounceTimers.current.keys()),
       ...Array.from(contentAbortControllers.current.keys()),
     ])
+    for (const [noteId, editedAt] of contentEditedAt.current.entries()) {
+      if (now - editedAt <= CONTENT_REFRESH_PROTECTION_MS) {
+        dirtyIds.add(noteId)
+      } else {
+        contentEditedAt.current.delete(noteId)
+      }
+    }
+    return dirtyIds
   }, [])
 
   const refreshSingleNote = useCallback(
@@ -438,6 +450,7 @@ export default function LogbookPage() {
       }
 
       setNotes((prev) => prev.map((note) => (note.id === id ? { ...note, ...updates } : note)))
+      contentEditedAt.current.set(id, Date.now())
       const nextVersion = (contentSaveVersions.current.get(id) ?? 0) + 1
       contentSaveVersions.current.set(id, nextVersion)
       persistContentUpdate(id, updates, saveMode === "immediate", nextVersion)
