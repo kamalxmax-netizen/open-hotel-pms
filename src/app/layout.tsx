@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "@/styles/print.css";
+import "@/styles/logbook-theme.css";
 import AppShell from "@/components/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LostFoundPopupProvider } from "@/components/providers/lost-found-popup-context";

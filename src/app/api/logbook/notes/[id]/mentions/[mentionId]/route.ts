@@ -1,5 +1,5 @@
 import { assertCanManageLogbookNote, HttpError } from "@/lib/logbook-api";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -18,7 +18,8 @@ export async function DELETE(
 ) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -30,7 +31,7 @@ export async function DELETE(
     const noteId = params.data.id;
     const mentionId = params.data.mentionId;
 
-    await assertCanManageLogbookNote(supabase, user?.id ?? null, noteId);
+    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const { data: existing, error: findError } = await supabase
       .from("logbook_note_mentions")

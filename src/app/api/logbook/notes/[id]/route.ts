@@ -4,13 +4,15 @@ import {
   extractLogbookInlineRefs,
   HttpError,
   LOGBOOK_BOARD_MODES,
+  LOGBOOK_WINDOW_PRESETS,
   normalizeLogbookLinkInput,
   LOGBOOK_NOTE_TYPES,
   LOGBOOK_PRIORITIES,
   LOGBOOK_STATUSES,
+  resolveLogbookWindow,
 } from "@/lib/logbook-api";
-import { hydrateLogbookNotes, LogbookNoteRow } from "@/lib/logbook-query";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { hydrateLogbookNotes, LOGBOOK_NOTE_SELECT, LogbookNoteRow } from "@/lib/logbook-query";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,6 +33,9 @@ const patchSchema = z
     status: z.enum(LOGBOOK_STATUSES).optional(),
     priority: z.enum(LOGBOOK_PRIORITIES).optional(),
     remind_at: z.string().datetime().nullable().optional(),
+    start_at: z.string().datetime().nullable().optional(),
+    end_at: z.string().datetime().nullable().optional(),
+    preset: z.enum(LOGBOOK_WINDOW_PRESETS).optional(),
     board_mode: z.enum(LOGBOOK_BOARD_MODES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "At least one field is required.");
@@ -38,9 +43,8 @@ const patchSchema = z
 export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
-    // Legacy PMS mode: allow read without strict auth gate.
-    void user;
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -53,9 +57,7 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     const noteId = params.data.id;
     const { data, error } = await supabase
       .from("logbook_notes")
-      .select(
-        "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, archived_at, archived_by, created_by, created_at, updated_at"
-      )
+      .select(LOGBOOK_NOTE_SELECT)
       .eq("id", noteId)
       .maybeSingle();
 
@@ -77,7 +79,8 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 export async function PATCH(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -88,7 +91,7 @@ export async function PATCH(request: NextRequest, context: { params: { id: strin
     }
     const noteId = params.data.id;
 
-    await assertCanManageLogbookNote(supabase, user?.id ?? null, noteId);
+    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const json = await request.json().catch(() => null);
     const parsed = patchSchema.safeParse(json);
@@ -113,6 +116,22 @@ export async function PATCH(request: NextRequest, context: { params: { id: strin
     if (payload.status !== undefined) updates.status = payload.status;
     if (payload.priority !== undefined) updates.priority = payload.priority;
     if (payload.remind_at !== undefined) updates.remind_at = payload.remind_at;
+    if (payload.start_at !== undefined || payload.end_at !== undefined || payload.preset !== undefined) {
+      const { data: current, error: currentError } = await supabase
+        .from("logbook_notes")
+        .select("start_at, end_at")
+        .eq("id", noteId)
+        .maybeSingle();
+      if (currentError) throw new HttpError(500, currentError.message);
+      if (!current) throw new HttpError(404, "Logbook note not found.");
+      const window = resolveLogbookWindow({
+        start_at: payload.start_at === undefined ? String(current.start_at) : payload.start_at,
+        end_at: payload.end_at === undefined ? String(current.end_at ?? "") || undefined : payload.end_at,
+        preset: payload.preset,
+      });
+      updates.start_at = window.start_at;
+      updates.end_at = window.end_at;
+    }
     if (payload.board_mode !== undefined) {
       updates.board_mode = payload.board_mode;
       updates.is_minimized = payload.board_mode === "minimized";
@@ -126,9 +145,7 @@ export async function PATCH(request: NextRequest, context: { params: { id: strin
       .from("logbook_notes")
       .update(updates)
       .eq("id", noteId)
-      .select(
-        "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, archived_at, archived_by, created_by, created_at, updated_at"
-      )
+      .select(LOGBOOK_NOTE_SELECT)
       .maybeSingle();
 
     if (updateError) throw new HttpError(500, updateError.message);
@@ -219,7 +236,8 @@ export async function PATCH(request: NextRequest, context: { params: { id: strin
 export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -230,7 +248,7 @@ export async function DELETE(request: NextRequest, context: { params: { id: stri
     }
     const noteId = params.data.id;
 
-    await assertCanManageLogbookNote(supabase, user?.id ?? null, noteId);
+    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const { data: noteRow, error: noteError } = await supabase
       .from("logbook_notes")

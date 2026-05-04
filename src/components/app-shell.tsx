@@ -35,6 +35,7 @@ export default function AppShell({
     pathname === "/pms/smart-card" ||
     pathname === "/passport-ocr" ||
     pathname === "/pms/passport-ocr";
+  const isLogbookRoute = pathname.startsWith("/pms/logbook");
 
   useEffect(() => {
     ensureCopyBoardFocusTracking();
@@ -75,11 +76,11 @@ export default function AppShell({
   const showBugReport = process.env.NEXT_PUBLIC_SHOW_BUG_REPORT === "true";
 
   return (
-    <div className="app-shell">
+    <div className={isLogbookRoute ? "app-shell app-shell-logbook" : "app-shell"}>
       <UiEventLogProvider />
       <Sidebar />
       <div className="main-content">
-        <main className="page-body">{children}</main>
+        <main className={isLogbookRoute ? "page-body page-body-flush" : "page-body"}>{children}</main>
       </div>
       <AlertPendingPopup pageName="PMS" />
       <ShiftLogoutReminder />

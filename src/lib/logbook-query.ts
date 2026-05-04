@@ -3,6 +3,9 @@ import { LogbookMention, LogbookNote, LogbookNoteLink, LogbookRichBody } from "@
 
 type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
 
+export const LOGBOOK_NOTE_SELECT =
+  "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, start_at, end_at, closed_at, closed_by, archived_at, archived_by, created_by, created_at, updated_at";
+
 export type LogbookNoteRow = {
   id: string;
   title: string;
@@ -18,6 +21,10 @@ export type LogbookNoteRow = {
   is_minimized: boolean;
   board_mode: string | null;
   remind_at: string | null;
+  start_at: string;
+  end_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
   archived_at: string | null;
   archived_by: string | null;
   body_rich: unknown;
@@ -207,6 +214,10 @@ export async function hydrateLogbookNotes(
           ? "minimized"
           : "middle",
       remind_at: toNullableString(row.remind_at),
+      start_at: String(row.start_at ?? row.created_at),
+      end_at: toNullableString(row.end_at),
+      closed_at: toNullableString(row.closed_at),
+      closed_by: toNullableString(row.closed_by),
       archived_at: toNullableString(row.archived_at),
       archived_by: toNullableString(row.archived_by),
       created_by: String(row.created_by),

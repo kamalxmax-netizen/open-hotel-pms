@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { LogbookBoardCanvas } from "./_components/LogbookBoardCanvas"
 import { LogbookFilterBar } from "./_components/LogbookFilterBar"
 import { LogbookCreateButton } from "./_components/LogbookCreateButton"
 import { LogbookMobileList } from "./_components/LogbookMobileList"
 import { LogbookArchiveDrawer } from "./_components/LogbookArchiveDrawer"
 import { LogbookFullViewModal } from "./_components/LogbookFullViewModal"
+import { LogbookCreateModal } from "./_components/LogbookCreateModal"
 import { Button } from "@/components/ui/button"
 import { LogbookMention, LogbookNote, LogbookNoteLink } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -81,6 +83,17 @@ function getMinimizedNoteWidth(note: LogbookNote) {
   return Math.min(560, titleWidth + 118)
 }
 
+type DateMode = "today" | "date" | "range"
+
+function formatDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function daysBetween(a: Date, b: Date) {
+  const ms = Math.abs(b.getTime() - a.getTime())
+  return Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1
+}
+
 export default function LogbookPage() {
   const [notes, setNotes] = useState<LogbookNote[]>([])
   const [archivedNotes, setArchivedNotes] = useState<LogbookNote[]>([])
@@ -92,6 +105,14 @@ export default function LogbookPage() {
   const [archiveUndo, setArchiveUndo] = useState<{ note: LogbookNote } | null>(null)
   const [, setHistoryVersion] = useState(0)
   const { toast } = useToast()
+
+  // ── L1 additive state ──
+  const [dateMode, setDateMode] = useState<DateMode>("today")
+  const [selectedDate, setSelectedDate] = useState<string>(formatDateStr(new Date()))
+  const [rangeStart, setRangeStart] = useState<string>(formatDateStr(new Date()))
+  const [rangeEnd, setRangeEnd] = useState<string>(formatDateStr(new Date()))
+  const [showPast, setShowPast] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const positionAbortControllers = useRef<Map<string, AbortController>>(new Map())
   const positionDebounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
@@ -138,6 +159,19 @@ export default function LogbookPage() {
   const fetchNotes = useCallback(async () => {
     try {
       const url = new URL("/api/logbook/notes", window.location.origin)
+
+      // ── L1: date / range / past params ──
+      if (showPast) {
+        url.searchParams.set("past", "1")
+      } else if (dateMode === "today") {
+        url.searchParams.set("date", formatDateStr(new Date()))
+      } else if (dateMode === "date") {
+        url.searchParams.set("date", selectedDate)
+      } else if (dateMode === "range") {
+        url.searchParams.set("range_start", rangeStart)
+        url.searchParams.set("range_end", rangeEnd)
+      }
+
       const res = await fetchWithTimeout(url.toString(), { cache: "no-store" })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.success) {
@@ -156,7 +190,7 @@ export default function LogbookPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchWithTimeout])
+  }, [fetchWithTimeout, dateMode, selectedDate, rangeStart, rangeEnd, showPast])
 
   const fetchArchivedNotes = useCallback(async () => {
     try {
@@ -572,6 +606,31 @@ export default function LogbookPage() {
     }
   }
 
+  // ── L1: close note (not archive — moves to Past) ──
+  const handleCloseNote = async (noteId: string) => {
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, closed_at: new Date().toISOString() } : n)))
+    try {
+      const res = await fetch(`/api/logbook/notes/${noteId}/close`, { method: "POST" })
+      if (!res.ok) throw new Error("Failed to close note")
+      await fetchNotes()
+    } catch (error) {
+      console.error("Failed to close note", error)
+      toast({ title: "Error", description: "Failed to close note", variant: "destructive" })
+    }
+  }
+
+  // ── L1: range validation ──
+  const handleRangeEndChange = (value: string) => {
+    if (!value) { setRangeEnd(value); return }
+    const start = new Date(rangeStart)
+    const end = new Date(value)
+    if (daysBetween(start, end) > 7) {
+      toast({ title: "Range too wide", description: "Maximum 7 days allowed.", variant: "destructive" })
+      return
+    }
+    setRangeEnd(value)
+  }
+
   const handleAddMention = async (
     noteId: string,
     mentionData: Pick<LogbookMention, "mention_type" | "staff_id">
@@ -838,28 +897,69 @@ export default function LogbookPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden bg-[#f8f9fa]">
-      <div className="z-50 flex w-full min-w-0 flex-none border-b bg-[var(--bg-surface)] p-3 shadow-sm">
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-          <h1 className="shrink-0 whitespace-nowrap text-lg font-bold text-[var(--text-primary)]">Logbook</h1>
-
-          <div className="min-w-0">
-            <LogbookFilterBar filterTypes={filterTypes} toggleFilterType={toggleFilterType} />
+    <div className="logbook-shell flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden bg-[var(--logbook-canvas)]">
+      <div className="z-50 flex w-full min-w-0 flex-none border-b border-[var(--logbook-header-border)] bg-[var(--logbook-header-bg)] px-6 py-4 shadow-[var(--logbook-card-shadow)]">
+        <div className="flex w-full min-w-0 items-center gap-5 overflow-x-auto">
+          {/* Title + Nav Capsule */}
+          <div className="flex shrink-0 items-center gap-5">
+            <h1 className="whitespace-nowrap text-2xl font-bold text-[var(--logbook-brand-heading)] tracking-[0]">Logbook</h1>
+            <div className="flex items-center rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1">
+              <span className="rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-card)] px-3 py-1 text-sm font-semibold text-[var(--logbook-brand-heading)] shadow-sm">Board</span>
+              <Link href="/pms/logbook/calendar" className="rounded-[var(--logbook-pill-radius)] px-3 py-1 text-sm font-semibold text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]">Calendar</Link>
+            </div>
           </div>
 
+          {/* Filters */}
+          <div className="flex min-w-max flex-1 items-center gap-2">
+            <LogbookFilterBar filterTypes={filterTypes} toggleFilterType={toggleFilterType} />
+
+            {/* Active / Past toggle */}
+            <button
+              type="button"
+              onClick={() => setShowPast((v) => !v)}
+              className={`h-8 shrink-0 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold transition ${
+                showPast
+                  ? "bg-[var(--logbook-gold)] text-black"
+                  : "bg-[var(--logbook-canvas-alt)] text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]"
+              }`}
+            >
+              {showPast ? "Past" : "Active"}
+            </button>
+
+            {/* Date mode selector */}
+            <div className="flex h-8 shrink-0 items-center gap-1 rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1">
+              <button type="button" onClick={() => setDateMode("today")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "today" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Today</button>
+              <button type="button" onClick={() => setDateMode("date")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "date" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Date</button>
+              <button type="button" onClick={() => setDateMode("range")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "range" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Range</button>
+            </div>
+
+            {/* Date inputs */}
+            {dateMode === "date" && (
+              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-8 shrink-0 rounded-[var(--logbook-pill-radius)] border border-[var(--logbook-field-border)] bg-[var(--logbook-card)] px-3 text-xs font-semibold text-[var(--logbook-text-primary)]" />
+            )}
+            {dateMode === "range" && (
+              <div className="flex shrink-0 items-center gap-1">
+                <input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} className="h-8 rounded-[var(--logbook-pill-radius)] border border-[var(--logbook-field-border)] bg-[var(--logbook-card)] px-3 text-xs font-semibold text-[var(--logbook-text-primary)]" />
+                <span className="text-xs text-[var(--logbook-text-secondary)]">→</span>
+                <input type="date" value={rangeEnd} onChange={(e) => handleRangeEndChange(e.target.value)} className="h-8 rounded-[var(--logbook-pill-radius)] border border-[var(--logbook-field-border)] bg-[var(--logbook-card)] px-3 text-xs font-semibold text-[var(--logbook-text-primary)]" />
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" className="h-9 px-3 text-xs sm:h-10 sm:text-sm" onClick={handleRearrangeNotes}>
-              Rearrange
-            </Button>
-            <Button variant="outline" className="h-9 px-3 text-xs sm:h-10 sm:text-sm" onClick={() => setArchiveDrawerOpen(true)}>
+            <Button variant="outline" className="h-9 rounded-[var(--logbook-pill-radius)] border-[var(--logbook-field-border)] bg-[var(--logbook-canvas-alt)] px-4 text-xs font-semibold text-[var(--logbook-text-primary)] hover:bg-[var(--logbook-card)] sm:h-9 sm:text-sm" onClick={() => setArchiveDrawerOpen(true)}>
               Archive
             </Button>
-            <LogbookCreateButton onClick={handleAddNote} />
+            <Button variant="outline" className="h-9 rounded-[var(--logbook-pill-radius)] border-[var(--logbook-cta-fill)] px-4 text-xs font-semibold text-[var(--logbook-cta-outline-text)] hover:bg-[var(--logbook-canvas-alt)] sm:h-9 sm:text-sm" onClick={handleRearrangeNotes}>
+              Rearrange
+            </Button>
+            <LogbookCreateButton onClick={() => setIsCreateModalOpen(true)} />
           </div>
         </div>
       </div>
 
-      <div className="canvas-bg relative hidden w-full min-w-0 flex-1 overflow-auto bg-[var(--bg-body)] sm:block">
+      <div className="canvas-bg relative hidden w-full min-w-0 flex-1 overflow-auto bg-[var(--logbook-canvas)] sm:block">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="rounded-lg border bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-secondary)] shadow-sm">
@@ -887,8 +987,8 @@ export default function LogbookPage() {
                 Start with your first post-it note. You can drag, resize, link, mention, archive, and restore.
               </p>
               <button
-                onClick={handleAddNote}
-                className="mt-3 inline-flex rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="mt-3 inline-flex rounded-md bg-[var(--logbook-cta-fill)] px-3 py-1.5 text-xs font-semibold text-[var(--logbook-cta-text)] hover:opacity-90"
               >
                 + New Note
               </button>
@@ -913,7 +1013,7 @@ export default function LogbookPage() {
         )}
       </div>
 
-      <div className="w-full min-w-0 flex-1 overflow-auto bg-[var(--bg-body)] pb-20 sm:hidden">
+      <div className="w-full min-w-0 flex-1 overflow-auto bg-[var(--logbook-canvas)] pb-20 sm:hidden">
         <LogbookMobileList
           notes={visibleNotes}
           onUpdateContent={handleUpdateNoteContent}
@@ -969,11 +1069,18 @@ export default function LogbookPage() {
         </div>
       ) : null}
 
+      {/* ── L1: Create Modal (with start_at / end_at / preset) ── */}
+      <LogbookCreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => fetchNotes()}
+      />
+
       <style
         dangerouslySetInnerHTML={{
           __html: `
             .canvas-bg {
-              background-image: radial-gradient(rgba(148, 163, 184, 0.2) 1px, transparent 0);
+              background-image: radial-gradient(color-mix(in srgb, var(--logbook-hairline) 70%, transparent) 1px, transparent 0);
               background-size: 24px 24px;
             }
           `,

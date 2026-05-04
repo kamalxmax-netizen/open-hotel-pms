@@ -1,6 +1,6 @@
 import { assertCanManageLogbookNote, HttpError } from "@/lib/logbook-api";
-import { hydrateLogbookNotes, LogbookNoteRow } from "@/lib/logbook-query";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { hydrateLogbookNotes, LOGBOOK_NOTE_SELECT, LogbookNoteRow } from "@/lib/logbook-query";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,7 +15,8 @@ const paramsSchema = z.object({
 export async function POST(request: NextRequest, context: { params: { id: string } }) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const params = paramsSchema.safeParse(context.params);
     if (!params.success) {
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
     }
 
     const noteId = params.data.id;
-    await assertCanManageLogbookNote(supabase, user?.id ?? null, noteId);
+    await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
 
     const { data, error } = await supabase
       .from("logbook_notes")
@@ -36,9 +37,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
       })
       .eq("id", noteId)
       .not("archived_at", "is", null)
-      .select(
-        "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, archived_at, archived_by, created_by, created_at, updated_at"
-      )
+      .select(LOGBOOK_NOTE_SELECT)
       .maybeSingle();
 
     if (error) throw new HttpError(500, error.message);

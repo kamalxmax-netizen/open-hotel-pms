@@ -2,6 +2,8 @@ import {
   buildRichBody,
   dedupeMentionInputs,
   extractLogbookInlineRefs,
+  getBangkokDateForInstant,
+  getBangkokDayWindow,
   getNextLogbookZIndex,
   LOGBOOK_BOARD_MODES,
   HttpError,
@@ -9,12 +11,14 @@ import {
   LOGBOOK_NOTE_TYPES,
   LOGBOOK_PRIORITIES,
   LOGBOOK_STATUSES,
+  LOGBOOK_WINDOW_PRESETS,
   normalizeLogbookLinkInput,
   normalizeLogbookMentionInput,
+  resolveLogbookWindow,
   resolveLogbookActorStaffId,
 } from "@/lib/logbook-api";
-import { hydrateLogbookNotes, LogbookNoteRow } from "@/lib/logbook-query";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { hydrateLogbookNotes, LOGBOOK_NOTE_SELECT, LogbookNoteRow } from "@/lib/logbook-query";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -29,6 +33,8 @@ const booleanQueryParam = z.preprocess((value) => {
   if (typeof value === "boolean") return value;
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
+    if (normalized === "1" || normalized === "yes") return true;
+    if (normalized === "0" || normalized === "no") return false;
     if (normalized === "true") return true;
     if (normalized === "false") return false;
   }
@@ -37,6 +43,10 @@ const booleanQueryParam = z.preprocess((value) => {
 
 const querySchema = z.object({
   date: z.string().regex(dateRegex, "date must be YYYY-MM-DD").optional(),
+  range_start: z.string().regex(dateRegex, "range_start must be YYYY-MM-DD").optional(),
+  range_end: z.string().regex(dateRegex, "range_end must be YYYY-MM-DD").optional(),
+  range_mode: z.enum(["board", "calendar"]).optional().default("board"),
+  past: booleanQueryParam.default(false),
   type: z.string().optional(),
   staff_id: z.string().uuid().optional(),
   status: z.enum(LOGBOOK_STATUSES).optional(),
@@ -67,6 +77,9 @@ const createSchema = z.object({
   status: z.enum(LOGBOOK_STATUSES).optional().default("open"),
   priority: z.enum(LOGBOOK_PRIORITIES).optional().default("normal"),
   remind_at: z.string().datetime().optional().nullable(),
+  start_at: z.string().datetime().optional().nullable(),
+  end_at: z.string().datetime().optional().nullable(),
+  preset: z.enum(LOGBOOK_WINDOW_PRESETS).optional(),
   x: z.coerce.number().int().min(-10000).max(10000).optional(),
   y: z.coerce.number().int().min(-10000).max(10000).optional(),
   width: z.coerce.number().int().min(200).max(1200).optional().default(320),
@@ -78,14 +91,19 @@ const createSchema = z.object({
   mentions: z.array(createMentionSchema).optional().default([]),
 });
 
-function toUTCWindow(date: string): { from: string; to: string } {
-  const from = `${date}T00:00:00.000Z`;
-  const base = new Date(from);
-  base.setUTCDate(base.getUTCDate() + 1);
-  return {
-    from,
-    to: base.toISOString(),
-  };
+const PRIORITY_RANK: Record<(typeof LOGBOOK_PRIORITIES)[number], number> = {
+  urgent: 4,
+  high: 3,
+  normal: 2,
+  low: 1,
+};
+
+function getInclusiveRangeDays(startDate: string, endDate: string): number {
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+  const startUtc = Date.UTC(startYear, startMonth - 1, startDay);
+  const endUtc = Date.UTC(endYear, endMonth - 1, endDay);
+  return Math.floor((endUtc - startUtc) / 86_400_000) + 1;
 }
 
 function parseTypeList(raw: string | undefined): Array<(typeof LOGBOOK_NOTE_TYPES)[number]> {
@@ -111,12 +129,15 @@ function parseTypeList(raw: string | undefined): Array<(typeof LOGBOOK_NOTE_TYPE
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
-    // Legacy PMS mode: allow read without strict auth gate.
-    void user;
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const parsed = querySchema.safeParse({
       date: request.nextUrl.searchParams.get("date") ?? undefined,
+      range_start: request.nextUrl.searchParams.get("range_start") ?? undefined,
+      range_end: request.nextUrl.searchParams.get("range_end") ?? undefined,
+      range_mode: request.nextUrl.searchParams.get("range_mode") ?? undefined,
+      past: request.nextUrl.searchParams.get("past") ?? undefined,
       type: request.nextUrl.searchParams.get("type") ?? undefined,
       staff_id: request.nextUrl.searchParams.get("staff_id") ?? undefined,
       status: request.nextUrl.searchParams.get("status") ?? undefined,
@@ -133,35 +154,76 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { date, staff_id, status, limit, offset, archived, q } = parsed.data;
+    const { staff_id, status, limit, offset, archived, past, q, range_mode } = parsed.data;
+    const date = parsed.data.date ?? (!parsed.data.range_start && !parsed.data.range_end && !past && !archived
+      ? getBangkokDateForInstant(new Date())
+      : undefined);
+    const rangeStart = parsed.data.range_start;
+    const rangeEnd = parsed.data.range_end;
+    if ((rangeStart && !rangeEnd) || (!rangeStart && rangeEnd)) {
+      throw new HttpError(400, "range_start and range_end must be supplied together.");
+    }
+    if (rangeStart && rangeEnd && rangeStart > rangeEnd) {
+      throw new HttpError(400, "range_start must be before or equal to range_end.");
+    }
+    const rangeDays = rangeStart && rangeEnd ? getInclusiveRangeDays(rangeStart, rangeEnd) : 0;
+    if (rangeDays > 7 && range_mode !== "calendar") {
+      throw new HttpError(400, "Logbook range filters are limited to 7 days.");
+    }
+    if (rangeDays > 120) {
+      throw new HttpError(400, "Logbook calendar range is limited to 120 days.");
+    }
     const typeList = parseTypeList(parsed.data.type);
 
     let query = supabase
       .from("logbook_notes")
-      .select(
-        "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, archived_at, archived_by, created_by, created_at, updated_at",
-        { count: "exact" }
-      )
-      .order("updated_at", { ascending: false })
+      .select(LOGBOOK_NOTE_SELECT, { count: "exact" })
       .range(offset, offset + limit - 1);
 
-    query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+    if (archived) {
+      query = query.not("archived_at", "is", null);
+    } else if (past) {
+      const nowIso = new Date().toISOString();
+      query = query
+        .is("archived_at", null)
+        .or(`closed_at.not.is.null,end_at.lt.${nowIso}`);
+    } else if (range_mode === "calendar") {
+      // Calendar is a timeline/history surface: include active, closed, and archived notes.
+    } else {
+      query = query.is("archived_at", null).is("closed_at", null);
+    }
     if (status) query = query.eq("status", status);
     if (staff_id) query = query.eq("created_by", staff_id);
     if (typeList.length === 1) query = query.eq("note_type", typeList[0]);
     if (typeList.length > 1) query = query.in("note_type", typeList);
     if (q) query = query.or(`title.ilike.%${q}%,body.ilike.%${q}%`);
-    if (date) {
-      const { from, to } = toUTCWindow(date);
-      query = archived
-        ? query.gte("archived_at", from).lt("archived_at", to)
-        : query.gte("created_at", from).lt("created_at", to);
+    if (!past && !archived && date) {
+      const { from, to } = getBangkokDayWindow(date);
+      query = query
+        .lt("start_at", to)
+        .or(`end_at.is.null,end_at.gte.${from}`);
     }
+    if (!past && !archived && rangeStart && rangeEnd) {
+      const from = getBangkokDayWindow(rangeStart).from;
+      const to = getBangkokDayWindow(rangeEnd).end;
+      query = query
+        .lte("start_at", to)
+        .or(`end_at.is.null,end_at.gte.${from}`);
+    }
+    query = query.order("updated_at", { ascending: false });
 
     const { data, error, count } = await query;
     if (error) throw new HttpError(500, error.message);
 
-    const notes = await hydrateLogbookNotes(supabase, (data ?? []) as LogbookNoteRow[]);
+    const notes = (await hydrateLogbookNotes(supabase, (data ?? []) as LogbookNoteRow[])).sort((a, b) => {
+      const aPriority = PRIORITY_RANK[a.priority] ?? 0;
+      const bPriority = PRIORITY_RANK[b.priority] ?? 0;
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      const aEnd = a.end_at ? Date.parse(a.end_at) : Number.POSITIVE_INFINITY;
+      const bEnd = b.end_at ? Date.parse(b.end_at) : Number.POSITIVE_INFINITY;
+      if (aEnd !== bEnd) return aEnd - bEnd;
+      return Date.parse(b.updated_at) - Date.parse(a.updated_at);
+    });
 
     return NextResponse.json({
       success: true,
@@ -183,7 +245,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
-    const user = await getAuthenticatedUser(supabase, request);
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
 
     const json = await request.json().catch(() => null);
     const parsed = createSchema.safeParse(json);
@@ -196,8 +259,13 @@ export async function POST(request: NextRequest) {
 
     const payload = parsed.data;
     const richBody = buildRichBody({ body: payload.body ?? "", body_rich: payload.body_rich ?? null });
+    const window = resolveLogbookWindow({
+      start_at: payload.start_at,
+      end_at: payload.end_at,
+      preset: payload.preset,
+    });
 
-    const actorStaffId = await resolveLogbookActorStaffId(supabase, user?.id ?? null);
+    const actorStaffId = await resolveLogbookActorStaffId(supabase, auth.user.id);
 
     const zIndex = payload.z_index ?? (await getNextLogbookZIndex(supabase));
     const x = payload.x ?? 40;
@@ -216,6 +284,8 @@ export async function POST(request: NextRequest) {
         status: payload.status,
         priority: payload.priority,
         remind_at: payload.remind_at ?? null,
+        start_at: window.start_at,
+        end_at: window.end_at,
         x,
         y,
         width,
@@ -225,9 +295,7 @@ export async function POST(request: NextRequest) {
         board_mode: boardMode,
         created_by: actorStaffId,
       })
-      .select(
-        "id, title, body, body_rich, note_type, status, priority, x, y, width, height, z_index, is_minimized, board_mode, remind_at, archived_at, archived_by, created_by, created_at, updated_at"
-      )
+      .select(LOGBOOK_NOTE_SELECT)
       .maybeSingle();
 
     if (insertError) throw new HttpError(500, insertError.message);
