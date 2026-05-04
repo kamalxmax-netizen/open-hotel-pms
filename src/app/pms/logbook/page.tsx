@@ -94,6 +94,21 @@ function daysBetween(a: Date, b: Date) {
   return Math.ceil(ms / (1000 * 60 * 60 * 24)) + 1
 }
 
+function mergeFetchedNotesPreservingDirty(
+  current: LogbookNote[],
+  incoming: LogbookNote[],
+  protectedIds: Set<string>
+): LogbookNote[] {
+  if (protectedIds.size === 0) return incoming
+  const currentById = new Map(current.map((note) => [note.id, note]))
+  const incomingIds = new Set(incoming.map((note) => note.id))
+  const merged = incoming.map((note) => (protectedIds.has(note.id) ? currentById.get(note.id) ?? note : note))
+  for (const note of current) {
+    if (protectedIds.has(note.id) && !incomingIds.has(note.id)) merged.push(note)
+  }
+  return merged
+}
+
 export default function LogbookPage() {
   const [notes, setNotes] = useState<LogbookNote[]>([])
   const [archivedNotes, setArchivedNotes] = useState<LogbookNote[]>([])
