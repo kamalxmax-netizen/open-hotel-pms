@@ -81,6 +81,21 @@ function getMinimizedNoteWidth(note: LogbookNote) {
   return Math.min(560, titleWidth + 118)
 }
 
+function mergeFetchedNotesPreservingDirty(
+  current: LogbookNote[],
+  incoming: LogbookNote[],
+  dirtyIds: Set<string>
+): LogbookNote[] {
+  if (dirtyIds.size === 0) return incoming
+  const currentById = new Map(current.map((note) => [note.id, note]))
+  const incomingIds = new Set(incoming.map((note) => note.id))
+  const merged = incoming.map((note) => (dirtyIds.has(note.id) ? currentById.get(note.id) ?? note : note))
+  for (const note of current) {
+    if (dirtyIds.has(note.id) && !incomingIds.has(note.id)) merged.push(note)
+  }
+  return merged
+}
+
 export default function LogbookPage() {
   const [notes, setNotes] = useState<LogbookNote[]>([])
   const [archivedNotes, setArchivedNotes] = useState<LogbookNote[]>([])
@@ -125,15 +140,23 @@ export default function LogbookPage() {
     setArchivedNotes((prev) => prev.map((note) => (note.id === noteId ? next : note)))
   }, [])
 
+  const getDirtyContentNoteIds = useCallback(() => {
+    return new Set<string>([
+      ...Array.from(contentDebounceTimers.current.keys()),
+      ...Array.from(contentAbortControllers.current.keys()),
+    ])
+  }, [])
+
   const refreshSingleNote = useCallback(
     async (noteId: string) => {
       const res = await fetch(`/api/logbook/notes/${noteId}`, { cache: "no-store" })
       const data = await res.json().catch(() => null)
       if (res.ok && data?.success && data.data) {
+        if (getDirtyContentNoteIds().has(noteId)) return
         replaceNote(noteId, data.data)
       }
     },
-    [replaceNote]
+    [getDirtyContentNoteIds, replaceNote]
   )
 
   const fetchNotes = useCallback(async () => {
@@ -146,7 +169,9 @@ export default function LogbookPage() {
         return
       }
       setFetchError(null)
-      setNotes(Array.isArray(data.data) ? data.data : [])
+      const incomingNotes = Array.isArray(data.data) ? data.data : []
+      const dirtyIds = getDirtyContentNoteIds()
+      setNotes((current) => mergeFetchedNotesPreservingDirty(current, incomingNotes, dirtyIds))
     } catch (error) {
       console.error("Failed to fetch notes", error)
       const message =
@@ -157,7 +182,7 @@ export default function LogbookPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchWithTimeout])
+  }, [fetchWithTimeout, getDirtyContentNoteIds])
 
   const fetchArchivedNotes = useCallback(async () => {
     try {
