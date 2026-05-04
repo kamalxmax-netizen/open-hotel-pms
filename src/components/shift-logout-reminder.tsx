@@ -90,6 +90,11 @@ export function ShiftLogoutReminder() {
         String(staff?.nickname || staff?.display_name || profile?.full_name || session?.user?.email || "").trim() ||
         "Staff";
       const role = String(profile?.role ?? "").trim().toUpperCase();
+      if (role === "ADMIN") {
+        setUserInfo(null);
+        setActiveOccurrence(null);
+        return;
+      }
       setUserInfo({ id: userId, name, detail: role || null });
     }
 
