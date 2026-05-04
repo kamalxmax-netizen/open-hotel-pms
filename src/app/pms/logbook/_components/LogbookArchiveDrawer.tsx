@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LogbookNote } from "@/lib/types"
+import { formatLogbookDateTime } from "./logbook-date-format"
 
 interface LogbookArchiveDrawerProps {
   open: boolean
@@ -113,9 +114,9 @@ export function LogbookArchiveDrawer({
                     <div className="mt-3 grid grid-cols-1 gap-1 text-[11px] text-[var(--text-secondary)]">
                       <span>
                         Archived:{" "}
-                        {note.archived_at ? new Date(note.archived_at).toLocaleString() : "Unknown"}
+                        {formatLogbookDateTime(note.archived_at) || "Unknown"}
                       </span>
-                      <span>Updated: {new Date(note.updated_at).toLocaleString()}</span>
+                      <span>Updated: {formatLogbookDateTime(note.updated_at)}</span>
                       <span>Archived by: {note.archived_by || "System"}</span>
                     </div>
 

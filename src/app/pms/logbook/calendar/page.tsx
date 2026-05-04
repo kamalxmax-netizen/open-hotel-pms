@@ -21,7 +21,7 @@ export default function LogbookCalendarPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createInitialDate, setCreateInitialDate] = useState<Date | undefined>(undefined);

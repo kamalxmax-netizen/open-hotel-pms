@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { LogbookMention, LogbookNote, LogbookNoteLink } from "@/lib/types"
 import { LogbookLinkPicker } from "./LogbookLinkPicker"
+import { formatLogbookDate } from "./logbook-date-format"
 import { getNoteRichBody, getRichBodyTextareaStyle, plainTextToHtml } from "./logbook-rich"
 import { resolveLogbookLinkHref } from "./logbook-link-navigation"
 
@@ -188,7 +189,7 @@ export function LogbookMobileList({
 
               <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
                 <span>By {note.author?.display_name || "Admin"}</span>
-                <span>{new Date(note.updated_at).toLocaleDateString()}</span>
+                <span>{formatLogbookDate(note.updated_at)}</span>
               </div>
             </div>
           </Card>

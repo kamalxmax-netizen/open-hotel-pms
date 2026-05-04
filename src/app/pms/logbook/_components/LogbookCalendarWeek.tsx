@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { LogbookNote } from "@/lib/types";
+import { formatLogbookDate, formatLogbookWeekdayDate } from "./logbook-date-format";
 
 interface LogbookCalendarWeekProps {
   currentDate: Date;
@@ -48,7 +49,7 @@ export function LogbookCalendarWeek({
 }: LogbookCalendarWeekProps) {
   const days = useMemo(() => getWeekGrid(currentDate), [currentDate]);
 
-  const weekName = `Week of ${days[0].getDate()} ${days[0].toLocaleString("default", { month: "short" })}`;
+  const weekName = `Week of ${formatLogbookDate(days[0])}`;
   const todayKey = normalizeDate(new Date()).getTime();
 
   const weekStart = days[0];
@@ -123,7 +124,7 @@ export function LogbookCalendarWeek({
           const isToday = d.getTime() === todayKey;
           return (
             <div key={d.toISOString()} className={`py-2 text-center text-xs font-semibold ${isToday ? "text-[var(--logbook-now-line)]" : "text-[var(--logbook-text-secondary)]"}`}>
-              {d.toLocaleString("default", { weekday: "short" })} {d.getDate()}
+              {formatLogbookWeekdayDate(d)}
             </div>
           );
         })}

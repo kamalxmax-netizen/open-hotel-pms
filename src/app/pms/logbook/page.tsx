@@ -86,7 +86,7 @@ function getMinimizedNoteWidth(note: LogbookNote) {
   return Math.min(560, titleWidth + 118)
 }
 
-type DateMode = "today" | "date" | "range"
+type DateMode = "all" | "today" | "date" | "range"
 
 function formatDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -125,7 +125,7 @@ export default function LogbookPage() {
   const { toast } = useToast()
 
   // ── L1 additive state ──
-  const [dateMode, setDateMode] = useState<DateMode>("today")
+  const [dateMode, setDateMode] = useState<DateMode>("all")
   const [selectedDate, setSelectedDate] = useState<string>(formatDateStr(new Date()))
   const [rangeStart, setRangeStart] = useState<string>(formatDateStr(new Date()))
   const [rangeEnd, setRangeEnd] = useState<string>(formatDateStr(new Date()))
@@ -213,10 +213,13 @@ export default function LogbookPage() {
   const fetchNotes = useCallback(async () => {
     try {
       const url = new URL("/api/logbook/notes", window.location.origin)
+      url.searchParams.set("limit", "200")
 
       // ── L1: date / range / past params ──
       if (showPast) {
         url.searchParams.set("past", "1")
+      } else if (dateMode === "all") {
+        url.searchParams.set("all_active", "1")
       } else if (dateMode === "today") {
         url.searchParams.set("date", formatDateStr(new Date()))
       } else if (dateMode === "date") {
@@ -252,6 +255,7 @@ export default function LogbookPage() {
     try {
       const url = new URL("/api/logbook/notes", window.location.origin)
       url.searchParams.set("archived", "true")
+      url.searchParams.set("limit", "200")
       const res = await fetchWithTimeout(url.toString(), { cache: "no-store" })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.success) return
@@ -985,21 +989,37 @@ export default function LogbookPage() {
           <div className="flex min-w-max flex-1 items-center gap-2">
             <LogbookFilterBar filterTypes={filterTypes} toggleFilterType={toggleFilterType} />
 
-            {/* Active / Past toggle */}
-            <button
-              type="button"
-              onClick={() => setShowPast((v) => !v)}
-              className={`h-8 shrink-0 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold transition ${
-                showPast
-                  ? "bg-[var(--logbook-gold)] text-black"
-                  : "bg-[var(--logbook-canvas-alt)] text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]"
-              }`}
-            >
-              {showPast ? "Past" : "Active"}
-            </button>
+            {/* Open / Past selector */}
+            <div className="flex h-8 shrink-0 items-center gap-1 rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1">
+              <button
+                type="button"
+                onClick={() => setShowPast(false)}
+                title="Open notes are still in their calendar window and not archived."
+                className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold transition ${
+                  !showPast
+                    ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm"
+                    : "text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]"
+                }`}
+              >
+                Open
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPast(true)}
+                title="Past notes are outside their calendar window and not archived."
+                className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold transition ${
+                  showPast
+                    ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm"
+                    : "text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]"
+                }`}
+              >
+                Past
+              </button>
+            </div>
 
             {/* Date mode selector */}
             <div className="flex h-8 shrink-0 items-center gap-1 rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1">
+              <button type="button" onClick={() => setDateMode("all")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "all" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>All</button>
               <button type="button" onClick={() => setDateMode("today")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "today" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Today</button>
               <button type="button" onClick={() => setDateMode("date")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "date" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Date</button>
               <button type="button" onClick={() => setDateMode("range")} className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold ${dateMode === "range" ? "bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm" : "text-[var(--logbook-text-secondary)]"}`}>Range</button>

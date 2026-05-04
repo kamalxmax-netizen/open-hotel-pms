@@ -49,6 +49,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
     const { error } = await supabase
       .from("logbook_notes")
       .update({
+        status: "resolved",
         closed_at: nowIso,
         closed_by: actorStaffId,
         end_at: nextEndAt,
