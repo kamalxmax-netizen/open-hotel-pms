@@ -372,7 +372,7 @@ export async function buildLineItemsForReservations(
 
       return {
         kind: "room_charge",
-        description: `ค่าห้อง (${dateLabel})`,
+        description: `ค่าห้องพัก (${dateLabel})`,
         quantity,
         unit: "คืน",
         unit_price: round2(unitPrice),

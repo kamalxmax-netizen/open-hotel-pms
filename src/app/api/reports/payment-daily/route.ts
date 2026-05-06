@@ -62,6 +62,7 @@ type PaymentRow = {
 
 type ReservationRow = {
   id: string;
+  booking_group_id: string | null;
   parent_reservation_id: string | null;
   status: string | null;
   source: string | null;
@@ -110,6 +111,31 @@ type LinkedStaySegment = {
   checkin_date: string | null;
   checkout_date: string | null;
   is_parent: boolean;
+};
+
+type GroupMeta = {
+  booking_group_id: string | null;
+  group_code: string | null;
+  group_name: string | null;
+  group_member_count: number;
+};
+
+type PriorPrepaymentMethods = Record<MethodKey, number>;
+
+type PriorPrepaymentDetail = {
+  paid_date: string | null;
+  method: MethodKey;
+  method_label: string;
+  tx_type: TxType;
+  amount: number;
+  note: string | null;
+};
+
+const EMPTY_GROUP_META: GroupMeta = {
+  booking_group_id: null,
+  group_code: null,
+  group_name: null,
+  group_member_count: 0,
 };
 
 function isPosDepositRecord(txType: TxType, category: string, note: string): boolean {
@@ -220,6 +246,24 @@ function createMethodsMap(): MethodsMap {
     credit_card: createMethodBreakdown(),
     other: createMethodBreakdown(),
   };
+}
+
+function createPriorPrepaymentMethods(): PriorPrepaymentMethods {
+  return {
+    cash: 0,
+    transfer: 0,
+    credit_card: 0,
+    other: 0,
+  };
+}
+
+function finalizePriorPrepaymentMethods(methods: PriorPrepaymentMethods | undefined): PriorPrepaymentMethods {
+  const out = createPriorPrepaymentMethods();
+  if (!methods) return out;
+  for (const key of METHOD_KEYS) {
+    out[key] = round2(methods[key] ?? 0);
+  }
+  return out;
 }
 
 function finalizeMethods(map: MethodsMap): MethodsMap {
@@ -656,14 +700,18 @@ export async function GET(request: NextRequest) {
     let linkedRemarkByReservationId = new Map<string, string>();
     let nightsByReservation = new Map<string, ReservationNightRoom[]>();
     let cumulativePaidMap = new Map<string, number>();
+    let groupMetaByReservationId = new Map<string, GroupMeta>();
     const priorPrepaymentReservationIds = new Set<string>();
     const priorPrepaymentNotesByReservationId = new Map<string, ReportNote[]>();
+    const priorNetByReservationId = new Map<string, number>();
+    const priorPrepaymentMethodsByReservationId = new Map<string, PriorPrepaymentMethods>();
+    const priorPrepaymentDetailsByReservationId = new Map<string, PriorPrepaymentDetail[]>();
 
     if (reservationIdList.length > 0) {
       const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source, status")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, booking_group_id, parent_reservation_id, source, status")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -677,9 +725,11 @@ export async function GET(request: NextRequest) {
           .lte("paid_date", businessDate),
         supabase
           .from("folio_payments")
-          .select("id, reservation_id, paid_date, method, tx_type, amount, note, revenue_category, is_record_only, void_of")
+          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
           .in("reservation_id", reservationIdList)
-          .lt("paid_date", businessDate),
+          .lt("paid_date", businessDate)
+          .order("paid_date", { ascending: true })
+          .order("paid_at", { ascending: true, nullsFirst: false }),
       ]);
 
       if (reservationRes.error) {
@@ -698,6 +748,68 @@ export async function GET(request: NextRequest) {
       reservationMap = new Map(
         ((reservationRes.data ?? []) as ReservationRow[]).map((row) => [row.id, row])
       );
+
+      const groupIds = Array.from(
+        new Set(
+          ((reservationRes.data ?? []) as ReservationRow[])
+            .map((row) => String(row.booking_group_id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+      if (groupIds.length > 0) {
+        const [groupsRes, groupMembersRes] = await Promise.all([
+          supabase
+            .from("booking_groups")
+            .select("id, group_code, group_name")
+            .in("id", groupIds),
+          supabase
+            .from("reservations")
+            .select("booking_group_id, status")
+            .in("booking_group_id", groupIds),
+        ]);
+
+        if (groupsRes.error) {
+          return NextResponse.json({ success: false, error: groupsRes.error.message }, { status: 500 });
+        }
+        if (groupMembersRes.error) {
+          return NextResponse.json({ success: false, error: groupMembersRes.error.message }, { status: 500 });
+        }
+
+        const groupById = new Map(
+          (groupsRes.data ?? []).map((row: any) => [
+            String(row.id),
+            {
+              group_code: row.group_code ? String(row.group_code) : null,
+              group_name: row.group_name ? String(row.group_name) : null,
+            },
+          ])
+        );
+        const groupMemberCountById = new Map<string, number>();
+        for (const row of groupMembersRes.data ?? []) {
+          const groupId = String((row as any).booking_group_id ?? "").trim();
+          if (!groupId) continue;
+          if (String((row as any).status ?? "").toLowerCase() === "cancelled") continue;
+          groupMemberCountById.set(groupId, (groupMemberCountById.get(groupId) ?? 0) + 1);
+        }
+        groupMetaByReservationId = new Map(
+          ((reservationRes.data ?? []) as ReservationRow[]).map((row) => {
+            const groupId = String(row.booking_group_id ?? "").trim();
+            const group = groupId ? groupById.get(groupId) : undefined;
+            return [
+              row.id,
+              groupId
+                ? {
+                    booking_group_id: groupId,
+                    group_code: group?.group_code ?? null,
+                    group_name: group?.group_name ?? null,
+                    group_member_count: groupMemberCountById.get(groupId) ?? 0,
+                  }
+                : EMPTY_GROUP_META,
+            ];
+          })
+        );
+      }
+
       linkedRemarkByReservationId = buildLinkedStayRemarkMap(
         ((reservationRes.data ?? []) as LinkedReservationRow[]).map((row) => ({
           id: String(row.id),
@@ -755,25 +867,43 @@ export async function GET(request: NextRequest) {
         }
       }
       const priorVoidedPaymentIds = buildVoidedPaymentIdSet(priorRows, laterVoidedPriorIds);
-      const priorNetByReservationId = new Map<string, number>();
       for (const row of priorRows) {
         const paymentId = String(row.id ?? "").trim();
         if (paymentId && priorVoidedPaymentIds.has(paymentId)) continue;
         const reservationId = String(row.reservation_id ?? "").trim();
         if (!reservationId) continue;
         if (row.is_record_only === true) continue;
+        if (row.is_void_reversal === true) continue;
 
         const txType = normalizeTxType(row.tx_type);
         const amount = Number(row.amount ?? 0);
+        if (Math.abs(amount) <= 0.009) continue;
+        const method = normalizeMethod(row.method);
+        const signedAmount = txType === "refund" ? -amount : amount;
         const current = priorNetByReservationId.get(reservationId) ?? 0;
-        const next = txType === "refund" ? current - amount : current + amount;
+        const next = current + signedAmount;
         priorNetByReservationId.set(reservationId, round2(next));
 
-        if (txType === "refund" || amount <= 0) continue;
-        const method = methodLabel(normalizeMethod(row.method));
-        const paidDate = formatCompactDate(row.paid_date);
-        const detail = `Prepayment ${paidDate} ${method} ${formatMoneyLabel(amount)}`;
+        const methodTotals = priorPrepaymentMethodsByReservationId.get(reservationId) ?? createPriorPrepaymentMethods();
+        methodTotals[method] = round2((methodTotals[method] ?? 0) + signedAmount);
+        priorPrepaymentMethodsByReservationId.set(reservationId, methodTotals);
+
         const originalNote = String(row.note ?? "").trim();
+        const details = priorPrepaymentDetailsByReservationId.get(reservationId) ?? [];
+        details.push({
+          paid_date: row.paid_date ? String(row.paid_date) : null,
+          method,
+          method_label: methodLabel(method),
+          tx_type: txType,
+          amount: round2(signedAmount),
+          note: originalNote || null,
+        });
+        priorPrepaymentDetailsByReservationId.set(reservationId, details);
+
+        if (txType === "refund" || amount <= 0) continue;
+        const methodName = methodLabel(method);
+        const paidDate = formatCompactDate(row.paid_date);
+        const detail = `Prepayment ${paidDate} ${methodName} ${formatMoneyLabel(amount)}`;
         const title = originalNote && originalNote !== detail ? `${detail}\n${originalNote}` : detail;
         const currentNotes = priorPrepaymentNotesByReservationId.get(reservationId) ?? [];
         if (!currentNotes.some((item) => item.label === detail && (item.title ?? "") === title)) {
@@ -801,6 +931,7 @@ export async function GET(request: NextRequest) {
         stay_flow: StayFlow;
         is_dayuse: boolean;
         is_cancelled: boolean;
+        group_meta: GroupMeta;
         methods: MethodsMap;
         total_net: number;
         notes: Map<string, ReportNote>;
@@ -819,6 +950,7 @@ export async function GET(request: NextRequest) {
         total_paid_to_date: number;
         payment_status: "deposit" | "partial" | "full";
         is_cancelled: boolean;
+        group_meta: GroupMeta;
         methods: MethodsMap;
         total_net: number;
         notes: Map<string, ReportNote>;
@@ -947,6 +1079,7 @@ export async function GET(request: NextRequest) {
           total_paid_to_date: round2(cumulativePaidMap.get(reservationId) ?? 0),
           payment_status: "deposit" as const,
           is_cancelled: String(reservation.status ?? "").toLowerCase() === "cancelled",
+          group_meta: groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META,
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Map<string, ReportNote>(),
@@ -992,6 +1125,7 @@ export async function GET(request: NextRequest) {
           stay_flow: stayFlow,
           is_dayuse: Boolean(reservation?.is_dayuse),
           is_cancelled: String(reservation?.status ?? "").toLowerCase() === "cancelled",
+          group_meta: reservationId ? (groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META) : EMPTY_GROUP_META,
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Map<string, ReportNote>(),
@@ -1043,6 +1177,7 @@ export async function GET(request: NextRequest) {
         stay_flow: stayFlow,
         is_dayuse: Boolean(reservation.is_dayuse),
         is_cancelled: false,
+        group_meta: groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META,
         methods: createMethodsMap(),
         total_net: 0,
         notes: new Map<string, ReportNote>(),
@@ -1067,6 +1202,13 @@ export async function GET(request: NextRequest) {
         stay_flow: row.stay_flow,
         is_dayuse: row.is_dayuse,
         is_cancelled: row.is_cancelled,
+        booking_group_id: row.group_meta.booking_group_id,
+        group_code: row.group_meta.group_code,
+        group_name: row.group_meta.group_name,
+        group_member_count: row.group_meta.group_member_count,
+        prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
+        prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
+        prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
@@ -1091,6 +1233,13 @@ export async function GET(request: NextRequest) {
         total_paid_to_date: round2(row.total_paid_to_date),
         payment_status: row.payment_status,
         is_cancelled: row.is_cancelled,
+        booking_group_id: row.group_meta.booking_group_id,
+        group_code: row.group_meta.group_code,
+        group_name: row.group_meta.group_name,
+        group_member_count: row.group_meta.group_member_count,
+        prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
+        prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
+        prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
