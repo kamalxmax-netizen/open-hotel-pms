@@ -102,7 +102,7 @@ export function formatThaiDate(isoDate: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate;
   const [yyyy, mm, dd] = isoDate.split("-");
   const beYear = Number(yyyy) + 543;
-  return `${dd}/${mm}/${beYear}`;
+  return `${Number(dd)}/${Number(mm)}/${beYear}`;
 }
 
 export function formatThaiDateLabelFromDates(sortedDates: string[]): string {
@@ -117,7 +117,7 @@ export function formatDateLabelFromDates(sortedDates: string[], lang: TaxInvoice
   const formatSingle = (isoDate: string): string => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate;
     const [yyyy, mm, dd] = isoDate.split("-");
-    return `${Number(dd)}/${mm}/${Number(yyyy) + yearOffset}`;
+    return `${Number(dd)}/${Number(mm)}/${Number(yyyy) + yearOffset}`;
   };
 
   const labels = groups.map((dates) => {
@@ -131,7 +131,7 @@ export function formatDateLabelFromDates(sortedDates: string[], lang: TaxInvoice
     const [ly, lm, ld] = last.split("-");
 
     if (fy === ly && fm === lm) {
-      return `${Number(fd)}-${Number(ld)}/${fm}/${Number(fy) + yearOffset}`;
+      return `${Number(fd)}-${Number(ld)}/${Number(fm)}/${Number(fy) + yearOffset}`;
     }
 
     return `${formatSingle(first)}-${formatSingle(last)}`;
@@ -188,11 +188,16 @@ export function formatTaxInvoiceItemDescription(item: TaxInvoiceLineItem, lang: 
   const description = String(item.description || "").trim();
   if (item.kind === "room_charge" && item.stay_dates?.length) {
     const dateLabel = formatDateLabelFromDates(Array.from(new Set(item.stay_dates)).sort(), lang);
-    return lang === "en" ? `Room charge (${dateLabel})` : `ค่าห้อง (${dateLabel})`;
+    return lang === "en" ? `Room charge (${dateLabel})` : `ค่าห้องพัก (${dateLabel})`;
+  }
+  if (lang !== "en" && item.kind === "room_charge") {
+    return description.replace(/^ค่าห้อง(?!พัก)\s*/i, "ค่าห้องพัก ").trim();
   }
   if (lang !== "en" || item.kind !== "room_charge") return description;
 
   return description
+    .replace(/^ค่าห้องพัก\s*Room\s*/i, "Room charge ")
+    .replace(/^ค่าห้องพัก\s*/i, "Room charge ")
     .replace(/^ค่าห้อง\s*Room\s*/i, "Room charge ")
     .replace(/^ค่าห้อง\s*/i, "Room charge ")
     .trim();
