@@ -11,8 +11,9 @@ function toNumber(value: unknown): number {
 export async function GET(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
-        const auth = await requireStaffAuth(supabase, request);
+        const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
         if (auth.error) return auth.error;
+        const isOwnerReadOnly = auth.role === "owner";
 
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
@@ -143,7 +144,7 @@ export async function GET(request: NextRequest) {
             };
         });
 
-        if (statusSyncJobs.length > 0) {
+        if (!isOwnerReadOnly && statusSyncJobs.length > 0) {
             await Promise.all(
                 statusSyncJobs.map(async (job) => {
                     const { error: updateError } = await supabase
@@ -167,9 +168,12 @@ export async function GET(request: NextRequest) {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const body = await request.json();
 
         // basic validation

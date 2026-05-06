@@ -65,6 +65,7 @@ interface GroupDetailPanelProps {
     onClose: () => void;
     onRefresh: () => void;
     onEditGroup: () => void;
+    readOnly?: boolean;
 }
 
 export default function GroupDetailPanel({
@@ -72,7 +73,8 @@ export default function GroupDetailPanel({
     reservations,
     onClose,
     onRefresh,
-    onEditGroup
+    onEditGroup,
+    readOnly = false
 }: GroupDetailPanelProps) {
     const [addingRes, setAddingRes] = useState(false);
     const [resCodeInput, setResCodeInput] = useState("");
@@ -145,7 +147,7 @@ export default function GroupDetailPanel({
     const isGroupCompleted = String(group?.status ?? "").toLowerCase() === "completed";
     const isGroupCancelled = String(group?.status ?? "").toLowerCase() === "cancelled";
     const isGroupLocked = isGroupCompleted || isGroupCancelled;
-    const canOpenCheckinWizard = !isGroupLocked && dueInTodayAllReservations.length > 0;
+    const canOpenCheckinWizard = !readOnly && !isGroupLocked && dueInTodayAllReservations.length > 0;
     const checkinWizardTitle = canOpenCheckinWizard
         ? `Open Check-in Wizard for ${formatDateDisplay(businessDate)}`
         : nextDueInDate
@@ -153,6 +155,7 @@ export default function GroupDetailPanel({
             : "No due-in reservations for the current business date";
 
     function openMassCheckin(focusReservationId?: string) {
+        if (readOnly) return;
         if (dueInTodayReservations.length === 0) {
             setError("No due-in reservations with assigned rooms are ready for check-in.");
             return;
@@ -551,25 +554,27 @@ export default function GroupDetailPanel({
                             >
                                 <span className="text-xl leading-none">✕</span>
                             </button>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    className="btn btn-secondary btn-sm h-8 px-3 text-xs font-bold border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-all active:scale-95"
-                                    onClick={onEditGroup}
-                                    disabled={isGroupLocked}
-                                    title={isGroupLocked ? "Completed or cancelled groups are locked." : "Edit group info"}
-                                >
-                                    Edit Info
-                                </button>
-                                {!isGroupCancelled && (
+                            {!readOnly && (
+                                <div className="flex items-center gap-1.5">
                                     <button
-                                        className="btn btn-sm h-8 px-4 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 border-none dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700 disabled:opacity-50 transition-all active:scale-95 shadow-sm"
-                                        onClick={handleCancelGroup}
-                                        disabled={cancellingGroup}
+                                        className="btn btn-secondary btn-sm h-8 px-3 text-xs font-bold border-[var(--border-default)] hover:bg-[var(--bg-surface-hover)] disabled:opacity-50 transition-all active:scale-95"
+                                        onClick={onEditGroup}
+                                        disabled={isGroupLocked}
+                                        title={isGroupLocked ? "Completed or cancelled groups are locked." : "Edit group info"}
                                     >
-                                        {cancellingGroup ? "Wait..." : "Cancel Group"}
+                                        Edit Info
                                     </button>
-                                )}
-                            </div>
+                                    {!isGroupCancelled && (
+                                        <button
+                                            className="btn btn-sm h-8 px-4 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 border-none dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700 disabled:opacity-50 transition-all active:scale-95 shadow-sm"
+                                            onClick={handleCancelGroup}
+                                            disabled={cancellingGroup}
+                                        >
+                                            {cancellingGroup ? "Wait..." : "Cancel Group"}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -602,6 +607,7 @@ export default function GroupDetailPanel({
                         </div>
 
                         {/* CTA Cluster: Full Labels */}
+                        {!readOnly && (
                         <div className="flex items-center gap-2">
                             <Link
                                 href={`/pms/groups/${group.id}/checkin-wizard`}
@@ -624,6 +630,7 @@ export default function GroupDetailPanel({
                                 <span>+ Create New Reservation</span>
                             </button>
                         </div>
+                        )}
                     </div>
                 </div>
 
@@ -647,29 +654,31 @@ export default function GroupDetailPanel({
                                 </p>
                             )}
                         </div>
-                        <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => {
-                                if (isGroupLocked) return;
-                                if (addingRes) {
-                                    setAddingRes(false);
-                                    setResCodeInput("");
-                                    setSearchSource("");
-                                    setSearchArrivalDate("");
-                                    setSelectedReservation(null);
-                                    setSearchResults([]);
-                                    setError("");
-                                    return;
-                                }
-                                setAddingRes(true);
-                            }}
-                            disabled={isGroupLocked}
-                        >
-                            + Link Existing Booking
-                        </button>
+                        {!readOnly && (
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                    if (isGroupLocked) return;
+                                    if (addingRes) {
+                                        setAddingRes(false);
+                                        setResCodeInput("");
+                                        setSearchSource("");
+                                        setSearchArrivalDate("");
+                                        setSelectedReservation(null);
+                                        setSearchResults([]);
+                                        setError("");
+                                        return;
+                                    }
+                                    setAddingRes(true);
+                                }}
+                                disabled={isGroupLocked}
+                            >
+                                + Link Existing Booking
+                            </button>
+                        )}
                     </div>
 
-                    {addingRes && (
+                    {!readOnly && addingRes && (
                         <div className="bg-[var(--bg-body)]/40 border-2 border-[var(--border-subtle)] p-6 rounded-2xl shadow-sm animate-fade-in mb-6">
                             <div className="flex flex-wrap items-center gap-3">
                                 <div className="flex-[2] min-w-[200px]">
@@ -841,7 +850,7 @@ export default function GroupDetailPanel({
                         </div>
                     )}
 
-                    {massCheckinOpen && (
+                    {!readOnly && massCheckinOpen && (
                         <div className="bg-[var(--bg-surface)] border-2 border-emerald-200 p-4 rounded-xl shadow-sm space-y-3">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
@@ -1106,13 +1115,15 @@ export default function GroupDetailPanel({
                                                         >
                                                             FOLIO
                                                         </button>
-                                                        <button
-                                                            className="h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all active:scale-95 whitespace-nowrap"
-                                                            onClick={() => setOptionsResId(String(r.id))}
-                                                        >
-                                                            OPTIONS
-                                                        </button>
-                                                        {!isGroupCancelled && (
+                                                        {!readOnly && (
+                                                            <button
+                                                                className="h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[var(--bg-surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all active:scale-95 whitespace-nowrap"
+                                                                onClick={() => setOptionsResId(String(r.id))}
+                                                            >
+                                                                OPTIONS
+                                                            </button>
+                                                        )}
+                                                        {!readOnly && !isGroupCancelled && (
                                                             <button
                                                                 className="h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 border border-rose-100 dark:border-rose-500/20 transition-all active:scale-95 whitespace-nowrap disabled:opacity-50"
                                                                 onClick={() => handleUnlinkReservation(String(r.id), String(r.booking_code || r.id))}
@@ -1121,7 +1132,7 @@ export default function GroupDetailPanel({
                                                                 {unlinkingReservationId === String(r.id) ? "..." : "UNLINK"}
                                                             </button>
                                                         )}
-                                                        {canCheckin && canOpenCheckinWizard && (
+                                                        {!readOnly && canCheckin && canOpenCheckinWizard && (
                                                             <Link
                                                                 href={`/pms/groups/${group.id}/checkin-wizard`}
                                                                 className="h-8 px-3 rounded-lg flex items-center bg-brand-600 text-white text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-brand-700 transition-all active:scale-95 whitespace-nowrap"

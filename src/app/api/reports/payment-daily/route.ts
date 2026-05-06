@@ -62,6 +62,7 @@ type PaymentRow = {
 
 type ReservationRow = {
   id: string;
+  booking_group_id: string | null;
   parent_reservation_id: string | null;
   status: string | null;
   source: string | null;
@@ -110,6 +111,20 @@ type LinkedStaySegment = {
   checkin_date: string | null;
   checkout_date: string | null;
   is_parent: boolean;
+};
+
+type GroupMeta = {
+  booking_group_id: string | null;
+  group_code: string | null;
+  group_name: string | null;
+  group_member_count: number;
+};
+
+const EMPTY_GROUP_META: GroupMeta = {
+  booking_group_id: null,
+  group_code: null,
+  group_name: null,
+  group_member_count: 0,
 };
 
 function isPosDepositRecord(txType: TxType, category: string, note: string): boolean {
@@ -656,6 +671,7 @@ export async function GET(request: NextRequest) {
     let linkedRemarkByReservationId = new Map<string, string>();
     let nightsByReservation = new Map<string, ReservationNightRoom[]>();
     let cumulativePaidMap = new Map<string, number>();
+    let groupMetaByReservationId = new Map<string, GroupMeta>();
     const priorPrepaymentReservationIds = new Set<string>();
     const priorPrepaymentNotesByReservationId = new Map<string, ReportNote[]>();
 
@@ -663,7 +679,7 @@ export async function GET(request: NextRequest) {
       const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, parent_reservation_id, source, status")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, booking_group_id, parent_reservation_id, source, status")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -698,6 +714,68 @@ export async function GET(request: NextRequest) {
       reservationMap = new Map(
         ((reservationRes.data ?? []) as ReservationRow[]).map((row) => [row.id, row])
       );
+
+      const groupIds = Array.from(
+        new Set(
+          ((reservationRes.data ?? []) as ReservationRow[])
+            .map((row) => String(row.booking_group_id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+      if (groupIds.length > 0) {
+        const [groupsRes, groupMembersRes] = await Promise.all([
+          supabase
+            .from("booking_groups")
+            .select("id, group_code, group_name")
+            .in("id", groupIds),
+          supabase
+            .from("reservations")
+            .select("booking_group_id, status")
+            .in("booking_group_id", groupIds),
+        ]);
+
+        if (groupsRes.error) {
+          return NextResponse.json({ success: false, error: groupsRes.error.message }, { status: 500 });
+        }
+        if (groupMembersRes.error) {
+          return NextResponse.json({ success: false, error: groupMembersRes.error.message }, { status: 500 });
+        }
+
+        const groupById = new Map(
+          (groupsRes.data ?? []).map((row: any) => [
+            String(row.id),
+            {
+              group_code: row.group_code ? String(row.group_code) : null,
+              group_name: row.group_name ? String(row.group_name) : null,
+            },
+          ])
+        );
+        const groupMemberCountById = new Map<string, number>();
+        for (const row of groupMembersRes.data ?? []) {
+          const groupId = String((row as any).booking_group_id ?? "").trim();
+          if (!groupId) continue;
+          if (String((row as any).status ?? "").toLowerCase() === "cancelled") continue;
+          groupMemberCountById.set(groupId, (groupMemberCountById.get(groupId) ?? 0) + 1);
+        }
+        groupMetaByReservationId = new Map(
+          ((reservationRes.data ?? []) as ReservationRow[]).map((row) => {
+            const groupId = String(row.booking_group_id ?? "").trim();
+            const group = groupId ? groupById.get(groupId) : undefined;
+            return [
+              row.id,
+              groupId
+                ? {
+                    booking_group_id: groupId,
+                    group_code: group?.group_code ?? null,
+                    group_name: group?.group_name ?? null,
+                    group_member_count: groupMemberCountById.get(groupId) ?? 0,
+                  }
+                : EMPTY_GROUP_META,
+            ];
+          })
+        );
+      }
+
       linkedRemarkByReservationId = buildLinkedStayRemarkMap(
         ((reservationRes.data ?? []) as LinkedReservationRow[]).map((row) => ({
           id: String(row.id),
@@ -801,6 +879,7 @@ export async function GET(request: NextRequest) {
         stay_flow: StayFlow;
         is_dayuse: boolean;
         is_cancelled: boolean;
+        group_meta: GroupMeta;
         methods: MethodsMap;
         total_net: number;
         notes: Map<string, ReportNote>;
@@ -819,6 +898,7 @@ export async function GET(request: NextRequest) {
         total_paid_to_date: number;
         payment_status: "deposit" | "partial" | "full";
         is_cancelled: boolean;
+        group_meta: GroupMeta;
         methods: MethodsMap;
         total_net: number;
         notes: Map<string, ReportNote>;
@@ -947,6 +1027,7 @@ export async function GET(request: NextRequest) {
           total_paid_to_date: round2(cumulativePaidMap.get(reservationId) ?? 0),
           payment_status: "deposit" as const,
           is_cancelled: String(reservation.status ?? "").toLowerCase() === "cancelled",
+          group_meta: groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META,
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Map<string, ReportNote>(),
@@ -992,6 +1073,7 @@ export async function GET(request: NextRequest) {
           stay_flow: stayFlow,
           is_dayuse: Boolean(reservation?.is_dayuse),
           is_cancelled: String(reservation?.status ?? "").toLowerCase() === "cancelled",
+          group_meta: reservationId ? (groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META) : EMPTY_GROUP_META,
           methods: createMethodsMap(),
           total_net: 0,
           notes: new Map<string, ReportNote>(),
@@ -1043,6 +1125,7 @@ export async function GET(request: NextRequest) {
         stay_flow: stayFlow,
         is_dayuse: Boolean(reservation.is_dayuse),
         is_cancelled: false,
+        group_meta: groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META,
         methods: createMethodsMap(),
         total_net: 0,
         notes: new Map<string, ReportNote>(),
@@ -1067,6 +1150,10 @@ export async function GET(request: NextRequest) {
         stay_flow: row.stay_flow,
         is_dayuse: row.is_dayuse,
         is_cancelled: row.is_cancelled,
+        booking_group_id: row.group_meta.booking_group_id,
+        group_code: row.group_meta.group_code,
+        group_name: row.group_meta.group_name,
+        group_member_count: row.group_meta.group_member_count,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
@@ -1091,6 +1178,10 @@ export async function GET(request: NextRequest) {
         total_paid_to_date: round2(row.total_paid_to_date),
         payment_status: row.payment_status,
         is_cancelled: row.is_cancelled,
+        booking_group_id: row.group_meta.booking_group_id,
+        group_code: row.group_meta.group_code,
+        group_name: row.group_meta.group_name,
+        group_member_count: row.group_meta.group_member_count,
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
