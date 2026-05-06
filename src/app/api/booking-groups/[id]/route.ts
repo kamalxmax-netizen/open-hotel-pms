@@ -11,8 +11,9 @@ function toNumber(value: unknown): number {
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
     try {
         const supabase = createServerSupabaseClient();
-        const auth = await requireStaffAuth(supabase, request);
+        const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
         if (auth.error) return auth.error;
+        const isOwnerReadOnly = auth.role === "owner";
 
         const { id } = await context.params;
 
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
             group.status,
             (rawReservations ?? []).map((r: any) => r?.status)
         );
-        if (String(group.status ?? "").toLowerCase() !== derivedGroupStatus) {
+        if (!isOwnerReadOnly && String(group.status ?? "").toLowerCase() !== derivedGroupStatus) {
             const { data: updatedGroup, error: statusUpdateError } = await supabase
                 .from("booking_groups")
                 .update({ status: derivedGroupStatus, updated_at: new Date().toISOString() })
@@ -104,6 +105,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
                     console.error("booking-group detail status sync failed:", id, statusUpdateError.message);
                 }
             }
+        } else if (isOwnerReadOnly && String(group.status ?? "").toLowerCase() !== derivedGroupStatus) {
+            group = { ...group, status: derivedGroupStatus };
         }
         const checkedInByReservation = new Map<string, string>();
         if (reservationIds.length > 0) {
@@ -179,9 +182,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const { id } = await context.params;
         const body = await request.json();
 
@@ -237,11 +243,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(
-    _request: Request,
+    request: NextRequest,
     context: { params: Promise<{ id: string }> }
 ) {
     try {
         const supabase = createServerSupabaseClient();
+        const auth = await requireStaffAuth(supabase, request);
+        if (auth.error) return auth.error;
+
         const { id } = await context.params;
 
         if (!id) {

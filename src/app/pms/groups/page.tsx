@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import GroupBookingModal from "@/components/group-booking-modal";
 import GroupDetailPanel from "@/components/group-detail-panel";
 import { formatDateDisplay } from "@/lib/date-display";
+import { useAdminRole } from "@/hooks/use-admin-role";
 
 type BookingGroup = {
     id: string;
@@ -25,6 +26,8 @@ type BookingGroup = {
 
 export default function GroupsPage() {
     const router = useRouter();
+    const { role, loading: roleLoading } = useAdminRole();
+    const isOwnerReadOnly = roleLoading || role === "owner";
 
     const [groups, setGroups] = useState<BookingGroup[]>([]);
     const [searchQ, setSearchQ] = useState("");
@@ -178,12 +181,14 @@ export default function GroupsPage() {
                         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Group Bookings</h1>
                         <p className="text-sm text-[var(--text-secondary)] mt-1">Manage multiple reservations under one group entity</p>
                     </div>
-                    <button
-                        className="btn btn-primary btn-sm flex items-center gap-1"
-                        onClick={() => setShowCreateModal(true)}
-                    >
-                        <span>+</span> <span>New Group</span>
-                    </button>
+                    {!isOwnerReadOnly && (
+                        <button
+                            className="btn btn-primary btn-sm flex items-center gap-1"
+                            onClick={() => setShowCreateModal(true)}
+                        >
+                            <span>+</span> <span>New Group</span>
+                        </button>
+                    )}
                 </div>
                 <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 sm:p-4">
                     <div className="grid gap-3 lg:grid-cols-[minmax(280px,1.4fr)_auto_auto_auto_auto] items-center">
@@ -267,12 +272,14 @@ export default function GroupsPage() {
                     <span className="text-4xl">👥</span>
                     <p className="font-bold text-[var(--text-table-cell)] mt-3">No groups found</p>
                     <p className="text-sm mt-1 mb-4">You have no active booking groups matching your search.</p>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => setShowCreateModal(true)}
-                    >
-                        Create First Group
-                    </button>
+                    {!isOwnerReadOnly && (
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => setShowCreateModal(true)}
+                        >
+                            Create First Group
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="card overflow-hidden">
@@ -346,14 +353,14 @@ export default function GroupsPage() {
             )}
 
             {/* Modals & Panels */}
-            {showCreateModal && (
+            {!isOwnerReadOnly && showCreateModal && (
                 <GroupBookingModal
                     onClose={() => setShowCreateModal(false)}
                     onSuccess={handleGroupSuccess}
                 />
             )}
 
-            {editingGroup && (
+            {!isOwnerReadOnly && editingGroup && (
                 <GroupBookingModal
                     mode="edit"
                     group={editingGroup}
@@ -389,6 +396,7 @@ export default function GroupsPage() {
                         loadGroups();
                     }}
                     onEditGroup={() => setEditingGroup(detailGroup)}
+                    readOnly={isOwnerReadOnly}
                 />
             )}
         </div>
