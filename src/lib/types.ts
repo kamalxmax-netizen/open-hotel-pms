@@ -1087,6 +1087,10 @@ export interface LogbookNote {
   is_minimized: boolean;
   board_mode: LogbookBoardMode;
   remind_at: string | null;
+  start_at: string;
+  end_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
   archived_at: string | null;
   archived_by: string | null;
   created_by: string;
@@ -1096,6 +1100,23 @@ export interface LogbookNote {
   links?: LogbookNoteLink[];
   mentions?: LogbookMention[];
   author?: Pick<StaffPublic, "id" | "display_name" | "nickname" | "employee_code">;
+}
+
+export interface ShiftLogEntry {
+  id: string;
+  log_date: string;
+  hour_slot: number;
+  body: string;
+  body_rich: LogbookRichBody | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShiftLogDayResponse {
+  log_date: string;
+  entries: ShiftLogEntry[];
 }
 
 // ── Phase 13: Night Audit + No-Show + Dashboard KPI ──

@@ -38,6 +38,29 @@ function mentionLabel(mention: LogbookMention) {
   return `@${mention.staff?.display_name || "Staff"}`
 }
 
+function toDateTimeLocalValue(value: string | null | undefined) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  const offsetMs = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+function fromDateTimeLocalValue(value: string) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+const NOTE_TYPES: Array<{ value: LogbookNote["note_type"]; label: string }> = [
+  { value: "general", label: "General" },
+  { value: "task", label: "Task" },
+  { value: "urgent", label: "Urgent" },
+  { value: "stock", label: "Stock" },
+  { value: "vip", label: "VIP" },
+]
+
 export function LogbookFullViewModal({
   open,
   note,
@@ -61,18 +84,18 @@ export function LogbookFullViewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(92vw,1100px)] p-0">
-        <div className="flex h-[88vh] flex-col overflow-visible rounded-xl bg-[var(--bg-surface)]">
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--border-default)] px-5 py-4">
+      <DialogContent className="logbook-shell z-[10000] max-w-[min(92vw,1100px)] border-[var(--logbook-card-border)] bg-[var(--logbook-card)] p-0 text-[var(--logbook-text-primary)] shadow-2xl">
+        <div className="flex h-[88vh] flex-col overflow-visible rounded-2xl bg-[var(--logbook-card)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--logbook-hairline)] px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Full View</h2>
-              <p className="text-xs text-[var(--text-secondary)]">Large editor for detailed reading and staff-friendly editing.</p>
+              <h2 className="text-lg font-bold text-[var(--logbook-brand-heading)]">Edit Note</h2>
+              <p className="text-xs text-[var(--logbook-text-secondary)]">Update content, calendar window, links, and mentions.</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => onArchive(note.id)}>
+              <Button variant="outline" size="sm" className="rounded-[var(--logbook-pill-radius)] border-[var(--logbook-field-border)] bg-[var(--logbook-canvas-alt)] text-[var(--logbook-text-primary)] hover:bg-[var(--logbook-card)]" onClick={() => onArchive(note.id)}>
                 Archive
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <Button variant="ghost" size="sm" className="rounded-[var(--logbook-pill-radius)] text-[var(--logbook-text-secondary)] hover:bg-[var(--logbook-canvas-alt)] hover:text-[var(--logbook-text-primary)]" onClick={() => onOpenChange(false)}>
                 Close
               </Button>
             </div>
@@ -81,7 +104,7 @@ export function LogbookFullViewModal({
           <div className="flex-1 overflow-x-visible overflow-y-auto px-5 py-5">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Title</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--logbook-text-secondary)]">Title</label>
                 <Input
                   value={note.title}
                   onChange={(event) =>
@@ -91,29 +114,79 @@ export function LogbookFullViewModal({
                       { historyMode: "coalesced", saveMode: "debounced" }
                     )
                   }
-                  className="h-11 text-base font-semibold"
+                  className="h-11 rounded-lg border-[var(--logbook-field-border)] bg-[var(--logbook-card)] text-base font-semibold text-[var(--logbook-text-primary)]"
                 />
               </div>
 
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Type</label>
-                <select
-                  value={note.note_type}
-                  onChange={(event) =>
-                    onUpdateContent(
-                      note.id,
-                      { note_type: event.target.value as LogbookNote["note_type"] },
-                      { historyMode: "immediate", saveMode: "immediate" }
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--logbook-text-secondary)]">Type</label>
+                <div className="flex flex-wrap gap-2">
+                  {NOTE_TYPES.map((type) => {
+                    const isActive = note.note_type === type.value
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() =>
+                          onUpdateContent(
+                            note.id,
+                            { note_type: type.value },
+                            { historyMode: "immediate", saveMode: "immediate" }
+                          )
+                        }
+                        className="rounded-[var(--logbook-pill-radius)] border px-3 py-1.5 text-xs font-semibold transition active:scale-95"
+                        style={{
+                          backgroundColor: isActive ? `var(--logbook-bar-${type.value})` : "transparent",
+                          borderColor: `var(--logbook-bar-${type.value})`,
+                          color: isActive ? "#ffffff" : `var(--logbook-bar-${type.value})`,
+                        }}
+                      >
+                        {type.label} {isActive && <span className="ml-1 text-[8px]">●</span>}
+                      </button>
                     )
-                  }
-                  className="form-select h-11 rounded-md border border-[var(--border-input)] bg-[var(--bg-surface)] px-3 text-sm"
-                >
-                  <option value="general">General</option>
-                  <option value="task">Task</option>
-                  <option value="urgent">Urgent</option>
-                  <option value="stock">Stock</option>
-                  <option value="vip">VIP</option>
-                </select>
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-2 rounded-xl border border-[var(--logbook-hairline)] bg-[var(--logbook-canvas-alt)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--logbook-text-secondary)]">Calendar Window</label>
+                  <span className="text-[11px] text-[var(--logbook-text-secondary)]">Controls where this note appears on Calendar.</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1.5">
+                    <label className="text-[11px] font-semibold text-[var(--logbook-text-secondary)]">Start</label>
+                    <Input
+                      type="datetime-local"
+                      value={toDateTimeLocalValue(note.start_at)}
+                      onChange={(event) => {
+                        const nextStart = fromDateTimeLocalValue(event.target.value)
+                        if (!nextStart) return
+                        onUpdateContent(
+                          note.id,
+                          { start_at: nextStart },
+                          { historyMode: "immediate", saveMode: "immediate" }
+                        )
+                      }}
+                      className="h-10 rounded-lg border-[var(--logbook-field-border)] bg-[var(--logbook-card)] text-sm text-[var(--logbook-text-primary)]"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <label className="text-[11px] font-semibold text-[var(--logbook-text-secondary)]">End</label>
+                    <Input
+                      type="datetime-local"
+                      value={toDateTimeLocalValue(note.end_at)}
+                      onChange={(event) =>
+                        onUpdateContent(
+                          note.id,
+                          { end_at: fromDateTimeLocalValue(event.target.value) },
+                          { historyMode: "immediate", saveMode: "immediate" }
+                        )
+                      }
+                      className="h-10 rounded-lg border-[var(--logbook-field-border)] bg-[var(--logbook-card)] text-sm text-[var(--logbook-text-primary)]"
+                    />
+                  </div>
+                </div>
               </div>
 
               <LogbookRichToolbar
@@ -141,7 +214,7 @@ export function LogbookFullViewModal({
               />
 
               <div className="grid gap-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Body</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[var(--logbook-text-secondary)]">Body</label>
                 <Textarea
                   value={note.body}
                   onChange={(event) =>
@@ -158,25 +231,25 @@ export function LogbookFullViewModal({
                     )
                   }
                   style={getRichBodyTextareaStyle(richBody)}
-                  className="min-h-[360px] resize-none bg-[var(--bg-body)] text-base leading-7"
+                  className="min-h-[360px] resize-none rounded-lg border-[var(--logbook-field-border)] bg-[var(--logbook-card)] text-base leading-7 text-[var(--logbook-text-primary)]"
                 />
               </div>
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Links and Mentions</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-[var(--logbook-text-secondary)]">Links and Mentions</label>
                   <LogbookLinkPicker
                     onAddLink={(link) => onAddLink(note.id, link)}
                     onAddMention={(mention) => onAddMention(note.id, mention)}
                     align="right"
                   />
                 </div>
-                <div className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-3">
+                <div className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--logbook-hairline)] bg-[var(--logbook-canvas-alt)] p-3">
                   {note.links?.map((link) => (
                     <button
                       key={link.id}
                       type="button"
-                      className="rounded-full border border-black/10 bg-[var(--bg-surface)] px-2 py-1 text-xs font-semibold text-[var(--text-table-cell)] shadow-sm"
+                      className="rounded-full border border-[var(--logbook-hairline)] bg-[var(--logbook-card)] px-2 py-1 text-xs font-semibold text-[var(--logbook-text-primary)] shadow-sm"
                       onClick={async () => {
                         const href = await resolveLogbookLinkHref(link)
                         router.push(href)
@@ -213,7 +286,7 @@ export function LogbookFullViewModal({
                     </button>
                   ))}
                   {!note.links?.length && !note.mentions?.length ? (
-                    <span className="text-xs text-[var(--text-secondary)]">No links or mentions yet.</span>
+                    <span className="text-xs text-[var(--logbook-text-secondary)]">No links or mentions yet.</span>
                   ) : null}
                 </div>
               </div>

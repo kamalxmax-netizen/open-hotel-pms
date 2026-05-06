@@ -27,28 +27,43 @@ export async function POST(request: NextRequest, context: { params: { id: string
 
     const noteId = params.data.id;
     await assertCanManageLogbookNote(supabase, auth.user.id, noteId);
-    const actorStaffId = await resolveLogbookActorStaffId(supabase, auth.user.id);
 
-    const { data, error } = await supabase
+    const { data: current, error: currentError } = await supabase
       .from("logbook_notes")
-      .update({
-        archived_at: new Date().toISOString(),
-        archived_by: actorStaffId,
-      })
+      .select("id, end_at, closed_at")
       .eq("id", noteId)
-      .is("archived_at", null)
-      .select("id, archived_at, archived_by")
       .maybeSingle();
 
-    if (error) throw new HttpError(500, error.message);
-    if (!data) throw new HttpError(404, "Active logbook note not found.");
+    if (currentError) throw new HttpError(500, currentError.message);
+    if (!current) throw new HttpError(404, "Logbook note not found.");
+    if (current.closed_at) return new NextResponse(null, { status: 204 });
 
-    return NextResponse.json({ success: true, data });
+    const nowIso = new Date().toISOString();
+    const currentEndAt = current.end_at ? new Date(String(current.end_at)) : null;
+    const nextEndAt =
+      currentEndAt && !Number.isNaN(currentEndAt.getTime()) && currentEndAt.getTime() < Date.now()
+        ? currentEndAt.toISOString()
+        : nowIso;
+    const actorStaffId = await resolveLogbookActorStaffId(supabase, auth.user.id);
+
+    const { error } = await supabase
+      .from("logbook_notes")
+      .update({
+        status: "resolved",
+        closed_at: nowIso,
+        closed_by: actorStaffId,
+        end_at: nextEndAt,
+      })
+      .eq("id", noteId);
+
+    if (error) throw new HttpError(500, error.message);
+    console.info("[logbook] note closed", { noteId, actorStaffId });
+    return new NextResponse(null, { status: 204 });
   } catch (err) {
     if (err instanceof HttpError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
-    console.error("api/logbook/notes/[id]/archive POST failed", err);
+    console.error("api/logbook/notes/[id]/close POST failed", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

@@ -20,8 +20,8 @@ export function LogbookFilterBar({ filterTypes, toggleFilterType }: LogbookFilte
     const isAllSelected = filterTypes.includes("all")
 
     return (
-        <div className="w-full min-w-0 overflow-x-auto">
-            <div className="flex w-max items-center gap-1 rounded-lg bg-[var(--bg-surface-hover)] p-1 whitespace-nowrap">
+        <div className="min-w-max overflow-x-auto">
+            <div className="flex w-max items-center gap-1 rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-canvas-alt)] p-1 whitespace-nowrap">
                 {tabs.map(tab => {
                     const isActive = tab.value === "all"
                         ? isAllSelected
@@ -32,7 +32,7 @@ export function LogbookFilterBar({ filterTypes, toggleFilterType }: LogbookFilte
                             key={tab.value}
                             type="button"
                             onClick={() => toggleFilterType(tab.value)}
-                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${isActive ? 'bg-[var(--bg-surface)] text-brand-700 shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-table-cell)]'}`}
+                            className={`h-6 rounded-[var(--logbook-pill-radius)] px-3 text-xs font-semibold transition-colors ${isActive ? 'bg-[var(--logbook-card)] text-[var(--logbook-brand-heading)] shadow-sm' : 'text-[var(--logbook-text-secondary)] hover:text-[var(--logbook-brand-heading)]'}`}
                         >
                             {tab.label}
                         </button>

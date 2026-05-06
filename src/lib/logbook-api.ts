@@ -1,4 +1,3 @@
-import { getUserRole } from "@/lib/server-auth";
 import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { syncStaffFromProfiles } from "@/lib/staff-sync";
@@ -12,6 +11,7 @@ export const LOGBOOK_LINK_TYPES = ["room", "guest", "stock", "staff"] as const;
 export const LOGBOOK_MENTION_TYPES = ["staff", "group_all", "group_frontdesk"] as const;
 export const LOGBOOK_BOARD_MODES = ["minimized", "middle"] as const;
 export const LOGBOOK_TEXT_SIZES = ["s", "m", "l"] as const;
+export const LOGBOOK_WINDOW_PRESETS = ["24h", "2d", "3d", "7d", "custom"] as const;
 
 export type LogbookNoteTypeValue = (typeof LOGBOOK_NOTE_TYPES)[number];
 export type LogbookStatusValue = (typeof LOGBOOK_STATUSES)[number];
@@ -19,6 +19,7 @@ export type LogbookPriorityValue = (typeof LOGBOOK_PRIORITIES)[number];
 export type LogbookLinkTypeValue = (typeof LOGBOOK_LINK_TYPES)[number];
 export type LogbookMentionTypeValue = (typeof LOGBOOK_MENTION_TYPES)[number];
 export type LogbookBoardModeValue = (typeof LOGBOOK_BOARD_MODES)[number];
+export type LogbookWindowPresetValue = (typeof LOGBOOK_WINDOW_PRESETS)[number];
 
 export class HttpError extends Error {
   status: number;
@@ -132,21 +133,83 @@ export async function assertCanManageLogbookNote(
   if (!data) throw new HttpError(404, "Logbook note not found.");
 
   const createdBy = String(data.created_by);
-  // Legacy PMS mode: if auth is not wired yet, allow note management.
   if (!userId) {
-    return { id: String(data.id), created_by: createdBy };
+    throw new HttpError(401, "Unauthorized.");
   }
 
-  if (createdBy === userId) {
-    return { id: String(data.id), created_by: createdBy };
+  // Logbook is a shared hotel surface. Route-level requireStaffAuth already
+  // rejects anonymous and non-operational roles; any authenticated staff may edit.
+  return { id: String(data.id), created_by: createdBy };
+}
+
+function parseDateParts(date: string): { year: number; month: number; day: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new HttpError(400, "date must be YYYY-MM-DD.");
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+}
+
+export function getBangkokDayWindow(date: string): { from: string; to: string; end: string } {
+  const { year, month, day } = parseDateParts(date);
+  const fromDate = new Date(Date.UTC(year, month - 1, day, -7, 0, 0, 0));
+  const toDate = new Date(Date.UTC(year, month - 1, day + 1, -7, 0, 0, 0));
+  const endDate = new Date(toDate.getTime() - 1000);
+  return {
+    from: fromDate.toISOString(),
+    to: toDate.toISOString(),
+    end: endDate.toISOString(),
+  };
+}
+
+export function getBangkokDateForInstant(value: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+}
+
+export function resolveLogbookWindow(input: {
+  start_at?: string | null;
+  end_at?: string | null;
+  preset?: LogbookWindowPresetValue | null;
+  now?: Date;
+}): { start_at: string; end_at: string | null } {
+  const now = input.now ?? new Date();
+  const start = input.start_at ? new Date(input.start_at) : now;
+  if (Number.isNaN(start.getTime())) {
+    throw new HttpError(400, "start_at must be a valid ISO datetime.");
   }
 
-  const role = await getUserRole(supabase, userId);
-  if (role === "admin" || role === "supervisor") {
-    return { id: String(data.id), created_by: createdBy };
+  let end: Date | null = null;
+  if (input.end_at !== undefined && input.end_at !== null) {
+    end = new Date(input.end_at);
+    if (Number.isNaN(end.getTime())) {
+      throw new HttpError(400, "end_at must be a valid ISO datetime or null.");
+    }
+  } else if (input.preset === "custom") {
+    throw new HttpError(400, "custom preset requires end_at.");
+  } else {
+    const preset = input.preset ?? "24h";
+    const daysToAdd = preset === "7d" ? 6 : preset === "3d" ? 2 : preset === "2d" ? 1 : 0;
+    const anchor = new Date(start.getTime());
+    anchor.setUTCDate(anchor.getUTCDate() + daysToAdd);
+    const bangkokDate = getBangkokDateForInstant(anchor);
+    end = new Date(getBangkokDayWindow(bangkokDate).end);
   }
 
-  throw new HttpError(403, "Forbidden");
+  if (end && end.getTime() < start.getTime()) {
+    throw new HttpError(400, "end_at must be greater than or equal to start_at.");
+  }
+
+  return {
+    start_at: start.toISOString(),
+    end_at: end ? end.toISOString() : null,
+  };
 }
 
 export async function resolveLogbookActorStaffId(

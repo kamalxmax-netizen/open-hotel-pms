@@ -6,7 +6,7 @@ export function LogbookCreateButton({ onClick }: { onClick: () => void }) {
     return (
         <Button
             onClick={onClick}
-            className="bg-brand-600 hover:bg-brand-700 text-white shadow-sm gap-2"
+            className="h-9 gap-2 rounded-[var(--logbook-pill-radius)] bg-[var(--logbook-cta-fill)] px-4 font-semibold text-[var(--logbook-cta-text)] shadow-sm hover:bg-[var(--logbook-cta-fill)]/90"
         >
             <span className="text-lg leading-none">+</span> New Note
         </Button>
