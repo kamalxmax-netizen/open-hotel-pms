@@ -38,6 +38,25 @@ type MethodsMap = {
     other: MethodBreakdown;
 };
 
+type MethodKey = keyof MethodsMap;
+
+type PriorPrepaymentMethods = Record<MethodKey, number>;
+
+type PriorPrepaymentDetail = {
+    paid_date: string | null;
+    method: MethodKey;
+    method_label: string;
+    tx_type: "payment" | "deposit" | "refund";
+    amount: number;
+    note: string | null;
+};
+
+type PaymentDailyPrepaymentFields = {
+    prior_prepayment_total?: number | null;
+    prior_prepayment_methods?: PriorPrepaymentMethods | null;
+    prior_prepayment_details?: PriorPrepaymentDetail[] | null;
+};
+
 type PaymentDailyAllRoom = {
     room_number: string;
     floor_number: number;
@@ -47,7 +66,7 @@ type PaymentDailyAllRoom = {
 
 type StayFlow = "due_out" | "due_in" | "in_house" | "normal";
 
-type PaymentDailyTodayRoom = PaymentDailyGroupFields & {
+type PaymentDailyTodayRoom = PaymentDailyGroupFields & PaymentDailyPrepaymentFields & {
     reservation_id: string;
     room_number: string;
     floor_number: number;
@@ -62,7 +81,7 @@ type PaymentDailyTodayRoom = PaymentDailyGroupFields & {
     notes: PaymentDailyNote[];
 };
 
-type PaymentDailyAdvance = PaymentDailyGroupFields & {
+type PaymentDailyAdvance = PaymentDailyGroupFields & PaymentDailyPrepaymentFields & {
     reservation_id: string;
     booking_code: string;
     guest_name: string;
@@ -209,6 +228,176 @@ const B = "border-r border-[var(--border-default)]";
 // Inner separator (between Payment/Deposit within a group)
 const Bi = "border-r border-[var(--border-default)]";
 
+const METHOD_ORDER: MethodKey[] = ["cash", "transfer", "credit_card", "other"];
+const METHOD_LABELS: Record<MethodKey, string> = {
+    cash: "Cash",
+    transfer: "Transfer",
+    credit_card: "Card",
+    other: "Other",
+};
+
+type GroupReviewRow = PaymentDailyPrepaymentFields & PaymentDailyGroupFields & {
+    reservation_id: string;
+    total_net: number;
+};
+
+type GroupReviewSection<T extends GroupReviewRow> = {
+    groupId: string;
+    groupCode: string | null;
+    groupName: string | null;
+    groupMemberCount: number;
+    rows: T[];
+    priorTotal: number;
+    todayTotal: number;
+    combinedTotal: number;
+};
+
+function createEmptyPriorMethods(): PriorPrepaymentMethods {
+    return { cash: 0, transfer: 0, credit_card: 0, other: 0 };
+}
+
+function getPriorMethods(row: PaymentDailyPrepaymentFields): PriorPrepaymentMethods {
+    return { ...createEmptyPriorMethods(), ...(row.prior_prepayment_methods ?? {}) };
+}
+
+function getPriorTotal(row: PaymentDailyPrepaymentFields): number {
+    return Number(row.prior_prepayment_total ?? 0);
+}
+
+function displayDate(value: string | null | undefined) {
+    const text = String(value ?? "").trim();
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return text || "-";
+    return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function txLabel(txType: PriorPrepaymentDetail["tx_type"]) {
+    if (txType === "refund") return "Refund";
+    if (txType === "deposit") return "Deposit";
+    return "Payment";
+}
+
+function signedMoney(value: number) {
+    const prefix = value < 0 ? "-" : "";
+    return `${prefix}${fmtMoney(Math.abs(value))}`;
+}
+
+function buildPrepaymentTitle(row: PaymentDailyPrepaymentFields) {
+    const details = row.prior_prepayment_details ?? [];
+    if (details.length === 0) return "No prepayment before this business date.";
+    return details
+        .map((detail) => {
+            const method = detail.method_label || METHOD_LABELS[detail.method] || detail.method;
+            const note = detail.note ? `\nNote: ${detail.note}` : "";
+            return `${displayDate(detail.paid_date)} · ${method} · ${txLabel(detail.tx_type)} ${signedMoney(Number(detail.amount ?? 0))}${note}`;
+        })
+        .join("\n\n");
+}
+
+function PrepaidCell({ row, border = "" }: { row: PaymentDailyPrepaymentFields; border?: string }) {
+    const total = getPriorTotal(row);
+    const methods = getPriorMethods(row);
+    const entries = METHOD_ORDER
+        .map((method) => ({ method, amount: Number(methods[method] ?? 0) }))
+        .filter((entry) => Math.abs(entry.amount) > 0.009);
+
+    if (Math.abs(total) <= 0.009 || entries.length === 0) {
+        return <td className={`px-2 py-2.5 text-right text-[var(--text-muted)] ${border}`}>-</td>;
+    }
+
+    const amountClass = total < 0
+        ? "text-rose-700 dark:text-rose-300 hc:text-black"
+        : "text-fuchsia-800 dark:text-pink-300 hc:text-black";
+
+    return (
+        <td
+            title={buildPrepaymentTitle(row)}
+            className={`px-2 py-2 align-middle text-right bg-fuchsia-50/70 text-fuchsia-900 dark:bg-pink-500/10 dark:text-pink-200 hc:bg-white hc:text-black hc:border-l-4 hc:border-black ${border}`}
+        >
+            <div className={`font-black leading-tight ${amountClass}`}>{signedMoney(total)}</div>
+            <div className="mt-0.5 flex flex-col items-end gap-0.5 text-[10px] font-bold leading-tight">
+                {entries.map((entry) => (
+                    <span key={entry.method} className="rounded border border-fuchsia-200 bg-white/65 px-1 py-0.5 text-fuchsia-900 dark:border-pink-400/40 dark:bg-pink-500/10 dark:text-pink-200 hc:border-black hc:bg-white hc:text-black">
+                        Prepaid {METHOD_LABELS[entry.method]} {signedMoney(entry.amount)}
+                    </span>
+                ))}
+            </div>
+        </td>
+    );
+}
+
+function buildGroupReviewSections<T extends GroupReviewRow>(rows: T[]): GroupReviewSection<T>[] {
+    const byGroup = new Map<string, GroupReviewSection<T>>();
+    const countedPriorReservations = new Set<string>();
+
+    for (const row of rows) {
+        const groupId = String(row.booking_group_id ?? "").trim();
+        if (!groupId) continue;
+
+        const current = byGroup.get(groupId) ?? {
+            groupId,
+            groupCode: row.group_code ?? null,
+            groupName: row.group_name ?? null,
+            groupMemberCount: Number(row.group_member_count ?? 0),
+            rows: [],
+            priorTotal: 0,
+            todayTotal: 0,
+            combinedTotal: 0,
+        };
+        current.rows.push(row);
+        current.todayTotal += Number(row.total_net ?? 0);
+
+        const priorKey = `${groupId}::${row.reservation_id}`;
+        if (!countedPriorReservations.has(priorKey)) {
+            countedPriorReservations.add(priorKey);
+            current.priorTotal += getPriorTotal(row);
+        }
+
+        current.priorTotal = Number(current.priorTotal.toFixed(2));
+        current.todayTotal = Number(current.todayTotal.toFixed(2));
+        current.combinedTotal = Number((current.priorTotal + current.todayTotal).toFixed(2));
+        byGroup.set(groupId, current);
+    }
+
+    return Array.from(byGroup.values());
+}
+
+function GroupReviewHeader<T extends GroupReviewRow>({ section, colSpan }: { section: GroupReviewSection<T>; colSpan: number }) {
+    const roomCount = section.groupMemberCount > 0 ? `${section.groupMemberCount} rooms` : "Group booking";
+    return (
+        <tr className="border-y-2 border-fuchsia-200 bg-fuchsia-50/80 dark:border-pink-500/30 dark:bg-pink-500/10 hc:border-black hc:bg-white">
+            <td colSpan={colSpan} className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <Link
+                        href={`/pms/groups?group_id=${encodeURIComponent(section.groupId)}`}
+                        className="inline-flex items-center rounded-full border border-fuchsia-300 bg-white px-2.5 py-1 text-xs font-black text-fuchsia-800 shadow-sm hover:bg-fuchsia-100 dark:border-pink-400/40 dark:bg-pink-500/10 dark:text-pink-200 dark:hover:bg-pink-500/20 hc:border-black hc:bg-white hc:text-black"
+                    >
+                        {formatShortGroupCode(section.groupCode)}
+                    </Link>
+                    <div className="min-w-[180px]">
+                        <div className="text-sm font-black text-[var(--text-primary)]">{section.groupName || "Group Booking"}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">{roomCount}</div>
+                    </div>
+                    <div className="ml-auto grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                        <div className="rounded border border-fuchsia-200 bg-white/70 px-3 py-1.5 text-right dark:border-pink-400/30 dark:bg-pink-500/10 hc:border-black hc:bg-white">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-fuchsia-700 dark:text-pink-300 hc:text-black">Prepayment ก่อนวันนี้</div>
+                            <div className="text-sm font-black text-fuchsia-900 dark:text-pink-200 hc:text-black">{fmtMoney(section.priorTotal)}</div>
+                        </div>
+                        <div className="rounded border border-brand-200 bg-white/70 px-3 py-1.5 text-right dark:border-brand-400/30 dark:bg-brand-500/10 hc:border-black hc:bg-white">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-brand-700 dark:text-brand-300 hc:text-black">จ่ายวันนี้</div>
+                            <div className="text-sm font-black text-brand-900 dark:text-brand-200 hc:text-black">{fmtMoney(section.todayTotal)}</div>
+                        </div>
+                        <div className="rounded border border-[var(--border-default)] bg-white px-3 py-1.5 text-right dark:bg-white/5 hc:border-black hc:bg-white">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)]">รวมรับแล้ว</div>
+                            <div className="text-sm font-black text-[var(--text-primary)]">{fmtMoney(section.combinedTotal)}</div>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    );
+}
+
 function MoneyCell({ v, negativeRed = false, border = "", bg = "" }: { v: number; negativeRed?: boolean; border?: string; bg?: string }) {
     if (v === 0) return <td className={`px-2 py-2.5 text-right text-[var(--text-muted)] ${border} ${bg}`}>-</td>;
     const isNeg = v < 0;
@@ -234,12 +423,17 @@ function PaymentCells({ m }: { m: MethodsMap }) {
 }
 
 /* ─── Column Header (reused for Today + Advance) ──── */
-function ColumnHeaders() {
+function ColumnHeaders({ groupReviewMode }: { groupReviewMode: boolean }) {
     return (
         <thead className="bg-[var(--bg-body)] text-[var(--text-secondary)] uppercase text-[11px] font-bold border-t border-[var(--border-default)]">
             <tr>
                 <th rowSpan={2} className={`px-4 py-2 border-b border-l border-[var(--border-default)] ${B} w-48`}>Room / Guest</th>
                 <th rowSpan={2} className={`px-4 py-2 border-b border-[var(--border-default)] ${B} text-right w-24`}>Net Total</th>
+                {groupReviewMode && (
+                    <th rowSpan={2} className={`px-3 py-2 border-b border-[var(--border-default)] ${B} text-right w-36 bg-fuchsia-50 text-fuchsia-800 dark:bg-pink-500/10 dark:text-pink-300 hc:bg-white hc:text-black`}>
+                        Prepaid
+                    </th>
+                )}
                 <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400`}>Cash</th>
                 <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400`}>Transfer</th>
                 <th colSpan={2} className={`px-2 py-1.5 border-b border-[var(--border-default)] ${B} text-center bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400`}>Card / Other</th>
@@ -257,11 +451,12 @@ function ColumnHeaders() {
     );
 }
 
-function PaymentTableColGroup() {
+function PaymentTableColGroup({ groupReviewMode }: { groupReviewMode: boolean }) {
     return (
         <colgroup>
             <col className="w-48" />
             <col className="w-24" />
+            {groupReviewMode && <col className="w-36" />}
             <col className="w-28" />
             <col className="w-28" />
             <col className="w-28" />
@@ -328,6 +523,15 @@ export default function PaymentDailyPage() {
     const advancePaymentsRaw = data?.advance_payments ?? [];
     const todayRooms = todayRoomsRaw.filter((row) => matchesGroupFilter(row, groupFilter));
     const advancePayments = advancePaymentsRaw.filter((row) => matchesGroupFilter(row, groupFilter));
+    const isGroupReviewMode = groupFilter === "group";
+    const tableColumnCount = isGroupReviewMode ? 10 : 9;
+    const visibleTodayRowsForGroupReview = todayRooms.filter((row) => {
+        if (!showDayUse && row.is_dayuse) return false;
+        if (floorFilter !== "all" && String(row.floor_number) !== floorFilter) return false;
+        return true;
+    });
+    const todayGroupSections = isGroupReviewMode ? buildGroupReviewSections(visibleTodayRowsForGroupReview) : [];
+    const advanceGroupSections = isGroupReviewMode ? buildGroupReviewSections(advancePayments) : [];
     const unassignedTodayRooms = todayRooms.filter((row) => row.room_number === "NO ROOM" && !row.is_dayuse);
     const floors = Array.from(new Set(allRooms.map(r => r.floor_number))).sort((a, b) => b - a);
     const displayedGrandTotalNet = data?.grand_total.grand_net ?? 0;
@@ -442,18 +646,69 @@ export default function PaymentDailyPage() {
                     <div className="card overflow-hidden text-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left whitespace-nowrap border-collapse">
-                                <PaymentTableColGroup />
-                                <ColumnHeaders />
+                                <PaymentTableColGroup groupReviewMode={isGroupReviewMode} />
+                                <ColumnHeaders groupReviewMode={isGroupReviewMode} />
 
                                 {/* ─── Today's Rooms Section ─── */}
                                 <tbody>
                                     <tr>
-                                        <td colSpan={9} className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
+                                        <td colSpan={tableColumnCount} className="px-5 py-3 bg-[var(--bg-body)] border-b-2 border-[var(--border-default)]">
                                             <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Business Date Rooms</span>
                                             <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดชำระสำหรับห้องใน business date นี้</span>
                                         </td>
                                     </tr>
 
+                                    {isGroupReviewMode ? (
+                                        todayGroupSections.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={tableColumnCount} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No group room payments on this business date.</td>
+                                            </tr>
+                                        ) : todayGroupSections.map((section) => (
+                                            <React.Fragment key={`today-group-${section.groupId}`}>
+                                                <GroupReviewHeader section={section} colSpan={tableColumnCount} />
+                                                {section.rows.map((tr, idx) => {
+                                                    const badge = tr.stay_flow === "due_out"
+                                                        ? { text: "↓OUT", className: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" }
+                                                        : tr.stay_flow === "due_in"
+                                                            ? { text: "↑IN", className: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400" }
+                                                            : tr.stay_flow === "in_house"
+                                                                ? { text: "🏠IN", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" }
+                                                                : tr.is_dayuse
+                                                                    ? { text: "DU", className: "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400" }
+                                                                    : null;
+                                                    const prepaymentTitle = getPrepaymentTitle(tr.notes);
+                                                    return (
+                                                        <tr
+                                                            key={`${section.groupId}-${tr.reservation_id || "no-res"}-${tr.room_number}-${idx}`}
+                                                            className={`border-b border-[var(--border-subtle)] transition-colors cursor-pointer hover:bg-[var(--bg-body)]/70`}
+                                                            onClick={() => openReservation(tr.reservation_id, tr.stay_flow === "due_in" ? "edit" : "inhouse")}
+                                                        >
+                                                            <td className={`px-4 py-2 ${B} leading-tight`}>
+                                                                <span className="font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
+                                                                    {tr.room_number}
+                                                                    {badge && <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>{badge.text}</span>}
+                                                                    {prepaymentTitle && (
+                                                                        <InlineBadge className={PRE_BADGE_CLASS} title={prepaymentTitle}>
+                                                                            Pre
+                                                                        </InlineBadge>
+                                                                    )}
+                                                                    <GroupBadge row={tr} />
+                                                                </span>
+                                                                <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
+                                                            </td>
+                                                            <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>{fmtMoney(tr.total_net)}</td>
+                                                            <PrepaidCell row={tr} border={B} />
+                                                            <PaymentCells m={tr.methods} />
+                                                            <td className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+                                                                <NoteCapsules notes={tr.notes} />
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        ))
+                                    ) : (
+                                        <>
                                     {floors.map(floor => {
                                         if (floorFilter !== "all" && String(floor) !== floorFilter) return null;
                                         const baseRoomsOnFloor = allRooms.filter(r => r.floor_number === floor);
@@ -629,11 +884,14 @@ export default function PaymentDailyPage() {
                                             </>
                                         );
                                     })()}
+                                        </>
+                                    )}
 
                                     {/* ─── Today Subtotal ─── */}
                                     <tr className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)] font-bold text-sm">
                                         <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Business Date Subtotal</td>
                                         <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.today_subtotal.grand_net)}</td>
+                                        {isGroupReviewMode && <td className={`px-3 py-3 ${B} text-right text-[var(--text-muted)]`}>-</td>}
                                         <MoneyCell v={data.today_subtotal.cash.payment} border={Bi} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
                                         <MoneyCell v={data.today_subtotal.cash.deposit} border={B} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
                                         <MoneyCell v={data.today_subtotal.transfer.payment} border={Bi} bg="bg-sky-50/30 dark:bg-sky-950/10" />
@@ -649,7 +907,7 @@ export default function PaymentDailyPage() {
                                     <>
                                         <tbody>
                                             <tr className="bg-[var(--bg-body)] border-y-2 border-[var(--border-default)]">
-                                                <td colSpan={9} className="px-5 py-3">
+                                                <td colSpan={tableColumnCount} className="px-5 py-3">
                                                     <span className="font-bold text-[var(--text-primary)] uppercase tracking-wider text-sm">Advance Payments</span>
                                                     <span className="text-[var(--text-secondary)] text-xs font-normal ml-3">ยอดรับล่วงหน้า Booking/Reservation อนาคต</span>
                                                 </td>
@@ -658,8 +916,52 @@ export default function PaymentDailyPage() {
                                         <tbody>
                                             {advancePayments.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded on this business date.</td>
+                                                    <td colSpan={tableColumnCount} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded on this business date.</td>
                                                 </tr>
+                                            ) : isGroupReviewMode ? (
+                                                advanceGroupSections.map((section) => (
+                                                    <React.Fragment key={`advance-group-${section.groupId}`}>
+                                                        <GroupReviewHeader section={section} colSpan={tableColumnCount} />
+                                                        {section.rows.map((adv) => (
+                                                            <tr
+                                                                key={`${section.groupId}-${adv.booking_code}`}
+                                                                className={`border-b border-[var(--border-subtle)] transition-colors cursor-pointer hover:bg-[var(--bg-body)]/70`}
+                                                                onClick={() => openReservation(adv.reservation_id, "edit")}
+                                                            >
+                                                                <td className={`px-4 py-2 ${B} leading-tight`}>
+                                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                                        <span className="font-bold text-[var(--text-primary)]" title={adv.booking_code}>{shortenBookingCode(adv.booking_code)}</span>
+                                                                        {adv.room_number ? (
+                                                                            <InlineBadge className="bg-[var(--bg-muted)] text-[var(--text-table-cell)]">RM {adv.room_number}</InlineBadge>
+                                                                        ) : (
+                                                                            <InlineBadge className="bg-amber-100 text-amber-700">no room</InlineBadge>
+                                                                        )}
+                                                                        <GroupBadge row={adv} />
+                                                                    </div>
+                                                                    <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[220px]" title={adv.guest_name}>{adv.guest_name}</span>
+                                                                </td>
+                                                                <td className={`px-4 py-2.5 ${B} text-right font-bold text-brand-700`}>{fmtMoney(adv.total_net)}</td>
+                                                                <PrepaidCell row={adv} border={B} />
+                                                                <PaymentCells m={adv.methods} />
+                                                                <td className="px-3 py-2.5 align-middle text-xs text-[var(--text-secondary)]">
+                                                                    <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                                                                        <span className="shrink-0 font-semibold text-[var(--text-secondary)]">CI: {adv.checkin_date.split("-").slice(1).reverse().join("/")}</span>
+                                                                        {adv.payment_status === "deposit" && <InlineBadge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">มัดจำ</InlineBadge>}
+                                                                        {adv.payment_status === "partial" && <InlineBadge className="bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">บางส่วน</InlineBadge>}
+                                                                        {adv.payment_status === "full" && <InlineBadge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">เต็ม</InlineBadge>}
+                                                                        {adv.notes.length > 0 && (
+                                                                            <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none pb-0.5" title={adv.notes.map((note) => note.title || note.label).join(" | ")}>
+                                                                                {adv.notes.map((note, idx) => (
+                                                                                    <InlineBadge key={`${adv.booking_code}-note-${idx}`} title={note.title || note.label} className={`${noteBadgeClass(note.label)} shrink-0 max-w-[220px] truncate`}>{note.label}</InlineBadge>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </React.Fragment>
+                                                ))
                                             ) : advancePayments.map(adv => (
                                                 <tr
                                                     key={adv.booking_code}
@@ -702,6 +1004,7 @@ export default function PaymentDailyPage() {
                                             <tr className="bg-[var(--bg-muted)] border-t-2 border-[var(--border-input)] font-bold text-sm">
                                                 <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase`}>Advance Subtotal</td>
                                                 <td className={`px-4 py-3 ${B} text-right text-brand-800`}>{fmtMoney(data.advance_subtotal.grand_net)}</td>
+                                                {isGroupReviewMode && <td className={`px-3 py-3 ${B} text-right text-[var(--text-muted)]`}>-</td>}
                                                 <MoneyCell v={data.advance_subtotal.cash.payment} border={Bi} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
                                                 <MoneyCell v={data.advance_subtotal.cash.deposit} border={B} bg="bg-emerald-50/30 dark:bg-emerald-950/10" />
                                                 <MoneyCell v={data.advance_subtotal.transfer.payment} border={Bi} bg="bg-sky-50/30 dark:bg-sky-950/10" />
@@ -719,6 +1022,7 @@ export default function PaymentDailyPage() {
                                     <tr className="font-bold text-sm">
                                         <td className={`px-4 py-4 ${B} text-emerald-900 dark:text-emerald-300 uppercase tracking-wider w-48 bg-emerald-50 dark:bg-emerald-950/30`}>Grand Total</td>
                                         <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24 bg-emerald-50 dark:bg-emerald-950/30`}>{fmtMoney(displayedGrandTotalNet)}</td>
+                                        {isGroupReviewMode && <td className={`px-3 py-4 ${B} text-right text-[var(--text-muted)] bg-emerald-50 dark:bg-emerald-950/30`}>-</td>}
                                         <MoneyCell v={data.grand_total.cash.payment} border={Bi} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.cash.deposit} border={B} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.transfer.payment} border={Bi} bg="bg-sky-100/50 dark:bg-sky-950/50" />

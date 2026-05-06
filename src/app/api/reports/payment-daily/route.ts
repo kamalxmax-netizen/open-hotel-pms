@@ -120,6 +120,17 @@ type GroupMeta = {
   group_member_count: number;
 };
 
+type PriorPrepaymentMethods = Record<MethodKey, number>;
+
+type PriorPrepaymentDetail = {
+  paid_date: string | null;
+  method: MethodKey;
+  method_label: string;
+  tx_type: TxType;
+  amount: number;
+  note: string | null;
+};
+
 const EMPTY_GROUP_META: GroupMeta = {
   booking_group_id: null,
   group_code: null,
@@ -235,6 +246,24 @@ function createMethodsMap(): MethodsMap {
     credit_card: createMethodBreakdown(),
     other: createMethodBreakdown(),
   };
+}
+
+function createPriorPrepaymentMethods(): PriorPrepaymentMethods {
+  return {
+    cash: 0,
+    transfer: 0,
+    credit_card: 0,
+    other: 0,
+  };
+}
+
+function finalizePriorPrepaymentMethods(methods: PriorPrepaymentMethods | undefined): PriorPrepaymentMethods {
+  const out = createPriorPrepaymentMethods();
+  if (!methods) return out;
+  for (const key of METHOD_KEYS) {
+    out[key] = round2(methods[key] ?? 0);
+  }
+  return out;
 }
 
 function finalizeMethods(map: MethodsMap): MethodsMap {
@@ -674,6 +703,9 @@ export async function GET(request: NextRequest) {
     let groupMetaByReservationId = new Map<string, GroupMeta>();
     const priorPrepaymentReservationIds = new Set<string>();
     const priorPrepaymentNotesByReservationId = new Map<string, ReportNote[]>();
+    const priorNetByReservationId = new Map<string, number>();
+    const priorPrepaymentMethodsByReservationId = new Map<string, PriorPrepaymentMethods>();
+    const priorPrepaymentDetailsByReservationId = new Map<string, PriorPrepaymentDetail[]>();
 
     if (reservationIdList.length > 0) {
       const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
@@ -693,9 +725,11 @@ export async function GET(request: NextRequest) {
           .lte("paid_date", businessDate),
         supabase
           .from("folio_payments")
-          .select("id, reservation_id, paid_date, method, tx_type, amount, note, revenue_category, is_record_only, void_of")
+          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
           .in("reservation_id", reservationIdList)
-          .lt("paid_date", businessDate),
+          .lt("paid_date", businessDate)
+          .order("paid_date", { ascending: true })
+          .order("paid_at", { ascending: true, nullsFirst: false }),
       ]);
 
       if (reservationRes.error) {
@@ -833,25 +867,43 @@ export async function GET(request: NextRequest) {
         }
       }
       const priorVoidedPaymentIds = buildVoidedPaymentIdSet(priorRows, laterVoidedPriorIds);
-      const priorNetByReservationId = new Map<string, number>();
       for (const row of priorRows) {
         const paymentId = String(row.id ?? "").trim();
         if (paymentId && priorVoidedPaymentIds.has(paymentId)) continue;
         const reservationId = String(row.reservation_id ?? "").trim();
         if (!reservationId) continue;
         if (row.is_record_only === true) continue;
+        if (row.is_void_reversal === true) continue;
 
         const txType = normalizeTxType(row.tx_type);
         const amount = Number(row.amount ?? 0);
+        if (Math.abs(amount) <= 0.009) continue;
+        const method = normalizeMethod(row.method);
+        const signedAmount = txType === "refund" ? -amount : amount;
         const current = priorNetByReservationId.get(reservationId) ?? 0;
-        const next = txType === "refund" ? current - amount : current + amount;
+        const next = current + signedAmount;
         priorNetByReservationId.set(reservationId, round2(next));
 
-        if (txType === "refund" || amount <= 0) continue;
-        const method = methodLabel(normalizeMethod(row.method));
-        const paidDate = formatCompactDate(row.paid_date);
-        const detail = `Prepayment ${paidDate} ${method} ${formatMoneyLabel(amount)}`;
+        const methodTotals = priorPrepaymentMethodsByReservationId.get(reservationId) ?? createPriorPrepaymentMethods();
+        methodTotals[method] = round2((methodTotals[method] ?? 0) + signedAmount);
+        priorPrepaymentMethodsByReservationId.set(reservationId, methodTotals);
+
         const originalNote = String(row.note ?? "").trim();
+        const details = priorPrepaymentDetailsByReservationId.get(reservationId) ?? [];
+        details.push({
+          paid_date: row.paid_date ? String(row.paid_date) : null,
+          method,
+          method_label: methodLabel(method),
+          tx_type: txType,
+          amount: round2(signedAmount),
+          note: originalNote || null,
+        });
+        priorPrepaymentDetailsByReservationId.set(reservationId, details);
+
+        if (txType === "refund" || amount <= 0) continue;
+        const methodName = methodLabel(method);
+        const paidDate = formatCompactDate(row.paid_date);
+        const detail = `Prepayment ${paidDate} ${methodName} ${formatMoneyLabel(amount)}`;
         const title = originalNote && originalNote !== detail ? `${detail}\n${originalNote}` : detail;
         const currentNotes = priorPrepaymentNotesByReservationId.get(reservationId) ?? [];
         if (!currentNotes.some((item) => item.label === detail && (item.title ?? "") === title)) {
@@ -1154,6 +1206,9 @@ export async function GET(request: NextRequest) {
         group_code: row.group_meta.group_code,
         group_name: row.group_meta.group_name,
         group_member_count: row.group_meta.group_member_count,
+        prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
+        prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
+        prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
@@ -1182,6 +1237,9 @@ export async function GET(request: NextRequest) {
         group_code: row.group_meta.group_code,
         group_name: row.group_meta.group_name,
         group_member_count: row.group_meta.group_member_count,
+        prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
+        prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
+        prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],
         methods: finalizeMethods(row.methods),
         total_net: round2(row.total_net),
         notes: Array.from(row.notes.values()),
