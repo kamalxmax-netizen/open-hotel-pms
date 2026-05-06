@@ -86,6 +86,34 @@ function strOrNull(value: unknown): string | null {
   return text.length > 0 ? text : null;
 }
 
+const SELLER_SNAPSHOT_KEYS = [
+  "hotel_name",
+  "company_name",
+  "company_name_en",
+  "company_tax_id",
+  "company_address",
+  "company_address_en",
+  "company_branch",
+  "company_phone",
+] as const;
+
+function sellerSnapshotNeedsFallback(snapshot: Record<string, unknown>) {
+  return SELLER_SNAPSHOT_KEYS.some((key) => !strOrNull(snapshot[key]));
+}
+
+function mergeSellerSnapshotWithLiveSettings(
+  snapshot: Record<string, unknown>,
+  liveSeller: Awaited<ReturnType<typeof getSellerSnapshotFromSettings>>
+) {
+  const merged: Record<string, unknown> = { ...snapshot };
+  for (const key of SELLER_SNAPSHOT_KEYS) {
+    if (!strOrNull(merged[key]) && strOrNull(liveSeller[key])) {
+      merged[key] = liveSeller[key];
+    }
+  }
+  return merged;
+}
+
 function normalizeTaxIdOrNull(value: unknown, isPassport = false): string | null {
   const text = String(value ?? "").trim();
   if (!text) return null;
@@ -186,16 +214,11 @@ export async function GET(
       invoice_no: invoice.invoice_no ?? invoice.cancelled_invoice_no ?? null,
     };
 
-    // Merge current seller EN fields into seller_snapshot for old invoices
-    // that were created before company_name_en / company_address_en existed.
+    // Merge current seller settings into incomplete seller snapshots for old invoices.
     const rawSnapshot = invoice.seller_snapshot as Record<string, unknown> | null ?? {};
-    if (!rawSnapshot.company_name_en || !rawSnapshot.company_address_en) {
+    if (sellerSnapshotNeedsFallback(rawSnapshot)) {
       const liveSeller = await getSellerSnapshotFromSettings(supabase);
-      const merged = {
-        ...rawSnapshot,
-        company_name_en: rawSnapshot.company_name_en ?? liveSeller.company_name_en,
-        company_address_en: rawSnapshot.company_address_en ?? liveSeller.company_address_en,
-      };
+      const merged = mergeSellerSnapshotWithLiveSettings(rawSnapshot, liveSeller);
       const enriched = { ...invoiceForResponse, seller_snapshot: merged };
       return NextResponse.json({
         success: true,
