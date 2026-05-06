@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import React, { useCallback, useEffect, useState } from "react";
+import { formatShortGroupCode } from "@/lib/group-label";
 
 const ReservationDetailPage = dynamic(() => import("@/components/reservation-detail-page"), {
     loading: () => null,
@@ -20,6 +22,15 @@ type PaymentDailyNote = {
     title?: string;
 };
 
+type GroupFilter = "all" | "group" | "individual";
+
+type PaymentDailyGroupFields = {
+    booking_group_id?: string | null;
+    group_code?: string | null;
+    group_name?: string | null;
+    group_member_count?: number | null;
+};
+
 type MethodsMap = {
     cash: MethodBreakdown;
     transfer: MethodBreakdown;
@@ -36,7 +47,7 @@ type PaymentDailyAllRoom = {
 
 type StayFlow = "due_out" | "due_in" | "in_house" | "normal";
 
-type PaymentDailyTodayRoom = {
+type PaymentDailyTodayRoom = PaymentDailyGroupFields & {
     reservation_id: string;
     room_number: string;
     floor_number: number;
@@ -51,7 +62,7 @@ type PaymentDailyTodayRoom = {
     notes: PaymentDailyNote[];
 };
 
-type PaymentDailyAdvance = {
+type PaymentDailyAdvance = PaymentDailyGroupFields & {
     reservation_id: string;
     booking_code: string;
     guest_name: string;
@@ -125,6 +136,33 @@ function getPrepaymentTitle(notes: PaymentDailyNote[]) {
     const matches = notes.filter((note) => note.label.startsWith("Prepayment "));
     if (matches.length === 0) return null;
     return matches.map((note) => note.title || note.label).join("\n\n");
+}
+
+function matchesGroupFilter(row: PaymentDailyGroupFields, filter: GroupFilter) {
+    const isGroup = Boolean(row.booking_group_id);
+    if (filter === "group") return isGroup;
+    if (filter === "individual") return !isGroup;
+    return true;
+}
+
+function getGroupTitle(row: PaymentDailyGroupFields) {
+    const roomCount = Number(row.group_member_count ?? 0);
+    const roomLabel = roomCount > 0 ? `${roomCount} room${roomCount === 1 ? "" : "s"}` : "Group booking";
+    return `${row.group_name || "Group Booking"} · ${roomLabel}`;
+}
+
+function GroupBadge({ row }: { row: PaymentDailyGroupFields }) {
+    if (!row.booking_group_id) return null;
+    return (
+        <Link
+            href={`/pms/groups?group_id=${encodeURIComponent(row.booking_group_id)}`}
+            onClick={(e) => e.stopPropagation()}
+            title={getGroupTitle(row)}
+            className="inline-flex items-center rounded-full border border-fuchsia-200 bg-fuchsia-50 px-1.5 py-0.5 text-[10px] font-black text-fuchsia-700 shadow-sm transition-colors hover:bg-fuchsia-100 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:hover:bg-fuchsia-500/25"
+        >
+            {formatShortGroupCode(row.group_code)}
+        </Link>
+    );
 }
 
 function NoteCapsules({ notes }: { notes: PaymentDailyNote[] }) {
@@ -246,6 +284,7 @@ export default function PaymentDailyPage() {
 
     const [floorFilter, setFloorFilter] = useState<string>("all");
     const [showMode, setShowMode] = useState<"payments" | "all">("payments");
+    const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
     const [showDayUse, setShowDayUse] = useState(true);
     const [showPos, setShowPos] = useState(true);
     const [showDepositRefunds, setShowDepositRefunds] = useState(false);
@@ -285,7 +324,10 @@ export default function PaymentDailyPage() {
 
     // Data filtering
     const allRooms = data?.all_rooms ?? [];
-    const todayRooms = data?.today_rooms ?? [];
+    const todayRoomsRaw = data?.today_rooms ?? [];
+    const advancePaymentsRaw = data?.advance_payments ?? [];
+    const todayRooms = todayRoomsRaw.filter((row) => matchesGroupFilter(row, groupFilter));
+    const advancePayments = advancePaymentsRaw.filter((row) => matchesGroupFilter(row, groupFilter));
     const unassignedTodayRooms = todayRooms.filter((row) => row.room_number === "NO ROOM" && !row.is_dayuse);
     const floors = Array.from(new Set(allRooms.map(r => r.floor_number))).sort((a, b) => b - a);
     const displayedGrandTotalNet = data?.grand_total.grand_net ?? 0;
@@ -337,6 +379,19 @@ export default function PaymentDailyPage() {
                     >
                         <option value="payments">Payments Only</option>
                         <option value="all">All Rooms</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--text-muted)]">Booking:</span>
+                    <select
+                        className="input py-1 px-3 text-sm min-w-[132px]"
+                        value={groupFilter}
+                        onChange={(e) => setGroupFilter(e.target.value as GroupFilter)}
+                    >
+                        <option value="all">All</option>
+                        <option value="group">Group only</option>
+                        <option value="individual">Individual only</option>
                     </select>
                 </div>
 
@@ -417,7 +472,7 @@ export default function PaymentDailyPage() {
                                                     const roomRows = todayRooms.filter(x => x.room_number === br.room_number && !x.is_dayuse);
 
                                                     if (roomRows.length === 0) {
-                                                        if (showMode === "payments") return null;
+                                                        if (showMode === "payments" || groupFilter !== "all") return null;
                                                         const isUnpaidOccupied = br.is_occupied;
                                                         return (
                                                             <tr key={`empty-${br.room_number}`} className="text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
@@ -458,6 +513,7 @@ export default function PaymentDailyPage() {
                                                                                 Pre
                                                                             </InlineBadge>
                                                                         )}
+                                                                        <GroupBadge row={tr} />
                                                                     </span>
                                                                     <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                                 </td>
@@ -503,6 +559,7 @@ export default function PaymentDailyPage() {
                                                                         Pre
                                                                     </InlineBadge>
                                                                 )}
+                                                                <GroupBadge row={tr} />
                                                             </span>
                                                             <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[160px]" title={tr.guest_name}>{tr.guest_name}</span>
                                                         </td>
@@ -534,6 +591,7 @@ export default function PaymentDailyPage() {
                                                                         Pre
                                                                     </InlineBadge>
                                                                 )}
+                                                                <GroupBadge row={tr} />
                                                             </span>
                                                             <span className="text-xs text-[var(--text-secondary)] block">Day Use</span>
                                                         </td>
@@ -598,11 +656,11 @@ export default function PaymentDailyPage() {
                                             </tr>
                                         </tbody>
                                         <tbody>
-                                            {data.advance_payments.length === 0 ? (
+                                            {advancePayments.length === 0 ? (
                                                 <tr>
                                                     <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)] italic">No advance payments recorded on this business date.</td>
                                                 </tr>
-                                            ) : data.advance_payments.map(adv => (
+                                            ) : advancePayments.map(adv => (
                                                 <tr
                                                     key={adv.booking_code}
                                                     className={`border-b border-[var(--border-subtle)] transition-colors cursor-pointer hover:bg-[var(--bg-body)]/70`}
@@ -616,6 +674,7 @@ export default function PaymentDailyPage() {
                                                             ) : (
                                                                 <InlineBadge className="bg-amber-100 text-amber-700">no room</InlineBadge>
                                                             )}
+                                                            <GroupBadge row={adv} />
                                                         </div>
                                                         <span className="text-xs text-[var(--text-secondary)] block truncate max-w-[220px]" title={adv.guest_name}>{adv.guest_name}</span>
                                                     </td>
