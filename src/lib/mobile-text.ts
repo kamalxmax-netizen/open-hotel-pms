@@ -1,4 +1,4 @@
-import { listNights } from "@/lib/dates";
+import { addDays, listNights } from "@/lib/dates";
 
 type SummaryReservation = {
   name: string;
@@ -288,6 +288,64 @@ export function formatAvailabilityText(pricesByDay: Record<string, AvailabilityD
   });
 
   return text.trim();
+}
+
+type PriceQuoteRoom = {
+  roomTypeName: string;
+  quantity: number;
+  dailyPrices: number[];
+};
+
+function compactThaiRoomName(name: string): string {
+  return String(name ?? "").replace(/\s+/g, "");
+}
+
+export function formatPriceQuoteText(input: {
+  customerName: string;
+  checkin: string;
+  checkout: string;
+  nights: number;
+  rooms: PriceQuoteRoom[];
+}): string {
+  const customerName = String(input.customerName ?? "")
+    .replace(/^คุณ\s*/i, "")
+    .trim() || "ลูกค้า";
+  const nights = Math.max(1, Number(input.nights || 1));
+  const rooms = input.rooms.filter((room) => Number(room.quantity) > 0);
+  const totalAll = rooms.reduce((sum, room) => {
+    const perRoomTotal = room.dailyPrices.reduce((itemSum, price) => itemSum + Number(price || 0), 0);
+    return sum + perRoomTotal * Number(room.quantity || 0);
+  }, 0);
+
+  let text = `สรุปประเภทห้องและราคาตามที่คุณ ${customerName} สอบถามมานะคะ\n`;
+  text += `เข้าพักวันที่ ${formatThaiDayMonth(input.checkin)} - วันออก: ${formatThaiDayMonth(input.checkout)} รวม ${nights} คืน\n`;
+
+  for (const room of rooms) {
+    const quantity = Math.max(1, Number(room.quantity || 1));
+    const perRoomTotal = room.dailyPrices.reduce((sum, price) => sum + Number(price || 0), 0);
+    const lineTotal = perRoomTotal * quantity;
+    const normalizedPrices = room.dailyPrices.map((price) => Number(price || 0));
+    const firstPrice = normalizedPrices[0] ?? 0;
+    const samePrice = normalizedPrices.length > 0 && normalizedPrices.every((price) => price === firstPrice);
+
+    text += `\n${compactThaiRoomName(room.roomTypeName)} จำนวน ${quantity} ห้อง\n`;
+    if (samePrice) {
+      text += `- ราคาคืนละ ${formatMoney(firstPrice)} บาท/ห้อง x ${nights} คืน\n`;
+    } else {
+      const detail = normalizedPrices
+        .map((price, index) => `${formatThaiDayMonth(addDays(input.checkin, index))} ${formatMoney(price)} บาท`)
+        .join(", ");
+      text += `- ราคาตามวันที่ ${detail}\n`;
+    }
+    if (quantity === 1) {
+      text += `- ราคารวม ${formatMoney(lineTotal)} บาท\n`;
+    } else {
+      text += `- ราคา ${formatMoney(perRoomTotal)} บาท/ห้อง ราคารวม ${formatMoney(lineTotal)} บาท\n`;
+    }
+  }
+
+  text += `\nราคารวมทั้งหมด ${formatMoney(totalAll)} บาทค่ะ`;
+  return text;
 }
 
 export function buildDailyPriceMap(

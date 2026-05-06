@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CalendarRange, MessageSquareText } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, CalendarRange, MessageSquareText } from "lucide-react";
 
 export default function MobileTextToolsPage() {
   return (
@@ -49,6 +49,23 @@ export default function MobileTextToolsPage() {
               <h2 className="text-xl font-bold text-[var(--text-primary)]">Room Availability</h2>
               <p className="text-sm font-medium text-[var(--text-secondary)] mt-1 line-clamp-2">
                 Use C/I - NightX+ - C/O, then copy Thai availability text for the guest.
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/pms/mobile-checkin/text-tools/price-quote"
+          className="group block border-2 border-[var(--border-default)] rounded-2xl p-6 bg-[var(--bg-surface-hover)] hover:bg-[var(--bg-muted)] transition-colors shadow-sm active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <BadgeDollarSign className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">Price Quote</h2>
+              <p className="text-sm font-medium text-[var(--text-secondary)] mt-1 line-clamp-2">
+                Build a Thai room price quote and recheck available room quantity before copy.
               </p>
             </div>
           </div>
