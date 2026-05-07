@@ -29,6 +29,7 @@ type PaymentDailyGroupFields = {
     group_code?: string | null;
     group_name?: string | null;
     group_member_count?: number | null;
+    group_type?: "booking_group" | "linked_stay" | null;
 };
 
 type MethodsMap = {
@@ -166,12 +167,24 @@ function matchesGroupFilter(row: PaymentDailyGroupFields, filter: GroupFilter) {
 
 function getGroupTitle(row: PaymentDailyGroupFields) {
     const roomCount = Number(row.group_member_count ?? 0);
-    const roomLabel = roomCount > 0 ? `${roomCount} room${roomCount === 1 ? "" : "s"}` : "Group booking";
-    return `${row.group_name || "Group Booking"} · ${roomLabel}`;
+    const unit = row.group_type === "linked_stay" ? "segment" : "room";
+    const fallback = row.group_type === "linked_stay" ? "Linked Stay" : "Group booking";
+    const roomLabel = roomCount > 0 ? `${roomCount} ${unit}${roomCount === 1 ? "" : "s"}` : fallback;
+    return `${row.group_name || fallback} · ${roomLabel}`;
 }
 
 function GroupBadge({ row }: { row: PaymentDailyGroupFields }) {
     if (!row.booking_group_id) return null;
+    if (row.group_type === "linked_stay") {
+        return (
+            <span
+                title={getGroupTitle(row)}
+                className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
+            >
+                LINK
+            </span>
+        );
+    }
     return (
         <Link
             href={`/pms/groups?group_id=${encodeURIComponent(row.booking_group_id)}`}
@@ -246,6 +259,7 @@ type GroupReviewSection<T extends GroupReviewRow> = {
     groupCode: string | null;
     groupName: string | null;
     groupMemberCount: number;
+    groupType: PaymentDailyGroupFields["group_type"];
     rows: T[];
     priorTotal: number;
     todayTotal: number;
@@ -339,6 +353,7 @@ function buildGroupReviewSections<T extends GroupReviewRow>(rows: T[]): GroupRev
             groupCode: row.group_code ?? null,
             groupName: row.group_name ?? null,
             groupMemberCount: Number(row.group_member_count ?? 0),
+            groupType: row.group_type ?? null,
             rows: [],
             priorTotal: 0,
             todayTotal: 0,
@@ -363,17 +378,26 @@ function buildGroupReviewSections<T extends GroupReviewRow>(rows: T[]): GroupRev
 }
 
 function GroupReviewHeader<T extends GroupReviewRow>({ section, colSpan }: { section: GroupReviewSection<T>; colSpan: number }) {
-    const roomCount = section.groupMemberCount > 0 ? `${section.groupMemberCount} rooms` : "Group booking";
+    const isLinkedStay = section.groupType === "linked_stay";
+    const unit = isLinkedStay ? "segments" : "rooms";
+    const roomCount = section.groupMemberCount > 0 ? `${section.groupMemberCount} ${unit}` : isLinkedStay ? "Linked stay" : "Group booking";
+    const badge = isLinkedStay ? "LINK" : formatShortGroupCode(section.groupCode);
     return (
-        <tr className="border-y-2 border-fuchsia-200 bg-fuchsia-50/80 dark:border-pink-500/30 dark:bg-pink-500/10 hc:border-black hc:bg-white">
+        <tr className={`border-y-2 hc:border-black hc:bg-white ${isLinkedStay ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-500/30 dark:bg-emerald-500/10" : "border-fuchsia-200 bg-fuchsia-50/80 dark:border-pink-500/30 dark:bg-pink-500/10"}`}>
             <td colSpan={colSpan} className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-3">
-                    <Link
-                        href={`/pms/groups?group_id=${encodeURIComponent(section.groupId)}`}
-                        className="inline-flex items-center rounded-full border border-fuchsia-300 bg-white px-2.5 py-1 text-xs font-black text-fuchsia-800 shadow-sm hover:bg-fuchsia-100 dark:border-pink-400/40 dark:bg-pink-500/10 dark:text-pink-200 dark:hover:bg-pink-500/20 hc:border-black hc:bg-white hc:text-black"
-                    >
-                        {formatShortGroupCode(section.groupCode)}
-                    </Link>
+                    {isLinkedStay ? (
+                        <span className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-xs font-black text-emerald-800 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200 hc:border-black hc:bg-white hc:text-black">
+                            {badge}
+                        </span>
+                    ) : (
+                        <Link
+                            href={`/pms/groups?group_id=${encodeURIComponent(section.groupId)}`}
+                            className="inline-flex items-center rounded-full border border-fuchsia-300 bg-white px-2.5 py-1 text-xs font-black text-fuchsia-800 shadow-sm hover:bg-fuchsia-100 dark:border-pink-400/40 dark:bg-pink-500/10 dark:text-pink-200 dark:hover:bg-pink-500/20 hc:border-black hc:bg-white hc:text-black"
+                        >
+                            {badge}
+                        </Link>
+                    )}
                     <div className="min-w-[180px]">
                         <div className="text-sm font-black text-[var(--text-primary)]">{section.groupName || "Group Booking"}</div>
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">{roomCount}</div>
@@ -594,7 +618,7 @@ export default function PaymentDailyPage() {
                         onChange={(e) => setGroupFilter(e.target.value as GroupFilter)}
                     >
                         <option value="all">All</option>
-                        <option value="group">Group only</option>
+                        <option value="group">Group / Link only</option>
                         <option value="individual">Individual only</option>
                     </select>
                 </div>

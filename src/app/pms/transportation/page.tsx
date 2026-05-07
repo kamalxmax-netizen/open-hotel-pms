@@ -550,7 +550,7 @@ function TransferBookingModal({ onClose, onSuccess }: { onClose: () => void; onS
     const carDropoffLocationInvalid = showValidation && !isBoatType && !dropoffLocation.trim();
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={step < 5 ? onClose : undefined}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-[var(--bg-surface)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="sticky top-0 bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between rounded-t-2xl">
