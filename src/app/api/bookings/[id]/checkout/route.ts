@@ -68,6 +68,11 @@ type LinkedCheckoutContext = {
     shouldApplyGuestCounters: boolean;
 };
 
+type CheckoutRoomNight = {
+    room_id: string;
+    stay_date: string;
+};
+
 function diffStayNights(checkinDate: string, checkoutDate: string): number {
     const checkinMs = new Date(`${checkinDate}T00:00:00`).getTime();
     const checkoutMs = new Date(`${checkoutDate}T00:00:00`).getTime();
@@ -188,6 +193,64 @@ async function markReservationsCheckedOut(
         return;
     }
     throw error;
+}
+
+async function findCheckoutRoomNight(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string,
+    businessDate: string
+): Promise<CheckoutRoomNight | null> {
+    const select = "room_id, stay_date";
+    const normalize = (row: any): CheckoutRoomNight | null => {
+        const roomId = row?.room_id ? String(row.room_id) : "";
+        const stayDate = row?.stay_date ? String(row.stay_date) : "";
+        return roomId && stayDate ? { room_id: roomId, stay_date: stayDate } : null;
+    };
+
+    const priorNight = await supabase
+        .from("reservation_nights")
+        .select(select)
+        .eq("reservation_id", reservationId)
+        .is("cancelled_at", null)
+        .lt("stay_date", businessDate)
+        .order("stay_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (priorNight.error) throw priorNight.error;
+    const prior = normalize(priorNight.data);
+    if (prior) return prior;
+
+    const fallbackNight = await supabase
+        .from("reservation_nights")
+        .select(select)
+        .eq("reservation_id", reservationId)
+        .is("cancelled_at", null)
+        .order("stay_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if (fallbackNight.error) throw fallbackNight.error;
+    return normalize(fallbackNight.data);
+}
+
+async function releaseUnusedReservationNightsAfterCheckout(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationIds: string[],
+    businessDate: string,
+    cancelledAt: string
+): Promise<number> {
+    const ids = Array.from(new Set(reservationIds.filter(Boolean)));
+    if (ids.length === 0) return 0;
+
+    const { data, error } = await supabase
+        .from("reservation_nights")
+        .update({ cancelled_at: cancelledAt })
+        .in("reservation_id", ids)
+        .gte("stay_date", businessDate)
+        .is("cancelled_at", null)
+        .select("id");
+
+    if (error) throw error;
+    return data?.length ?? 0;
 }
 
 async function applyGuestCheckoutCounters(params: {
@@ -472,6 +535,7 @@ export async function POST(
 
         const calendarDate = toLocalDate(nowDate);
         const businessDate = await resolveBusinessDate(supabase, calendarDate);
+        const checkoutRoomNight = await findCheckoutRoomNight(supabase, reservationId, businessDate);
 
         // 1. Write folio_payment for checkout (skip if 0)
         if (paymentAmountSatang > 0) {
@@ -530,6 +594,12 @@ export async function POST(
             checked_out_at: now,
         };
         await markReservationsCheckedOut(supabase, linkedCheckoutContext.activeReservationIds, checkoutStatusPayload);
+        const releasedFutureNights = await releaseUnusedReservationNightsAfterCheckout(
+            supabase,
+            linkedCheckoutContext.activeReservationIds,
+            businessDate,
+            now
+        );
 
         if (depositAction === "refund" && depositRefundedSatang > 0) {
             const { error: depositResetError } = await supabase
@@ -566,26 +636,17 @@ export async function POST(
         }
 
         // 4. Get room and mark as dirty
-        const { data: night } = await supabase
-            .from("reservation_nights")
-            .select("room_id, stay_date")
-            .eq("reservation_id", reservationId)
-            .is("cancelled_at", null)
-            .order("stay_date", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
         let checkedOutRoomNumber: string | null = null;
-        if (night?.room_id) {
+        if (checkoutRoomNight?.room_id) {
             const { data: roomRow } = await supabase
                 .from("rooms")
                 .select("room_number")
-                .eq("id", night.room_id)
+                .eq("id", checkoutRoomNight.room_id)
                 .maybeSingle();
             checkedOutRoomNumber = roomRow?.room_number ? String(roomRow.room_number) : null;
 
             await markRoomDirtyTask(supabase, {
-                roomId: night.room_id,
+                roomId: checkoutRoomNight.room_id,
                 stayDate: businessDate,
                 assignedMaidName: null,
                 clearDailyPlanWhenUnassigned: true,
@@ -639,6 +700,7 @@ export async function POST(
                     reservation_ids: linkedCheckoutContext.activeReservationIds,
                     full_checkin_date: linkedCheckoutContext.fullCheckinDate,
                     full_checkout_date: linkedCheckoutContext.fullCheckoutDate,
+                    released_future_nights: releasedFutureNights,
                 },
             },
             business_date: businessDate,

@@ -187,6 +187,15 @@ type ReservationNightSnapshot = {
   nightly_price: number;
 };
 
+function resolveRepresentativeNightSnapshot(
+  nights: ReservationNightSnapshot[],
+  anchorDate = toLocalDate(new Date())
+): ReservationNightSnapshot | null {
+  if (nights.length === 0) return null;
+  const asc = [...nights].sort((a, b) => a.stay_date.localeCompare(b.stay_date));
+  return asc.find((night) => night.stay_date >= anchorDate) ?? asc[asc.length - 1] ?? null;
+}
+
 const updateBookingSchema = z.object({
   guest_name: z.string().min(1),
   room_id: z.string().uuid().optional().nullable(),
@@ -404,12 +413,15 @@ export async function GET(
         .filter((n: any) => !n?.cancelled_at)
         .sort((a: any, b: any) => String(a.stay_date).localeCompare(String(b.stay_date)))
     : [];
-  const today = toLocalDate(new Date());
-  const activeNightsDesc = [...activeNights].sort((a: any, b: any) =>
-    String(b?.stay_date ?? "").localeCompare(String(a?.stay_date ?? ""))
+  const stayNight = resolveRepresentativeNightSnapshot(
+    activeNights.map((n: any) => ({
+      stay_date: String(n?.stay_date ?? ""),
+      room_id: n?.room_id ? String(n.room_id) : null,
+      room_type_id: n?.room_type_id != null ? Number(n.room_type_id) : null,
+      nightly_price: round2(Number(n?.nightly_price ?? 0)),
+    })).filter((n: ReservationNightSnapshot) => n.stay_date),
+    toLocalDate(new Date())
   );
-  const nightsUpToToday = activeNightsDesc.filter((n: any) => String(n?.stay_date ?? "") <= today);
-  const stayNight = nightsUpToToday[0] ?? activeNightsDesc[0] ?? null;
   const roomId = stayNight?.room_id ? String(stayNight.room_id) : null;
   const roomTypeId = stayNight?.room_type_id != null ? String(stayNight.room_type_id) : null;
 
@@ -720,6 +732,15 @@ export async function PUT(
     String(currentReservation.checkout_date ?? "") === payload.checkout_date;
   const unchangedSource = checkedOutMetadataOnlyUpdate || String(currentReservation.source ?? "") === payload.source;
   const assignmentFieldsOmitted = !hasRoomIdField && !hasRoomTypeField;
+  const representativeNight = resolveRepresentativeNightSnapshot(normalizedNightSnapshots);
+  const assignmentCombos = new Set(
+    normalizedNightSnapshots.map((night) => `${night.room_id ?? ""}::${night.room_type_id ?? ""}`)
+  );
+  const hasSplitStayAssignment = assignmentCombos.size > 1;
+  const matchesRepresentativeAssignment =
+    representativeNight !== null &&
+    (!hasRoomIdField || String(representativeNight.room_id ?? "") === String(payload.room_id ?? "")) &&
+    (!hasRoomTypeField || Number(representativeNight.room_type_id ?? 0) === Number(incomingRoomTypeId ?? 0));
   const unchangedAssignment =
     assignmentFieldsOmitted ||
     (normalizedNightSnapshots.length > 0 &&
@@ -735,7 +756,8 @@ export async function PUT(
           incomingRoomTypeId !== null &&
           Number(night.room_type_id ?? 0) === incomingRoomTypeId
         );
-      }));
+      })) ||
+    (unchangedDateScope && hasSplitStayAssignment && matchesRepresentativeAssignment);
   const shouldForceNightRebuild = payload.source === "ota";
   const skipNightRebuild = checkedOutMetadataOnlyUpdate || (!shouldForceNightRebuild && unchangedDateScope && unchangedSource && unchangedAssignment);
   const previousNightlyByDate = new Map(

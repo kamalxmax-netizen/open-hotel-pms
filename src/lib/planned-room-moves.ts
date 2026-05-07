@@ -499,11 +499,12 @@ export async function assertNoReservationNightConflict(
   const { roomId, checkinDate, checkoutDate, excludeReservationId } = params;
   let query = supabase
     .from("reservation_nights")
-    .select("reservation_id, stay_date")
+    .select("reservation_id, stay_date, reservations!inner(status)")
     .eq("room_id", roomId)
     .gte("stay_date", checkinDate)
     .lt("stay_date", checkoutDate)
     .is("cancelled_at", null)
+    .in("reservations.status", ["active", "draft_checkin"])
     .limit(1);
 
   if (excludeReservationId) {
