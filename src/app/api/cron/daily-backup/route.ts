@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     assertAuthorizedCronRequest(request);
 
     const supabase = createServerSupabaseClient();
-    const result = await runDailyCloudBackup(supabase);
+    const result = await runDailyCloudBackup(supabase, { mode: "auto" });
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     const status = error instanceof BackupHttpError ? error.status : 500;

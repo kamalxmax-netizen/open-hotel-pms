@@ -8,6 +8,13 @@ interface BackupHistoryTableProps {
 }
 
 export function BackupHistoryTable({ logs, loading = false }: BackupHistoryTableProps) {
+  const getCloudMode = (log: BackupLog) => {
+    const fileName = log.file_name ?? "";
+    if (fileName.startsWith("daily/incremental/")) return "Incremental";
+    if (fileName.startsWith("daily/full/") || /^daily\/\d{4}-\d{2}-\d{2}_\d{4}\.json\.gz$/.test(fileName)) return "Full";
+    return "Cloud";
+  };
+
   const formatBytes = (bytes?: number | null) => {
     if (!bytes) return "—";
     const k = 1024;
@@ -74,7 +81,7 @@ export function BackupHistoryTable({ logs, loading = false }: BackupHistoryTable
                           : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                       }`}
                     >
-                      {log.backup_type === "daily_cloud" ? "Cloud" : "Sync"}
+                      {log.backup_type === "daily_cloud" ? getCloudMode(log) : "Sync"}
                     </span>
                   </td>
                   <td>

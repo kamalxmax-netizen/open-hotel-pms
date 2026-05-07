@@ -45,8 +45,25 @@ type TableDump = {
   rows: Array<Record<string, unknown>>;
 };
 
+export type DailyCloudBackupMode = "auto" | "full" | "incremental";
+type ResolvedDailyCloudBackupMode = Exclude<DailyCloudBackupMode, "auto">;
+type BackupTimestampColumn = "updated_at" | "created_at";
+
+type SkippedBackupTable = {
+  table: string;
+  reason: string;
+};
+
+type BackupTableExportResult =
+  | { kind: "exported"; entry: { table: string; dump: TableDump } }
+  | { kind: "skipped"; skipped: SkippedBackupTable };
+
 type DailyBackupPayload = {
-  version: 1;
+  version: 2;
+  backup_mode: ResolvedDailyCloudBackupMode;
+  base_full_started_at: string | null;
+  watermark_started_at: string | null;
+  skipped_tables: SkippedBackupTable[];
   exported_at: string;
   exported_timezone: string;
   schema: "public";
@@ -163,6 +180,10 @@ export type DevicePairingResult = {
 export type DailyBackupRunResult = {
   log_id: string;
   object_key: string;
+  backup_mode: ResolvedDailyCloudBackupMode;
+  base_full_started_at: string | null;
+  watermark_started_at: string | null;
+  skipped_tables: SkippedBackupTable[];
   file_size_bytes: number;
   record_count: number;
   storage: BackupStorageSummary;
@@ -181,8 +202,12 @@ const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 const BACKUP_EXPORT_BATCH_SIZE = 1000;
 const BACKUP_HISTORY_LIMIT = 30;
 const BACKUP_STALE_STARTED_MINUTES = 30;
+const FULL_BACKUP_INTERVAL_DAYS = 7;
+const BACKUP_WATERMARK_OVERLAP_MINUTES = 5;
 const SNAPSHOT_KEEP_ROWS = 3;
 const DAILY_BACKUP_PREFIX = "daily/";
+const DAILY_FULL_BACKUP_PREFIX = `${DAILY_BACKUP_PREFIX}full/`;
+const DAILY_INCREMENTAL_BACKUP_PREFIX = `${DAILY_BACKUP_PREFIX}incremental/`;
 const DAILY_BACKUP_TABLES = [
   "profiles",
   "room_types",
@@ -370,6 +395,27 @@ function normalizeDeviceName(value: string | null | undefined, fallback = "FO De
 function parseObjectDate(key: string): string | null {
   const match = key.match(/(\d{4}-\d{2}-\d{2})_/);
   return match?.[1] ?? null;
+}
+
+function isLegacyFullBackupFile(fileName: string): boolean {
+  return /^daily\/\d{4}-\d{2}-\d{2}_\d{4}\.json\.gz$/.test(fileName);
+}
+
+function isFullBackupFile(fileName: string | null): boolean {
+  if (!fileName) return false;
+  return fileName.startsWith(DAILY_FULL_BACKUP_PREFIX) || isLegacyFullBackupFile(fileName);
+}
+
+function subtractMinutes(dateString: string, minutes: number): string {
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return dateString;
+  return new Date(parsed.getTime() - minutes * 60 * 1000).toISOString();
+}
+
+function isOlderThanDays(dateString: string, days: number): boolean {
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return true;
+  return Date.now() - parsed.getTime() >= days * 24 * 60 * 60 * 1000;
 }
 
 function normalizeBackupLogRow(row: any): BackupLogRow {
@@ -628,17 +674,105 @@ async function markBackupLogFailed(
     .eq("id", logId);
 }
 
-async function exportSingleTable(
+async function fetchRecentSuccessfulCloudBackups(supabase: SupabaseServerClient): Promise<BackupLogRow[]> {
+  const { data, error } = await supabase
+    .from("backup_logs")
+    .select("id, backup_type, status, file_name, file_size_bytes, record_count, error_message, started_at, completed_at, created_at")
+    .eq("backup_type", "daily_cloud")
+    .eq("status", "success")
+    .order("started_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as any[]).map(normalizeBackupLogRow);
+}
+
+function isMissingColumnError(error: { code?: string; message?: string; details?: string | null }): boolean {
+  const text = `${error.code ?? ""} ${error.message ?? ""} ${error.details ?? ""}`;
+  return (
+    text.includes("PGRST204") ||
+    text.includes("42703") ||
+    /could not find .* column/i.test(text) ||
+    /column .* does not exist/i.test(text)
+  );
+}
+
+async function tableHasColumn(
+  supabase: SupabaseServerClient,
+  table: string,
+  column: BackupTimestampColumn
+): Promise<boolean> {
+  const { error } = await supabase.from(table).select(column).limit(1);
+  if (!error) return true;
+  if (isMissingColumnError(error)) return false;
+  throw new Error(`Failed to inspect ${table}.${column}: ${error.message}`);
+}
+
+async function resolveIncrementalTimestampColumn(
   supabase: SupabaseServerClient,
   table: string
+): Promise<BackupTimestampColumn | null> {
+  if (await tableHasColumn(supabase, table, "updated_at")) return "updated_at";
+  if (await tableHasColumn(supabase, table, "created_at")) return "created_at";
+  return null;
+}
+
+async function resolveDailyCloudBackupMode(
+  supabase: SupabaseServerClient,
+  requestedMode: DailyCloudBackupMode
+): Promise<{
+  mode: ResolvedDailyCloudBackupMode;
+  baseFullBackup: BackupLogRow | null;
+  latestSuccessfulBackup: BackupLogRow | null;
+  watermarkStartedAt: string | null;
+}> {
+  const successfulBackups = await fetchRecentSuccessfulCloudBackups(supabase);
+  const latestSuccessfulBackup = successfulBackups[0] ?? null;
+  const baseFullBackup = successfulBackups.find((row) => isFullBackupFile(row.file_name)) ?? null;
+
+  const shouldRunFull =
+    requestedMode === "full" ||
+    !baseFullBackup ||
+    (requestedMode === "auto" && isOlderThanDays(baseFullBackup.started_at, FULL_BACKUP_INTERVAL_DAYS));
+
+  if (shouldRunFull) {
+    return {
+      mode: "full",
+      baseFullBackup,
+      latestSuccessfulBackup,
+      watermarkStartedAt: null,
+    };
+  }
+
+  const watermarkSource = latestSuccessfulBackup ?? baseFullBackup;
+  return {
+    mode: "incremental",
+    baseFullBackup,
+    latestSuccessfulBackup,
+    watermarkStartedAt: watermarkSource ? subtractMinutes(watermarkSource.started_at, BACKUP_WATERMARK_OVERLAP_MINUTES) : null,
+  };
+}
+
+async function exportSingleTable(
+  supabase: SupabaseServerClient,
+  table: string,
+  options: {
+    timestampColumn?: BackupTimestampColumn;
+    watermarkStartedAt?: string | null;
+  } = {}
 ): Promise<{ table: string; dump: TableDump }> {
   const rows: Array<Record<string, unknown>> = [];
 
   for (let offset = 0; ; offset += BACKUP_EXPORT_BATCH_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select("*")
       .range(offset, offset + BACKUP_EXPORT_BATCH_SIZE - 1);
+
+    if (options.timestampColumn && options.watermarkStartedAt) {
+      query = query.gte(options.timestampColumn, options.watermarkStartedAt);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Failed to export ${table}: ${error.message}`);
@@ -658,30 +792,71 @@ async function exportSingleTable(
   };
 }
 
-async function buildDailyBackupPayload(supabase: SupabaseServerClient): Promise<{
+async function buildDailyBackupPayload(
+  supabase: SupabaseServerClient,
+  options: {
+    mode: ResolvedDailyCloudBackupMode;
+    baseFullStartedAt: string | null;
+    watermarkStartedAt: string | null;
+  }
+): Promise<{
   payload: DailyBackupPayload;
   recordCount: number;
+  skippedTables: SkippedBackupTable[];
 }> {
-  const tableExports = await mapWithConcurrency(DAILY_BACKUP_TABLES, 4, async (table) =>
-    exportSingleTable(supabase, table)
-  );
+  const tableResults: BackupTableExportResult[] = await mapWithConcurrency(DAILY_BACKUP_TABLES, 4, async (table) => {
+    if (options.mode === "full") {
+      return { kind: "exported" as const, entry: await exportSingleTable(supabase, table) };
+    }
+
+    const timestampColumn = await resolveIncrementalTimestampColumn(supabase, table);
+    if (!timestampColumn || !options.watermarkStartedAt) {
+      return {
+        kind: "skipped" as const,
+        skipped: {
+          table,
+          reason: "No updated_at or created_at column; covered by weekly full backup.",
+        },
+      };
+    }
+
+    return {
+      kind: "exported" as const,
+      entry: await exportSingleTable(supabase, table, {
+        timestampColumn,
+        watermarkStartedAt: options.watermarkStartedAt,
+      }),
+    };
+  });
+  const tableExports = tableResults
+    .filter((result): result is { kind: "exported"; entry: { table: string; dump: TableDump } } => result.kind === "exported")
+    .map((result) => result.entry);
+  const skippedTables = tableResults
+    .filter((result): result is { kind: "skipped"; skipped: SkippedBackupTable } => result.kind === "skipped")
+    .map((result) => result.skipped);
   const tables = Object.fromEntries(tableExports.map((entry) => [entry.table, entry.dump]));
   const recordCount = tableExports.reduce((sum, entry) => sum + entry.dump.row_count, 0);
 
   return {
     payload: {
-      version: 1,
+      version: 2,
+      backup_mode: options.mode,
+      base_full_started_at: options.baseFullStartedAt,
+      watermark_started_at: options.watermarkStartedAt,
+      skipped_tables: skippedTables,
       exported_at: new Date().toISOString(),
       exported_timezone: BANGKOK_TIME_ZONE,
       schema: "public",
       tables,
     },
     recordCount,
+    skippedTables,
   };
 }
 
-function buildBackupFileName(now: Date = new Date()): string {
-  return `${DAILY_BACKUP_PREFIX}${asDateString(now)}_${asTimeString(now)}.json.gz`;
+function buildBackupFileName(mode: ResolvedDailyCloudBackupMode, now: Date = new Date()): string {
+  const prefix = mode === "full" ? DAILY_FULL_BACKUP_PREFIX : DAILY_INCREMENTAL_BACKUP_PREFIX;
+  return `${prefix}${asDateString(now)}_${asTimeString(now)}.json.gz`;
 }
 
 async function resolveBusinessDate(supabase: SupabaseServerClient): Promise<string> {
@@ -1272,15 +1447,23 @@ export async function getBackupStatus(supabase: SupabaseServerClient): Promise<B
   };
 }
 
-export async function runDailyCloudBackup(supabase: SupabaseServerClient): Promise<DailyBackupRunResult> {
+export async function runDailyCloudBackup(
+  supabase: SupabaseServerClient,
+  options: { mode?: DailyCloudBackupMode } = {}
+): Promise<DailyBackupRunResult> {
   await markStaleStartedBackupLogsFailed(supabase, "daily_cloud");
   const config = await ensureBackupConfig(supabase);
+  const modeContext = await resolveDailyCloudBackupMode(supabase, options.mode ?? "auto");
   const logId = await createBackupLog(supabase, "daily_cloud");
 
   try {
-    const { payload, recordCount } = await buildDailyBackupPayload(supabase);
+    const { payload, recordCount, skippedTables } = await buildDailyBackupPayload(supabase, {
+      mode: modeContext.mode,
+      baseFullStartedAt: modeContext.baseFullBackup?.started_at ?? null,
+      watermarkStartedAt: modeContext.watermarkStartedAt,
+    });
     const compressed = gzipSync(Buffer.from(JSON.stringify(payload)));
-    const objectKey = buildBackupFileName();
+    const objectKey = buildBackupFileName(modeContext.mode);
     const bucket = String(process.env.R2_BUCKET_NAME ?? config.r2_bucket).trim() || config.r2_bucket;
 
     await uploadBufferToR2({
@@ -1300,6 +1483,10 @@ export async function runDailyCloudBackup(supabase: SupabaseServerClient): Promi
     return {
       log_id: logId,
       object_key: objectKey,
+      backup_mode: modeContext.mode,
+      base_full_started_at: modeContext.baseFullBackup?.started_at ?? null,
+      watermark_started_at: modeContext.watermarkStartedAt,
+      skipped_tables: skippedTables,
       file_size_bytes: compressed.byteLength,
       record_count: recordCount,
       storage: await getStorageSummary(bucket),
