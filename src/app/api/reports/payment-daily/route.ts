@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/folio-fees";
+import { resolveAdvancePaymentStatus } from "@/lib/payment-daily-accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -71,6 +72,9 @@ type ReservationRow = {
   checkin_date: string | null;
   checkout_date: string | null;
   total_price: number | null;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_percent: number | null;
   is_dayuse: boolean | null;
 };
 
@@ -99,6 +103,7 @@ type LinkedReservationRow = {
   id: string;
   parent_reservation_id: string | null;
   booking_code: string | null;
+  guest_name?: string | null;
   source: string | null;
   checkin_date: string | null;
   checkout_date: string | null;
@@ -118,6 +123,7 @@ type GroupMeta = {
   group_code: string | null;
   group_name: string | null;
   group_member_count: number;
+  group_type: "booking_group" | "linked_stay" | null;
 };
 
 type PriorPrepaymentMethods = Record<MethodKey, number>;
@@ -136,6 +142,7 @@ const EMPTY_GROUP_META: GroupMeta = {
   group_code: null,
   group_name: null,
   group_member_count: 0,
+  group_type: null,
 };
 
 function isPosDepositRecord(txType: TxType, category: string, note: string): boolean {
@@ -490,6 +497,64 @@ function buildLinkedStayRemarkMap(rows: LinkedReservationRow[]): Map<string, str
   return remarkByReservationId;
 }
 
+function buildLinkedStayGroupMetaMap(rows: LinkedReservationRow[]): Map<string, GroupMeta> {
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const childIdsByParentId = new Map<string, string[]>();
+
+  for (const row of rows) {
+    if (!row.parent_reservation_id) continue;
+    const parentId = String(row.parent_reservation_id);
+    const children = childIdsByParentId.get(parentId) ?? [];
+    children.push(row.id);
+    childIdsByParentId.set(parentId, children);
+  }
+
+  const metaByReservationId = new Map<string, GroupMeta>();
+
+  for (const row of rows) {
+    const parentId = row.parent_reservation_id ? String(row.parent_reservation_id) : null;
+    const groupId = parentId || (childIdsByParentId.has(row.id) ? row.id : null);
+    if (!groupId) continue;
+
+    const parentRow = rowsById.get(groupId);
+    if (!parentRow) continue;
+
+    const childIds = childIdsByParentId.get(groupId) ?? [];
+    const relatedRows = [
+      parentRow,
+      ...childIds
+        .map((childId) => rowsById.get(childId))
+        .filter((item): item is LinkedReservationRow => Boolean(item)),
+    ];
+    const uniqueRows = Array.from(new Map(relatedRows.map((item) => [item.id, item])).values());
+    if (uniqueRows.length <= 1) continue;
+
+    const ordered = [...uniqueRows].sort((left, right) => {
+      const dateCmp = String(left.checkin_date ?? "").localeCompare(String(right.checkin_date ?? ""));
+      if (dateCmp !== 0) return dateCmp;
+      return String(left.booking_code ?? "").localeCompare(String(right.booking_code ?? ""));
+    });
+    const first = ordered[0];
+    const last = ordered[ordered.length - 1];
+    const guestName = String(parentRow.guest_name ?? first.guest_name ?? "Linked Stay").trim() || "Linked Stay";
+    const stayRange = formatCompactStayRange(first.checkin_date, last.checkout_date);
+    const rootCode = String(parentRow.booking_code ?? groupId).replace(/[^A-Za-z0-9]/g, "").slice(-6).toUpperCase();
+    const meta: GroupMeta = {
+      booking_group_id: `linked:${groupId}`,
+      group_code: rootCode ? `LS-${rootCode}` : "LS",
+      group_name: `Linked Stay · ${guestName} · ${stayRange}`,
+      group_member_count: uniqueRows.length,
+      group_type: "linked_stay",
+    };
+
+    for (const item of uniqueRows) {
+      metaByReservationId.set(item.id, meta);
+    }
+  }
+
+  return metaByReservationId;
+}
+
 function resolveRoomForDate(
   nights: ReservationNightRoom[] | undefined,
   paidDate: string,
@@ -711,7 +776,7 @@ export async function GET(request: NextRequest) {
       const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, is_dayuse, booking_group_id, parent_reservation_id, source, status")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, discount_type, discount_value, discount_percent, is_dayuse, booking_group_id, parent_reservation_id, source, status")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -745,17 +810,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: false, error: priorPaymentsRes.error.message }, { status: 500 });
       }
 
-      reservationMap = new Map(
-        ((reservationRes.data ?? []) as ReservationRow[]).map((row) => [row.id, row])
-      );
+      const reservationRows = (reservationRes.data ?? []) as ReservationRow[];
+      reservationMap = new Map(reservationRows.map((row) => [row.id, row]));
 
       const groupIds = Array.from(
         new Set(
-          ((reservationRes.data ?? []) as ReservationRow[])
+          reservationRows
             .map((row) => String(row.booking_group_id ?? "").trim())
             .filter(Boolean)
         )
       );
+      const bookingGroupMetaByReservationId = new Map<string, GroupMeta>();
       if (groupIds.length > 0) {
         const [groupsRes, groupMembersRes] = await Promise.all([
           supabase
@@ -791,34 +856,68 @@ export async function GET(request: NextRequest) {
           if (String((row as any).status ?? "").toLowerCase() === "cancelled") continue;
           groupMemberCountById.set(groupId, (groupMemberCountById.get(groupId) ?? 0) + 1);
         }
-        groupMetaByReservationId = new Map(
-          ((reservationRes.data ?? []) as ReservationRow[]).map((row) => {
-            const groupId = String(row.booking_group_id ?? "").trim();
-            const group = groupId ? groupById.get(groupId) : undefined;
-            return [
-              row.id,
-              groupId
-                ? {
-                    booking_group_id: groupId,
-                    group_code: group?.group_code ?? null,
-                    group_name: group?.group_name ?? null,
-                    group_member_count: groupMemberCountById.get(groupId) ?? 0,
-                  }
-                : EMPTY_GROUP_META,
-            ];
-          })
-        );
+        for (const row of reservationRows) {
+          const groupId = String(row.booking_group_id ?? "").trim();
+          const group = groupId ? groupById.get(groupId) : undefined;
+          if (!groupId) continue;
+          bookingGroupMetaByReservationId.set(row.id, {
+            booking_group_id: groupId,
+            group_code: group?.group_code ?? null,
+            group_name: group?.group_name ?? null,
+            group_member_count: groupMemberCountById.get(groupId) ?? 0,
+            group_type: "booking_group",
+          });
+        }
       }
 
-      linkedRemarkByReservationId = buildLinkedStayRemarkMap(
-        ((reservationRes.data ?? []) as LinkedReservationRow[]).map((row) => ({
+      const linkedRootCandidates = Array.from(
+        new Set(
+          reservationRows
+            .flatMap((row) => [String(row.id ?? "").trim(), String(row.parent_reservation_id ?? "").trim()])
+            .filter(Boolean)
+        )
+      );
+      let linkedRows: LinkedReservationRow[] = reservationRows.map((row) => ({
           id: String(row.id),
           parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
           booking_code: row.booking_code ?? null,
+          guest_name: row.guest_name ?? null,
           source: row.source ?? null,
           checkin_date: row.checkin_date ?? null,
           checkout_date: row.checkout_date ?? null,
-        }))
+      }));
+      if (linkedRootCandidates.length > 0) {
+        const [linkedRootsRes, linkedChildrenRes] = await Promise.all([
+          supabase
+            .from("reservations")
+            .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date")
+            .in("id", linkedRootCandidates),
+          supabase
+            .from("reservations")
+            .select("id, parent_reservation_id, booking_code, guest_name, source, checkin_date, checkout_date")
+            .in("parent_reservation_id", linkedRootCandidates),
+        ]);
+        if (linkedRootsRes.error) {
+          return NextResponse.json({ success: false, error: linkedRootsRes.error.message }, { status: 500 });
+        }
+        if (linkedChildrenRes.error) {
+          return NextResponse.json({ success: false, error: linkedChildrenRes.error.message }, { status: 500 });
+        }
+        linkedRows = [
+          ...linkedRows,
+          ...((linkedRootsRes.data ?? []) as LinkedReservationRow[]),
+          ...((linkedChildrenRes.data ?? []) as LinkedReservationRow[]),
+        ];
+      }
+      linkedRows = Array.from(new Map(linkedRows.map((row) => [String(row.id), row])).values());
+
+      linkedRemarkByReservationId = buildLinkedStayRemarkMap(linkedRows);
+      const linkedGroupMetaByReservationId = buildLinkedStayGroupMetaMap(linkedRows);
+      groupMetaByReservationId = new Map(
+        reservationRows.map((row) => [
+          row.id,
+          bookingGroupMetaByReservationId.get(row.id) ?? linkedGroupMetaByReservationId.get(row.id) ?? EMPTY_GROUP_META,
+        ])
       );
 
       for (const row of (nightsRes.data ?? []) as any[]) {
@@ -1069,15 +1168,24 @@ export async function GET(request: NextRequest) {
 
       if (isAdvance) {
         if (!reservation) continue;
+        const advanceStatus = resolveAdvancePaymentStatus({
+          totalPrice: reservation.total_price,
+          totalPaidToDate: cumulativePaidMap.get(reservationId) ?? 0,
+          discountType: reservation.discount_type,
+          discountValue: reservation.discount_value,
+          discountPercent: reservation.discount_percent,
+          checkinDate: reservation.checkin_date,
+          checkoutDate: reservation.checkout_date,
+        });
         const current = advanceGroup.get(reservationId) ?? {
           reservation_id: reservationId,
           booking_code: reservation.booking_code ?? reservationId,
           guest_name: reservation.guest_name ?? "Unknown",
           room_number: resolvedRoom.room_number,
           checkin_date: reservation.checkin_date ?? "",
-          total_price: Number(reservation.total_price ?? 0),
+          total_price: advanceStatus.payableTotal,
           total_paid_to_date: round2(cumulativePaidMap.get(reservationId) ?? 0),
-          payment_status: "deposit" as const,
+          payment_status: advanceStatus.paymentStatus,
           is_cancelled: String(reservation.status ?? "").toLowerCase() === "cancelled",
           group_meta: groupMetaByReservationId.get(reservationId) ?? EMPTY_GROUP_META,
           methods: createMethodsMap(),
@@ -1102,10 +1210,17 @@ export async function GET(request: NextRequest) {
           addReportNote(current.notes, "Cancelled");
         }
 
-        const paidToDate = current.total_paid_to_date;
-        if (current.total_price > 0 && paidToDate >= current.total_price - 0.01) current.payment_status = "full";
-        else if (paidToDate > 0) current.payment_status = "partial";
-        else current.payment_status = "deposit";
+        const latestStatus = resolveAdvancePaymentStatus({
+          totalPrice: reservation.total_price,
+          totalPaidToDate: current.total_paid_to_date,
+          discountType: reservation.discount_type,
+          discountValue: reservation.discount_value,
+          discountPercent: reservation.discount_percent,
+          checkinDate: reservation.checkin_date,
+          checkoutDate: reservation.checkout_date,
+        });
+        current.total_price = latestStatus.payableTotal;
+        current.payment_status = latestStatus.paymentStatus;
 
         advanceGroup.set(reservationId, current);
       } else {
@@ -1206,6 +1321,7 @@ export async function GET(request: NextRequest) {
         group_code: row.group_meta.group_code,
         group_name: row.group_meta.group_name,
         group_member_count: row.group_meta.group_member_count,
+        group_type: row.group_meta.group_type,
         prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
         prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
         prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],
@@ -1237,6 +1353,7 @@ export async function GET(request: NextRequest) {
         group_code: row.group_meta.group_code,
         group_name: row.group_meta.group_name,
         group_member_count: row.group_meta.group_member_count,
+        group_type: row.group_meta.group_type,
         prior_prepayment_total: round2(priorNetByReservationId.get(row.reservation_id) ?? 0),
         prior_prepayment_methods: finalizePriorPrepaymentMethods(priorPrepaymentMethodsByReservationId.get(row.reservation_id)),
         prior_prepayment_details: priorPrepaymentDetailsByReservationId.get(row.reservation_id) ?? [],

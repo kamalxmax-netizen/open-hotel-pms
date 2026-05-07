@@ -38,6 +38,7 @@ import type { ReservationGuestWithProfile, LinkedStay } from "@/lib/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import LinkedStayPanel from "./linked-stay-panel";
+import LinkStayModal from "./link-stay-modal";
 import { useLostFoundPopup } from "@/components/providers/lost-found-popup-context";
 
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
@@ -1031,6 +1032,7 @@ export default function ReservationDetailPage({
     const [fetching, setFetching] = useState(mode !== "create");
     const [error, setError] = useState("");
     const [showAssignRoomModal, setShowAssignRoomModal] = useState(false);
+    const [showLinkStayModal, setShowLinkStayModal] = useState(false);
     const rateRefreshSeqRef = useRef(0);
     const thaiCardPopupRef = useRef<Window | null>(null);
     const thaiCardRequestIdRef = useRef<string | null>(null);
@@ -4544,6 +4546,9 @@ export default function ReservationDetailPage({
                                     <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowOptions(true)}>
                                         Options
                                     </button>
+                                    <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowLinkStayModal(true)}>
+                                        Link Stay
+                                    </button>
                                     <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={() => setShowHistoryModal(true)}>
                                         History
                                     </button>
@@ -6433,6 +6438,21 @@ export default function ReservationDetailPage({
                     checkinDate={checkinDate}
                     checkoutDate={checkoutDate}
                     onClose={() => setShowOptions(false)}
+                />
+            )}
+
+            {showLinkStayModal && reservationId && (
+                <LinkStayModal
+                    reservationId={reservationId}
+                    guestName={guestName || "Guest"}
+                    checkinDate={checkinDate}
+                    checkoutDate={checkoutDate}
+                    onClose={() => setShowLinkStayModal(false)}
+                    onSuccess={() => {
+                        setShowLinkStayModal(false);
+                        setSuccessMessage("Reservations linked successfully.");
+                        onSuccess();
+                    }}
                 />
             )}
 
