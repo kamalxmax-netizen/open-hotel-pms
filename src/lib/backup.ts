@@ -180,6 +180,7 @@ export type SnapshotRunResult = {
 const BANGKOK_TIME_ZONE = "Asia/Bangkok";
 const BACKUP_EXPORT_BATCH_SIZE = 1000;
 const BACKUP_HISTORY_LIMIT = 30;
+const BACKUP_STALE_STARTED_MINUTES = 30;
 const SNAPSHOT_KEEP_ROWS = 3;
 const DAILY_BACKUP_PREFIX = "daily/";
 const DAILY_BACKUP_TABLES = [
@@ -568,6 +569,25 @@ async function createBackupLog(
   if (error) throw new Error(error.message);
   if (!data?.id) throw new Error("Failed to create backup log.");
   return String(data.id);
+}
+
+async function markStaleStartedBackupLogsFailed(
+  supabase: SupabaseServerClient,
+  backupType: "daily_cloud" | "offline_snapshot"
+): Promise<void> {
+  const cutoff = new Date(Date.now() - BACKUP_STALE_STARTED_MINUTES * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("backup_logs")
+    .update({
+      status: "failed",
+      error_message: `Backup run was interrupted before completion after ${BACKUP_STALE_STARTED_MINUTES} minutes.`,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("backup_type", backupType)
+    .eq("status", "started")
+    .is("completed_at", null)
+    .lt("started_at", cutoff);
+  if (error) throw new Error(error.message);
 }
 
 async function markBackupLogSuccess(
@@ -1253,6 +1273,7 @@ export async function getBackupStatus(supabase: SupabaseServerClient): Promise<B
 }
 
 export async function runDailyCloudBackup(supabase: SupabaseServerClient): Promise<DailyBackupRunResult> {
+  await markStaleStartedBackupLogsFailed(supabase, "daily_cloud");
   const config = await ensureBackupConfig(supabase);
   const logId = await createBackupLog(supabase, "daily_cloud");
 
@@ -1292,6 +1313,7 @@ export async function runDailyCloudBackup(supabase: SupabaseServerClient): Promi
 }
 
 export async function runOfflineSnapshotSync(supabase: SupabaseServerClient): Promise<SnapshotRunResult> {
+  await markStaleStartedBackupLogsFailed(supabase, "offline_snapshot");
   const logId = await createBackupLog(supabase, "offline_snapshot");
 
   try {

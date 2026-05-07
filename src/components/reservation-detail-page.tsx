@@ -398,6 +398,7 @@ type CreatedReservationSummary = {
     source: string;
     roomTypeName: string;
     roomNumber: string | null;
+    roomPathLabel?: string | null;
     checkinDate: string;
     checkoutDate: string;
     nights: number;
@@ -406,8 +407,64 @@ type CreatedReservationSummary = {
     canContinueToCheckin?: boolean;
 };
 
+type ContinuousStayPreviewSegment = {
+    start_date: string;
+    end_date: string;
+    room_id: string;
+    room_number: string;
+    room_type_id: number;
+    room_type_name: string;
+    nightly_rates: Array<{ stay_date: string; rate: number }>;
+    subtotal: number;
+    available_rooms?: Array<{
+        room_id: string;
+        room_number: string;
+        room_type_id: number;
+        room_type_name: string;
+        nightly_rates: Array<{ stay_date: string; rate: number }>;
+        subtotal: number;
+    }>;
+};
+
+type ContinuousStayPreviewState = {
+    requires_continuous_plan: boolean;
+    blocked_nights: Array<{
+        stay_date: string;
+        requested_room_number: string | null;
+        requested_room_type_name: string;
+        assigned_room_number: string;
+        assigned_room_type_name: string;
+    }>;
+    segments: ContinuousStayPreviewSegment[];
+    totals: {
+        subtotal: number;
+        discount_amount: number;
+        total: number;
+        nights: number;
+    };
+};
+
 const DEFAULT_CHECKIN_DEPOSIT_INPUT = "200.00";
 const NETWORK_TIMEOUT_MS = 15000;
+
+function formatYmdAsDmy(value: string): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return value;
+    return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function formatContinuousStaySegmentRange(segment: ContinuousStayPreviewSegment): string {
+    const lastNight = addDays(segment.end_date, -1);
+    if (segment.start_date === lastNight) return formatYmdAsDmy(segment.start_date);
+    return `${formatYmdAsDmy(segment.start_date)} - ${formatYmdAsDmy(lastNight)}`;
+}
+
+function formatContinuousStayRoomPath(segments?: ContinuousStayPreviewSegment[] | null): string | null {
+    if (!segments || segments.length === 0) return null;
+    return segments
+        .map((segment) => `Room ${segment.room_number} (${formatContinuousStaySegmentRange(segment)})`)
+        .join(" → ");
+}
 
 const BOOKING_SOURCE_LABEL: Record<string, string> = {
     walkin: "Walk-in",
@@ -1195,6 +1252,10 @@ export default function ReservationDetailPage({
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [showRegCard, setShowRegCard] = useState(false);
     const [createdSummary, setCreatedSummary] = useState<CreatedReservationSummary | null>(null);
+    const [continuousStayPreview, setContinuousStayPreview] = useState<ContinuousStayPreviewState | null>(null);
+    const [continuousStayPayload, setContinuousStayPayload] = useState<any | null>(null);
+    const [continuousStayConfirming, setContinuousStayConfirming] = useState(false);
+    const [continuousStayRefreshing, setContinuousStayRefreshing] = useState(false);
 
     // Options panel (Traces, Alerts, Loans etc.)
     const [showOptions, setShowOptions] = useState(false);
@@ -2394,6 +2455,11 @@ export default function ReservationDetailPage({
             });
     }, [roomNumber, mode]);
 
+    useEffect(() => {
+        setContinuousStayPreview(null);
+        setContinuousStayPayload(null);
+    }, [checkinDate, checkoutDate, roomId, roomTypeId, source, ratePlanId, discountType, discountValue]);
+
     // Fetch Existing Reservation
     useEffect(() => {
         // Reset policy-flow state when context changes (new reservation / new mode)
@@ -3221,7 +3287,7 @@ export default function ReservationDetailPage({
     const isReadonly = mode === "checkout" || readonlyClosedReservation || dayUseAmountOnlyMode;
     const lockStayFields = isReadonly || canEditCheckedOutReservation;
     const lockPricingFields = isReadonly || canEditCheckedOutReservation;
-    const interactionLocked = loading || rateRefreshing;
+    const interactionLocked = loading || rateRefreshing || continuousStayConfirming || continuousStayRefreshing;
     const checkoutSubmitDisabled =
         interactionLocked ||
         readonlyClosedReservation ||
@@ -3858,10 +3924,31 @@ export default function ReservationDetailPage({
                 });
                 const d = await res.json();
                 if (!res.ok) {
+                    if (res.status === 409 && source !== "ota") {
+                        try {
+                            const previewRes = await fetch("/api/bookings/continuous-stay/preview", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(payload)
+                            });
+                            const previewData = await previewRes.json().catch(() => null);
+                            if (previewRes.ok && previewData?.success && previewData?.requires_continuous_plan) {
+                                setContinuousStayPayload(payload);
+                                setContinuousStayPreview(previewData as ContinuousStayPreviewState);
+                                setError("");
+                                setLoading(false);
+                                return;
+                            }
+                        } catch (previewError) {
+                            console.error("Continuous stay preview failed", previewError);
+                        }
+                    }
                     setError(d.error || "Failed to create.");
                     setLoading(false);
                     return;
                 }
+                setContinuousStayPayload(null);
+                setContinuousStayPreview(null);
                 const created = d?.reservation ?? {};
                 const createdReservationId = String(created?.id || "");
                 const canContinueToCheckinAfterCreate = Boolean(
@@ -3919,12 +4006,16 @@ export default function ReservationDetailPage({
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
-                    room_id: roomId || null,
                     phone: phone.trim() || undefined,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
                 };
-                if (roomTypeId) payload.room_type_id = roomTypeId;
+                const roomAssignmentChanged = String(roomId || "") !== String(initialAssignedRoomId || "");
+                const roomTypeAssignmentChanged = String(roomTypeId || "") !== String(initialAssignedRoomTypeId || "");
+                if (roomAssignmentChanged) {
+                    payload.room_id = roomId || null;
+                }
+                if (roomTypeAssignmentChanged && roomTypeId) payload.room_type_id = roomTypeId;
                 if (syncedGuestProfileId) payload.guest_profile_id = syncedGuestProfileId;
                 if (shouldSendExpectedArrivalField) payload.expected_arrival_time = normalizedExpectedArrival || null;
                 if (!checkedOutMetadataOnlyEdit) {
@@ -4089,7 +4180,7 @@ export default function ReservationDetailPage({
                 onSuccess();
 
             } else if (mode === "checkin" && reservationId) {
-                if (activeIntent !== "draft" && !roomId) {
+                if (activeIntent !== "draft" && !roomId && !initialAssignedRoomId) {
                     setError("Please assign a room before check-in.");
                     setLoading(false);
                     return;
@@ -4108,7 +4199,6 @@ export default function ReservationDetailPage({
                     checkin_date: checkinDate,
                     checkout_date: checkoutDate,
                     source,
-                    room_id: roomId || null,
                     phone: phone.trim() || undefined,
                     note: note.trim() || undefined,
                     specials: specials.trim(),
@@ -4121,7 +4211,12 @@ export default function ReservationDetailPage({
                 if (activeIntent === "draft" && checkinTimeDraft) {
                     updatePayload.checkin_time = checkinTimeDraft;
                 }
-                if (chargeRoomTypeId) updatePayload.room_type_id = chargeRoomTypeId;
+                const roomAssignmentChanged = String(roomId || "") !== String(initialAssignedRoomId || "");
+                const roomTypeAssignmentChanged = String(chargeRoomTypeId || "") !== String(initialAssignedRoomTypeId || "");
+                if (roomAssignmentChanged) {
+                    updatePayload.room_id = roomId || null;
+                }
+                if (roomTypeAssignmentChanged && chargeRoomTypeId) updatePayload.room_type_id = chargeRoomTypeId;
                 if (ratePlanId) updatePayload.rate_plan_id = ratePlanId;
                 else if (originalRatePlanId) updatePayload.rate_plan_id = null;
                 if (priceChangeChoice) updatePayload.price_change_choice = priceChangeChoice;
@@ -4279,6 +4374,128 @@ export default function ReservationDetailPage({
         } catch {
             setError("Network error.");
             setLoading(false);
+        }
+    };
+
+    const handleConfirmContinuousStayPlan = async () => {
+        if (!continuousStayPayload || !continuousStayPreview) {
+            setError("Continuous stay plan is no longer available. Please create again.");
+            return;
+        }
+
+        setContinuousStayConfirming(true);
+        setError("");
+        setSuccessMessage("");
+        try {
+            const res = await fetch("/api/bookings/continuous-stay/commit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(continuousStayPayload),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data?.success) {
+                setError(data?.error || "Failed to create continuous stay booking.");
+                setContinuousStayConfirming(false);
+                return;
+            }
+
+            const created = data?.reservation ?? {};
+            const plan = (data?.continuous_stay_plan ?? continuousStayPreview) as ContinuousStayPreviewState;
+            const createdReservationId = String(created?.id || "");
+            const createdTotal = Number(created?.continuous_stay_total_after_discount ?? plan?.totals?.total ?? created?.total_price);
+            const roomPathLabel = formatContinuousStayRoomPath(plan?.segments);
+            const firstSegment = plan?.segments?.[0] ?? null;
+            const firstRoomTypeName =
+                firstSegment?.room_type_name ||
+                roomTypes.find((rt: any) => String(rt.id) === String(roomTypeId))?.name_en ||
+                "Unspecified";
+            const canContinueToCheckinAfterCreate = Boolean(
+                onOpenCheckin &&
+                source === "walkin" &&
+                checkinDate === businessDate &&
+                firstSegment?.room_id &&
+                hasMainGuestIdentityImport &&
+                canOfferContinueToCheckin(continuousStayPayload.guest_profile_id ?? null)
+            );
+
+            if (continuousStayPayload.guest_profile_id) {
+                try {
+                    const lfRes = await fetch(`/api/lost-found/check-guest?guest_profile_id=${continuousStayPayload.guest_profile_id}`);
+                    if (lfRes.ok) {
+                        const lfData = await lfRes.json();
+                        if (lfData.alert) showPopup(lfData.alert);
+                        else if (lfData.items) showPopup(lfData);
+                    }
+                } catch (e) {
+                    console.error("L&F check failed", e);
+                }
+            }
+
+            setContinuousStayPayload(null);
+            setContinuousStayPreview(null);
+            setContinuousStayConfirming(false);
+            setCreatedSummary({
+                bookingCode: String(created?.booking_code || created?.id || "N/A"),
+                guestName: String(created?.guest_name || continuousStayPayload.guest_name || "Guest"),
+                source,
+                roomTypeName: firstRoomTypeName,
+                roomNumber: firstSegment?.room_number || created?.room_number || null,
+                roomPathLabel,
+                checkinDate,
+                checkoutDate,
+                nights,
+                totalPrice: Number.isFinite(createdTotal) ? fromSatang(toSatang(createdTotal)) : plan.totals.total,
+                createdReservationId: createdReservationId || null,
+                canContinueToCheckin: Boolean(canContinueToCheckinAfterCreate && createdReservationId),
+            });
+        } catch (error) {
+            console.error("Continuous stay commit failed", error);
+            setError("Network error.");
+            setContinuousStayConfirming(false);
+        }
+    };
+
+    const handleContinuousStayRoomChange = async (segment: ContinuousStayPreviewSegment, nextRoomId: string) => {
+        if (!continuousStayPayload || !continuousStayPreview || nextRoomId === segment.room_id) return;
+        const existingOverrides = Array.isArray(continuousStayPayload.room_overrides)
+            ? continuousStayPayload.room_overrides
+            : [];
+        const nextOverrides = [
+            ...existingOverrides.filter((item: any) =>
+                !(String(item.start_date) < segment.end_date && String(item.end_date) > segment.start_date)
+            ),
+            {
+                start_date: segment.start_date,
+                end_date: segment.end_date,
+                room_id: nextRoomId,
+            },
+        ];
+        const nextPayload = {
+            ...continuousStayPayload,
+            room_overrides: nextOverrides,
+        };
+
+        setContinuousStayRefreshing(true);
+        setError("");
+        try {
+            const previewRes = await fetch("/api/bookings/continuous-stay/preview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(nextPayload),
+            });
+            const previewData = await previewRes.json().catch(() => null);
+            if (!previewRes.ok || !previewData?.success) {
+                setError(previewData?.error || "Selected room is not available for this segment.");
+                setContinuousStayRefreshing(false);
+                return;
+            }
+            setContinuousStayPayload(nextPayload);
+            setContinuousStayPreview(previewData as ContinuousStayPreviewState);
+            setContinuousStayRefreshing(false);
+        } catch (error) {
+            console.error("Continuous stay room change failed", error);
+            setError("Failed to refresh continuous stay plan.");
+            setContinuousStayRefreshing(false);
         }
     };
 
@@ -4499,6 +4716,13 @@ export default function ReservationDetailPage({
                                 {createdSummary.roomNumber ? `Room ${createdSummary.roomNumber}` : "Not assigned"}
                             </p>
 
+                            {createdSummary.roomPathLabel && (
+                                <>
+                                    <p className="text-[var(--text-muted)]">Room Path</p>
+                                    <p className="font-semibold text-[var(--text-primary)] text-right">{createdSummary.roomPathLabel}</p>
+                                </>
+                            )}
+
                             <p className="text-[var(--text-muted)]">Channel</p>
                             <p className="font-semibold text-[var(--text-primary)] text-right">
                                 {BOOKING_SOURCE_LABEL[createdSummary.source] ?? createdSummary.source}
@@ -4673,6 +4897,111 @@ export default function ReservationDetailPage({
                         onSwitchTab={handleSwitchLinkedTab}
                         onUnlinked={() => onSuccess()}
                     />
+                )}
+
+                {mode === "create" && continuousStayPreview && (
+                    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-2">
+                                <div>
+                                    <p className="font-bold">Selected stay has an availability conflict.</p>
+                                    <p className="text-xs opacity-80">
+                                        Confirm this plan to keep one booking and schedule room moves automatically.
+                                    </p>
+                                </div>
+                                {continuousStayPreview.blocked_nights.length > 0 && (
+                                    <div className="rounded-lg border border-amber-200 bg-white/60 px-3 py-2 text-xs dark:border-amber-500/20 dark:bg-black/10">
+                                        {continuousStayPreview.blocked_nights.slice(0, 3).map((night) => (
+                                            <div key={night.stay_date} className="flex flex-wrap items-center gap-1.5">
+                                                <span className="font-semibold">{formatYmdAsDmy(night.stay_date)}</span>
+                                                <span>
+                                                    {night.requested_room_number
+                                                        ? `Room ${night.requested_room_number}`
+                                                        : night.requested_room_type_name}
+                                                </span>
+                                                <span>→</span>
+                                                <span className="font-semibold">
+                                                    Room {night.assigned_room_number} ({night.assigned_room_type_name})
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {continuousStayPreview.blocked_nights.length > 3 && (
+                                            <div className="mt-1 opacity-70">
+                                                +{continuousStayPreview.blocked_nights.length - 3} more affected night(s)
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="space-y-1">
+                                    {continuousStayPreview.segments.map((segment) => (
+                                        <div
+                                            key={`${segment.room_id}-${segment.start_date}-${segment.end_date}`}
+                                            className="grid gap-2 rounded-lg bg-white/70 px-3 py-2 text-xs dark:bg-black/10 sm:grid-cols-[1fr_auto_auto]"
+                                        >
+                                            <div>
+                                                <div className="font-semibold">{formatContinuousStaySegmentRange(segment)}</div>
+                                                <div className="opacity-75">{segment.room_type_name}</div>
+                                            </div>
+                                            <select
+                                                className="form-select h-8 min-w-[180px] bg-white text-xs dark:bg-[var(--bg-surface)]"
+                                                value={segment.room_id}
+                                                onChange={(event) => handleContinuousStayRoomChange(segment, event.target.value)}
+                                                disabled={continuousStayRefreshing || continuousStayConfirming}
+                                            >
+                                                {(segment.available_rooms && segment.available_rooms.length > 0
+                                                    ? segment.available_rooms
+                                                    : [{
+                                                        room_id: segment.room_id,
+                                                        room_number: segment.room_number,
+                                                        room_type_id: segment.room_type_id,
+                                                        room_type_name: segment.room_type_name,
+                                                        nightly_rates: segment.nightly_rates,
+                                                        subtotal: segment.subtotal,
+                                                    }]
+                                                ).map((option) => (
+                                                    <option key={option.room_id} value={option.room_id}>
+                                                        Room {option.room_number} · {option.room_type_name} · ฿ {formatMoney(option.subtotal)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span className="self-center font-semibold">฿ {formatMoney(segment.subtotal)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {continuousStayRefreshing && (
+                                    <div className="text-xs font-semibold opacity-75">Refreshing room plan...</div>
+                                )}
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                                    <span>Subtotal: ฿ {formatMoney(continuousStayPreview.totals.subtotal)}</span>
+                                    {continuousStayPreview.totals.discount_amount > 0 && (
+                                        <span>Discount: -฿ {formatMoney(continuousStayPreview.totals.discount_amount)}</span>
+                                    )}
+                                    <span className="font-bold">Total: ฿ {formatMoney(continuousStayPreview.totals.total)}</span>
+                                </div>
+                            </div>
+                            <div className="flex shrink-0 flex-col gap-2">
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={handleConfirmContinuousStayPlan}
+                                    disabled={continuousStayConfirming}
+                                >
+                                    {continuousStayConfirming ? "Creating..." : "Confirm Plan"}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => {
+                                        setContinuousStayPreview(null);
+                                        setContinuousStayPayload(null);
+                                    }}
+                                    disabled={continuousStayConfirming}
+                                >
+                                    Cancel Plan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 <form id="res-form" ref={formRef} onSubmit={handleSubmit}>
