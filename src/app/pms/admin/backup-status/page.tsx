@@ -28,6 +28,9 @@ type BackupStatusResponse = {
   };
 };
 
+type BackupTriggerAction = "daily_cloud" | "daily_cloud_full" | "offline_snapshot";
+type CloudBackupMode = "auto" | "full" | "incremental";
+
 const PIN_HASH_CACHE_KEY = "pms_offline_pin_hash";
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -41,7 +44,7 @@ async function readJson<T>(response: Response): Promise<T> {
 export default function BackupStatusPage() {
   const [status, setStatus] = useState<BackupStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [triggeringAction, setTriggeringAction] = useState<"daily_cloud" | "offline_snapshot" | null>(null);
+  const [triggeringAction, setTriggeringAction] = useState<BackupTriggerAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -124,20 +127,29 @@ export default function BackupStatusPage() {
     return data;
   };
 
-  const handleTriggerBackup = async (action: "daily_cloud" | "offline_snapshot") => {
+  const handleTriggerBackup = async (
+    action: "daily_cloud" | "offline_snapshot",
+    options: { mode?: CloudBackupMode; triggerKey?: BackupTriggerAction } = {}
+  ) => {
     setPageError(null);
     setNotice(null);
-    setTriggeringAction(action);
+    const triggerKey = options.triggerKey ?? action;
+    setTriggeringAction(triggerKey);
     try {
-      await readJson(
+      const data = await readJson<{ backup_mode?: "full" | "incremental" }>(
         await fetch("/api/backup/trigger", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action }),
+          body: JSON.stringify({ action, mode: options.mode }),
         })
       );
       await refreshStatus();
-      setNotice(action === "daily_cloud" ? "Cloud backup triggered." : "Offline snapshot sync triggered.");
+      if (action === "daily_cloud") {
+        const modeLabel = data.backup_mode === "full" ? "Full cloud backup" : "Incremental cloud backup";
+        setNotice(`${modeLabel} triggered.`);
+      } else {
+        setNotice("Offline snapshot sync triggered.");
+      }
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Trigger failed.");
     } finally {
@@ -156,11 +168,19 @@ export default function BackupStatusPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handleTriggerBackup("daily_cloud")}
+            onClick={() => handleTriggerBackup("daily_cloud", { mode: "auto" })}
             disabled={triggeringAction !== null}
             className="btn-secondary"
           >
             {triggeringAction === "daily_cloud" ? "Processing..." : "Backup Now"}
+          </button>
+          <button
+            onClick={() => handleTriggerBackup("daily_cloud", { mode: "full", triggerKey: "daily_cloud_full" })}
+            disabled={triggeringAction !== null}
+            className="btn-secondary"
+            title="Full backup uses more Supabase egress. Use before risky changes or after schema changes."
+          >
+            {triggeringAction === "daily_cloud_full" ? "Processing..." : "Full Backup"}
           </button>
           <button
             onClick={() => handleTriggerBackup("offline_snapshot")}
@@ -171,6 +191,9 @@ export default function BackupStatusPage() {
           </button>
         </div>
       </div>
+      <p className="text-xs text-[var(--text-muted)]">
+        Backup Now runs auto mode: weekly full backup, otherwise incremental to reduce Supabase PostgREST egress. Full Backup exports every table and should be used only when needed.
+      </p>
 
       {pageError ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300">

@@ -16,6 +16,7 @@ export const fetchCache = "force-no-store";
 const triggerSchema = z.object({
   action: z.enum(["daily_cloud", "offline_snapshot"]).optional(),
   backup_type: z.enum(["daily_cloud", "offline_snapshot"]).optional(),
+  mode: z.enum(["auto", "full", "incremental"]).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const result =
       action === "daily_cloud"
-        ? await runDailyCloudBackup(supabase)
+        ? await runDailyCloudBackup(supabase, { mode: parsed.data.mode ?? "auto" })
         : await runOfflineSnapshotSync(supabase);
 
     return NextResponse.json({ success: true, action, data: result });

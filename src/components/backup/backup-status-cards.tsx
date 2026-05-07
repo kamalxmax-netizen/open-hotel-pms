@@ -12,6 +12,13 @@ interface BackupStatusCardsProps {
 }
 
 export function BackupStatusCards({ lastCloud, lastSync, storageInfo }: BackupStatusCardsProps) {
+  const getCloudMode = (log?: BackupLog) => {
+    const fileName = log?.file_name ?? "";
+    if (fileName.startsWith("daily/incremental/")) return "Incremental";
+    if (fileName.startsWith("daily/full/") || /^daily\/\d{4}-\d{2}-\d{2}_\d{4}\.json\.gz$/.test(fileName)) return "Full";
+    return "Cloud";
+  };
+
   const formatBytes = (bytes?: number) => {
     if (!bytes) return "0 B";
     const k = 1024;
@@ -47,7 +54,7 @@ export function BackupStatusCards({ lastCloud, lastSync, storageInfo }: BackupSt
         </div>
         <div className="flex items-center gap-2 mt-auto">
           {lastCloud?.status === 'success' ? (
-            <span className="badge status-available">✅ {formatBytes(lastCloud.file_size_bytes || 0)}</span>
+            <span className="badge status-available">✅ {getCloudMode(lastCloud)} · {formatBytes(lastCloud.file_size_bytes || 0)}</span>
           ) : lastCloud?.status === 'failed' ? (
             <span className="badge status-dirty">❌ Failed</span>
           ) : (
