@@ -51,7 +51,7 @@ begin
   from public.folio_payments fp
   where fp.reservation_id = p_reservation_id
     and coalesce(fp.revenue_category, '') = 'deposit'
-    and fp.tx_type = 'deposit'
+    and fp.tx_type in ('deposit', 'payment')
     and coalesce(fp.is_record_only, false) = false;
 
   with method_totals as (

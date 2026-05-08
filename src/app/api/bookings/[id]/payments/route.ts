@@ -417,10 +417,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             const lines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
             const nextDepositAmount = computeHeldDepositFromRows(depositRows ?? []);
             const nextPaidAt =
-                (depositRows ?? []).some((row: any) => row.tx_type === "deposit")
+                (depositRows ?? []).some((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
                     ? String(
                         [...(depositRows ?? [])]
-                            .filter((row: any) => row.tx_type === "deposit")
+                            .filter((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
                             .slice(-1)[0]?.paid_at ?? new Date().toISOString()
                     )
                     : null;

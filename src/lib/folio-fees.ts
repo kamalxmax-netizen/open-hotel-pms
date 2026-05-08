@@ -173,7 +173,8 @@ export function computeFeeSummary(
         (note.includes("deposit") && note.includes("refund")) ||
         note.includes("paid by deposit")
       );
-    const isDepositLedgerInflow = txType === "deposit";
+    const isDepositLedgerInflow =
+      txType === "deposit" || (txType === "payment" && revenueCategory === "deposit");
 
     if (!isRecordOnly) {
       if (isDepositLedgerInflow) {

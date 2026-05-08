@@ -244,7 +244,9 @@ function makePaymentDescription(row: PaymentRow, roomNumber: string | null): str
         ? "บัตรเครดิต"
         : "อื่นๆ";
 
-  if (row.tx_type === "deposit") return `รับเงินมัดจำด้วย${method}${roomSuffix}`;
+  if (row.tx_type === "deposit" || (row.tx_type === "payment" && row.revenue_category === "deposit")) {
+    return `รับเงินมัดจำด้วย${method}${roomSuffix}`;
+  }
   if (row.tx_type === "refund") {
     if (row.revenue_category === "deposit" && lowerNote.includes("paid by deposit")) return `ชำระด้วยเงินมัดจำ${roomSuffix}`;
     if (row.revenue_category === "deposit") return `คืนเงินมัดจำ${roomSuffix}`;

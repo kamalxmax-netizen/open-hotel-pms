@@ -86,10 +86,10 @@ async function syncReservationDepositLedger(
   const activeLines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
   const nextDepositAmount = computeHeldDepositFromRows(allDepositRows ?? []);
   const nextPaidAt =
-    depositCategoryRows.some((row: any) => row.tx_type === "deposit")
+    depositCategoryRows.some((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
       ? String(
         [...depositCategoryRows]
-          .filter((row: any) => row.tx_type === "deposit")
+          .filter((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
           .slice(-1)[0]?.paid_at ?? ""
       ) || null
       : null;
@@ -466,8 +466,11 @@ export async function voidPayment(
     throw new AdminCorrectionError("This payment has already been voided.");
   }
 
-  // Determine reversal tx_type (payment↔refund, deposit stays as refund)
-  const reversalTxType = payment.tx_type === "refund" ? "payment"
+  const paymentAffectsDepositLedger = affectsDepositLedger(payment);
+
+  // Determine reversal tx_type (payment↔refund; deposit refund restores deposit held)
+  const reversalTxType = payment.tx_type === "refund" && paymentAffectsDepositLedger ? "deposit"
+    : payment.tx_type === "refund" ? "payment"
     : payment.tx_type === "deposit" ? "refund"
     : "refund";
 
@@ -536,7 +539,7 @@ export async function voidPayment(
     });
   } catch { /* non-blocking */ }
 
-  if (affectsDepositLedger(payment)) {
+  if (paymentAffectsDepositLedger) {
     await syncReservationDepositLedger(supabase, payment.reservation_id);
   }
 
