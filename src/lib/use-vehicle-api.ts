@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { STRICT_POLLING, canPollVisibleTab, strictPollInterval } from "@/lib/egress-strict-mode";
 import type { GuestVehicle, VehicleColor, VehicleSummary, VehicleType } from "@/lib/types";
 
 export type VehicleRegistryData = {
@@ -84,7 +85,7 @@ export async function deleteVehicle(vehicleId: string): Promise<GuestVehicle | n
   return json.vehicle ?? null;
 }
 
-export function useVehicleRegistry(refreshMs = 30_000) {
+export function useVehicleRegistry(refreshMs = strictPollInterval(30_000, STRICT_POLLING.vehicleRegistryMs)) {
   const [data, setData] = useState<VehicleRegistryData>({
     activeVehicles: [],
     checkedOutToday: [],
@@ -119,7 +120,9 @@ export function useVehicleRegistry(refreshMs = 30_000) {
     void refresh();
     if (refreshMs <= 0) return;
     const timer = window.setInterval(() => {
-      void refresh();
+      if (canPollVisibleTab()) {
+        void refresh();
+      }
     }, refreshMs);
     return () => window.clearInterval(timer);
   }, [refresh, refreshMs]);
@@ -185,7 +188,7 @@ export function useVehiclesByRoom(roomId: string | null | undefined) {
   };
 }
 
-export function useVehicleSummaryMap(refreshMs = 30_000) {
+export function useVehicleSummaryMap(refreshMs = strictPollInterval(30_000, STRICT_POLLING.vehicleSummaryMs)) {
   const [summaryMap, setSummaryMap] = useState<Record<string, VehicleSummary[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,7 +209,9 @@ export function useVehicleSummaryMap(refreshMs = 30_000) {
     void refresh();
     if (refreshMs <= 0) return;
     const timer = window.setInterval(() => {
-      void refresh();
+      if (canPollVisibleTab()) {
+        void refresh();
+      }
     }, refreshMs);
     return () => window.clearInterval(timer);
   }, [refresh, refreshMs]);

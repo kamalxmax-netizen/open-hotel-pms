@@ -11,6 +11,7 @@ import type { DayUseRoomStatus, DayUseSettings, DayUseTimerState } from "@/lib/t
 import { resolveGuestLoyaltyVisual } from "@/lib/guest-loyalty";
 import { formatDateDisplay, formatDateRangeDisplay } from "@/lib/date-display";
 import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, getTransportAlertLevel } from "@/lib/transport-alert-settings";
+import { STRICT_POLLING, canPollVisibleTab, strictPollInterval } from "@/lib/egress-strict-mode";
 
 const RoomDrawer = dynamic(() => import("@/components/room-drawer"), {
     loading: () => null,
@@ -1118,10 +1119,10 @@ export default function BoardPage() {
             }
         };
         const interval = window.setInterval(() => {
-            if (document.visibilityState === "visible") {
+            if (canPollVisibleTab()) {
                 loadDayUse();
             }
-        }, 60000);
+        }, strictPollInterval(60_000, STRICT_POLLING.boardDayUseMs));
         document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
