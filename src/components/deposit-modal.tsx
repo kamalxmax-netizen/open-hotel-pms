@@ -121,7 +121,13 @@ export default function DepositModal({
             const res = await fetch(`/api/bookings/${reservationId}/deposit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deposit_amount: nextTotal, deposit_note: nextNote })
+                body: JSON.stringify({
+                    deposit_amount: nextTotal,
+                    deposit_note: nextNote,
+                    deposit_action: hasPaid ? "top_up" : "snapshot",
+                    deposit_delta_amount: hasPaid ? normalizedAmount : undefined,
+                    deposit_delta_method: hasPaid ? method : undefined,
+                })
             });
             const d = await res.json();
             if (res.ok) {
