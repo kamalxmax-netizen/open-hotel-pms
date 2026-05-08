@@ -171,7 +171,7 @@ async function loadCurrentDepositLines(
         const method = normalizeDepositMethod(row.method);
         const amount = fromSatang(toSatang(row.amount ?? 0));
         const current = byMethod.get(method) ?? 0;
-        if (row.tx_type === "deposit") byMethod.set(method, current + amount);
+        if (row.tx_type === "deposit" || row.tx_type === "payment") byMethod.set(method, current + amount);
         else if (row.tx_type === "refund") byMethod.set(method, current - amount);
     }
 

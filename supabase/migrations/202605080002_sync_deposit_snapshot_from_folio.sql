@@ -24,6 +24,7 @@ begin
         sum(
           case
             when fp.tx_type = 'deposit' then fp.amount
+            when fp.tx_type = 'payment' then fp.amount
             when fp.tx_type = 'refund' then -fp.amount
             else 0
           end
@@ -60,6 +61,7 @@ begin
         sum(
           case
             when fp.tx_type = 'deposit' then fp.amount
+            when fp.tx_type = 'payment' then fp.amount
             when fp.tx_type = 'refund' then -fp.amount
             else 0
           end

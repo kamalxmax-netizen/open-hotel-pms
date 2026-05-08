@@ -75,7 +75,7 @@ async function syncReservationDepositLedger(
     const method = String(row.method ?? "cash");
     const current = netByMethod.get(method) ?? { method, amount: 0, note: null };
     const amount = fromSatang(toSatang(row.amount ?? 0));
-    if (row.tx_type === "deposit") current.amount += amount;
+    if (row.tx_type === "deposit" || row.tx_type === "payment") current.amount += amount;
     else if (row.tx_type === "refund") current.amount -= amount;
     if (!current.note && typeof row.note === "string" && row.note.trim()) {
       current.note = row.note.trim();
