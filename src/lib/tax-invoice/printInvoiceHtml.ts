@@ -15,6 +15,7 @@ interface InvoiceRenderData {
   customerTaxId: string | null;
   customerAddress: string | null;
   customerBranch: string | null;
+  remark?: string | null;
   booking: TaxInvoiceBookingSnapshot;
   lineItems: TaxInvoiceLineItem[];
   totals: TaxInvoiceTotals;
@@ -308,6 +309,10 @@ function invoiceCopy(
   const amountWords = amountInWords(data.totals.grand_total, lang);
   const amountLabel = lang === "th" ? "จำนวนเงิน :" : "Amount :";
   const isFinalPage = pageIndex === pageCount - 1;
+  const remarkText = String(data.remark ?? "").trim();
+  const remarkHtml = remarkText
+    ? esc(remarkText).replace(/\n/g, "<br>")
+    : esc(l.ifAny);
   const pageBadge = pageCount > 1
     ? `<div class="page-badge">${esc(`${pageIndex + 1}/${pageCount}`)}</div>`
     : "";
@@ -339,7 +344,7 @@ function invoiceCopy(
         <div class="bottom-left">
           <div class="remark">
             <div class="remark-title">${esc(l.remark)}</div>
-            <div class="remark-text">${esc(l.ifAny)}</div>
+            <div class="remark-text">${remarkHtml}</div>
             <div class="amount-words">
               <span class="amount-words-label">${esc(amountLabel)}</span>
               <span class="amount-words-box">${esc(amountWords)}</span>

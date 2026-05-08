@@ -51,6 +51,11 @@ function fmtDisplayDate(iso: string): string {
   });
 }
 
+type DisplayLineItem = {
+  item: TaxInvoiceLineItem;
+  sourceIndex: number;
+};
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface TaxProfile {
@@ -73,6 +78,7 @@ interface TaxInvoiceFormProps {
     customer_tax_id?: string;
     customer_address?: string;
     customer_branch?: string;
+    remark?: string | null;
   };
   initialPeriod?: {
     from: string;
@@ -108,6 +114,7 @@ export default function TaxInvoiceForm({
   const [customerBranch, setCustomerBranch] = useState(
     existingInvoice?.customer_branch || "00000"
   );
+  const [remark, setRemark] = useState(existingInvoice?.remark || "");
   const [isPassport, setIsPassport] = useState(false);
   const [updateReason, setUpdateReason] = useState("");
 
@@ -139,11 +146,11 @@ export default function TaxInvoiceForm({
   const l = getLabels(language);
 
   // ── Filtered line items: trim room charges to selected invoice period ──
-  const filteredLineItems = useMemo((): TaxInvoiceLineItem[] => {
-    if (!editFrom || !editTo) return lineItems;
-    return lineItems.flatMap((item) => {
+  const filteredDisplayItems = useMemo((): DisplayLineItem[] => {
+    if (!editFrom || !editTo) return lineItems.map((item, sourceIndex) => ({ item, sourceIndex }));
+    return lineItems.flatMap((item, sourceIndex) => {
       if (item.kind !== "room_charge" || !item.stay_dates?.length) {
-        return [item]; // Extra charges always included
+        return [{ item, sourceIndex }]; // Extra charges always included
       }
       const inRange = item.stay_dates.filter(
         (d) => d >= editFrom && d < editTo
@@ -151,26 +158,34 @@ export default function TaxInvoiceForm({
       if (inRange.length === 0) return [];
       return [
         {
-          ...item,
-          stay_dates: inRange,
-          quantity: inRange.length,
-          amount: round2(inRange.length * item.unit_price),
+          item: {
+            ...item,
+            stay_dates: inRange,
+            quantity: inRange.length,
+            amount: round2(inRange.length * item.unit_price),
+          },
+          sourceIndex,
         },
       ];
     });
   }, [lineItems, editFrom, editTo]);
 
+  const filteredLineItems = useMemo(
+    () => filteredDisplayItems.map((row) => row.item),
+    [filteredDisplayItems]
+  );
+
   // ── Sorted line items for display (preserve original idx for display only) ─
   const sortedDisplayItems = useMemo(() => {
-    const source = filteredLineItems;
+    const source = filteredDisplayItems;
     return [...source].sort((a, b) => {
-      if (a.room_number && b.room_number)
-        return compareRoomNumber(a.room_number, b.room_number);
-      if (a.room_number) return -1;
-      if (b.room_number) return 1;
+      if (a.item.room_number && b.item.room_number)
+        return compareRoomNumber(a.item.room_number, b.item.room_number);
+      if (a.item.room_number) return -1;
+      if (b.item.room_number) return 1;
       return 0;
     });
-  }, [filteredLineItems]);
+  }, [filteredDisplayItems]);
 
   // ── Totals ─────────────────────────────────────────────────────────────────
   const totals = useMemo((): TaxInvoiceTotals => {
@@ -234,70 +249,151 @@ export default function TaxInvoiceForm({
     return ids;
   }, [lineItems]);
 
-  const addExtraToRoomCharge = (extra: TaxInvoiceAvailableExtraItem) => {
-    if (selectedExtraIds.has(extra.id)) return;
-    setLineItems((current) => {
-      const targetIndex = current.findIndex((item) => {
-        if (item.kind !== "room_charge") return false;
-        if (item.reservation_id && item.reservation_id !== extra.reservation_id) return false;
-        if (extra.paid_date && item.stay_dates?.length && !item.stay_dates.includes(extra.paid_date)) return false;
-        return true;
-      });
-      const fallbackIndex = current.findIndex(
-        (item) => item.kind === "room_charge" && (!item.reservation_id || item.reservation_id === extra.reservation_id)
-      );
-      const index = targetIndex >= 0 ? targetIndex : fallbackIndex;
-      if (index < 0) return current;
+  const invoiceNightOptions = useMemo(() => {
+    if (!editFrom || !editTo) return [];
+    const nights: string[] = [];
+    let cursor = editFrom;
+    while (cursor < editTo) {
+      nights.push(cursor);
+      cursor = addDays(cursor, 1);
+    }
+    return nights;
+  }, [editFrom, editTo]);
 
-      const target = current[index];
-      const targetDates = target.stay_dates ?? [];
-      const existingMergedIds = target.merged_extra_charge_ids ?? [];
-      if (
-        extra.paid_date &&
-        target.kind === "room_charge" &&
-        targetDates.length > 1 &&
-        targetDates.includes(extra.paid_date) &&
-        existingMergedIds.length === 0
-      ) {
-        const baseQuantity = Number(target.quantity || targetDates.length) || targetDates.length;
-        const baseRoomAmount = Math.max(0, round2(target.amount - (target.merged_extra_charge_total ?? 0)));
-        const baseUnitPrice = round2(baseRoomAmount / Math.max(1, baseQuantity));
-        const splitDates = [...targetDates].sort();
-        const makeRoomLine = (dates: string[], extraAmount = 0): TaxInvoiceLineItem | null => {
+  const [selectedExtraNightById, setSelectedExtraNightById] = useState<Record<string, string>>({});
+
+  const getSelectedExtraNight = (extra: TaxInvoiceAvailableExtraItem) =>
+    selectedExtraNightById[extra.id]
+    ?? (extra.paid_date && invoiceNightOptions.includes(extra.paid_date) ? extra.paid_date : undefined)
+    ?? invoiceNightOptions[0]
+    ?? "";
+
+  const updateLineItemDescription = (sourceIndex: number, description: string) => {
+    setLineItems((current) =>
+      current.map((item, index) => (index === sourceIndex ? { ...item, description } : item))
+    );
+  };
+
+  const addExtraAsSeparateLine = (extra: TaxInvoiceAvailableExtraItem) => {
+    if (selectedExtraIds.has(extra.id)) return;
+    const description = extra.description || extra.note || "Extra Charge";
+    setLineItems((current) => [
+      ...current,
+      {
+        kind: "extra_charge",
+        description,
+        quantity: 1,
+        unit: "รายการ",
+        unit_price: round2(extra.amount),
+        amount: round2(extra.amount),
+        room_number: extra.room_number,
+        reservation_id: extra.reservation_id,
+        merged_extra_charge_ids: [extra.id],
+        merged_extra_charge_total: round2(extra.amount),
+        fee_template_code: extra.fee_template_code ?? null,
+        note: null,
+      },
+    ]);
+  };
+
+  const removeLineItem = (sourceIndex: number) => {
+    setLineItems((current) => current.filter((_, index) => index !== sourceIndex));
+  };
+
+  const addExtraToRoomCharge = (
+    extra: TaxInvoiceAvailableExtraItem,
+    mode: "average" | "specific",
+    specificDate?: string
+  ) => {
+    if (selectedExtraIds.has(extra.id)) return;
+    const targetDates = mode === "specific"
+      ? specificDate
+        ? [specificDate]
+        : []
+      : invoiceNightOptions;
+    const targetDateSet = new Set(targetDates);
+    if (targetDateSet.size === 0) return;
+
+    setLineItems((current) => {
+      const candidateMeta = current
+        .map((item, index) => {
+          if (item.kind !== "room_charge") return null;
+          if (item.reservation_id && item.reservation_id !== extra.reservation_id) return null;
+          const dates = (item.stay_dates?.length ? item.stay_dates : invoiceNightOptions).filter((date) =>
+            targetDateSet.has(date)
+          );
           if (dates.length === 0) return null;
-          const amount = round2(baseUnitPrice * dates.length + extraAmount);
+          return { index, dates };
+        })
+        .filter((row): row is { index: number; dates: string[] } => Boolean(row));
+
+      if (candidateMeta.length === 0) return current;
+
+      const totalTargetNights = candidateMeta.reduce((sum, row) => sum + row.dates.length, 0);
+      let allocated = 0;
+      const shareByIndex = new Map<number, number>();
+      candidateMeta.forEach((row, rowIndex) => {
+        const share = rowIndex === candidateMeta.length - 1
+          ? round2(extra.amount - allocated)
+          : round2((extra.amount * row.dates.length) / Math.max(1, totalTargetNights));
+        allocated = round2(allocated + share);
+        shareByIndex.set(row.index, share);
+      });
+
+      return current.flatMap((item, index) => {
+        const extraAmount = shareByIndex.get(index);
+        if (!extraAmount || item.kind !== "room_charge") return [item];
+
+        const allDates = item.stay_dates?.length ? [...item.stay_dates].sort() : [];
+        const selectedDates = allDates.filter((date) => targetDateSet.has(date));
+        if (allDates.length === 0 || selectedDates.length === 0) {
+          const quantity = Number(item.quantity || 1) || 1;
+          const nextAmount = round2(item.amount + extraAmount);
+          return [{
+            ...item,
+            amount: nextAmount,
+            unit_price: round2(nextAmount / quantity),
+            merged_extra_charge_ids: [...(item.merged_extra_charge_ids ?? []), extra.id],
+            merged_extra_charge_total: round2((item.merged_extra_charge_total ?? 0) + extraAmount),
+            note: item.note,
+          }];
+        }
+
+        const unaffectedBefore = allDates.filter((date) => !targetDateSet.has(date) && date < selectedDates[0]);
+        const unaffectedAfter = allDates.filter((date) => !targetDateSet.has(date) && date > selectedDates[selectedDates.length - 1]);
+        const untouchedOther = allDates.filter(
+          (date) => !targetDateSet.has(date) && !unaffectedBefore.includes(date) && !unaffectedAfter.includes(date)
+        );
+        const baseQuantity = Number(item.quantity || allDates.length) || allDates.length;
+        const baseExtraTotal = item.merged_extra_charge_total ?? 0;
+        const baseAmount = Math.max(0, round2(item.amount - baseExtraTotal));
+        const baseUnitPrice = round2(baseAmount / Math.max(1, baseQuantity));
+
+        const makeRoomLine = (dates: string[], mergeAmount = 0): TaxInvoiceLineItem | null => {
+          if (dates.length === 0) return null;
+          const amount = round2(baseUnitPrice * dates.length + mergeAmount);
           return {
-            ...target,
+            ...item,
             stay_dates: dates,
             quantity: dates.length,
             amount,
-            unit_price: round2(amount / dates.length),
-            merged_extra_charge_ids: extraAmount > 0 ? [extra.id] : undefined,
-            merged_extra_charge_total: extraAmount > 0 ? round2(extraAmount) : undefined,
+            unit_price: round2(amount / Math.max(1, dates.length)),
+            merged_extra_charge_ids: mergeAmount > 0
+              ? [...(item.merged_extra_charge_ids ?? []), extra.id]
+              : item.merged_extra_charge_ids,
+            merged_extra_charge_total: mergeAmount > 0
+              ? round2((item.merged_extra_charge_total ?? 0) + mergeAmount)
+              : item.merged_extra_charge_total,
+            note: item.note,
           };
         };
-        const before = makeRoomLine(splitDates.filter((date) => date < extra.paid_date!));
-        const selected = makeRoomLine([extra.paid_date], extra.amount);
-        const after = makeRoomLine(splitDates.filter((date) => date > extra.paid_date!));
 
         return [
-          ...current.slice(0, index),
-          ...[before, selected, after].filter((item): item is TaxInvoiceLineItem => Boolean(item)),
-          ...current.slice(index + 1),
-        ];
-      }
-
-      return current.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-        const nextAmount = round2(item.amount + extra.amount);
-        const nextQuantity = Number(item.quantity || 0) || 1;
-        return {
-          ...item,
-          amount: nextAmount,
-          unit_price: round2(nextAmount / nextQuantity),
-          merged_extra_charge_ids: [...(item.merged_extra_charge_ids ?? []), extra.id],
-          merged_extra_charge_total: round2((item.merged_extra_charge_total ?? 0) + extra.amount),
-        };
+          makeRoomLine(unaffectedBefore),
+          makeRoomLine(untouchedOther),
+          makeRoomLine(selectedDates, extraAmount),
+          makeRoomLine(unaffectedAfter),
+        ].filter((row): row is TaxInvoiceLineItem => Boolean(row));
       });
     });
   };
@@ -345,6 +441,7 @@ export default function TaxInvoiceForm({
             customer_tax_id: customerTaxId,
             customer_address: customerAddress,
             customer_branch: customerBranch,
+            remark: remark.trim() || null,
             is_passport: isPassport,
             line_items: filteredLineItems,
             discount: 0,
@@ -381,6 +478,7 @@ export default function TaxInvoiceForm({
             customer_tax_id: customerTaxId,
             customer_address: customerAddress,
             customer_branch: customerBranch,
+            remark: remark.trim() || null,
             is_passport: isPassport,
             line_items: filteredLineItems,
             discount: 0,
@@ -590,6 +688,23 @@ export default function TaxInvoiceForm({
                 />
               </div>
 
+              <div>
+                <label className="form-label">{l.remark}</label>
+                <textarea
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  placeholder={language === "th" ? "ข้อความที่ต้องการพิมพ์ในช่องหมายเหตุ" : "Text to print in the remark box"}
+                  rows={3}
+                  maxLength={2000}
+                  className="form-input min-h-[80px]"
+                />
+                <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                  {language === "th"
+                    ? "ข้อความนี้จะแสดงบนใบกำกับภาษี"
+                    : "This text will appear on the printed tax invoice."}
+                </p>
+              </div>
+
               {mode === "edit" && (
                 <div className="pt-2 border-t border-[var(--border-subtle)]">
                   <label className="form-label text-amber-700 dark:text-amber-400">
@@ -741,7 +856,7 @@ export default function TaxInvoiceForm({
               <div className="border-b border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Available extra charges</p>
-                  <p className="text-[10px] text-[var(--text-muted)]">เลือกแล้วจะรวมเข้า Room charge</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">เพิ่มแยกบรรทัด หรือรวมเข้า Room charge เฉพาะใบนี้</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {availableExtraItems.length === 0 ? (
@@ -750,11 +865,9 @@ export default function TaxInvoiceForm({
                     availableExtraItems.map((extra) => {
                       const selected = selectedExtraIds.has(extra.id);
                       return (
-                        <button
+                        <div
                           key={extra.id}
-                          type="button"
-                          disabled={selected}
-                          onClick={() => addExtraToRoomCharge(extra)}
+                          aria-disabled={selected}
                           className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
                             selected
                               ? "border-emerald-200 bg-emerald-50 text-emerald-700 opacity-70 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
@@ -768,7 +881,94 @@ export default function TaxInvoiceForm({
                           <div className="mt-1 text-[10px] text-[var(--text-muted)]">
                             Room {extra.room_number ?? "-"} · {extra.paid_date ?? "-"} {selected ? "· Added" : ""}
                           </div>
-                        </button>
+                          {!selected && (
+                            <div className="mt-3 space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    addExtraAsSeparateLine(extra);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      addExtraAsSeparateLine(extra);
+                                    }
+                                  }}
+                                  className="rounded-md border border-brand-200 bg-white px-2 py-1.5 text-center font-bold text-brand-700 hover:bg-brand-50 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+                                >
+                                  Add line
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    addExtraToRoomCharge(extra, "average");
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      addExtraToRoomCharge(extra, "average");
+                                    }
+                                  }}
+                                  className="rounded-md border border-emerald-200 bg-white px-2 py-1.5 text-center font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                >
+                                  Avg room
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                <select
+                                  className="min-w-0 flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-[11px]"
+                                  value={getSelectedExtraNight(extra)}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) =>
+                                    setSelectedExtraNightById((current) => ({
+                                      ...current,
+                                      [extra.id]: event.target.value,
+                                    }))
+                                  }
+                                >
+                                  {invoiceNightOptions.map((date) => (
+                                    <option key={date} value={date}>
+                                      {fmtDisplayDate(date)}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    addExtraToRoomCharge(
+                                      extra,
+                                      "specific",
+                                      getSelectedExtraNight(extra)
+                                    );
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      addExtraToRoomCharge(
+                                        extra,
+                                        "specific",
+                                        getSelectedExtraNight(extra)
+                                      );
+                                    }
+                                  }}
+                                  className="shrink-0 rounded-md border border-amber-200 bg-white px-2 py-1.5 text-center font-bold text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                >
+                                  This night
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       );
                     })
                   )}
@@ -804,12 +1004,34 @@ export default function TaxInvoiceForm({
                     </td>
                   </tr>
                 ) : (
-                  sortedDisplayItems.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-[var(--bg-muted)]/50">
+                  sortedDisplayItems.map(({ item, sourceIndex }) => (
+                    <tr
+                      key={`${sourceIndex}-${item.kind}-${item.stay_dates?.join("_") ?? item.description}`}
+                      className="hover:bg-[var(--bg-muted)]/50"
+                    >
                       <td className="px-5 py-4">
-                        <p className="font-semibold text-[var(--text-primary)]">
-                          {formatTaxInvoiceItemDescription(item, language)}
-                        </p>
+                        <div className="flex items-start gap-2">
+                          <input
+                            className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-0 py-1 font-semibold text-[var(--text-primary)] outline-none transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] focus:border-brand-400 focus:bg-[var(--bg-surface)] focus:px-2"
+                            value={item.description}
+                            onChange={(event) => updateLineItemDescription(sourceIndex, event.target.value)}
+                            aria-label="Line item description"
+                          />
+                          {item.kind === "extra_charge" && (
+                            <button
+                              type="button"
+                              className="rounded-md px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                              onClick={() => removeLineItem(sourceIndex)}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        {item.description !== formatTaxInvoiceItemDescription(item, language) && (
+                          <p className="text-[11px] text-[var(--text-muted)]">
+                            Print: {formatTaxInvoiceItemDescription(item, language)}
+                          </p>
+                        )}
                         {item.note && (
                           <p className="text-[13px] text-[var(--text-muted)]">
                             {item.note}
@@ -960,6 +1182,16 @@ export default function TaxInvoiceForm({
                     {booking?.room_numbers.join(", ") || "-"}
                   </span>
                 </div>
+                {remark.trim() && (
+                  <div className="text-xs">
+                    <span className="block text-[var(--text-muted)] font-medium">
+                      Remark:
+                    </span>
+                    <span className="mt-1 block whitespace-pre-wrap font-semibold text-[var(--text-primary)]">
+                      {remark.trim()}
+                    </span>
+                  </div>
+                )}
                 <div className="pt-3 border-t border-[var(--border-subtle)] flex justify-between items-baseline">
                   <span className="font-black text-[var(--text-primary)] text-sm">
                     Grand Total (Inc. VAT):
