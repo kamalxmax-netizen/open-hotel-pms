@@ -24,6 +24,7 @@ begin
         sum(
           case
             when fp.tx_type = 'deposit' then fp.amount
+            when fp.tx_type = 'payment' then fp.amount
             when fp.tx_type = 'refund' then -fp.amount
             else 0
           end
@@ -50,7 +51,7 @@ begin
   from public.folio_payments fp
   where fp.reservation_id = p_reservation_id
     and coalesce(fp.revenue_category, '') = 'deposit'
-    and fp.tx_type = 'deposit'
+    and fp.tx_type in ('deposit', 'payment')
     and coalesce(fp.is_record_only, false) = false;
 
   with method_totals as (
@@ -60,6 +61,7 @@ begin
         sum(
           case
             when fp.tx_type = 'deposit' then fp.amount
+            when fp.tx_type = 'payment' then fp.amount
             when fp.tx_type = 'refund' then -fp.amount
             else 0
           end
@@ -107,61 +109,5 @@ begin
   where id = p_reservation_id;
 end;
 $$;
-
-create or replace function public.folio_payments_sync_deposit_snapshot_trigger()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_reservation_id uuid;
-  v_should_sync boolean := false;
-begin
-  if tg_op = 'INSERT' then
-    v_reservation_id := new.reservation_id;
-    v_should_sync :=
-      new.reservation_id is not null
-      and coalesce(new.revenue_category, '') = 'deposit'
-      and coalesce(new.is_record_only, false) = false;
-  elsif tg_op = 'UPDATE' then
-    v_reservation_id := coalesce(new.reservation_id, old.reservation_id);
-    v_should_sync :=
-      (
-        new.reservation_id is not null
-        and coalesce(new.revenue_category, '') = 'deposit'
-        and coalesce(new.is_record_only, false) = false
-      )
-      or (
-        old.reservation_id is not null
-        and coalesce(old.revenue_category, '') = 'deposit'
-        and coalesce(old.is_record_only, false) = false
-      );
-  elsif tg_op = 'DELETE' then
-    v_reservation_id := old.reservation_id;
-    v_should_sync :=
-      old.reservation_id is not null
-      and coalesce(old.revenue_category, '') = 'deposit'
-      and coalesce(old.is_record_only, false) = false;
-  end if;
-
-  if v_should_sync then
-    perform public.sync_reservation_deposit_snapshot_from_folio(v_reservation_id);
-  end if;
-
-  if tg_op = 'DELETE' then
-    return old;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists folio_payments_sync_deposit_snapshot
-  on public.folio_payments;
-
-create trigger folio_payments_sync_deposit_snapshot
-after insert or update or delete on public.folio_payments
-for each row
-execute function public.folio_payments_sync_deposit_snapshot_trigger();
 
 commit;
