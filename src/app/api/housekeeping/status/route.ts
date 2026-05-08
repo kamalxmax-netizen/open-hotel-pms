@@ -540,6 +540,10 @@ type DepartureOccupancyRow = {
     checked_in_at: string | null;
 };
 
+function isAutoSplitPlannedMove(row: { move_reason?: string | null }): boolean {
+    return String(row.move_reason ?? "").toLowerCase().includes("auto split stay");
+}
+
 export async function GET(request: NextRequest) {
     try {
         const supabase = createServerSupabaseClient();
@@ -866,7 +870,7 @@ export async function GET(request: NextRequest) {
 
         const { data: plannedMoveRowsRaw, error: plannedMoveRowsError } = await supabase
             .from("reservation_room_plans")
-            .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id")
+            .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, to_room_type_id, move_reason")
             .eq("status", "planned")
             .lte("start_date", dateParam)
             .gt("end_date", dateParam);
@@ -876,9 +880,12 @@ export async function GET(request: NextRequest) {
             reservation_id?: string | null;
             from_room_id_snapshot?: string | null;
             to_room_id?: string | null;
+            move_reason?: string | null;
         }>;
 
         // Ignore stale planned moves when the reservation has already left its source room.
+        // Auto-split stays prewrite reservation_nights to the target room, but the guest
+        // must remain physically in the source room until the planned move is executed.
         const activeStayRoomByReservationId = new Map<string, string>();
         for (const row of activeStayRows) {
             const reservationId = String(row?.reservation_id ?? "");
@@ -896,7 +903,8 @@ export async function GET(request: NextRequest) {
             if (!sourceRoomId) return true;
             const todayAssignedRoomId = activeStayRoomByReservationId.get(reservationId);
             if (!todayAssignedRoomId) return true;
-            return todayAssignedRoomId === sourceRoomId;
+            const targetRoomId = String(row?.to_room_id ?? "");
+            return todayAssignedRoomId === sourceRoomId || (isAutoSplitPlannedMove(row) && todayAssignedRoomId === targetRoomId);
         });
 
         const plannedReservationIds = Array.from(

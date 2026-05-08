@@ -98,6 +98,10 @@ function shouldReplaceHistoricalOccupant(existing: GuestSummary | null | undefin
   return false;
 }
 
+function isAutoSplitPlannedMove(move: any): boolean {
+  return String(move?.move_reason ?? "").toLowerCase().includes("auto split stay");
+}
+
 export async function GET(request: NextRequest) {
   const t0 = performance.now();
   const requestedDate = request.nextUrl.searchParams.get("date");
@@ -152,7 +156,7 @@ export async function GET(request: NextRequest) {
       .eq("checkout_date", date),
     supabase
       .from("reservation_room_plans")
-      .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id")
+      .select("id, reservation_id, start_date, end_date, from_room_id_snapshot, to_room_id, move_reason")
       .eq("status", "planned")
       .lte("start_date", date)
       .gt("end_date", date),
@@ -190,7 +194,9 @@ export async function GET(request: NextRequest) {
   const housekeepingTasksRaw = housekeepingResult.data;
   const housekeepingTasks = (housekeepingTasksRaw ?? []) as unknown as HousekeepingTaskRow[];
 
-  // Ignore stale planned moves when the reservation has already left its source room for today.
+  // Ignore stale planned moves when the reservation has already left its source room.
+  // Auto-split stays prewrite reservation_nights to the target room, but the guest
+  // must remain physically in the source room until the planned move is executed.
   const activeStayRoomByReservationId = new Map<string, string>();
   (reservationNights ?? []).forEach((night: any) => {
     const reservationRef = Array.isArray(night?.reservations)
@@ -212,7 +218,8 @@ export async function GET(request: NextRequest) {
     if (!sourceRoomId) return true;
     const todayAssignedRoomId = activeStayRoomByReservationId.get(reservationId);
     if (!todayAssignedRoomId) return true;
-    return todayAssignedRoomId === sourceRoomId;
+    const targetRoomId = row?.to_room_id ? String(row.to_room_id) : "";
+    return todayAssignedRoomId === sourceRoomId || (isAutoSplitPlannedMove(row) && todayAssignedRoomId === targetRoomId);
   });
 
   const blocksByRoomId = new Map<string, { type: string; reason: string }>();
