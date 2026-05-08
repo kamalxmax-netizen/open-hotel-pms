@@ -1,5 +1,7 @@
 import {
+    type DepositLine,
     extractDepositGeneralNote,
+    normalizeDepositMethod,
     parseDepositPayloadLines,
 } from "@/lib/deposit-ledger";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -150,6 +152,50 @@ async function assertDepositEditable(
     return { ok: true as const };
 }
 
+async function loadCurrentDepositLines(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string
+): Promise<DepositLine[]> {
+    const { data, error } = await supabase
+        .from("folio_payments")
+        .select("method, amount, tx_type, revenue_category, is_record_only")
+        .eq("reservation_id", reservationId)
+        .eq("revenue_category", "deposit")
+        .eq("is_record_only", false)
+        .order("paid_at", { ascending: true });
+
+    if (error) throw error;
+
+    const byMethod = new Map<DepositLine["method"], number>();
+    for (const row of data ?? []) {
+        const method = normalizeDepositMethod(row.method);
+        const amount = fromSatang(toSatang(row.amount ?? 0));
+        const current = byMethod.get(method) ?? 0;
+        if (row.tx_type === "deposit") byMethod.set(method, current + amount);
+        else if (row.tx_type === "refund") byMethod.set(method, current - amount);
+    }
+
+    return Array.from(byMethod.entries())
+        .map(([method, amount]) => ({ method, amount: fromSatang(toSatang(amount)), note: null }))
+        .filter((line) => line.amount > 0);
+}
+
+function mergeDepositDelta(
+    lines: DepositLine[],
+    methodRaw: unknown,
+    amount: number
+): DepositLine[] {
+    const method = normalizeDepositMethod(methodRaw);
+    const delta = fromSatang(toSatang(amount));
+    const next = lines.map((line) => ({ ...line }));
+    const matched = next.find((line) => normalizeDepositMethod(line.method) === method);
+
+    if (matched) matched.amount = fromSatang(toSatang(matched.amount + delta));
+    else next.push({ method, amount: delta, note: null });
+
+    return next.filter((line) => line.amount > 0);
+}
+
 /* ─── GET — fetch current deposit status ─────────── */
 export async function GET(request: NextRequest, { params }: Params) {
     try {
@@ -180,11 +226,17 @@ export async function POST(req: NextRequest, { params }: Params) {
         const {
             deposit_amount,
             deposit_note,
+            deposit_action,
+            deposit_delta_amount,
+            deposit_delta_method,
             cashier_name,
             allow_during_checkin,
         } = body as {
             deposit_amount: number;
             deposit_note?: string;
+            deposit_action?: string;
+            deposit_delta_amount?: number;
+            deposit_delta_method?: string;
             cashier_name?: string;
             allow_during_checkin?: boolean;
         };
@@ -197,8 +249,17 @@ export async function POST(req: NextRequest, { params }: Params) {
             return NextResponse.json({ error: "deposit_amount must be ≥ 0" }, { status: 400 });
         }
 
-        const depositLines = parseDepositPayloadLines(deposit_note, normalizedDepositAmount);
-        const generalNote = extractDepositGeneralNote(deposit_note);
+        let depositLines = parseDepositPayloadLines(deposit_note, normalizedDepositAmount);
+        let generalNote = extractDepositGeneralNote(deposit_note);
+        if (deposit_action === "top_up") {
+            const deltaSatang = toSatang(deposit_delta_amount ?? 0);
+            if (deltaSatang <= 0) {
+                return NextResponse.json({ error: "deposit_delta_amount must be > 0 for top_up." }, { status: 400 });
+            }
+            const currentLines = await loadCurrentDepositLines(supabase, params.id);
+            depositLines = mergeDepositDelta(currentLines, deposit_delta_method, fromSatang(deltaSatang));
+            generalNote = null;
+        }
         const effectiveGeneralNote = normalizedDepositAmount > 0 ? null : generalNote;
         try {
             const data = await applyDepositSnapshotLines({
