@@ -142,6 +142,10 @@ function fmtMoney(n: number) {
     return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function roundMoney(n: number) {
+    return Math.round((Number(n) || 0) * 100) / 100;
+}
+
 function shortenBookingCode(bookingCode: string) {
     return `#${bookingCode.slice(-6)}`;
 }
@@ -558,7 +562,19 @@ export default function PaymentDailyPage() {
     const advanceGroupSections = isGroupReviewMode ? buildGroupReviewSections(advancePayments) : [];
     const unassignedTodayRooms = todayRooms.filter((row) => row.room_number === "NO ROOM" && !row.is_dayuse);
     const floors = Array.from(new Set(allRooms.map(r => r.floor_number))).sort((a, b) => b - a);
-    const displayedGrandTotalNet = data?.grand_total.grand_net ?? 0;
+    const displayedCashDrawer = roundMoney(data?.reconciliation.net_cash ?? 0);
+    const displayedTransferTotal = roundMoney(
+        (data?.grand_total.transfer.payment ?? 0) + (data?.grand_total.transfer.deposit ?? 0)
+    );
+    const displayedCardOtherTotal = roundMoney(
+        (data?.grand_total.credit_card.payment ?? 0)
+        + (data?.grand_total.credit_card.deposit ?? 0)
+        + (data?.grand_total.other.payment ?? 0)
+        + (data?.grand_total.other.deposit ?? 0)
+    );
+    const displayedGrandTotalNet = roundMoney(
+        displayedCashDrawer + displayedTransferTotal + displayedCardOtherTotal
+    );
     return (
         <div className="flex flex-col gap-6 max-w-[1400px] mx-auto w-full pb-20">
             {/* Header */}
@@ -650,15 +666,15 @@ export default function PaymentDailyPage() {
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[9px] uppercase tracking-tighter text-[var(--text-muted)]">Cash Drawer</span>
-                            <span className="text-emerald-600 text-sm">{fmtMoney(data.reconciliation.net_cash)}</span>
+                            <span className="text-emerald-600 text-sm">{fmtMoney(displayedCashDrawer)}</span>
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[9px] uppercase tracking-tighter text-[var(--text-muted)]">Transfer</span>
-                            <span className="text-sky-600 text-sm">{fmtMoney(data.grand_total.transfer.payment)}</span>
+                            <span className="text-sky-600 text-sm">{fmtMoney(displayedTransferTotal)}</span>
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[9px] uppercase tracking-tighter text-[var(--text-muted)]">Card/Other</span>
-                            <span className="text-violet-600 text-sm">{fmtMoney(data.grand_total.credit_card.payment + data.grand_total.other.payment)}</span>
+                            <span className="text-violet-600 text-sm">{fmtMoney(displayedCardOtherTotal)}</span>
                         </div>
                     </div>
                 )}
@@ -1041,19 +1057,37 @@ export default function PaymentDailyPage() {
                                     </>
                                 )}
 
-                                {/* ─── Grand Total Footer (Unified Alignment) ─── */}
-                                <tfoot className="border-t-2 border-emerald-200 dark:border-emerald-800">
-                                    <tr className="font-bold text-sm">
-                                        <td className={`px-4 py-4 ${B} text-emerald-900 dark:text-emerald-300 uppercase tracking-wider w-48 bg-emerald-50 dark:bg-emerald-950/30`}>Grand Total</td>
-                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24 bg-emerald-50 dark:bg-emerald-950/30`}>{fmtMoney(displayedGrandTotalNet)}</td>
-                                        {isGroupReviewMode && <td className={`px-3 py-4 ${B} text-right text-[var(--text-muted)] bg-emerald-50 dark:bg-emerald-950/30`}>-</td>}
+                                {/* ─── Footer Totals ─── */}
+                                <tfoot className="border-t-2 border-[var(--border-input)]">
+                                    <tr className="font-bold text-sm bg-[var(--bg-muted)]">
+                                        <td className={`px-4 py-3 ${B} text-[var(--text-primary)] uppercase tracking-wider w-48`}>Column Totals</td>
+                                        <td className={`px-4 py-3 ${B} text-right text-[var(--text-muted)] w-24`}>-</td>
+                                        {isGroupReviewMode && <td className={`px-3 py-3 ${B} text-right text-[var(--text-muted)]`}>-</td>}
                                         <MoneyCell v={data.grand_total.cash.payment} border={Bi} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.cash.deposit} border={B} bg="bg-emerald-100/50 dark:bg-emerald-950/50" />
                                         <MoneyCell v={data.grand_total.transfer.payment} border={Bi} bg="bg-sky-100/50 dark:bg-sky-950/50" />
                                         <MoneyCell v={data.grand_total.transfer.deposit} border={B} bg="bg-sky-100/50 dark:bg-sky-950/50" />
                                         <MoneyCell v={data.grand_total.credit_card.payment + data.grand_total.other.payment} border={Bi} bg="bg-violet-100/50 dark:bg-violet-950/50" />
                                         <MoneyCell v={data.grand_total.credit_card.deposit + data.grand_total.other.deposit} border={B} bg="bg-violet-100/50 dark:bg-violet-950/50" />
-                                        <td className="px-4 py-4 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase tracking-widest text-center w-56 bg-emerald-50 dark:bg-emerald-950/30 font-black">NET BALANCE</td>
+                                        <td className="px-4 py-3 text-[var(--text-muted)] text-[10px] uppercase tracking-widest text-center w-56 font-black">Payment / Deposit columns</td>
+                                    </tr>
+                                    <tr className="font-bold text-sm border-t-2 border-emerald-200 dark:border-emerald-800">
+                                        <td className={`px-4 py-4 ${B} text-emerald-900 dark:text-emerald-300 uppercase tracking-wider w-48 bg-emerald-50 dark:bg-emerald-950/30`}>Grand Total</td>
+                                        <td className={`px-4 py-4 ${B} text-right text-emerald-800 dark:text-emerald-300 w-24 bg-emerald-50 dark:bg-emerald-950/30`}>{fmtMoney(displayedGrandTotalNet)}</td>
+                                        {isGroupReviewMode && <td className={`px-3 py-4 ${B} text-right text-[var(--text-muted)] bg-emerald-50 dark:bg-emerald-950/30`}>-</td>}
+                                        <td colSpan={2} className={`px-3 py-4 ${B} text-right bg-emerald-50 dark:bg-emerald-950/30`}>
+                                            <span className="block text-[9px] uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Cash Drawer</span>
+                                            <span className="text-emerald-900 dark:text-emerald-200">{fmtMoney(displayedCashDrawer)}</span>
+                                        </td>
+                                        <td colSpan={2} className={`px-3 py-4 ${B} text-right bg-sky-50 dark:bg-sky-950/30`}>
+                                            <span className="block text-[9px] uppercase tracking-widest text-sky-700 dark:text-sky-400">Transfer</span>
+                                            <span className="text-sky-900 dark:text-sky-200">{fmtMoney(displayedTransferTotal)}</span>
+                                        </td>
+                                        <td colSpan={2} className={`px-3 py-4 ${B} text-right bg-violet-50 dark:bg-violet-950/30`}>
+                                            <span className="block text-[9px] uppercase tracking-widest text-violet-700 dark:text-violet-400">Card / Other</span>
+                                            <span className="text-violet-900 dark:text-violet-200">{fmtMoney(displayedCardOtherTotal)}</span>
+                                        </td>
+                                        <td className="px-4 py-4 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase tracking-widest text-center w-56 bg-emerald-50 dark:bg-emerald-950/30 font-black">Night Audit total</td>
                                     </tr>
                                 </tfoot>
                             </table>
