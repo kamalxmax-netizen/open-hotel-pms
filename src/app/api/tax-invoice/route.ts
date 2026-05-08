@@ -59,6 +59,7 @@ const createSchema = z.object({
   customer_tax_id: z.string().trim().max(30).optional().nullable(),
   customer_address: z.string().trim().max(2000).optional().nullable(),
   customer_branch: z.string().trim().max(255).optional().nullable(),
+  remark: z.string().trim().max(2000).optional().nullable(),
   is_passport: z.boolean().optional().default(false),
   guest_tax_profile_id: z.string().uuid().optional().nullable(),
   line_items: z.array(z.unknown()).optional(),
@@ -76,6 +77,7 @@ type InvoiceRow = {
   issue_date: string;
   customer_name: string;
   customer_tax_id: string | null;
+  remark?: string | null;
   grand_total: number | string;
   update_reason?: string | null;
   created_at: string;
@@ -601,6 +603,7 @@ export async function POST(request: NextRequest) {
         customer_tax_id: customerTaxId,
         customer_address: customerAddress,
         customer_branch: customerBranch,
+        remark: strOrNull(input.remark),
         is_passport: input.is_passport,
         guest_tax_profile_id: savedProfile?.id ?? input.guest_tax_profile_id ?? selectedTaxProfile?.id ?? null,
         booking_snapshot: built.booking_snapshot,
@@ -613,7 +616,7 @@ export async function POST(request: NextRequest) {
         seller_snapshot: sellerSnapshot,
         updated_by: user.id,
       })
-      .select("id, invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, created_at, updated_at")
+      .select("id, invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, created_at, updated_at")
       .maybeSingle();
 
     if (insertError) {

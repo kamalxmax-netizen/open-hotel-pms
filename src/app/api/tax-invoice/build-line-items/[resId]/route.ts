@@ -49,6 +49,7 @@ export async function GET(
     const data = {
       reservation: result.reservation,
       line_items: result.line_items,
+      available_extra_items: result.available_extra_items,
       totals: result.totals,
       booking_snapshot: result.booking_snapshot,
     };

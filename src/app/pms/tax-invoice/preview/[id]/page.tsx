@@ -63,6 +63,7 @@ export default function TaxInvoicePreviewPage() {
     customerTaxId: data.customer_tax_id,
     customerAddress: data.customer_address,
     customerBranch: data.customer_branch,
+    remark: data.remark,
     booking: data.booking_snapshot,
     lineItems: data.line_items,
     totals: {

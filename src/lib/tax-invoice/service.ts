@@ -433,7 +433,6 @@ export async function buildLineItemsForReservations(
     .filter((row) => {
       const note = String(row.note ?? "").trim();
       const amount = normalizeMoney(row.amount);
-      if (row.is_record_only) return false;
       if (amount <= 0) return false;
       if (note.startsWith("[PRICE TRACE")) return false;
       return true;

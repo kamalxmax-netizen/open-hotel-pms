@@ -207,6 +207,7 @@ export default function TaxInvoiceEditPage() {
       guest_profile_id: data.guest_tax_profile_id,
     },
     line_items: fullBuildData?.line_items ?? data.line_items,
+    available_extra_items: fullBuildData?.available_extra_items ?? [],
     totals: {
       subtotal: data.subtotal,
       vat_rate: data.vat_rate,
@@ -243,6 +244,7 @@ export default function TaxInvoiceEditPage() {
           customer_tax_id: data.customer_tax_id,
           customer_address: data.customer_address,
           customer_branch: data.customer_branch,
+          remark: data.remark,
         }}
         initialPeriod={initialPeriod}
       />

@@ -27,6 +27,7 @@ const patchSchema = z.object({
   customer_tax_id: z.string().trim().max(30).optional().nullable(),
   customer_address: z.string().trim().max(2000).optional().nullable(),
   customer_branch: z.string().trim().max(255).optional().nullable(),
+  remark: z.string().trim().max(2000).optional().nullable(),
   is_passport: z.boolean().optional(),
   guest_tax_profile_id: z.string().uuid().optional().nullable(),
   line_items: z.array(z.unknown()).optional(),
@@ -51,6 +52,7 @@ type InvoiceWithReservation = {
   customer_tax_id: string | null;
   customer_address: string | null;
   customer_branch: string | null;
+  remark: string | null;
   guest_tax_profile_id: string | null;
   line_items: unknown;
   discount: number | string;
@@ -136,6 +138,7 @@ function toAuditInvoiceSnapshot(invoice: InvoiceWithReservation | Record<string,
     customer_tax_id: strOrNull((invoice as any).customer_tax_id),
     customer_address: strOrNull((invoice as any).customer_address),
     customer_branch: strOrNull((invoice as any).customer_branch),
+    remark: strOrNull((invoice as any).remark),
     line_items: (invoice as any).line_items ?? null,
     discount: normalizeMoney((invoice as any).discount ?? 0),
     subtotal: normalizeMoney((invoice as any).subtotal ?? 0),
@@ -152,7 +155,7 @@ async function loadInvoiceOr404(
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
+      "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -309,6 +312,7 @@ export async function PATCH(
     if (input.customer_name !== undefined) patch.customer_name = input.customer_name;
     if (input.customer_address !== undefined) patch.customer_address = strOrNull(input.customer_address);
     if (input.customer_branch !== undefined) patch.customer_branch = strOrNull(input.customer_branch);
+    if (input.remark !== undefined) patch.remark = strOrNull(input.remark);
     if (input.guest_tax_profile_id !== undefined) patch.guest_tax_profile_id = input.guest_tax_profile_id;
     if (input.update_reason !== undefined) patch.update_reason = strOrNull(input.update_reason);
 
@@ -362,7 +366,7 @@ export async function PATCH(
       .update(patch)
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
@@ -456,7 +460,7 @@ export async function DELETE(
       })
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
