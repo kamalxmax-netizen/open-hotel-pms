@@ -8,6 +8,11 @@ export const dynamic = "force-dynamic";
 
 const MAX_METADATA_CHARS = 4000;
 
+function skipUiEventLogsForStrictMode(request: NextRequest): boolean {
+  if (process.env.NEXT_PUBLIC_EGRESS_STRICT_MODE === "false") return false;
+  return request.headers.get("x-pms-ui-event-log-manual") !== "1";
+}
+
 const createLogSchema = z.object({
   pathname: z.string().trim().min(1).max(300),
   event_type: z.string().trim().min(1).max(80),
@@ -39,6 +44,10 @@ function shouldBypassCaptureEmailFilter(eventType: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  if (skipUiEventLogsForStrictMode(request)) {
+    return NextResponse.json({ success: true, skipped: true, reason: "egress_strict_mode" });
+  }
+
   const supabase = createServerSupabaseClient();
   const user = await getAuthenticatedUser(supabase, request);
   if (!user) {
