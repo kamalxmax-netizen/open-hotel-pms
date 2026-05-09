@@ -407,7 +407,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 const method = String(row.method ?? "other");
                 const current = netByMethod.get(method) ?? { method, amount: 0, note: null };
                 const amount = fromSatang(toSatang(row.amount ?? 0));
-                if (row.tx_type === "deposit") current.amount += amount;
+                if (row.tx_type === "deposit" || row.tx_type === "payment") current.amount += amount;
                 else if (row.tx_type === "refund") current.amount -= amount;
                 if (!current.note && typeof row.note === "string" && row.note.trim()) {
                     current.note = row.note.trim();
@@ -417,10 +417,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             const lines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
             const nextDepositAmount = computeHeldDepositFromRows(depositRows ?? []);
             const nextPaidAt =
-                (depositRows ?? []).some((row: any) => row.tx_type === "deposit")
+                (depositRows ?? []).some((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
                     ? String(
                         [...(depositRows ?? [])]
-                            .filter((row: any) => row.tx_type === "deposit")
+                            .filter((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
                             .slice(-1)[0]?.paid_at ?? new Date().toISOString()
                     )
                     : null;
