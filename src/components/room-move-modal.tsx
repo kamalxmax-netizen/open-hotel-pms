@@ -13,6 +13,8 @@ type RoomMoveModalProps = {
     assignedLockActive?: boolean;
     assignedLockReason?: string | null;
     assignedLockRoomNumber?: string | null;
+    initialTab?: MoveTab;
+    planOnly?: boolean;
     onClose: () => void;
     onSuccess: () => void;
 };
@@ -156,6 +158,8 @@ export default function RoomMoveModal({
     assignedLockActive = false,
     assignedLockReason = null,
     assignedLockRoomNumber = null,
+    initialTab = "move_now",
+    planOnly = false,
     onClose,
     onSuccess,
 }: RoomMoveModalProps) {
@@ -166,7 +170,7 @@ export default function RoomMoveModal({
     const latestPlanStart = addDays(checkoutDate, -1);
     const initialPlanEnd = countNightsBetween(earliestPlanStart, checkoutDate) > 0 ? addDays(earliestPlanStart, 1) : checkoutDate;
 
-    const [activeTab, setActiveTab] = useState<MoveTab>("move_now");
+    const [activeTab, setActiveTab] = useState<MoveTab>(planOnly ? "plan_move" : initialTab);
     const [roomTypes, setRoomTypes] = useState<RoomTypeOption[]>([]);
     const [plannedMoves, setPlannedMoves] = useState<PlannedMove[]>([]);
 
@@ -208,6 +212,10 @@ export default function RoomMoveModal({
     const [error, setError] = useState("");
     const [saveNotice, setSaveNotice] = useState("");
     const [showValidation, setShowValidation] = useState(false);
+
+    useEffect(() => {
+        setActiveTab(planOnly ? "plan_move" : initialTab);
+    }, [initialTab, planOnly]);
 
     const effectiveTodayMove = useMemo(
         () => plannedMoves.find((row) => row.status === "planned" && isDateWithinRange(today, row.start_date, row.end_date)) ?? null,
@@ -1007,37 +1015,39 @@ export default function RoomMoveModal({
                     </div>
                 )}
 
-                <div className="inline-flex rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-1">
-                    <button
-                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "move_now" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-indigo-400 shadow-sm" : "text-[var(--text-secondary)]"}`}
-                        onClick={() => {
-                            setShowValidation(false);
-                            setActiveTab("move_now");
-                        }}
-                        type="button"
-                    >
-                        Move Now
-                    </button>
-                    <button
-                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "plan_move" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-indigo-400 shadow-sm" : "text-[var(--text-secondary)]"}`}
-                        onClick={() => {
-                            setShowValidation(false);
-                            if (!planEditingId) {
-                                const nextStart = planStartDate && planStartDate >= earliestPlanStart && planStartDate <= latestPlanStart
-                                    ? planStartDate
-                                    : earliestPlanStart;
-                                const nextEndBase = planEndDate && planEndDate > nextStart ? planEndDate : addDays(nextStart, 1);
-                                const nextEnd = nextEndBase > checkoutDate ? checkoutDate : nextEndBase;
-                                setPlanStartDate(nextStart);
-                                setPlanEndDate(nextEnd);
-                            }
-                            setActiveTab("plan_move");
-                        }}
-                        type="button"
-                    >
-                        Plan Move
-                    </button>
-                </div>
+                {!planOnly && (
+                    <div className="inline-flex rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] p-1">
+                        <button
+                            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "move_now" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-indigo-400 shadow-sm" : "text-[var(--text-secondary)]"}`}
+                            onClick={() => {
+                                setShowValidation(false);
+                                setActiveTab("move_now");
+                            }}
+                            type="button"
+                        >
+                            Move Now
+                        </button>
+                        <button
+                            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === "plan_move" ? "bg-[var(--bg-surface)] text-brand-700 dark:text-indigo-400 shadow-sm" : "text-[var(--text-secondary)]"}`}
+                            onClick={() => {
+                                setShowValidation(false);
+                                if (!planEditingId) {
+                                    const nextStart = planStartDate && planStartDate >= earliestPlanStart && planStartDate <= latestPlanStart
+                                        ? planStartDate
+                                        : earliestPlanStart;
+                                    const nextEndBase = planEndDate && planEndDate > nextStart ? planEndDate : addDays(nextStart, 1);
+                                    const nextEnd = nextEndBase > checkoutDate ? checkoutDate : nextEndBase;
+                                    setPlanStartDate(nextStart);
+                                    setPlanEndDate(nextEnd);
+                                }
+                                setActiveTab("plan_move");
+                            }}
+                            type="button"
+                        >
+                            Plan Move
+                        </button>
+                    </div>
+                )}
 
                 <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-body)] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div>
