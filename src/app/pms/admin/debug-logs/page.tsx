@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  isUiEventLogManualCaptureEnabled,
+  setUiEventLogManualCaptureEnabled,
+} from "@/lib/ui-event-log-client";
 
 type DebugLogRow = {
   id: string;
@@ -102,6 +106,7 @@ export default function AdminDebugLogsPage() {
   const [message, setMessage] = useState("");
   const [captureEmails, setCaptureEmails] = useState("ops@example.com");
   const [savingCaptureEmails, setSavingCaptureEmails] = useState(false);
+  const [manualCaptureEnabled, setManualCaptureEnabled] = useState(false);
 
   const [dateFrom, setDateFrom] = useState(() => toBangkokDateString());
   const [dateTo, setDateTo] = useState(() => toBangkokDateString());
@@ -145,6 +150,10 @@ export default function AdminDebugLogsPage() {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    setManualCaptureEnabled(isUiEventLogManualCaptureEnabled());
+  }, []);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -273,6 +282,14 @@ export default function AdminDebugLogsPage() {
     }
   }
 
+  function handleManualCaptureToggle() {
+    const next = !manualCaptureEnabled;
+    setUiEventLogManualCaptureEnabled(next);
+    setManualCaptureEnabled(next);
+    setMessage(next ? "Manual debug capture enabled for this browser." : "Manual debug capture disabled for this browser.");
+    setError("");
+  }
+
   if (roleLoading || (isAdmin !== true && loading)) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -311,10 +328,24 @@ export default function AdminDebugLogsPage() {
       </div>
 
       <div className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">Capture Users</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Only these email(s) will be logged when manual capture is enabled.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={manualCaptureEnabled ? "btn btn-danger" : "btn btn-secondary"}
+            onClick={handleManualCaptureToggle}
+          >
+            {manualCaptureEnabled ? "Turn Capture Off" : "Turn Capture On"}
+          </button>
+        </div>
         <div>
-          <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">Capture Users</h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Only these email(s) will be logged. Users not in this list, including admin, will be skipped completely.
+            Current capture status: <span className={manualCaptureEnabled ? "font-semibold text-emerald-700" : "font-semibold text-slate-700"}>{manualCaptureEnabled ? "Manual On" : "Off"}</span>
           </p>
         </div>
         <textarea
