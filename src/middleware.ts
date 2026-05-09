@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
-import { clearPermissionCache, readPermissionCache, writePermissionCache } from "@/lib/middleware-permission-cache";
+import {
+  clearPermissionCache,
+  readCachedAccessProfile,
+  writeCachedAccessProfile,
+} from "@/lib/middleware-permission-cache";
 import { resolvePostLoginPath } from "@/lib/auth-routing";
 
 // Routes that are always public (no auth required)
@@ -72,12 +76,25 @@ export async function middleware(request: NextRequest) {
       const supabase = createMiddlewareSupabaseClient(request, response);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase
+        const cachedProfile = await readCachedAccessProfile(request, user.id);
+        if (cachedProfile) {
+          return NextResponse.redirect(
+            new URL(resolvePostLoginPath(cachedProfile.role, cachedProfile.allowedPages), request.url)
+          );
+        }
+
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role, allowed_pages")
           .eq("user_id", user.id)
           .maybeSingle();
-        return NextResponse.redirect(new URL(resolvePostLoginPath(profile?.role, profile?.allowed_pages), request.url));
+        const role = String(profile?.role ?? "").trim().toLowerCase() || null;
+        const allowedPages = Array.isArray(profile?.allowed_pages) ? profile.allowed_pages : ["*"];
+        const redirectResponse = NextResponse.redirect(new URL(resolvePostLoginPath(role, allowedPages), request.url));
+        if (!profileError) {
+          await writeCachedAccessProfile(redirectResponse, user.id, { role, allowedPages });
+        }
+        return redirectResponse;
       }
     }
     return NextResponse.next();
@@ -130,12 +147,22 @@ export async function middleware(request: NextRequest) {
       return redirectResponse;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, allowed_pages")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const role = String(profile?.role ?? "").trim().toLowerCase();
+    let cachedProfile = await readCachedAccessProfile(request, user.id);
+    if (!cachedProfile) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, allowed_pages")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      cachedProfile = {
+        role: String(profile?.role ?? "").trim().toLowerCase() || null,
+        allowedPages: Array.isArray(profile?.allowed_pages) ? profile.allowed_pages : ["*"],
+      };
+      if (!profileError) {
+        await writeCachedAccessProfile(response, user.id, cachedProfile);
+      }
+    }
+    const role = cachedProfile.role ?? "";
     const isStaffSchedulePath = pathname === STAFF_SCHEDULE_PATH || pathname.startsWith(`${STAFF_SCHEDULE_PATH}/`);
 
     if (role === "mobile") {
@@ -156,11 +183,7 @@ export async function middleware(request: NextRequest) {
     // Skip permission check for the unauthorized page itself (avoid redirect loop)
     if (pathname === "/pms/unauthorized") return response;
 
-    let allowedPages = await readPermissionCache(request, user.id);
-    if (!allowedPages) {
-      allowedPages = Array.isArray(profile?.allowed_pages) ? profile.allowed_pages : ["*"];
-      await writePermissionCache(response, user.id, allowedPages);
-    }
+    const allowedPages = cachedProfile.allowedPages;
 
     // ["*"] = full access
     if (!allowedPages.includes("*")) {

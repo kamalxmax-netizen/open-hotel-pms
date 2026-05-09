@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PERMISSION_CACHE_COOKIE = "pms_perm_v1";
-const PERMISSION_CACHE_TTL_SECONDS = 60;
+const PERMISSION_CACHE_TTL_SECONDS = 10 * 60;
+
+export type MiddlewareAccessProfile = {
+  role: string | null;
+  allowedPages: string[];
+};
 
 type PermissionCachePayload = {
   uid: string;
+  role?: string | null;
   allowedPages: string[];
   exp: number;
 };
@@ -74,10 +80,15 @@ function normalizeAllowedPages(value: unknown): string[] {
   return pages.length > 0 ? Array.from(new Set(pages)) : ["*"];
 }
 
-export async function readPermissionCache(
+function normalizeRole(value: unknown): string | null {
+  const role = String(value ?? "").trim().toLowerCase();
+  return role || null;
+}
+
+async function readPermissionCachePayload(
   request: NextRequest,
   userId: string
-): Promise<string[] | null> {
+): Promise<PermissionCachePayload | null> {
   const secret = getSigningSecret();
   if (!secret) return null;
 
@@ -100,23 +111,51 @@ export async function readPermissionCache(
     const parsed = JSON.parse(payloadJson) as Partial<PermissionCachePayload>;
     if (String(parsed.uid ?? "") !== userId) return null;
     if (!Number.isFinite(parsed.exp) || Number(parsed.exp) <= Date.now()) return null;
-    return normalizeAllowedPages(parsed.allowedPages);
+    const roleWasCached = Object.prototype.hasOwnProperty.call(parsed, "role");
+    return {
+      uid: userId,
+      role: roleWasCached ? normalizeRole(parsed.role) : undefined,
+      allowedPages: normalizeAllowedPages(parsed.allowedPages),
+      exp: Number(parsed.exp),
+    };
   } catch {
     return null;
   }
 }
 
-export async function writePermissionCache(
+export async function readCachedAccessProfile(
+  request: NextRequest,
+  userId: string
+): Promise<MiddlewareAccessProfile | null> {
+  const payload = await readPermissionCachePayload(request, userId);
+  if (!payload) return null;
+  if (payload.role === undefined) return null;
+  return {
+    role: normalizeRole(payload.role),
+    allowedPages: normalizeAllowedPages(payload.allowedPages),
+  };
+}
+
+export async function readPermissionCache(
+  request: NextRequest,
+  userId: string
+): Promise<string[] | null> {
+  const payload = await readPermissionCachePayload(request, userId);
+  return payload ? normalizeAllowedPages(payload.allowedPages) : null;
+}
+
+export async function writeCachedAccessProfile(
   response: NextResponse,
   userId: string,
-  allowedPages: string[]
+  profile: MiddlewareAccessProfile
 ): Promise<void> {
   const secret = getSigningSecret();
   if (!secret) return;
 
-  const normalizedPages = normalizeAllowedPages(allowedPages);
+  const normalizedPages = normalizeAllowedPages(profile.allowedPages);
   const payload: PermissionCachePayload = {
     uid: userId,
+    role: normalizeRole(profile.role),
     allowedPages: normalizedPages,
     exp: Date.now() + PERMISSION_CACHE_TTL_SECONDS * 1000,
   };
@@ -130,6 +169,17 @@ export async function writePermissionCache(
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: PERMISSION_CACHE_TTL_SECONDS,
+  });
+}
+
+export async function writePermissionCache(
+  response: NextResponse,
+  userId: string,
+  allowedPages: string[]
+): Promise<void> {
+  await writeCachedAccessProfile(response, userId, {
+    role: null,
+    allowedPages,
   });
 }
 

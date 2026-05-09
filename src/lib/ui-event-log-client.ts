@@ -1,5 +1,7 @@
 "use client";
 
+import { EGRESS_STRICT_MODE } from "@/lib/egress-strict-mode";
+
 type UiEventSeverity = "info" | "warning" | "error";
 
 type UiEventPayload = {
@@ -15,7 +17,31 @@ type UiEventPayload = {
 };
 
 const RECENT_EVENT_WINDOW_MS = 1500;
+const MANUAL_CAPTURE_KEY = "pms.ui-event-log.manual-capture-enabled";
 const recentEvents = new Map<string, number>();
+
+export function isUiEventLogManualCaptureEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(MANUAL_CAPTURE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setUiEventLogManualCaptureEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (enabled) {
+      window.localStorage.setItem(MANUAL_CAPTURE_KEY, "1");
+    } else {
+      window.localStorage.removeItem(MANUAL_CAPTURE_KEY);
+    }
+    window.dispatchEvent(new Event("pms-ui-event-log-manual-capture-change"));
+  } catch {
+    // ignore localStorage failures
+  }
+}
 
 function buildSignature(payload: UiEventPayload): string {
   return JSON.stringify([
@@ -29,6 +55,9 @@ function buildSignature(payload: UiEventPayload): string {
 }
 
 export function logUiEvent(payload: UiEventPayload): void {
+  const manualCaptureEnabled = isUiEventLogManualCaptureEnabled();
+  if (EGRESS_STRICT_MODE && !manualCaptureEnabled) return;
+
   try {
     const signature = buildSignature(payload);
     const now = Date.now();
@@ -46,7 +75,10 @@ export function logUiEvent(payload: UiEventPayload): void {
 
     void fetch("/api/ui-event-logs", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-PMS-UI-Event-Log-Manual": manualCaptureEnabled ? "1" : "0",
+      },
       body: JSON.stringify(payload),
       keepalive: true,
       credentials: "include",

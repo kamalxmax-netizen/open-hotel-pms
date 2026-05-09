@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
+import { STRICT_POLLING, canPollVisibleTab, strictPollInterval } from "@/lib/egress-strict-mode";
 
 type NotificationRow = {
   id: string;
@@ -38,10 +39,10 @@ export function ScbNotificationBell() {
 
     load();
     const interval = window.setInterval(() => {
-      if (!document.hidden) {
+      if (canPollVisibleTab()) {
         void load();
       }
-    }, 15000);
+    }, strictPollInterval(15_000, STRICT_POLLING.scbNotificationMs));
     return () => {
       cancelled = true;
       window.clearInterval(interval);
