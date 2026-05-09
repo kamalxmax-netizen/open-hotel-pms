@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, getTransportAlertLevel, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
 
 // ─── Types ────────────────────────────────────────────
@@ -1340,7 +1341,7 @@ export default function TransportationDailyBoard() {
             if (document.visibilityState === "visible") {
                 fetchData();
             }
-        }, 30000);
+        }, strictPollInterval(30_000, STRICT_POLLING.transportMs));
         document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => {
             document.removeEventListener("visibilitychange", handleVisibilityChange);

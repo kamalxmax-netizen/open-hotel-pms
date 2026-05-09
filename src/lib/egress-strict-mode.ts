@@ -2,7 +2,13 @@ export const EGRESS_STRICT_MODE =
   process.env.NEXT_PUBLIC_EGRESS_STRICT_MODE !== "false";
 
 export const STRICT_POLLING = {
+  hkPageMs: 60_000,
+  scbTransfersMs: 60_000,
   scbNotificationMs: 120_000,
+  transportMs: 60_000,
+  maidMs: 60_000,
+  logbookMs: 60_000,
+  hkExtraTasksMs: 60_000,
   vehicleSummaryMs: 180_000,
   vehicleRegistryMs: 180_000,
   boardDayUseMs: 180_000,
