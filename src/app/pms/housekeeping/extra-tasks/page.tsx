@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 import {
     Select,
     SelectContent,
@@ -123,7 +124,7 @@ export default function ExtraTasksPage() {
         let interval: NodeJS.Timeout;
         const handleVisibilityChange = () => { if (document.visibilityState === 'visible') fetchData(true); };
         document.addEventListener("visibilitychange", handleVisibilityChange);
-        interval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(true); }, 30000);
+        interval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(true); }, strictPollInterval(30_000, STRICT_POLLING.hkExtraTasksMs));
         return () => { document.removeEventListener("visibilitychange", handleVisibilityChange); clearInterval(interval); };
     }, [fetchData]);
 

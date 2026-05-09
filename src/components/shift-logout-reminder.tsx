@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logUiEvent } from "@/lib/ui-event-log-client";
+import { DEFAULT_APP_SETTINGS, useSettings } from "@/contexts/settings-context";
 
 type ReminderSettings = {
   hotel_timezone: string;
@@ -18,12 +19,7 @@ type UserInfo = {
   detail: string | null;
 };
 
-const DEFAULT_SETTINGS: ReminderSettings = {
-  hotel_timezone: "Asia/Bangkok",
-  shift_logout_reminder_times: ["07:00", "15:00", "23:00"],
-  shift_logout_snooze_min: 15,
-  shift_logout_snooze_enabled: true,
-};
+const DEFAULT_SETTINGS: ReminderSettings = DEFAULT_APP_SETTINGS;
 
 const SNOOZE_PREFIX = "pms.shift-logout.snooze.";
 const ACK_PREFIX = "pms.shift-logout.ack.";
@@ -42,7 +38,7 @@ export function markShiftLogoutFreshLogin(userId: string | null | undefined) {
 
 export function ShiftLogoutReminder() {
   const router = useRouter();
-  const [settings, setSettings] = useState<ReminderSettings>(DEFAULT_SETTINGS);
+  const { settings } = useSettings();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [activeOccurrence, setActiveOccurrence] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -57,28 +53,13 @@ export function ShiftLogoutReminder() {
     const supabase = createBrowserSupabaseClient();
 
     async function load() {
-      const [{ data: sessionData }, settingsResponse] = await Promise.all([
-        supabase.auth.getSession(),
-        fetch("/api/settings", { cache: "no-store" }).catch(() => null),
-      ]);
+      const { data: sessionData } = await supabase.auth.getSession();
       if (cancelled) return;
 
       const session = sessionData.session;
       const userId = session?.user?.id ?? null;
       if (!userId) return;
       markFreshLoginOnUserSwitch(userId);
-
-      if (settingsResponse?.ok) {
-        const payload = await settingsResponse.json().catch(() => null);
-        if (payload?.settings) {
-          setSettings({
-            hotel_timezone: String(payload.settings.hotel_timezone ?? DEFAULT_SETTINGS.hotel_timezone),
-            shift_logout_reminder_times: normalizeTimes(payload.settings.shift_logout_reminder_times),
-            shift_logout_snooze_min: clampMinutes(payload.settings.shift_logout_snooze_min, DEFAULT_SETTINGS.shift_logout_snooze_min),
-            shift_logout_snooze_enabled: payload.settings.shift_logout_snooze_enabled ?? DEFAULT_SETTINGS.shift_logout_snooze_enabled,
-          });
-        }
-      }
 
       const [{ data: profile }, { data: staff }] = await Promise.all([
         supabase.from("profiles").select("full_name, role").eq("user_id", userId).maybeSingle(),
@@ -209,12 +190,6 @@ function normalizeTimes(value: unknown): string[] {
     .filter((entry) => /^\d{2}:\d{2}$/.test(entry))))
     .sort();
   return normalized.length > 0 ? normalized.slice(0, 6) : DEFAULT_SETTINGS.shift_logout_reminder_times;
-}
-
-function clampMinutes(value: unknown, fallback: number): number {
-  const raw = Number(value);
-  const normalized = Number.isFinite(raw) ? Math.trunc(raw) : fallback;
-  return Math.min(Math.max(normalized, 1), 1440);
 }
 
 function getDueOccurrence(now: Date, timeZone: string, times: string[]): { id: string } | null {

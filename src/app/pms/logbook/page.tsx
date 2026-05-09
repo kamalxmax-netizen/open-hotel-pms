@@ -10,6 +10,7 @@ import { LogbookArchiveDrawer } from "./_components/LogbookArchiveDrawer"
 import { LogbookFullViewModal } from "./_components/LogbookFullViewModal"
 import { LogbookCreateModal } from "./_components/LogbookCreateModal"
 import { Button } from "@/components/ui/button"
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode"
 import { LogbookMention, LogbookNote, LogbookNoteLink } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
@@ -278,7 +279,7 @@ export default function LogbookPage() {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return
       fetchNotes()
       if (archiveDrawerOpen) fetchArchivedNotes()
-    }, 30000)
+    }, strictPollInterval(30_000, STRICT_POLLING.logbookMs))
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange)

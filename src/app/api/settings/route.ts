@@ -32,8 +32,25 @@ function normalizeSnoozeMinutes(value: unknown, fallback = 15): number {
     return Math.min(Math.max(normalized, 1), 1440);
 }
 
-function isShiftLogoutSnoozeEnabledMissingError(message: string): boolean {
-    return /shift_logout_snooze_enabled|schema cache/i.test(message);
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === "true") return true;
+        if (normalized === "false") return false;
+    }
+    return fallback;
+}
+
+function isOptionalHotelSettingsColumnMissingError(message: string, key: string): boolean {
+    return new RegExp(`${key}|schema cache`, "i").test(message);
+}
+
+function withSettingsDefaults<T extends Record<string, unknown>>(settings: T): T & { urgent_overlay_enabled: boolean } {
+    return {
+        ...settings,
+        urgent_overlay_enabled: normalizeBoolean(settings.urgent_overlay_enabled, false),
+    };
 }
 
 /* ─── GET — fetch hotel settings ─────────────────── */
@@ -80,6 +97,7 @@ export async function GET() {
             shift_logout_reminder_times: normalizeTimeList(data?.shift_logout_reminder_times),
             shift_logout_snooze_min: normalizeSnoozeMinutes(data?.shift_logout_snooze_min),
             shift_logout_snooze_enabled: data?.shift_logout_snooze_enabled ?? true,
+            urgent_overlay_enabled: normalizeBoolean(data?.urgent_overlay_enabled, false),
         }, alertSettings);
 
         return NextResponse.json(
@@ -116,7 +134,8 @@ export async function PUT(request: NextRequest) {
             "identity_alert_birthday_enabled",
             "shift_logout_reminder_times",
             "shift_logout_snooze_min",
-            "shift_logout_snooze_enabled"
+            "shift_logout_snooze_enabled",
+            "urgent_overlay_enabled"
         ];
 
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -132,6 +151,8 @@ export async function PUT(request: NextRequest) {
                 updates[key] = normalizeTimeList(body[key]);
             } else if (key === "shift_logout_snooze_min") {
                 updates[key] = normalizeSnoozeMinutes(body[key]);
+            } else if (key === "urgent_overlay_enabled") {
+                updates[key] = normalizeBoolean(body[key], false);
             } else {
                 updates[key] = body[key];
             }
@@ -143,16 +164,24 @@ export async function PUT(request: NextRequest) {
             .select("*")
             .maybeSingle();
 
-        if (error && "shift_logout_snooze_enabled" in updates && isShiftLogoutSnoozeEnabledMissingError(error.message)) {
+        if (error) {
             const retryUpdates = { ...updates };
-            delete retryUpdates.shift_logout_snooze_enabled;
-            const retry = await supabase
-                .from("hotel_settings")
-                .upsert({ id: 1, ...retryUpdates })
-                .select("*")
-                .maybeSingle();
-            data = retry.data;
-            error = retry.error;
+            let shouldRetry = false;
+            for (const key of ["shift_logout_snooze_enabled", "urgent_overlay_enabled"] as const) {
+                if (key in retryUpdates && isOptionalHotelSettingsColumnMissingError(error.message, key)) {
+                    delete retryUpdates[key];
+                    shouldRetry = true;
+                }
+            }
+            if (shouldRetry) {
+                const retry = await supabase
+                    .from("hotel_settings")
+                    .upsert({ id: 1, ...retryUpdates })
+                    .select("*")
+                    .maybeSingle();
+                data = retry.data;
+                error = retry.error;
+            }
         }
 
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -164,7 +193,7 @@ export async function PUT(request: NextRequest) {
         }
         const alertSettings = await readAlertSettings(supabase);
 
-        return NextResponse.json({ success: true, settings: applyAlertSettingsToHotelSettings(data ?? {}, alertSettings) });
+        return NextResponse.json({ success: true, settings: applyAlertSettingsToHotelSettings(withSettingsDefaults(data ?? {}), alertSettings) });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }

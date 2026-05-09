@@ -6,6 +6,7 @@ import AlertPendingPopup from "@/components/alert-pending-popup";
 import UrgentLogbookOverlay from "@/components/urgent-logbook-overlay";
 import UiEventLogProvider from "@/components/ui-event-log-provider";
 import { ShiftLogoutReminder } from "@/components/shift-logout-reminder";
+import { SettingsProvider, useSettings } from "@/contexts/settings-context";
 import { ensureCopyBoardFocusTracking } from "@/lib/copy-board";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -76,6 +77,26 @@ export default function AppShell({
   const showBugReport = process.env.NEXT_PUBLIC_SHOW_BUG_REPORT === "true";
 
   return (
+    <SettingsProvider>
+      <PmsAppShell isLogbookRoute={isLogbookRoute} showBugReport={showBugReport}>
+        {children}
+      </PmsAppShell>
+    </SettingsProvider>
+  );
+}
+
+function PmsAppShell({
+  children,
+  isLogbookRoute,
+  showBugReport,
+}: Readonly<{
+  children: React.ReactNode;
+  isLogbookRoute: boolean;
+  showBugReport: boolean;
+}>) {
+  const { settings } = useSettings();
+
+  return (
     <div className={isLogbookRoute ? "app-shell app-shell-logbook" : "app-shell"}>
       <UiEventLogProvider />
       <Sidebar />
@@ -84,7 +105,7 @@ export default function AppShell({
       </div>
       <AlertPendingPopup pageName="PMS" />
       <ShiftLogoutReminder />
-      <UrgentLogbookOverlay hasNeighbor={showBugReport} />
+      {settings.urgent_overlay_enabled && <UrgentLogbookOverlay hasNeighbor={showBugReport} />}
       {showBugReport && <BugReportButton />}
     </div>
   );
