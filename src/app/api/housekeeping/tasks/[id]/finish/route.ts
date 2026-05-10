@@ -66,6 +66,7 @@ type TaskRoomContext = {
 
 type TaskReservationContext = {
   reservation_id: string;
+  linked_reservation_ids?: string[];
   room_id: string;
   room_number: string;
   floor_number: number;
@@ -125,6 +126,54 @@ function deriveFloorNumber(context: TaskRoomContext): number | null {
   const value = Number(firstDigit);
   if (!Number.isInteger(value) || value <= 0) return null;
   return value;
+}
+
+async function loadLinkedReservationIds(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  reservation: {
+    id?: string | null;
+    parent_reservation_id?: string | null;
+    booking_group_id?: string | null;
+  }
+): Promise<string[]> {
+  const reservationId = String(reservation.id ?? "").trim();
+  if (!reservationId) return [];
+
+  const ids = new Set<string>([reservationId]);
+  const rootId = String(reservation.parent_reservation_id ?? reservationId).trim();
+
+  if (rootId) {
+    const { data, error } = await supabase
+      .from("reservations")
+      .select("id")
+      .or(`id.eq.${rootId},parent_reservation_id.eq.${rootId}`);
+
+    if (error) {
+      throw new Error(`Failed to resolve linked reservation ids: ${error.message}`);
+    }
+    for (const row of data ?? []) {
+      const id = String((row as any).id ?? "").trim();
+      if (id) ids.add(id);
+    }
+  }
+
+  const groupId = String(reservation.booking_group_id ?? "").trim();
+  if (groupId) {
+    const { data, error } = await supabase
+      .from("reservations")
+      .select("id")
+      .eq("booking_group_id", groupId);
+
+    if (error) {
+      throw new Error(`Failed to resolve booking group reservation ids: ${error.message}`);
+    }
+    for (const row of data ?? []) {
+      const id = String((row as any).id ?? "").trim();
+      if (id) ids.add(id);
+    }
+  }
+
+  return Array.from(ids);
 }
 
 async function applyStockDeductionNonBlocking(
@@ -203,7 +252,7 @@ async function resolveTaskReservationContext(
   if (activeReservationIds.length > 0) {
     const { data: activeReservations, error: activeReservationError } = await supabase
       .from("reservations")
-      .select("id, status, checkin_date, checkout_date")
+      .select("id, status, checkin_date, checkout_date, parent_reservation_id, booking_group_id")
       .in("id", activeReservationIds);
 
     if (activeReservationError) {
@@ -212,8 +261,10 @@ async function resolveTaskReservationContext(
 
     const activeReservation = (activeReservations ?? []).find((row: any) => row.status === "active");
     if (activeReservation) {
+      const linkedReservationIds = await loadLinkedReservationIds(supabase, activeReservation);
       return {
         reservation_id: String(activeReservation.id),
+        linked_reservation_ids: linkedReservationIds,
         room_id: context.room_id,
         room_number: context.room_number,
         floor_number: floorNumber,
@@ -227,7 +278,7 @@ async function resolveTaskReservationContext(
 
   const { data: checkedOutReservations, error: checkedOutError } = await supabase
     .from("reservations")
-    .select("id, status, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
+    .select("id, status, checkin_date, checkout_date, parent_reservation_id, booking_group_id, reservation_nights(room_id, stay_date, cancelled_at)")
     .eq("status", "checked_out")
     .eq("checkout_date", context.stay_date);
 
@@ -247,8 +298,10 @@ async function resolveTaskReservationContext(
       : [];
     const latestRoomId = String(activeNights[0]?.room_id ?? "");
     if (latestRoomId === context.room_id) {
+      const linkedReservationIds = await loadLinkedReservationIds(supabase, reservation as any);
       return {
         reservation_id: String((reservation as any).id ?? ""),
+        linked_reservation_ids: linkedReservationIds,
         room_id: context.room_id,
         room_number: context.room_number,
         floor_number: floorNumber,
@@ -273,7 +326,7 @@ async function resolveCheckedOutTaskReservationContext(
 
   const { data: checkedOutReservations, error: checkedOutError } = await supabase
     .from("reservations")
-    .select("id, status, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
+    .select("id, status, checkin_date, checkout_date, parent_reservation_id, booking_group_id, reservation_nights(room_id, stay_date, cancelled_at)")
     .eq("status", "checked_out")
     .eq("checkout_date", context.stay_date);
 
@@ -294,8 +347,10 @@ async function resolveCheckedOutTaskReservationContext(
     const latestRoomId = String(activeNights[0]?.room_id ?? "");
     if (latestRoomId !== context.room_id) continue;
 
+    const linkedReservationIds = await loadLinkedReservationIds(supabase, reservation as any);
     return {
       reservation_id: String((reservation as any).id ?? ""),
+      linked_reservation_ids: linkedReservationIds,
       room_id: context.room_id,
       room_number: context.room_number,
       floor_number: floorNumber,
@@ -325,15 +380,14 @@ async function validateReturnStockPayload(
     return { valid: false, error: "คืนของเข้าชั้นได้เฉพาะห้องที่เช็กเอาต์แล้วเท่านั้น" };
   }
 
-  if (getStayNightCount(reservationContext.checkin_date, reservationContext.checkout_date) <= 1) {
-    return { valid: false, error: "คืนของเข้าชั้นได้เฉพาะห้องที่พักมากกว่า 1 คืน" };
-  }
-
   const productIds = returnedItems.map((item) => item.product_id);
+  const linkedReservationIds = Array.from(
+    new Set([reservationContext.reservation_id, ...(reservationContext.linked_reservation_ids ?? [])])
+  );
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from("housekeeping_amenity_ledger")
     .select("product_id, action, quantity")
-    .eq("reservation_id", reservationContext.reservation_id)
+    .in("reservation_id", linkedReservationIds)
     .eq("room_id", reservationContext.room_id)
     .in("product_id", productIds);
 
@@ -425,24 +479,81 @@ async function applyStockReturn(
     return { attempted: true, processed: 0, error: "ไม่พบข้อมูลห้องสำหรับคืนของเข้าชั้น" };
   }
 
-  const { data, error } = await supabase.rpc("hk_return_floor_stock", {
-    p_task_id: taskId,
-    p_reservation_id: reservationContext.reservation_id,
-    p_room_id: reservationContext.room_id,
-    p_room_number: reservationContext.room_number,
-    p_floor_number: reservationContext.floor_number,
-    p_maid_name: payload.maid_name ?? null,
-    p_items: returnedItems,
-  });
+  const linkedReservationIds = Array.from(
+    new Set([reservationContext.reservation_id, ...(reservationContext.linked_reservation_ids ?? [])])
+  );
+  const productIds = Array.from(new Set(returnedItems.map((item) => item.product_id)));
+  const { data: ledgerRows, error: ledgerError } = await supabase
+    .from("housekeeping_amenity_ledger")
+    .select("reservation_id, product_id, action, quantity")
+    .in("reservation_id", linkedReservationIds)
+    .eq("room_id", reservationContext.room_id)
+    .in("product_id", productIds);
 
-  if (error) {
-    return { attempted: true, processed: 0, error: error.message };
+  if (ledgerError) {
+    return { attempted: true, processed: 0, error: ledgerError.message };
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
+  const availableByReservationAndProduct = new Map<string, number>();
+  for (const row of ledgerRows ?? []) {
+    const reservationId = String((row as any).reservation_id ?? "");
+    const productId = String((row as any).product_id ?? "");
+    const quantity = Math.max(Number((row as any).quantity ?? 0), 0);
+    if (!reservationId || !productId || quantity <= 0) continue;
+    const key = `${reservationId}::${productId}`;
+    const delta = String((row as any).action ?? "") === "return" ? -quantity : quantity;
+    availableByReservationAndProduct.set(key, (availableByReservationAndProduct.get(key) ?? 0) + delta);
+  }
+
+  const returnItemsByReservation = new Map<string, StockReturnItem[]>();
+  for (const item of returnedItems) {
+    let remaining = item.quantity;
+    for (const reservationId of linkedReservationIds) {
+      if (remaining <= 0) break;
+      const key = `${reservationId}::${item.product_id}`;
+      const available = Math.max(availableByReservationAndProduct.get(key) ?? 0, 0);
+      if (available <= 0) continue;
+      const quantity = Math.min(available, remaining);
+      if (quantity <= 0) continue;
+      availableByReservationAndProduct.set(key, available - quantity);
+      const rows = returnItemsByReservation.get(reservationId) ?? [];
+      rows.push({ product_id: item.product_id, quantity });
+      returnItemsByReservation.set(reservationId, rows);
+      remaining -= quantity;
+    }
+
+    if (remaining > 0) {
+      return {
+        attempted: true,
+        processed: 0,
+        error: "จำนวนคืนของเกินยอดค้างในห้อง",
+      };
+    }
+  }
+
+  let processed = 0;
+  for (const [reservationId, items] of returnItemsByReservation) {
+    const { data, error } = await supabase.rpc("hk_return_floor_stock", {
+      p_task_id: taskId,
+      p_reservation_id: reservationId,
+      p_room_id: reservationContext.room_id,
+      p_room_number: reservationContext.room_number,
+      p_floor_number: reservationContext.floor_number,
+      p_maid_name: payload.maid_name ?? null,
+      p_items: items,
+    });
+
+    if (error) {
+      return { attempted: true, processed, error: error.message };
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    processed += Number(row?.processed ?? 0);
+  }
+
   return {
     attempted: true,
-    processed: Number(row?.processed ?? 0),
+    processed,
     error: null,
   };
 }
