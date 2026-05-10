@@ -24,7 +24,7 @@ export const SOURCE_LABEL: Record<string, string> = {
     walkin: "Walk-in", ota: "OTA", direct: "Direct", agent: "Agent"
 };
 
-const COL_W = 44;   // px per day column
+const DEFAULT_COL_W = 44;   // px per day column
 const ROW_H = 40;   // px per room row
 const ROOM_COL_W = 130; // px for room label + badges
 
@@ -128,6 +128,7 @@ export type RoomGridProps = {
     startDate: string;
     spanDays: number;
     days: string[];
+    colWidth?: number;
 
     mode: "readonly" | "interactive";
     
@@ -167,6 +168,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
     startDate,
     spanDays,
     days,
+    colWidth = DEFAULT_COL_W,
     mode,
     onBarDragStart,
     onCellDragOver,
@@ -199,7 +201,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
 
     const today = new Date().toISOString().slice(0, 10);
     const endDate = addDays(startDate, spanDays - 1);
-    const totalGridW = days.length * COL_W;
+    const totalGridW = days.length * colWidth;
     const todayIdx = days.indexOf(today);
     
     const filteredRooms = rooms.filter((r) => !r.is_dayuse);
@@ -428,10 +430,10 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                 const m1 = members[i];
                 const m2 = members[i+1];
 
-                const x1 = m1.startIdx * COL_W + (m1.spanCount * COL_W) / 2;
+                const x1 = m1.startIdx * colWidth + (m1.spanCount * colWidth) / 2;
                 const y1 = m1.roomIndex * ROW_H + 34; // bottom of upper bar
 
-                const x2 = m2.startIdx * COL_W + (m2.spanCount * COL_W) / 2;
+                const x2 = m2.startIdx * colWidth + (m2.spanCount * colWidth) / 2;
                 const y2 = m2.roomIndex * ROW_H + 6; // top of lower bar
 
                 const isHovered = hoverGroupId === `linked:${rootId}`;
@@ -450,7 +452,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
         });
 
         return conns;
-    }, [filteredRooms, mode, hoverGroupId, days, startDate, endDate]);
+    }, [filteredRooms, mode, hoverGroupId, days, startDate, endDate, colWidth]);
 
     return (
         <div className="card overflow-hidden h-full flex flex-col">
@@ -536,7 +538,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                         {todayIdx >= 0 && (
                             <div
                                 className="pointer-events-none absolute top-0 bottom-0 w-[2px] bg-brand-500/80 shadow-[0_0_10px_rgba(37,99,235,0.45)] z-[12]"
-                                style={{ left: `${todayIdx * COL_W + Math.floor(COL_W / 2)}px` }}
+                                style={{ left: `${todayIdx * colWidth + Math.floor(colWidth / 2)}px` }}
                                 title="Today"
                             />
                         )}
@@ -554,7 +556,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                         key={day}
                                         className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-[var(--border-default)] text-center select-none ${isToday ? "bg-brand-50 dark:bg-brand-900/40" : weekend ? "bg-rose-50/40 dark:bg-rose-900/20" : ""
                                             }`}
-                                        style={{ width: COL_W }}
+                                        style={{ width: colWidth }}
                                     >
                                         <span className={`text-[9px] font-semibold ${weekend ? "text-rose-400" : "text-[var(--text-muted)]"}`}>{dow}</span>
                                         <span className={`text-sm font-bold leading-none ${isToday ? "text-brand-700" : weekend ? "text-rose-500" : "text-[var(--text-table-cell)]"}`}>{d}</span>
@@ -568,7 +570,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                             Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="flex border-b border-[var(--border-subtle)]" style={{ height: ROW_H }}>
                                     {days.map((d) => (
-                                        <div key={d} className="flex-shrink-0 border-r border-[var(--border-subtle)]" style={{ width: COL_W }} />
+                                        <div key={d} className="flex-shrink-0 border-r border-[var(--border-subtle)]" style={{ width: colWidth }} />
                                     ))}
                                 </div>
                             ))
@@ -606,7 +608,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 ? "bg-rose-50/30 hover:bg-rose-200/40 dark:bg-rose-900/15 dark:hover:bg-rose-900/30" 
                                                                 : "hover:bg-slate-200/50 dark:hover:bg-white/5"
                                                     } ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
-                                                    style={{ width: COL_W, height: ROW_H }}
+                                                    style={{ width: colWidth, height: ROW_H }}
                                                     onDoubleClick={() => onCellClick?.(room.room_id, day)}
                                                     onDragEnter={(e) => {
                                                         if (mode === "interactive") onCellDragEnter?.(room.room_id, day, e);
@@ -638,8 +640,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                             {roomBlocks.map(({ block, startIdx, spanCount }) => {
                                                 const isOOO = block.block_type === "OOO";
                                                 const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
-                                                const left = startIdx * COL_W;
-                                                const width = spanCount * COL_W;
+                                                const left = startIdx * colWidth;
+                                                const width = spanCount * colWidth;
                                                 return (
                                                     <div
                                                         key={block.id}
@@ -658,8 +660,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                             {plannedBars.map(({ move, startIdx, spanCount }) => {
                                                 const shouldFade = Boolean(focusReservationId) && move.reservation_id !== focusReservationId;
                                                 const isFocused = move.reservation_id === focusReservationId;
-                                                const left = startIdx * COL_W + 2;
-                                                const width = spanCount * COL_W - 4;
+                                                const left = startIdx * colWidth + 2;
+                                                const width = spanCount * colWidth - 4;
                                                 return (
                                                     <button
                                                         key={`planned-${move.id}`}
@@ -680,8 +682,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                             {plannedReleaseBars.map(({ move, startIdx, spanCount }) => {
                                                 const shouldFade = Boolean(focusReservationId) && move.reservation_id !== focusReservationId;
                                                 const isFocused = move.reservation_id === focusReservationId;
-                                                const left = startIdx * COL_W + 2;
-                                                const width = spanCount * COL_W - 4;
+                                                const left = startIdx * colWidth + 2;
+                                                const width = spanCount * colWidth - 4;
                                                 return (
                                                     <button
                                                         key={`planned-release-${move.id}`}
@@ -722,8 +724,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                 const isGhost = isWholeGhost || isSegmentGhost;
                                                 const isSolid = isWholeSolid || isSegmentSolidPartial;
 
-                                                const left = startIdx * COL_W + (clippedLeft ? 0 : 2);
-                                                const width = spanCount * COL_W - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
+                                                const left = startIdx * colWidth + (clippedLeft ? 0 : 2);
+                                                const width = spanCount * colWidth - (clippedLeft ? 0 : 2) - (clippedRight ? 0 : 2);
                                                 
                                                 const canInteract = mode === "interactive" && !res.do_not_move && !isCheckedOut && !isGhost;
                                                 // Hotfix: never hard-disable drag by global resize state.
@@ -768,14 +770,14 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 e.dataTransfer.dropEffect = "move";
                                                                 // Resolve date from cursor position for accurate per-night targeting
                                                                 const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
-                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / COL_W)] || days[startIdx] || '') : (days[startIdx] || '');
+                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / colWidth)] || days[startIdx] || '') : (days[startIdx] || '');
                                                                 onCellDragOver?.(room.room_id, resolvedDate, e);
                                                             }
                                                         }}
                                                         onDragEnter={(e) => {
                                                             if (mode === "interactive") {
                                                                 const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
-                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / COL_W)] || days[startIdx] || '') : (days[startIdx] || '');
+                                                                const resolvedDate = rect ? (days[Math.floor((e.clientX - rect.left) / colWidth)] || days[startIdx] || '') : (days[startIdx] || '');
                                                                 onCellDragEnter?.(room.room_id, resolvedDate, e);
                                                             }
                                                         }}
@@ -791,7 +793,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 const rect = e.currentTarget.closest('[data-room-row]')?.getBoundingClientRect();
                                                                 if (rect) {
                                                                     const relX = e.clientX - rect.left;
-                                                                    const colIdx = Math.floor(relX / COL_W);
+                                                                    const colIdx = Math.floor(relX / colWidth);
                                                                     const resolvedDate = days[colIdx] || days[startIdx] || '';
                                                                     onCellDrop?.(room.room_id, resolvedDate, e);
                                                                 } else {
@@ -891,7 +893,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                             <div
                                                                 key={day}
                                                                 className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
-                                                                style={{ width: COL_W, height: ROW_H }}
+                                                                style={{ width: colWidth, height: ROW_H }}
                                                                 title="Use Room Diary board for Day Use actions"
                                                             >
                                                                 {hasRes && <div className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />}
@@ -902,8 +904,8 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                     {roomBlocks.map(({ block, startIdx, spanCount }) => {
                                                         const isOOO = block.block_type === "OOO";
                                                         const color = isOOO ? "bg-rose-200 border-rose-400 text-rose-800 dark:bg-rose-500/30 dark:border-rose-500/50 dark:text-rose-200" : "bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-200";
-                                                        const left = startIdx * COL_W;
-                                                        const width = spanCount * COL_W;
+                                                        const left = startIdx * colWidth;
+                                                        const width = spanCount * colWidth;
                                                         return (
                                                             <div
                                                                 key={block.id}
