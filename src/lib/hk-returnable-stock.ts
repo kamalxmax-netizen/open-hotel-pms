@@ -55,6 +55,7 @@ type ReturnableStockResult = {
 
 type ReturnableStockCandidate = {
   reservationId: string;
+  linkedReservationIds?: string[];
   roomId: string;
   checkinDate: string | null;
   checkoutDate: string | null;
@@ -249,6 +250,13 @@ export async function getReturnableStockForReservationRooms(
   const normalizedCandidates = candidates
     .map((candidate) => ({
       reservationId: String(candidate.reservationId ?? "").trim(),
+      linkedReservationIds: Array.from(
+        new Set(
+          [candidate.reservationId, ...(candidate.linkedReservationIds ?? [])]
+            .map((id) => String(id ?? "").trim())
+            .filter(Boolean)
+        )
+      ),
       roomId: String(candidate.roomId ?? "").trim(),
       checkinDate: candidate.checkinDate,
       checkoutDate: candidate.checkoutDate,
@@ -258,12 +266,9 @@ export async function getReturnableStockForReservationRooms(
   const resultsByRoomId = new Map<string, ReturnableStockResult>();
   if (normalizedCandidates.length === 0) return resultsByRoomId;
 
-  const candidatesByPairKey = new Map<string, ReturnableStockCandidate>();
-  for (const candidate of normalizedCandidates) {
-    candidatesByPairKey.set(candidateKey(candidate.reservationId, candidate.roomId), candidate);
-  }
-
-  const reservationIds = Array.from(new Set(normalizedCandidates.map((candidate) => candidate.reservationId)));
+  const reservationIds = Array.from(
+    new Set(normalizedCandidates.flatMap((candidate) => candidate.linkedReservationIds))
+  );
   const roomIds = Array.from(new Set(normalizedCandidates.map((candidate) => candidate.roomId)));
 
   const { data: ledgerData, error: ledgerError } = await supabase
@@ -280,11 +285,14 @@ export async function getReturnableStockForReservationRooms(
   for (const row of (ledgerData ?? []) as LedgerRow[]) {
     const reservationId = String(row.reservation_id ?? "").trim();
     const roomId = String(row.room_id ?? "").trim();
-    const key = candidateKey(reservationId, roomId);
-    if (!candidatesByPairKey.has(key)) continue;
-    const rows = ledgerRowsByPairKey.get(key) ?? [];
-    rows.push(row);
-    ledgerRowsByPairKey.set(key, rows);
+    for (const candidate of normalizedCandidates) {
+      if (candidate.roomId !== roomId) continue;
+      if (!candidate.linkedReservationIds.includes(reservationId)) continue;
+      const key = candidateKey(candidate.reservationId, candidate.roomId);
+      const rows = ledgerRowsByPairKey.get(key) ?? [];
+      rows.push(row);
+      ledgerRowsByPairKey.set(key, rows);
+    }
   }
 
   const candidatesNeedingHistory: ReturnableStockCandidate[] = [];

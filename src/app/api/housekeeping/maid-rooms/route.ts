@@ -444,7 +444,7 @@ export async function GET(request: NextRequest) {
       .in("room_id", roomIds);
     const checkedOutTodayPromise = supabase
       .from("reservations")
-      .select("id, status, guest_name, checkin_date, checkout_date, reservation_nights(room_id, stay_date, cancelled_at)")
+      .select("id, status, guest_name, checkin_date, checkout_date, parent_reservation_id, booking_group_id, reservation_nights(room_id, stay_date, cancelled_at)")
       .eq("status", "checked_out")
       .eq("checkout_date", date);
     const { from: bangkokDayFrom, to: bangkokDayTo } = toBangkokWindow(date);
@@ -612,20 +612,26 @@ export async function GET(request: NextRequest) {
       string,
       {
         reservation_id: string;
+        linked_reservation_ids?: string[];
         status: string | null;
         guest_name: string | null;
         checkin_date: string | null;
         checkout_date: string | null;
+        parent_reservation_id?: string | null;
+        booking_group_id?: string | null;
       }
     >();
     const collectionReservationByRoomId = new Map<
       string,
       {
         reservation_id: string;
+        linked_reservation_ids?: string[];
         status: string | null;
         guest_name: string | null;
         checkin_date: string | null;
         checkout_date: string | null;
+        parent_reservation_id?: string | null;
+        booking_group_id?: string | null;
       }
     >();
 
@@ -655,10 +661,13 @@ export async function GET(request: NextRequest) {
       string,
       {
         reservation_id: string;
+        linked_reservation_ids?: string[];
         status: string | null;
         guest_name: string | null;
         checkin_date: string | null;
         checkout_date: string | null;
+        parent_reservation_id?: string | null;
+        booking_group_id?: string | null;
       }
     >();
     if (checkedOutTodayError) {
@@ -680,8 +689,76 @@ export async function GET(request: NextRequest) {
         guest_name: (reservation as any).guest_name ?? null,
         checkin_date: (reservation as any).checkin_date ?? null,
         checkout_date: (reservation as any).checkout_date ?? null,
+        parent_reservation_id: (reservation as any).parent_reservation_id ?? null,
+        booking_group_id: (reservation as any).booking_group_id ?? null,
       });
     }
+
+    const checkedOutContextRows = Array.from(checkedOutTodayReservationByRoomId.values());
+    const linkedRootIds = Array.from(
+      new Set(
+        checkedOutContextRows
+          .map((reservation) => reservation.parent_reservation_id || reservation.reservation_id)
+          .filter(Boolean)
+      )
+    );
+    const linkedGroupIds = Array.from(
+      new Set(checkedOutContextRows.map((reservation) => reservation.booking_group_id).filter(Boolean))
+    );
+    const linkedReservationIdsByRoot = new Map<string, string[]>();
+    const linkedReservationIdsByGroup = new Map<string, string[]>();
+
+    if (linkedRootIds.length > 0) {
+      const { data: linkedRows, error: linkedRowsError } = await supabase
+        .from("reservations")
+        .select("id, parent_reservation_id")
+        .or(
+          linkedRootIds
+            .map((rootId) => `id.eq.${rootId},parent_reservation_id.eq.${rootId}`)
+            .join(",")
+        );
+      if (linkedRowsError) {
+        return NextResponse.json({ error: linkedRowsError.message }, { status: 500 });
+      }
+      for (const row of linkedRows ?? []) {
+        const id = String((row as any).id ?? "");
+        const rootId = String((row as any).parent_reservation_id ?? id);
+        if (!id || !rootId) continue;
+        const ids = linkedReservationIdsByRoot.get(rootId) ?? [];
+        ids.push(id);
+        linkedReservationIdsByRoot.set(rootId, ids);
+      }
+    }
+
+    if (linkedGroupIds.length > 0) {
+      const { data: groupRows, error: groupRowsError } = await supabase
+        .from("reservations")
+        .select("id, booking_group_id")
+        .in("booking_group_id", linkedGroupIds);
+      if (groupRowsError) {
+        return NextResponse.json({ error: groupRowsError.message }, { status: 500 });
+      }
+      for (const row of groupRows ?? []) {
+        const id = String((row as any).id ?? "");
+        const groupId = String((row as any).booking_group_id ?? "");
+        if (!id || !groupId) continue;
+        const ids = linkedReservationIdsByGroup.get(groupId) ?? [];
+        ids.push(id);
+        linkedReservationIdsByGroup.set(groupId, ids);
+      }
+    }
+
+    checkedOutTodayReservationByRoomId.forEach((reservation) => {
+      const rootId = reservation.parent_reservation_id || reservation.reservation_id;
+      const rootLinkedIds = rootId ? linkedReservationIdsByRoot.get(rootId) ?? [] : [];
+      const groupLinkedIds = reservation.booking_group_id
+        ? linkedReservationIdsByGroup.get(reservation.booking_group_id) ?? []
+        : [];
+      reservation.linked_reservation_ids = Array.from(
+        new Set([reservation.reservation_id, ...rootLinkedIds, ...groupLinkedIds].filter(Boolean))
+      );
+    });
+
     checkedOutTodayReservationByRoomId.forEach((reservation, roomId) => {
       const existingRecent = recentReservationByRoomId.get(roomId);
       if (!existingRecent || existingRecent.status !== "active") {
@@ -916,9 +993,7 @@ export async function GET(request: NextRequest) {
     }
 
     const checkedOutReturnCandidates = Array.from(checkedOutTodayReservationByRoomId.entries()).filter(
-      ([, reservation]) =>
-        reservation.status === "checked_out" &&
-        getStayNightCount(reservation.checkin_date, reservation.checkout_date) > 1
+      ([, reservation]) => reservation.status === "checked_out"
     );
 
     if (checkedOutReturnCandidates.length > 0) {
@@ -926,6 +1001,7 @@ export async function GET(request: NextRequest) {
         supabase,
         checkedOutReturnCandidates.map(([roomId, reservation]) => ({
           reservationId: reservation.reservation_id,
+          linkedReservationIds: reservation.linked_reservation_ids ?? [reservation.reservation_id],
           roomId,
           checkinDate: reservation.checkin_date ?? null,
           checkoutDate: reservation.checkout_date ?? null,
@@ -1028,7 +1104,6 @@ export async function GET(request: NextRequest) {
       const returnableStock = returnableStockByRoomId.get(baseRoom.room_id) ?? [];
       const canReturnStock =
         collectionReservation?.status === "checked_out" &&
-        stayNightCount > 1 &&
         returnableStock.length > 0;
 
       return {

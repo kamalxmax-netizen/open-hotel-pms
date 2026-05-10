@@ -2,6 +2,12 @@ type SupabaseLike = {
   from: (table: string) => any;
 };
 
+type ReservationLinkScope = {
+  id?: string | null;
+  parent_reservation_id?: string | null;
+  booking_group_id?: string | null;
+};
+
 export class PrimaryGuestCheckinConflictError extends Error {
   status: number;
   code: string;
@@ -16,6 +22,32 @@ export class PrimaryGuestCheckinConflictError extends Error {
   }
 }
 
+function asReservation(row: any): any {
+  return Array.isArray(row?.reservations) ? row.reservations[0] : row?.reservations;
+}
+
+function normalizeId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function linkedRootId(reservation: ReservationLinkScope | null | undefined): string {
+  const id = normalizeId(reservation?.id);
+  const parentId = normalizeId(reservation?.parent_reservation_id);
+  return parentId || id;
+}
+
+function isSameLinkedStay(current: ReservationLinkScope | null, candidate: ReservationLinkScope | null): boolean {
+  if (!current || !candidate) return false;
+
+  const currentGroupId = normalizeId(current.booking_group_id);
+  const candidateGroupId = normalizeId(candidate.booking_group_id);
+  if (currentGroupId && candidateGroupId && currentGroupId === candidateGroupId) return true;
+
+  const currentRootId = linkedRootId(current);
+  const candidateRootId = linkedRootId(candidate);
+  return Boolean(currentRootId && candidateRootId && currentRootId === candidateRootId);
+}
+
 export async function assertPrimaryGuestAvailableForCheckin(params: {
   supabase: SupabaseLike;
   reservationId: string;
@@ -25,6 +57,16 @@ export async function assertPrimaryGuestAvailableForCheckin(params: {
   const reservationId = String(params.reservationId ?? "").trim();
   const guestProfileId = String(params.guestProfileId ?? "").trim();
   if (!reservationId || !guestProfileId) return;
+
+  const { data: currentReservation, error: currentReservationError } = await supabase
+    .from("reservations")
+    .select("id, parent_reservation_id, booking_group_id")
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (currentReservationError) {
+    throw new Error(currentReservationError.message ?? "Failed to validate current reservation link scope.");
+  }
 
   const { data: rows, error } = await supabase
     .from("reservation_guests")
@@ -36,7 +78,9 @@ export async function assertPrimaryGuestAvailableForCheckin(params: {
         booking_code,
         guest_name,
         status,
-        checked_in_at
+        checked_in_at,
+        parent_reservation_id,
+        booking_group_id
       )
     `)
     .eq("guest_profile_id", guestProfileId)
@@ -55,6 +99,9 @@ export async function assertPrimaryGuestAvailableForCheckin(params: {
       : (row as any)?.reservations;
     if (!reservation) return false;
     if (String(reservation.status ?? "") !== "active") return false;
+    if (isSameLinkedStay(currentReservation as ReservationLinkScope | null, reservation as ReservationLinkScope)) {
+      return false;
+    }
     otherReservationIds.push(candidateReservationId);
     return true;
   });
@@ -63,9 +110,7 @@ export async function assertPrimaryGuestAvailableForCheckin(params: {
 
   const checkedInReservationIds = new Set<string>();
   for (const row of candidateRows) {
-    const reservation = Array.isArray((row as any)?.reservations)
-      ? (row as any).reservations[0]
-      : (row as any)?.reservations;
+    const reservation = asReservation(row);
     const candidateReservationId = String((row as any)?.reservation_id ?? "");
     if (!candidateReservationId || !reservation) continue;
     if (reservation.checked_in_at) {
