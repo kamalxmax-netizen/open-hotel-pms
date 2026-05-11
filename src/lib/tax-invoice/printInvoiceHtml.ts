@@ -99,6 +99,15 @@ function getDisplayRoomNumbers(booking: TaxInvoiceBookingSnapshot, lineItems: Ta
     .sort(compareRoomNumber);
 }
 
+function getLineItemDiscountAmount(item: TaxInvoiceLineItem): number {
+  const explicit = Number(item.discount_amount ?? 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const gross = Number(item.gross_amount ?? 0);
+  const amount = Number(item.amount ?? 0);
+  if (!Number.isFinite(gross) || !Number.isFinite(amount)) return 0;
+  return Math.max(0, gross - amount);
+}
+
 /* ─── Amount in Words (Thai + English) ─── */
 
 function numberToThaiWords(n: number): string {
@@ -271,7 +280,7 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage, startI
           <td class="center">${esc(String(it.quantity || 0))}</td>
           <td class="center">${esc(unit)}</td>
           <td class="num">${fmtMoney(it.unit_price)}</td>
-          <td class="num">0.00</td>
+          <td class="num">${fmtMoney(getLineItemDiscountAmount(it))}</td>
           <td class="num">${fmtMoney(it.amount)}</td>
         </tr>
       `;

@@ -3,10 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import TaxInvoiceForm from "../../tax-invoice-form";
-import { BuildLineItemsResult } from "@/lib/tax-invoice/types";
+import { BuildLineItemsResult, TaxInvoiceKind } from "@/lib/tax-invoice/types";
 import { formatDateRangeDisplay } from "@/lib/date-display";
 
 type DocType = "invoice" | "receipt";
+
+function normalizeInvoiceKind(value: unknown): TaxInvoiceKind {
+  const kind = String(value ?? "standard").trim().toLowerCase();
+  return kind === "prepayment" || kind === "balance" ? kind : "standard";
+}
 
 export default function TaxInvoiceIssuePage() {
   const { resId } = useParams<{ resId: string }>();
@@ -16,6 +21,8 @@ export default function TaxInvoiceIssuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [docType, setDocType] = useState<DocType>("invoice");
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
+  const [businessDate, setBusinessDate] = useState("");
 
   // Receipt form state
   const [rcLanguage, setRcLanguage] = useState<"th" | "en">("th");
@@ -36,6 +43,7 @@ export default function TaxInvoiceIssuePage() {
   );
   const reservationIdsQuery = useMemo(() => reservationIds.join(","), [reservationIds]);
   const isCombinedInvoice = reservationIds.length > 1;
+  const initialInvoiceKind = normalizeInvoiceKind(searchParams.get("invoice_kind") ?? searchParams.get("kind"));
 
   useEffect(() => {
     async function fetchData() {
@@ -45,6 +53,8 @@ export default function TaxInvoiceIssuePage() {
         const result = await res.json();
         if (result.success) {
           setData(result.data);
+          setViewerIsAdmin(Boolean(result.viewer_is_admin));
+          setBusinessDate(String(result.business_date || ""));
         } else {
           setError(result.error || "Failed to load folio data");
         }
@@ -148,7 +158,13 @@ export default function TaxInvoiceIssuePage() {
       )}
 
       {docType === "invoice" && data && (
-        <TaxInvoiceForm initialData={data} mode="issue" />
+        <TaxInvoiceForm
+          initialData={data}
+          mode="issue"
+          initialInvoiceKind={initialInvoiceKind}
+          viewerIsAdmin={viewerIsAdmin}
+          businessDate={businessDate}
+        />
       )}
 
       {docType === "receipt" && data && (

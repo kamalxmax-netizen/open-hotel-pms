@@ -1,6 +1,10 @@
 import { getAuthenticatedUser } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+  prepareEditedCoverageLineItems,
+  TaxInvoiceCoverageError,
+} from "@/lib/tax-invoice/coverage";
+import {
   canFoEditInvoiceByBusinessDate,
   getBusinessDateFromSettings,
   getRequestingUserRole,
@@ -11,6 +15,7 @@ import {
   totalsFromLineItems,
   upsertGuestTaxProfile,
 } from "@/lib/tax-invoice/service";
+import type { TaxInvoiceKind } from "@/lib/tax-invoice/types";
 import { normalizeMoney, round2 } from "@/lib/tax-invoice/utils";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -32,6 +37,9 @@ const patchSchema = z.object({
   guest_tax_profile_id: z.string().uuid().optional().nullable(),
   line_items: z.array(z.unknown()).optional(),
   discount: z.coerce.number().min(0).max(100000000).optional(),
+  coverage_amount: z.coerce.number().min(0).max(100000000).optional().nullable(),
+  coverage_note: z.string().trim().max(500).optional().nullable(),
+  manual_issue_date_reason: z.string().trim().max(1000).optional().nullable(),
   update_reason: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -60,6 +68,11 @@ type InvoiceWithReservation = {
   vat_rate: number | string;
   vat_amount: number | string;
   grand_total: number | string;
+  invoice_kind?: TaxInvoiceKind | null;
+  split_group_id?: string | null;
+  coverage_amount?: number | string | null;
+  coverage_note?: string | null;
+  manual_issue_date_reason?: string | null;
   booking_snapshot: unknown;
   seller_snapshot: unknown;
   issued_by: string | null;
@@ -86,6 +99,11 @@ type InvoiceWithReservation = {
 function strOrNull(value: unknown): string | null {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
+}
+
+function normalizeInvoiceKind(value: unknown): TaxInvoiceKind {
+  const kind = String(value ?? "standard").trim().toLowerCase();
+  return kind === "prepayment" || kind === "balance" ? kind : "standard";
 }
 
 const SELLER_SNAPSHOT_KEYS = [
@@ -141,6 +159,11 @@ function toAuditInvoiceSnapshot(invoice: InvoiceWithReservation | Record<string,
     remark: strOrNull((invoice as any).remark),
     line_items: (invoice as any).line_items ?? null,
     discount: normalizeMoney((invoice as any).discount ?? 0),
+    invoice_kind: normalizeInvoiceKind((invoice as any).invoice_kind),
+    split_group_id: strOrNull((invoice as any).split_group_id),
+    coverage_amount: normalizeMoney((invoice as any).coverage_amount ?? (invoice as any).grand_total ?? 0),
+    coverage_note: strOrNull((invoice as any).coverage_note),
+    manual_issue_date_reason: strOrNull((invoice as any).manual_issue_date_reason),
     subtotal: normalizeMoney((invoice as any).subtotal ?? 0),
     vat_rate: normalizeMoney((invoice as any).vat_rate ?? 0),
     vat_amount: normalizeMoney((invoice as any).vat_amount ?? 0),
@@ -155,7 +178,7 @@ async function loadInvoiceOr404(
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
+      "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, line_items, discount, subtotal, vat_rate, vat_amount, grand_total, invoice_kind, split_group_id, coverage_amount, coverage_note, manual_issue_date_reason, booking_snapshot, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at, reservations:reservation_id(id, booking_code, guest_name, source, status, checkin_date, checkout_date, guest_profile_id, tax_invoice_requested)"
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -240,6 +263,9 @@ export async function GET(
       viewer_is_admin: isAdminRole(role),
     });
   } catch (err) {
+    if (err instanceof TaxInvoiceCoverageError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
@@ -285,14 +311,34 @@ export async function PATCH(
 
     const role = await getRequestingUserRole(supabase, user.id);
     const isAdmin = isAdminRole(role);
+    const invoiceKind = normalizeInvoiceKind(invoice.invoice_kind);
     const businessDate = await getBusinessDateFromSettings(supabase);
     const checkoutDate = strOrNull(invoice.reservations?.checkout_date);
     const foCanEdit = canFoEditInvoiceByBusinessDate(businessDate, checkoutDate);
+
+    if (invoiceKind !== "standard" && !isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Only admin can edit split/prepayment tax invoices." },
+        { status: 403 }
+      );
+    }
 
     if (!foCanEdit && !isAdmin) {
       return NextResponse.json(
         { success: false, error: "Only admin can edit this invoice after checkout day is closed." },
         { status: 403 }
+      );
+    }
+
+    if (
+      invoiceKind !== "standard" &&
+      input.issue_date &&
+      input.issue_date !== invoice.issue_date &&
+      !strOrNull(input.manual_issue_date_reason ?? invoice.manual_issue_date_reason)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "manual_issue_date_reason is required for split invoice manual issue dates." },
+        { status: 400 }
       );
     }
 
@@ -315,6 +361,10 @@ export async function PATCH(
     if (input.remark !== undefined) patch.remark = strOrNull(input.remark);
     if (input.guest_tax_profile_id !== undefined) patch.guest_tax_profile_id = input.guest_tax_profile_id;
     if (input.update_reason !== undefined) patch.update_reason = strOrNull(input.update_reason);
+    if (input.coverage_note !== undefined) patch.coverage_note = strOrNull(input.coverage_note);
+    if (input.manual_issue_date_reason !== undefined) {
+      patch.manual_issue_date_reason = strOrNull(input.manual_issue_date_reason);
+    }
 
     const patchIsPassport = Boolean(input.is_passport);
     if (input.is_passport !== undefined) patch.is_passport = patchIsPassport;
@@ -324,9 +374,32 @@ export async function PATCH(
     }
 
     const baseLineItems = sanitizeLineItems(invoice.line_items);
-    const nextLineItems = input.line_items ? sanitizeLineItems(input.line_items) : baseLineItems;
+    let nextLineItems = input.line_items ? sanitizeLineItems(input.line_items) : baseLineItems;
     if (nextLineItems.length === 0) {
       return NextResponse.json({ success: false, error: "Line items cannot be empty." }, { status: 400 });
+    }
+
+    if (invoiceKind !== "standard") {
+      const targetCoverageAmount = input.coverage_amount !== undefined
+        ? round2(normalizeMoney(input.coverage_amount))
+        : round2(normalizeMoney(invoice.coverage_amount ?? invoice.grand_total));
+      const coverage = prepareEditedCoverageLineItems(nextLineItems, {
+        invoiceKind,
+        coverageAmount: targetCoverageAmount,
+      });
+      nextLineItems = coverage.lineItems;
+      patch.coverage_amount = coverage.coverageAmount;
+      const currentSnapshot = invoice.booking_snapshot && typeof invoice.booking_snapshot === "object"
+        ? invoice.booking_snapshot as Record<string, unknown>
+        : {};
+      patch.booking_snapshot = {
+        ...currentSnapshot,
+        invoice_kind: invoiceKind,
+        split_group_id: strOrNull(invoice.split_group_id),
+        coverage_amount: coverage.coverageAmount,
+        coverage_note: strOrNull(input.coverage_note ?? invoice.coverage_note),
+        full_net_total: coverage.fullNetTotal,
+      };
     }
 
     const nextDiscount =
@@ -341,6 +414,9 @@ export async function PATCH(
     patch.vat_rate = totals.vat_rate;
     patch.vat_amount = totals.vat_amount;
     patch.grand_total = totals.grand_total;
+    if (invoiceKind === "standard") {
+      patch.coverage_amount = totals.grand_total;
+    }
 
     const resolvedCustomerName =
       strOrNull((patch.customer_name ?? invoice.customer_name) as unknown) ?? invoice.customer_name;
@@ -366,7 +442,7 @@ export async function PATCH(
       .update(patch)
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, invoice_kind, split_group_id, coverage_amount, coverage_note, manual_issue_date_reason, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
@@ -394,6 +470,9 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, invoice: updated, data: updated });
   } catch (err) {
+    if (err instanceof TaxInvoiceCoverageError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
@@ -460,7 +539,7 @@ export async function DELETE(
       })
       .eq("id", invoiceId)
       .select(
-        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
+        "id, reservation_id, invoice_no, cancelled_invoice_no, status, issue_date, language, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, invoice_kind, split_group_id, coverage_amount, coverage_note, manual_issue_date_reason, seller_snapshot, issued_by, cancelled_at, cancelled_by, cancel_reason, updated_by, update_reason, created_at, updated_at"
       )
       .maybeSingle();
 
@@ -470,6 +549,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, invoice: cancelled, data: cancelled });
   } catch (err) {
+    if (err instanceof TaxInvoiceCoverageError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }

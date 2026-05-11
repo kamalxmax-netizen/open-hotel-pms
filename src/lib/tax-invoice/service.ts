@@ -1,6 +1,11 @@
 import { getUserRole } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fromSatang, toSatang } from "@/lib/money";
+import {
+  applyReservationDiscountsToLineItems,
+  sumLineItemDiscounts,
+  sumLineItemGross,
+} from "@/lib/tax-invoice/coverage";
 import type {
   BuildLineItemsResult,
   TaxInvoiceLineItem,
@@ -29,6 +34,10 @@ type ReservationInvoiceContextRow = {
   tax_invoice_requested: boolean | null;
   guest_profile_id: string | null;
   booking_group_id: string | null;
+  discount_type: string | null;
+  discount_value: number | string | null;
+  discount_percent: number | string | null;
+  rate_plan_id: string | null;
 };
 
 type ReservationNightRow = {
@@ -153,7 +162,7 @@ export async function loadReservationInvoiceContexts(
 
   const { data, error } = await supabase
     .from("reservations")
-    .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, guest_profile_id, booking_group_id")
+    .select("id, booking_code, guest_name, source, status, checkin_date, checkout_date, tax_invoice_requested, guest_profile_id, booking_group_id, discount_type, discount_value, discount_percent, rate_plan_id")
     .in("id", normalizedIds);
 
   if (error) {
@@ -176,6 +185,10 @@ export async function loadReservationInvoiceContexts(
       tax_invoice_requested: Boolean(row.tax_invoice_requested ?? false),
       guest_profile_id: strOrNull(row.guest_profile_id),
       booking_group_id: strOrNull(row.booking_group_id),
+      discount_type: strOrNull(row.discount_type),
+      discount_value: row.discount_value ?? null,
+      discount_percent: row.discount_percent ?? null,
+      rate_plan_id: strOrNull(row.rate_plan_id),
     });
   });
 
@@ -295,7 +308,7 @@ export async function buildLineItemsForReservations(
   for (const night of nights) {
     const roomNumber = night.room_id ? roomNumberById.get(night.room_id) ?? "?" : "?";
     const unitPriceSatang = toSatang(night.nightly_price);
-    const key = `${roomNumber}::${unitPriceSatang}`;
+    const key = `${night.reservation_id}::${roomNumber}::${unitPriceSatang}`;
 
     const bucket = groupedRoomItems.get(key) ?? {
       reservation_id: night.reservation_id,
@@ -456,9 +469,8 @@ export async function buildLineItemsForReservations(
       };
     });
 
-  const lineItems = roomLineItems;
-  const grossTotal = lineItems.reduce((sum, item) => sum + normalizeMoney(item.amount), 0);
-  const totals = computeVatInclusiveTotals(grossTotal, 0, 0.07);
+  const lineItems = applyReservationDiscountsToLineItems(roomLineItems, reservations);
+  const totals = totalsFromLineItems(lineItems, 0);
 
   const bookingSnapshot = {
     booking_code:
@@ -472,6 +484,7 @@ export async function buildLineItemsForReservations(
     nights: nights.length,
     reservation_ids: normalizedReservationIds,
     booking_group_id: reservation.booking_group_id,
+    full_net_total: totals.grand_total,
     room_numbers: Array.from(
       new Set(
         nights
@@ -513,6 +526,15 @@ export function sanitizeLineItems(items: unknown): TaxInvoiceLineItem[] {
       const unitPrice = normalizeMoney(row.unit_price ?? 0);
       const amountRaw = row.amount !== undefined ? normalizeMoney(row.amount) : normalizeMoney(quantity * unitPrice);
       const amount = Math.max(0, amountRaw);
+      const grossAmount = row.gross_amount !== undefined
+        ? Math.max(0, normalizeMoney(row.gross_amount))
+        : undefined;
+      const discountAmount = row.discount_amount !== undefined
+        ? Math.max(0, normalizeMoney(row.discount_amount))
+        : undefined;
+      const roomCount = row.room_count !== undefined
+        ? Math.max(0, Number(row.room_count || 0))
+        : undefined;
 
       const description = String(row.description ?? "").trim();
       if (!description) return null;
@@ -524,6 +546,27 @@ export function sanitizeLineItems(items: unknown): TaxInvoiceLineItem[] {
         unit: String(row.unit ?? "").trim() || (kind === "room_charge" ? "คืน" : "รายการ"),
         unit_price: round2(unitPrice),
         amount: round2(amount),
+        gross_amount: grossAmount !== undefined ? round2(grossAmount) : undefined,
+        discount_amount: discountAmount !== undefined ? round2(discountAmount) : undefined,
+        room_count: roomCount !== undefined ? round2(roomCount) : undefined,
+        merged_reservation_ids: Array.isArray(row.merged_reservation_ids)
+          ? row.merged_reservation_ids.map((v) => String(v)).filter(Boolean)
+          : undefined,
+        merged_line_sources: Array.isArray(row.merged_line_sources)
+          ? row.merged_line_sources
+              .map((source) => {
+                if (!source || typeof source !== "object") return null;
+                const sourceRow = source as Record<string, unknown>;
+                return {
+                  reservation_id: strOrNull(sourceRow.reservation_id),
+                  room_number: strOrNull(sourceRow.room_number),
+                  gross_amount: round2(normalizeMoney(sourceRow.gross_amount)),
+                  discount_amount: round2(normalizeMoney(sourceRow.discount_amount)),
+                  amount: round2(normalizeMoney(sourceRow.amount)),
+                };
+              })
+              .filter(Boolean) as TaxInvoiceLineItem["merged_line_sources"]
+          : undefined,
         stay_dates: Array.isArray(row.stay_dates)
           ? row.stay_dates.map((v) => String(v)).filter((v) => /^\d{4}-\d{2}-\d{2}$/.test(v))
           : undefined,
@@ -547,8 +590,9 @@ export function totalsFromLineItems(
   lineItems: TaxInvoiceLineItem[],
   discount: number
 ): TaxInvoiceTotals {
-  const gross = lineItems.reduce((sum, row) => sum + normalizeMoney(row.amount), 0);
-  return computeVatInclusiveTotals(gross, discount, 0.07);
+  const gross = sumLineItemGross(lineItems);
+  const lineDiscount = sumLineItemDiscounts(lineItems);
+  return computeVatInclusiveTotals(gross, lineDiscount + discount, 0.07);
 }
 
 export async function upsertGuestTaxProfile(

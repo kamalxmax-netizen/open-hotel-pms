@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { mergeSameRateRoomLineItems } from "@/lib/tax-invoice/line-item-merge";
 import {
   TaxInvoiceLineItem,
   TaxInvoiceTotals,
   TaxInvoiceBookingSnapshot,
   TaxInvoiceLanguage,
+  TaxInvoiceKind,
   BuildLineItemsResult,
   TaxInvoiceAvailableExtraItem,
 } from "@/lib/tax-invoice/types";
@@ -56,6 +58,42 @@ type DisplayLineItem = {
   sourceIndex: number;
 };
 
+function normalizeInvoiceKind(value: unknown): TaxInvoiceKind {
+  const kind = String(value ?? "standard").trim().toLowerCase();
+  return kind === "prepayment" || kind === "balance" ? kind : "standard";
+}
+
+function itemGrossAmount(item: TaxInvoiceLineItem): number {
+  const gross = Number(item.gross_amount ?? 0);
+  if (Number.isFinite(gross) && gross > 0) return gross;
+  return round2(Number(item.amount || 0) + Number(item.discount_amount || 0));
+}
+
+function itemDiscountAmount(item: TaxInvoiceLineItem): number {
+  const explicit = Number(item.discount_amount ?? 0);
+  if (Number.isFinite(explicit) && explicit > 0) return round2(explicit);
+  return Math.max(0, round2(itemGrossAmount(item) - Number(item.amount || 0)));
+}
+
+function trimRoomLineItemToDates(item: TaxInvoiceLineItem, dates: string[]): TaxInvoiceLineItem {
+  const sourceDates = item.stay_dates?.length ? item.stay_dates : dates;
+  const sourceQuantity = Math.max(1, Number(item.quantity || sourceDates.length || 1));
+  const ratio = dates.length / sourceQuantity;
+  const gross = round2(itemGrossAmount(item) * ratio);
+  const discount = round2(itemDiscountAmount(item) * ratio);
+  const amount = Math.max(0, round2(gross - discount));
+
+  return {
+    ...item,
+    stay_dates: dates,
+    quantity: dates.length,
+    gross_amount: gross,
+    discount_amount: discount,
+    amount,
+    unit_price: round2(gross / Math.max(1, dates.length)),
+  };
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface TaxProfile {
@@ -79,11 +117,19 @@ interface TaxInvoiceFormProps {
     customer_address?: string;
     customer_branch?: string;
     remark?: string | null;
+    issue_date?: string;
+    invoice_kind?: TaxInvoiceKind | null;
+    coverage_amount?: number | null;
+    coverage_note?: string | null;
+    manual_issue_date_reason?: string | null;
   };
   initialPeriod?: {
     from: string;
     to: string;
   };
+  initialInvoiceKind?: TaxInvoiceKind;
+  viewerIsAdmin?: boolean;
+  businessDate?: string;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -95,6 +141,9 @@ export default function TaxInvoiceForm({
   reservationId,
   existingInvoice,
   initialPeriod,
+  initialInvoiceKind,
+  viewerIsAdmin = false,
+  businessDate,
 }: TaxInvoiceFormProps) {
   const router = useRouter();
 
@@ -117,6 +166,19 @@ export default function TaxInvoiceForm({
   const [remark, setRemark] = useState(existingInvoice?.remark || "");
   const [isPassport, setIsPassport] = useState(false);
   const [updateReason, setUpdateReason] = useState("");
+  const [invoiceKind, setInvoiceKind] = useState<TaxInvoiceKind>(
+    normalizeInvoiceKind(existingInvoice?.invoice_kind ?? initialInvoiceKind)
+  );
+  const [issueDate, setIssueDate] = useState(
+    existingInvoice?.issue_date || businessDate || new Date().toISOString().slice(0, 10)
+  );
+  const [coverageAmount, setCoverageAmount] = useState(
+    existingInvoice?.coverage_amount ? String(existingInvoice.coverage_amount) : ""
+  );
+  const [coverageNote, setCoverageNote] = useState(existingInvoice?.coverage_note || "");
+  const [manualIssueDateReason, setManualIssueDateReason] = useState(
+    existingInvoice?.manual_issue_date_reason || "Admin manual split invoice date"
+  );
 
   // ── Line items & booking state ─────────────────────────────────────────────
   const [lineItems, setLineItems] = useState<TaxInvoiceLineItem[]>(
@@ -126,6 +188,7 @@ export default function TaxInvoiceForm({
     initialData?.available_extra_items || []
   );
   const [showExtraPicker, setShowExtraPicker] = useState(false);
+  const [mergeSameRateRows, setMergeSameRateRows] = useState(false);
   const [booking, setBooking] = useState<TaxInvoiceBookingSnapshot | null>(
     initialData?.booking_snapshot || null
   );
@@ -146,7 +209,7 @@ export default function TaxInvoiceForm({
   const l = getLabels(language);
 
   // ── Filtered line items: trim room charges to selected invoice period ──
-  const filteredDisplayItems = useMemo((): DisplayLineItem[] => {
+  const baseFilteredDisplayItems = useMemo((): DisplayLineItem[] => {
     if (!editFrom || !editTo) return lineItems.map((item, sourceIndex) => ({ item, sourceIndex }));
     return lineItems.flatMap((item, sourceIndex) => {
       if (item.kind !== "room_charge" || !item.stay_dates?.length) {
@@ -156,23 +219,27 @@ export default function TaxInvoiceForm({
         (d) => d >= editFrom && d < editTo
       );
       if (inRange.length === 0) return [];
-      return [
-        {
-          item: {
-            ...item,
-            stay_dates: inRange,
-            quantity: inRange.length,
-            amount: round2(inRange.length * item.unit_price),
-          },
-          sourceIndex,
-        },
-      ];
+      return [{ item: trimRoomLineItemToDates(item, inRange), sourceIndex }];
     });
   }, [lineItems, editFrom, editTo]);
 
+  const baseFilteredLineItems = useMemo(
+    () => baseFilteredDisplayItems.map((row) => row.item),
+    [baseFilteredDisplayItems]
+  );
+
   const filteredLineItems = useMemo(
-    () => filteredDisplayItems.map((row) => row.item),
-    [filteredDisplayItems]
+    () => mergeSameRateRows
+      ? mergeSameRateRoomLineItems(baseFilteredLineItems, language)
+      : baseFilteredLineItems,
+    [baseFilteredLineItems, language, mergeSameRateRows]
+  );
+
+  const filteredDisplayItems = useMemo(
+    () => mergeSameRateRows
+      ? filteredLineItems.map((item, index) => ({ item, sourceIndex: -1 - index }))
+      : baseFilteredDisplayItems,
+    [baseFilteredDisplayItems, filteredLineItems, mergeSameRateRows]
   );
 
   // ── Sorted line items for display (preserve original idx for display only) ─
@@ -190,9 +257,14 @@ export default function TaxInvoiceForm({
   // ── Totals ─────────────────────────────────────────────────────────────────
   const totals = useMemo((): TaxInvoiceTotals => {
     const items = filteredLineItems;
-    const gross = items.reduce((acc, it) => acc + it.amount, 0);
-    return computeVatInclusiveTotals(gross, 0);
+    const gross = items.reduce((acc, it) => acc + itemGrossAmount(it), 0);
+    const discount = items.reduce((acc, it) => acc + itemDiscountAmount(it), 0);
+    return computeVatInclusiveTotals(gross, discount);
   }, [filteredLineItems]);
+
+  const splitCoveragePreview = invoiceKind === "prepayment"
+    ? Math.max(0, Number(coverageAmount || 0))
+    : null;
 
   // ── Date range helpers ─────────────────────────────────────────────────────
   const selectedNights = daysBetween(editFrom, editTo);
@@ -269,6 +341,7 @@ export default function TaxInvoiceForm({
     ?? "";
 
   const updateLineItemDescription = (sourceIndex: number, description: string) => {
+    if (sourceIndex < 0) return;
     setLineItems((current) =>
       current.map((item, index) => (index === sourceIndex ? { ...item, description } : item))
     );
@@ -445,6 +518,11 @@ export default function TaxInvoiceForm({
             is_passport: isPassport,
             line_items: filteredLineItems,
             discount: 0,
+            invoice_kind: invoiceKind,
+            issue_date: invoiceKind !== "standard" ? issueDate : undefined,
+            coverage_amount: invoiceKind === "prepayment" ? Number(coverageAmount || 0) : undefined,
+            coverage_note: invoiceKind !== "standard" ? coverageNote.trim() || null : undefined,
+            manual_issue_date_reason: invoiceKind !== "standard" ? manualIssueDateReason.trim() || null : undefined,
             save_customer_profile: true,
           }),
         });
@@ -457,7 +535,7 @@ export default function TaxInvoiceForm({
         const issueRes = await fetch(`/api/tax-invoice/${draftId}/issue`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify(invoiceKind !== "standard" ? { issue_date: issueDate } : {}),
         });
         const issueResult = await issueRes.json();
         if (!issueRes.ok || !issueResult.success)
@@ -482,6 +560,10 @@ export default function TaxInvoiceForm({
             is_passport: isPassport,
             line_items: filteredLineItems,
             discount: 0,
+            issue_date: invoiceKind !== "standard" ? issueDate : undefined,
+            coverage_amount: invoiceKind === "prepayment" ? Number(coverageAmount || 0) : undefined,
+            coverage_note: invoiceKind !== "standard" ? coverageNote.trim() || null : undefined,
+            manual_issue_date_reason: invoiceKind !== "standard" ? manualIssueDateReason.trim() || null : undefined,
             update_reason: updateReason.trim() || undefined,
           }),
         });
@@ -596,6 +678,18 @@ export default function TaxInvoiceForm({
                 alert("กรุณาระบุเหตุผลการแก้ไข");
                 return;
               }
+              if (invoiceKind !== "standard" && !viewerIsAdmin) {
+                alert("เฉพาะ Admin เท่านั้นที่ออกหรือแก้ไขใบ Prepayment / Balance ได้");
+                return;
+              }
+              if (invoiceKind === "prepayment" && Number(coverageAmount || 0) <= 0) {
+                alert("กรุณาระบุยอด Prepayment มากกว่า 0");
+                return;
+              }
+              if (invoiceKind !== "standard" && !manualIssueDateReason.trim()) {
+                alert("กรุณาระบุเหตุผลวันที่ Manual สำหรับใบ Split");
+                return;
+              }
               if (mode === "edit" && filteredLineItems.length === 0) {
                 alert("ไม่มีรายการในช่วงวันที่เลือก กรุณาปรับช่วงวันที่");
                 return;
@@ -608,6 +702,91 @@ export default function TaxInvoiceForm({
           </button>
         </div>
       </div>
+
+      {(viewerIsAdmin || invoiceKind !== "standard") && (
+        <div className="bg-[var(--bg-surface)] p-4 rounded-xl border border-[var(--border-default)] shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-2">
+                Invoice Coverage
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(["standard", "prepayment", "balance"] as TaxInvoiceKind[]).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    disabled={!viewerIsAdmin || mode === "edit"}
+                    onClick={() => setInvoiceKind(kind)}
+                    className={`px-3 py-2 rounded-lg border text-xs font-bold transition ${
+                      invoiceKind === kind
+                        ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                        : "border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    } ${!viewerIsAdmin || mode === "edit" ? "opacity-70 cursor-not-allowed" : ""}`}
+                  >
+                    {kind === "standard" ? "Standard" : kind === "prepayment" ? "Prepayment" : "Balance"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {invoiceKind !== "standard" && (
+              <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="form-label">Issue Date</label>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(event) => setIssueDate(event.target.value)}
+                    disabled={!viewerIsAdmin}
+                    className="form-input"
+                  />
+                </div>
+                {invoiceKind === "prepayment" ? (
+                  <div>
+                    <label className="form-label">Coverage Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={coverageAmount}
+                      onChange={(event) => setCoverageAmount(event.target.value)}
+                      disabled={!viewerIsAdmin}
+                      className="form-input"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label">Coverage Amount</label>
+                    <div className="form-input flex items-center text-sm font-bold text-[var(--text-muted)]">
+                      Auto balance
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="form-label">Coverage Note</label>
+                  <input
+                    type="text"
+                    value={coverageNote}
+                    onChange={(event) => setCoverageNote(event.target.value)}
+                    disabled={!viewerIsAdmin}
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Manual Date Reason</label>
+                  <input
+                    type="text"
+                    value={manualIssueDateReason}
+                    onChange={(event) => setManualIssueDateReason(event.target.value)}
+                    disabled={!viewerIsAdmin}
+                    className="form-input"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Main grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -841,15 +1020,28 @@ export default function TaxInvoiceForm({
                   · {filteredLineItems.length} รายการ
                 </span>
               </h2>
-              {mode === "issue" && (
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowExtraPicker((value) => !value)}
-                  className="text-[10px] uppercase font-bold text-brand-600 hover:text-brand-700"
+                  onClick={() => setMergeSameRateRows((value) => !value)}
+                  className={`rounded-lg border px-3 py-1.5 text-[10px] font-bold uppercase transition ${
+                    mergeSameRateRows
+                      ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+                      : "border-[var(--border-default)] text-[var(--text-secondary)] hover:text-brand-600"
+                  }`}
                 >
-                  + Add Item
+                  {mergeSameRateRows ? "Merged rows" : "Merge same rate"}
                 </button>
-              )}
+                {mode === "issue" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowExtraPicker((value) => !value)}
+                    className="text-[10px] uppercase font-bold text-brand-600 hover:text-brand-700"
+                  >
+                    + Add Item
+                  </button>
+                )}
+              </div>
             </div>
 
             {showExtraPicker && (
@@ -989,6 +1181,9 @@ export default function TaxInvoiceForm({
                     Rate
                   </th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase text-[var(--text-muted)] text-right">
+                    Discount
+                  </th>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase text-[var(--text-muted)] text-right">
                     Amount
                   </th>
                 </tr>
@@ -997,7 +1192,7 @@ export default function TaxInvoiceForm({
                 {sortedDisplayItems.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-5 py-10 text-center text-[var(--text-muted)] text-sm"
                     >
                       ไม่มีรายการในช่วงวันที่เลือก
@@ -1014,10 +1209,11 @@ export default function TaxInvoiceForm({
                           <input
                             className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-0 py-1 font-semibold text-[var(--text-primary)] outline-none transition hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] focus:border-brand-400 focus:bg-[var(--bg-surface)] focus:px-2"
                             value={item.description}
+                            readOnly={sourceIndex < 0}
                             onChange={(event) => updateLineItemDescription(sourceIndex, event.target.value)}
                             aria-label="Line item description"
                           />
-                          {item.kind === "extra_charge" && (
+                          {item.kind === "extra_charge" && sourceIndex >= 0 && (
                             <button
                               type="button"
                               className="rounded-md px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
@@ -1049,6 +1245,9 @@ export default function TaxInvoiceForm({
                       <td className="px-5 py-4 text-right text-[var(--text-secondary)] font-mono">
                         {fmtMoney(item.unit_price)}
                       </td>
+                      <td className="px-5 py-4 text-right text-[var(--text-secondary)] font-mono">
+                        {fmtMoney(itemDiscountAmount(item))}
+                      </td>
                       <td className="px-5 py-4 text-right font-bold text-[var(--text-primary)] font-mono">
                         {fmtMoney(item.amount)}
                       </td>
@@ -1069,6 +1268,12 @@ export default function TaxInvoiceForm({
                   <span>{l.subtotal}</span>
                   <span className="font-mono">{fmtMoney(totals.subtotal)}</span>
                 </div>
+                {totals.discount > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-700 dark:text-emerald-300">
+                    <span>{l.discount}</span>
+                    <span className="font-mono">-{fmtMoney(totals.discount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm text-[var(--text-secondary)]">
                   <span>{l.vat}</span>
                   <span className="font-mono">{fmtMoney(totals.vat_amount)}</span>
@@ -1076,9 +1281,19 @@ export default function TaxInvoiceForm({
                 <div className="pt-3 border-t border-[var(--border-default)] flex justify-between text-lg font-extrabold text-[var(--text-primary)]">
                   <span>{l.total}</span>
                   <span className="font-mono text-brand-600">
-                    {fmtMoney(totals.grand_total)}
+                    {fmtMoney(splitCoveragePreview ?? totals.grand_total)}
                   </span>
                 </div>
+                {invoiceKind === "prepayment" && (
+                  <p className="text-[10px] text-right text-[var(--text-muted)]">
+                    Full discounted stay total: {fmtMoney(totals.grand_total)}
+                  </p>
+                )}
+                {invoiceKind === "balance" && (
+                  <p className="text-[10px] text-right text-[var(--text-muted)]">
+                    Balance total is calculated from active prepayment coverage.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1198,7 +1413,7 @@ export default function TaxInvoiceForm({
                   </span>
                   <div className="text-right">
                     <span className="block text-xl font-black text-brand-600 font-mono tracking-tighter">
-                      ฿{fmtMoney(totals.grand_total)}
+                      ฿{fmtMoney(splitCoveragePreview ?? totals.grand_total)}
                     </span>
                     <span className="block text-[10.35px] text-[var(--text-muted)] uppercase tracking-widest font-bold">
                       (ราคาที่แสดง รวม VAT 7% แล้ว)

@@ -124,6 +124,7 @@ export default function TaxInvoiceEditPage() {
   const [showAuditHistory, setShowAuditHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -133,6 +134,7 @@ export default function TaxInvoiceEditPage() {
         if (result.success) {
           const invoice = result.data;
           setData(invoice);
+          setViewerIsAdmin(Boolean(result.viewer_is_admin));
 
           if (invoice?.reservation_id) {
             const reservationIds = Array.isArray(invoice.booking_snapshot?.reservation_ids)
@@ -183,6 +185,18 @@ export default function TaxInvoiceEditPage() {
       <button onClick={() => router.back()} className="mt-6 px-6 py-2 bg-brand-600 text-white rounded-xl">Back</button>
     </div>
   );
+
+  if (data.invoice_kind && data.invoice_kind !== "standard" && !viewerIsAdmin) {
+    return (
+      <div className="max-w-md mx-auto py-20 text-center">
+        <h2 className="text-lg font-bold">Edit Not Allowed</h2>
+        <p className="text-sm text-[var(--text-secondary)] mt-2">
+          FO can preview and print split invoices, but only Admin can edit them.
+        </p>
+        <button onClick={() => router.push(`/pms/tax-invoice/preview/${id}`)} className="mt-6 px-6 py-2 bg-brand-600 text-white rounded-xl">Open Preview</button>
+      </div>
+    );
+  }
 
   // Map invoice data to the form expected format
   const fullSnapshot = fullBuildData?.booking_snapshot ?? data.booking_snapshot;
@@ -245,8 +259,15 @@ export default function TaxInvoiceEditPage() {
           customer_address: data.customer_address,
           customer_branch: data.customer_branch,
           remark: data.remark,
+          issue_date: data.issue_date,
+          invoice_kind: data.invoice_kind,
+          coverage_amount: data.coverage_amount,
+          coverage_note: data.coverage_note,
+          manual_issue_date_reason: data.manual_issue_date_reason,
         }}
         initialPeriod={initialPeriod}
+        viewerIsAdmin={viewerIsAdmin}
+        businessDate={data.issue_date}
       />
       {showAuditHistory && <EditInvoiceLog rows={auditHistory} />}
     </div>

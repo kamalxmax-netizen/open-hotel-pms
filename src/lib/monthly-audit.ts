@@ -512,6 +512,24 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
     const lineItems = Array.isArray(row.line_items) ? row.line_items : [];
 
     for (const item of lineItems) {
+      const mergedSources = Array.isArray((item as any)?.merged_line_sources)
+        ? (item as any).merged_line_sources as any[]
+        : [];
+      if (mergedSources.length > 0) {
+        for (const source of mergedSources) {
+          const sourceReservationId = str(source?.reservation_id);
+          if (!sourceReservationId || !wanted.has(sourceReservationId) || !entryByReservationId.has(sourceReservationId)) {
+            continue;
+          }
+          const sourceAmount = Math.max(0, num(source?.amount));
+          if (sourceAmount <= 0) continue;
+          const current = allocated.get(sourceReservationId) ?? { room: 0, extra: 0 };
+          current.room = num(current.room + sourceAmount);
+          allocated.set(sourceReservationId, current);
+        }
+        continue;
+      }
+
       const itemReservationId = str((item as any)?.reservation_id);
       if (!itemReservationId || !wanted.has(itemReservationId) || !entryByReservationId.has(itemReservationId)) {
         continue;
@@ -562,10 +580,16 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
     }
 
     for (const entry of relatedEntries) {
-      if (map.has(entry.reservation_id)) continue;
+      const previous = map.get(entry.reservation_id) ?? null;
       const current = allocated.get(entry.reservation_id) ?? { room: 0, extra: 0 };
-      const coveredRoom = Math.min(num(entry.room_revenue), num(current.room));
-      const coveredExtra = Math.min(num(entry.extra_revenue), num(current.extra));
+      const coveredRoom = Math.min(
+        num(entry.room_revenue),
+        num((previous?.covered_room_revenue ?? 0) + current.room)
+      );
+      const coveredExtra = Math.min(
+        num(entry.extra_revenue),
+        num((previous?.covered_extra_revenue ?? 0) + current.extra)
+      );
       const covered = Math.min(num(entry.total_revenue), num(coveredRoom + coveredExtra));
       const residualRoom = Math.max(0, num(entry.room_revenue - coveredRoom));
       const residualExtra = Math.max(0, num(entry.extra_revenue - coveredExtra));
@@ -576,12 +600,15 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
       const fullTaxPaidTransfer = scaleAmount(entry.paid_transfer, ratio);
       const fullTaxPaidCreditCard = scaleAmount(entry.paid_credit_card, ratio);
       const fullTaxPaidOther = scaleAmount(entry.paid_other, ratio);
+      const invoiceNo = [previous?.invoice_no, row.invoice_no ?? null]
+        .filter((value, index, values) => value && values.indexOf(value) === index)
+        .join(", ") || null;
 
       map.set(entry.reservation_id, {
-        id: String(row.id),
-        invoice_no: row.invoice_no ?? null,
-        issue_date: row.issue_date ?? null,
-        grand_total: invoiceTotal,
+        id: previous?.id ? `${previous.id},${String(row.id)}` : String(row.id),
+        invoice_no: invoiceNo,
+        issue_date: previous?.issue_date ?? row.issue_date ?? null,
+        grand_total: covered,
         covered_amount: covered,
         covered_room_revenue: coveredRoom,
         covered_extra_revenue: coveredExtra,
