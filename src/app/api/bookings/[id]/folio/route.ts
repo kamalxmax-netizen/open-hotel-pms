@@ -469,7 +469,9 @@ function makeLedgerRowLabel(row: PaymentRow): string {
     row.revenue_category === "deposit" &&
     note.includes("paid by deposit");
 
-  if (row.tx_type === "deposit") return "Deposit received";
+  if (row.tx_type === "deposit" || (row.tx_type === "payment" && row.revenue_category === "deposit")) {
+    return "Deposit received";
+  }
   if (isDepositConsumption) return "Paid by Deposit";
   if (row.revenue_category === "extra_charge") {
     return row.extra_fee_templates?.name || row.note || "Extra charge";
@@ -562,7 +564,7 @@ function normalizeLedgerRows(
       row.revenue_category === "deposit" &&
       note.includes("paid by deposit");
     const type: ReservationFolioLedgerRow["type"] =
-      row.tx_type === "deposit"
+      row.tx_type === "deposit" || (row.tx_type === "payment" && row.revenue_category === "deposit")
         ? "deposit"
         : isDepositConsumption
           ? "deposit"
@@ -608,7 +610,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const supabase = createServerSupabaseClient();
-    const auth = await requireStaffAuth(supabase, request);
+    const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
     if (auth.error) return auth.error;
 
     const withCheckedOutSelect = `

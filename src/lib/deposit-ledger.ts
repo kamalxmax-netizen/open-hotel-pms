@@ -148,6 +148,7 @@ export function computeHeldDepositFromRows(
       const category = String(row.revenue_category ?? "").toLowerCase();
       const note = String(row.note ?? "").toLowerCase();
       if (row.tx_type === "deposit") return sum + amount;
+      if (row.tx_type === "payment" && category === "deposit") return sum + amount;
       if (
         row.tx_type === "refund" &&
         (category === "deposit" || note.includes("deposit refund") || note.includes("paid by deposit"))

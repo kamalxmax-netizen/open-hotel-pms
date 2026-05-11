@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_TRANSPORT_ALERT_LEAD_MINUTES, MAX_TRANSPORT_ALERT_LEAD_MINUTES, TRANSPORT_ALERT_RED_MINUTES, normalizeTransportAlertLeadMinutes } from "@/lib/transport-alert-settings";
+import { useSettings } from "@/contexts/settings-context";
 import { PrepaymentRulesSettings } from "./_components/prepayment-rules-settings";
 
 type Settings = {
@@ -26,6 +27,7 @@ type Settings = {
     shift_logout_reminder_times: string[];
     shift_logout_snooze_min: number;
     shift_logout_snooze_enabled: boolean;
+    urgent_overlay_enabled: boolean;
 };
 
 type EodStatus = {
@@ -59,6 +61,7 @@ const DEFAULTS: Settings = {
     shift_logout_reminder_times: ["07:00", "15:00", "23:00"],
     shift_logout_snooze_min: 15,
     shift_logout_snooze_enabled: true,
+    urgent_overlay_enabled: false,
 };
 
 const TIMEZONES = ["Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore", "UTC"];
@@ -103,10 +106,12 @@ function mergeDefaults(data: Partial<Settings> | null): Settings {
         shift_logout_reminder_times: normalizeShiftLogoutTimes(data?.shift_logout_reminder_times),
         shift_logout_snooze_min: Number(data?.shift_logout_snooze_min ?? 15),
         shift_logout_snooze_enabled: data?.shift_logout_snooze_enabled ?? true,
+        urgent_overlay_enabled: data?.urgent_overlay_enabled ?? false,
     };
 }
 
 export default function SettingsPage() {
+    const { refresh: refreshAppSettings } = useSettings();
     const [settings, setSettings] = useState<Settings>(DEFAULTS);
     const [eodStatus, setEodStatus] = useState<EodStatus | null>(null);
     const [saving, setSaving] = useState(false);
@@ -164,6 +169,7 @@ export default function SettingsPage() {
                 // Apply server-confirmed values immediately (don't wait for load)
                 if (data.settings) setSettings(mergeDefaults(data.settings));
                 setMsg({ text: "✓ Settings saved successfully.", type: "ok" });
+                void refreshAppSettings();
                 // Also reload in background to sync business_date etc.
                 load();
             } else {
@@ -539,6 +545,33 @@ export default function SettingsPage() {
                             onChange={(e) => setField("shift_logout_snooze_min", Math.max(1, Math.min(1440, parseInt(e.target.value, 10) || 15)))}
                         />
                     </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={settings.urgent_overlay_enabled}
+                        onClick={() => setField("urgent_overlay_enabled", !settings.urgent_overlay_enabled)}
+                        className="flex w-full items-center justify-between gap-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] px-3 py-2 text-left"
+                    >
+                        <span>
+                            <span className="block text-sm font-semibold text-[var(--text-table-cell)]">Show Urgent Logbook Overlay</span>
+                            <span className="block text-xs text-[var(--text-muted)]">แสดงป้าย Logbook ด่วนทุกหน้า (เพิ่ม network usage)</span>
+                        </span>
+                        <span
+                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                                settings.urgent_overlay_enabled ? "bg-emerald-600" : "bg-slate-300"
+                            }`}
+                            aria-hidden="true"
+                        >
+                            <span
+                                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                    settings.urgent_overlay_enabled ? "translate-x-5" : "translate-x-0.5"
+                                }`}
+                            />
+                        </span>
+                    </button>
                 </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={saving}>

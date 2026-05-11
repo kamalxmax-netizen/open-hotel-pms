@@ -5,6 +5,7 @@ import AssignmentModal from "@/components/housekeeping/assignment-modal";
 import TimelineView from "@/components/housekeeping/timeline-view";
 import FloorGroup, { type HkRoom, type HkStatus } from "@/components/housekeeping/floor-group";
 import PmsModal from "@/components/pms-modal";
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 import type { ExtraTaskAssignment } from "@/lib/types";
 
 type Summary = {
@@ -540,7 +541,7 @@ export default function HousekeepingPage() {
       if (hasDraftChanges) return;
       if (timelineBarDragging || draggingDirtyRoomId) return;
       void load({ silent: true });
-    }, 15000);
+    }, strictPollInterval(15_000, STRICT_POLLING.hkPageMs));
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;

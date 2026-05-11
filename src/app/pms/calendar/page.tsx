@@ -277,10 +277,19 @@ function ReservationDetail({
     );
 }
 
-/* ─── Cell width ──────────────────────────────── */
-const COL_W = 44;   // px per day column
-const ROW_H = 40;   // px per room row
-const ROOM_COL_W = 130; // px for room label + badges
+/* ─── Calendar view sizing ────────────────────── */
+type CalendarZoomMode = "compact" | "normal" | "wide" | "detail";
+
+const CALENDAR_ZOOM_OPTIONS: Array<{ mode: CalendarZoomMode; label: string; colWidth: number }> = [
+    { mode: "compact", label: "Compact", colWidth: 44 },
+    { mode: "normal", label: "Normal", colWidth: 72 },
+    { mode: "wide", label: "Wide", colWidth: 120 },
+    { mode: "detail", label: "Detail", colWidth: 176 },
+];
+
+function resolveCalendarColumnWidth(mode: CalendarZoomMode): number {
+    return CALENDAR_ZOOM_OPTIONS.find((option) => option.mode === mode)?.colWidth ?? 72;
+}
 
 /* ─── Main Calendar Page ──────────────────────── */
 function CalendarPageInner() {
@@ -289,6 +298,8 @@ function CalendarPageInner() {
     const today = new Date().toISOString().slice(0, 10);
     const [startDate, setStartDate] = useState(today);
     const [spanDays, setSpanDays] = useState(21);
+    const [zoomMode, setZoomMode] = useState<CalendarZoomMode>("normal");
+    const colWidth = resolveCalendarColumnWidth(zoomMode);
     const endDate = addDays(startDate, spanDays - 1);
 
     const [data, setData] = useState<CalendarData | null>(null);
@@ -360,10 +371,10 @@ function CalendarPageInner() {
         if (!loading && scrollRef.current) {
             const todayIdx = dateRange(startDate, endDate).indexOf(today);
             if (todayIdx > 0) {
-                scrollRef.current.scrollLeft = todayIdx * COL_W - 60;
+                scrollRef.current.scrollLeft = todayIdx * colWidth - 60;
             }
         }
-    }, [loading, startDate, endDate, today]);
+    }, [loading, startDate, endDate, today, colWidth]);
 
     const days = dateRange(startDate, endDate);
     const roomTypeOptions = (() => {
@@ -472,8 +483,6 @@ function CalendarPageInner() {
         setFocusReservationId(nextReservationId);
     }
 
-    const totalGridW = days.length * COL_W;
-
     return (
         <div className="flex flex-col gap-4 max-w-full">
             <NightAuditPendingPopup pageName="Calendar" />
@@ -531,6 +540,23 @@ function CalendarPageInner() {
                                 }`}
                         >
                             {n}D
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">Zoom</label>
+                    {CALENDAR_ZOOM_OPTIONS.map((option) => (
+                        <button
+                            key={option.mode}
+                            onClick={() => setZoomMode(option.mode)}
+                            className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${zoomMode === option.mode
+                                ? "border-brand-400 bg-brand-600 text-white"
+                                : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-body)]"
+                                }`}
+                            title={`${option.label}: ${option.colWidth}px per day`}
+                        >
+                            {option.label}
                         </button>
                     ))}
                 </div>
@@ -695,6 +721,7 @@ function CalendarPageInner() {
                 startDate={startDate}
                 spanDays={spanDays}
                 days={days}
+                colWidth={colWidth}
                 mode="readonly"
                 hoverGroupId={hoverGroupId}
                 focusReservationId={focusReservationId}

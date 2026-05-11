@@ -7,6 +7,7 @@ import { ScbTransferFilters, type ScbTransferFiltersValue } from "@/components/s
 import { ScbTransferTable, type ScbTransferTableRow } from "@/components/scb/scb-transfer-table";
 import { ScbTransactionDetailDrawer } from "@/components/scb/scb-transaction-detail-drawer";
 import { ScbUnmatchedResolveModal } from "@/components/scb/scb-unmatched-resolve-modal";
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 
 type TabKey = "pending" | "matched" | "unmatched" | "expired_failed" | "recheck_history";
 
@@ -120,7 +121,7 @@ export default function ScbTransfersPage() {
       }
     };
 
-    const interval = window.setInterval(refresh, 15000);
+    const interval = window.setInterval(refresh, strictPollInterval(15_000, STRICT_POLLING.scbTransfersMs));
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
 

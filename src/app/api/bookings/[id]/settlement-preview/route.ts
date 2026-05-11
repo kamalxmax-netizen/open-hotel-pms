@@ -43,7 +43,7 @@ export async function GET(
     const action = parsed.data.action;
     const newCheckoutDate = parsed.data.new_checkout_date;
     const supabase = createServerSupabaseClient();
-    const auth = await requireStaffAuth(supabase, request);
+    const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
     if (auth.error) return auth.error;
 
     const { data: reservation, error: reservationError } = await supabase

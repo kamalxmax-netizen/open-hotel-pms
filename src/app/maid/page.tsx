@@ -9,6 +9,7 @@ import ChecklistModal from "@/components/maid/checklist-modal";
 import NoServiceModal from "@/components/maid/no-service-modal";
 import EmptyState from "@/components/maid/empty-state";
 import LfReportSheet from "@/components/maid/lf-report-sheet";
+import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import type {
   ChecklistItem,
@@ -528,7 +529,7 @@ export default function MaidPage() {
       if (document.visibilityState === "visible") {
         void fetchData();
       }
-    }, 30000);
+    }, strictPollInterval(30_000, STRICT_POLLING.maidMs));
 
     return () => window.clearInterval(interval);
   }, [fetchData, isAuthLoading, maidAuth, maidName]);
