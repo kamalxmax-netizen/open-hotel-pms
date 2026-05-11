@@ -4,6 +4,7 @@ import { syncReservationBookingNameAlias } from "@/lib/guest-booking-names";
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { extractBookedNameFromProfileNotes } from "@/lib/guest-name-match";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { pickCheckinRoomNight } from "@/lib/checkin-room-selection";
 
 export type PaymentMethod = "cash" | "transfer" | "credit_card";
 export type DepositPolicy = "keep" | "set";
@@ -713,21 +714,29 @@ export async function runGroupMassCheckin(params: {
 
   const { data: reservationNights, error: nightsError } = await supabase
     .from("reservation_nights")
-    .select("reservation_id, room_id")
+    .select("reservation_id, room_id, stay_date")
     .in("reservation_id", reservationIds)
-    .is("cancelled_at", null);
+    .is("cancelled_at", null)
+    .order("stay_date", { ascending: true });
 
   if (nightsError) return { ok: false, status: 500, error: nightsError.message };
 
-  const roomIdByReservation = new Map<string, string>();
+  const nightsByReservation = new Map<string, any[]>();
   (reservationNights ?? []).forEach((night: any) => {
     const reservationId = night?.reservation_id ? String(night.reservation_id) : "";
-    const roomId = night?.room_id ? String(night.room_id) : "";
-    if (!reservationId || !roomId) return;
-    if (!roomIdByReservation.has(reservationId)) roomIdByReservation.set(reservationId, roomId);
+    if (!reservationId) return;
+    const rows = nightsByReservation.get(reservationId) ?? [];
+    rows.push(night);
+    nightsByReservation.set(reservationId, rows);
   });
-
   const today = params.todayOverride || await resolveBusinessDate(supabase, toLocalDate(new Date()));
+  const roomIdByReservation = new Map<string, string>();
+  for (const [reservationId, nights] of nightsByReservation) {
+    const night = pickCheckinRoomNight(nights, today);
+    const roomId = night?.room_id ? String(night.room_id) : "";
+    if (roomId) roomIdByReservation.set(reservationId, roomId);
+  }
+
   const validationCandidates: GroupCheckinValidationCandidate[] = [];
   for (const item of items) {
     const reservation = reservationById.get(item.reservationId);

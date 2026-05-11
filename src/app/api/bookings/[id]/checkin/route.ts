@@ -15,6 +15,7 @@ import { linkPrimaryGuestToReservation, ReservationPartyError } from "@/lib/rese
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
+import { pickCheckinRoomNight } from "@/lib/checkin-room-selection";
 import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
@@ -353,14 +354,15 @@ export async function POST(
         const calendarDate = toLocalDate(checkedInAtDate);
         const businessDate = await resolveBusinessDate(supabase, calendarDate);
 
-        // Get room for this reservation
-        const { data: night } = await supabase
+        // Get the room assigned for the business date. Planned moves may add future nights
+        // before check-in, so a bare limit(1) can point at a future room.
+        const { data: nights } = await supabase
             .from("reservation_nights")
-            .select("room_id, rooms(room_number)")
+            .select("room_id, stay_date, rooms(room_number)")
             .eq("reservation_id", reservationId)
             .is("cancelled_at", null)
-            .limit(1)
-            .maybeSingle();
+            .order("stay_date", { ascending: true });
+        const night = pickCheckinRoomNight(nights ?? [], businessDate);
 
         const roomId = night?.room_id ?? null;
 
