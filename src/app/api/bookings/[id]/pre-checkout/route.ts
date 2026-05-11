@@ -38,7 +38,7 @@ export async function GET(
     noStore();
     try {
         const supabase = createServerSupabaseClient();
-        const auth = await requireStaffAuth(supabase, request);
+        const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
         if (auth.error) return auth.error;
         const reservationId = params.id;
 

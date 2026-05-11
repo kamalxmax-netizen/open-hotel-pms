@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const supabase = createServerSupabaseClient();
-    const auth = await requireStaffAuth(supabase, request);
+    const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
     if (auth.error) return auth.error;
 
     const reservationSelectBase = `
