@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TaxInvoiceStatus, TaxInvoiceLanguage } from "@/lib/tax-invoice/types";
+import { TaxInvoiceStatus, TaxInvoiceLanguage, TaxInvoiceKind } from "@/lib/tax-invoice/types";
 import { fmtDate, fmtMoney } from "@/lib/tax-invoice/utils";
 
 /* ─── Types ─────────────────────────────────────────── */
@@ -39,6 +39,9 @@ interface InvoiceHistoryItem {
   can_edit?: boolean;
   can_reuse_invoice_no?: boolean;
   has_edit_log?: boolean;
+  invoice_kind?: TaxInvoiceKind;
+  split_group_id?: string | null;
+  coverage_amount?: number | null;
 }
 
 type AuditHistoryRow = {
@@ -164,6 +167,14 @@ function summarizeAuditChange(row: AuditHistoryRow) {
   return changes.length > 0 ? changes.join(" · ") : "Document fields updated";
 }
 
+function issueHref(reservationId: string, reservationIds: string[], kind: TaxInvoiceKind = "standard") {
+  const params = new URLSearchParams();
+  if (reservationIds.length > 1) params.set("reservation_ids", reservationIds.join(","));
+  if (kind !== "standard") params.set("invoice_kind", kind);
+  const query = params.toString();
+  return `/pms/tax-invoice/issue/${reservationId}${query ? `?${query}` : ""}`;
+}
+
 /* ─── Components ────────────────────────────────────── */
 
 export default function TaxInvoiceListPage() {
@@ -237,6 +248,11 @@ export default function TaxInvoiceListPage() {
             can_edit: Boolean(row.can_edit),
             can_reuse_invoice_no: Boolean(row.can_reuse_invoice_no),
             has_edit_log: Boolean(row.has_edit_log),
+            invoice_kind: (["prepayment", "balance"].includes(String(row.invoice_kind))
+              ? String(row.invoice_kind)
+              : "standard") as TaxInvoiceKind,
+            split_group_id: row.split_group_id ? String(row.split_group_id) : null,
+            coverage_amount: row.coverage_amount == null ? null : Number(row.coverage_amount),
           }))
         : [];
 
@@ -416,7 +432,7 @@ export default function TaxInvoiceListPage() {
                         {p.member_reservations.map((member) => (
                           <Link
                             key={member.reservation_id}
-                            href={`/pms/tax-invoice/issue/${member.reservation_id}`}
+                            href={issueHref(member.reservation_id, [member.reservation_id])}
                             className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-[var(--border-default)] text-[11px] font-bold text-[var(--text-primary)] hover:border-brand-300 hover:text-brand-600 transition"
                           >
                             {member.room_numbers.join(", ") || member.booking_code || "Separate"}
@@ -424,11 +440,27 @@ export default function TaxInvoiceListPage() {
                         ))}
                         {p.combine_eligible && p.reservation_ids.length > 1 && (
                           <Link
-                            href={`/pms/tax-invoice/issue/${p.reservation_id}?reservation_ids=${encodeURIComponent(p.reservation_ids.join(","))}`}
+                            href={issueHref(p.reservation_id, p.reservation_ids)}
                             className="inline-flex items-center justify-center px-4 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 transition shadow-sm"
                           >
                             Combine
                           </Link>
+                        )}
+                        {isAdmin && (
+                          <>
+                            <Link
+                              href={issueHref(p.reservation_id, p.reservation_ids, "prepayment")}
+                              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-700 hover:bg-amber-100 transition dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                            >
+                              Prepayment
+                            </Link>
+                            <Link
+                              href={issueHref(p.reservation_id, p.reservation_ids, "balance")}
+                              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            >
+                              Balance
+                            </Link>
+                          </>
                         )}
                       </div>
                     </td>
@@ -462,7 +494,15 @@ export default function TaxInvoiceListPage() {
                         <p className={`text-sm font-bold ${isCancelled ? "text-rose-400 line-through" : "text-brand-600 dark:text-brand-400"}`}>
                           {h.invoice_no}
                         </p>
-                        <p className="text-[10px] text-[var(--text-muted)] uppercase">{fmtDate(h.issue_date, "en")}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <KindBadge kind={h.invoice_kind ?? "standard"} />
+                          {h.split_group_id && (
+                            <span className="text-[9px] px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)]">
+                              Split {h.split_group_id.slice(0, 8)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[10px] text-[var(--text-muted)] uppercase">{fmtDate(h.issue_date, "en")}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-[var(--text-primary)] font-medium">
                         {h.guest_name}
@@ -478,7 +518,7 @@ export default function TaxInvoiceListPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {!isCancelled && (isAdmin || h.can_edit) && (
+                          {!isCancelled && (isAdmin || (h.can_edit && (h.invoice_kind ?? "standard") === "standard")) && (
                             <Link
                               href={`/pms/tax-invoice/edit/${h.id}`}
                               className="p-1.5 rounded-lg border border-[var(--border-default)] text-[var(--text-muted)] hover:text-brand-600 transition"
@@ -669,6 +709,20 @@ function StatusBadge({ status }: { status: TaxInvoiceStatus }) {
   return (
     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${styles[status]}`}>
       {status}
+    </span>
+  );
+}
+
+function KindBadge({ kind }: { kind: TaxInvoiceKind }) {
+  const styles: Record<TaxInvoiceKind, string> = {
+    standard: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10",
+    prepayment: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+    balance: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20",
+  };
+
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${styles[kind]}`}>
+      {kind}
     </span>
   );
 }

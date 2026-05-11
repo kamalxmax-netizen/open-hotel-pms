@@ -2,6 +2,11 @@ import { getAuthenticatedUser } from "@/lib/server-auth";
 import { getUserRole } from "@/lib/server-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+  prepareCoverageLineItems,
+  TaxInvoiceCoverageError,
+} from "@/lib/tax-invoice/coverage";
+import type { TaxInvoiceKind, TaxInvoiceLanguage } from "@/lib/tax-invoice/types";
+import {
   buildLineItemsForReservation,
   buildLineItemsForReservations,
   assertReservationsCanCombine,
@@ -19,6 +24,7 @@ import {
 } from "@/lib/tax-invoice/service";
 import { normalizeMoney, round2, toBangkokDate } from "@/lib/tax-invoice/utils";
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +58,11 @@ const listQuerySchema = z.object({
 const createSchema = z.object({
   reservation_id: z.string().uuid(),
   reservation_ids: z.array(z.string().uuid()).optional(),
+  invoice_kind: z.enum(["standard", "prepayment", "balance"]).optional().default("standard"),
+  split_group_id: z.string().uuid().optional().nullable(),
+  coverage_amount: z.coerce.number().min(0).max(100000000).optional().nullable(),
+  coverage_note: z.string().trim().max(500).optional().nullable(),
+  manual_issue_date_reason: z.string().trim().max(1000).optional().nullable(),
   language: z.enum(["th", "en"]).optional().default("th"),
   issue_date: z.string().regex(DATE_RE).optional(),
   discount: z.coerce.number().min(0).max(100000000).optional().default(0),
@@ -79,7 +90,13 @@ type InvoiceRow = {
   customer_tax_id: string | null;
   remark?: string | null;
   grand_total: number | string;
+  invoice_kind?: TaxInvoiceKind | null;
+  split_group_id?: string | null;
+  coverage_amount?: number | string | null;
+  coverage_note?: string | null;
+  manual_issue_date_reason?: string | null;
   update_reason?: string | null;
+  language?: TaxInvoiceLanguage;
   created_at: string;
   updated_at: string;
 };
@@ -132,6 +149,12 @@ function toInvoiceListItem(row: InvoiceRow, reservation: ReservationMetaRow | nu
     customer_name: String(row.customer_name ?? ""),
     customer_tax_id: strOrNull(row.customer_tax_id),
     grand_total: round2(normalizeMoney(row.grand_total)),
+    invoice_kind: normalizeInvoiceKind(row.invoice_kind),
+    split_group_id: strOrNull(row.split_group_id),
+    coverage_amount: row.coverage_amount !== undefined ? round2(normalizeMoney(row.coverage_amount)) : null,
+    coverage_note: strOrNull(row.coverage_note),
+    manual_issue_date_reason: strOrNull(row.manual_issue_date_reason),
+    language: row.language === "en" ? "en" : "th",
     update_reason: strOrNull(row.update_reason),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
@@ -152,6 +175,20 @@ function toInvoiceListItem(row: InvoiceRow, reservation: ReservationMetaRow | nu
 
 function normalizeReservationIds(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
+}
+
+function normalizeInvoiceKind(value: unknown): TaxInvoiceKind {
+  const kind = String(value ?? "standard").trim().toLowerCase();
+  return kind === "prepayment" || kind === "balance" ? kind : "standard";
+}
+
+function invoiceCoverageAmount(row: Record<string, unknown>): number {
+  return round2(normalizeMoney(row.coverage_amount ?? row.grand_total ?? 0));
+}
+
+function invoiceRowsOverlap(row: Record<string, unknown>, reservationIds: string[]): boolean {
+  const existingReservationIds = extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id as string | null);
+  return existingReservationIds.some((reservationId) => reservationIds.includes(reservationId));
 }
 
 function compareRowRooms(left: string[], right: string[]): number {
@@ -200,7 +237,7 @@ export async function GET(request: NextRequest) {
 
     let invoiceQuery = supabase
       .from("invoices")
-      .select("id, invoice_no, cancelled_invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, grand_total, update_reason, created_at, updated_at, booking_snapshot")
+      .select("id, invoice_no, cancelled_invoice_no, reservation_id, status, issue_date, language, customer_name, customer_tax_id, grand_total, invoice_kind, split_group_id, coverage_amount, coverage_note, manual_issue_date_reason, update_reason, created_at, updated_at, booking_snapshot")
       .gte("issue_date", dateFrom)
       .lte("issue_date", dateTo)
       .order("issue_date", { ascending: false })
@@ -322,18 +359,19 @@ export async function GET(request: NextRequest) {
 
       const { data: issuedRows, error: issuedError } = await supabase
         .from("invoices")
-        .select("reservation_id, booking_snapshot")
+        .select("reservation_id, booking_snapshot, invoice_kind")
         .eq("status", "issued");
 
       if (issuedError && !isMissingRelationError(issuedError, "invoices")) {
         return NextResponse.json({ success: false, error: issuedError.message }, { status: 500 });
       }
 
-      const issuedSet = new Set(
+      const fullyCoveredSet = new Set(
         (issuedRows ?? [])
+          .filter((row: any) => normalizeInvoiceKind(row.invoice_kind) !== "prepayment")
           .flatMap((row: any) => extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id))
       );
-      const pendingFiltered = (pendingRows ?? []).filter((row: any) => !issuedSet.has(String(row.id)));
+      const pendingFiltered = (pendingRows ?? []).filter((row: any) => !fullyCoveredSet.has(String(row.id)));
       const pendingIds = pendingFiltered.map((row: any) => String(row.id));
 
       const roomNumbersByReservation = new Map<string, string[]>();
@@ -455,6 +493,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err) {
+    if (err instanceof TaxInvoiceCoverageError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }
@@ -470,6 +511,8 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
+    const viewerRole = await getUserRole(supabase, user.id).catch(() => null);
+    const viewerIsAdmin = isAdminRole(viewerRole);
 
     const body = await request.json().catch(() => null);
     const parsed = createSchema.safeParse(body);
@@ -481,6 +524,19 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parsed.data;
+    const invoiceKind = normalizeInvoiceKind(input.invoice_kind);
+    if (invoiceKind !== "standard" && !viewerIsAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Only admin can create split/prepayment tax invoices." },
+        { status: 403 }
+      );
+    }
+    if (invoiceKind !== "standard" && input.issue_date && !strOrNull(input.manual_issue_date_reason)) {
+      return NextResponse.json(
+        { success: false, error: "manual_issue_date_reason is required for split invoice manual issue dates." },
+        { status: 400 }
+      );
+    }
     const reservationIds = normalizeReservationIds([input.reservation_id, ...(input.reservation_ids ?? [])]);
     const reservations = reservationIds.length > 1
       ? await loadReservationInvoiceContexts(supabase, reservationIds)
@@ -496,22 +552,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: issuedRows, error: issuedExistsError } = await supabase
+    const { data: existingRows, error: existingRowsError } = await supabase
       .from("invoices")
-      .select("id, invoice_no, reservation_id, booking_snapshot")
-      .eq("status", "issued")
+      .select("id, invoice_no, reservation_id, status, booking_snapshot, invoice_kind, split_group_id, coverage_amount, grand_total")
+      .neq("status", "cancelled")
       .limit(5000);
 
-    if (issuedExistsError) {
-      return NextResponse.json({ success: false, error: issuedExistsError.message }, { status: 500 });
+    if (existingRowsError) {
+      return NextResponse.json({ success: false, error: existingRowsError.message }, { status: 500 });
     }
 
-    const issuedExists = (issuedRows ?? []).find((row: any) => {
-      const existingReservationIds = extractReservationIdsFromBookingSnapshot(row.booking_snapshot, row.reservation_id);
-      return existingReservationIds.some((reservationId) => reservationIds.includes(reservationId));
-    });
+    const overlappingExistingRows = ((existingRows ?? []) as Array<Record<string, unknown>>)
+      .filter((row) => invoiceRowsOverlap(row, reservationIds));
+    const overlappingIssuedRows = overlappingExistingRows.filter((row) => row.status === "issued");
 
-    if (issuedExists) {
+    const standardOrBalanceIssued = overlappingIssuedRows.find(
+      (row) => normalizeInvoiceKind(row.invoice_kind) !== "prepayment"
+    );
+    if (invoiceKind === "standard" && overlappingIssuedRows.length > 0) {
+      const issuedExists = overlappingIssuedRows[0] as any;
       return NextResponse.json(
         {
           success: false,
@@ -523,13 +582,96 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (invoiceKind !== "standard" && standardOrBalanceIssued) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "One or more selected reservations already have a full/balance issued invoice.",
+          issued_invoice_id: standardOrBalanceIssued.id,
+          issued_invoice_no: standardOrBalanceIssued.invoice_no,
+        },
+        { status: 409 }
+      );
+    }
+
     const built = reservationIds.length > 1
       ? await buildLineItemsForReservations(supabase, reservationIds)
       : await buildLineItemsForReservation(supabase, input.reservation_id);
-    const lineItems = input.line_items ? sanitizeLineItems(input.line_items) : built.line_items;
-    if (lineItems.length === 0) {
+    const baseLineItems = input.line_items ? sanitizeLineItems(input.line_items) : built.line_items;
+    if (baseLineItems.length === 0) {
       return NextResponse.json({ success: false, error: "Line items cannot be empty." }, { status: 400 });
     }
+
+    let splitGroupId = strOrNull(input.split_group_id);
+    let alreadyCoveredAmount = 0;
+    if (invoiceKind === "prepayment") {
+      const existingBalance = overlappingExistingRows.find(
+        (row) => normalizeInvoiceKind(row.invoice_kind) === "balance"
+      );
+      if (existingBalance) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "This reservation already has an active balance invoice.",
+            existing_invoice: existingBalance,
+          },
+          { status: 409 }
+        );
+      }
+      const existingPrepayment = overlappingExistingRows.find(
+        (row) => normalizeInvoiceKind(row.invoice_kind) === "prepayment"
+      );
+      if (existingPrepayment) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "This reservation already has an active prepayment invoice.",
+            existing_invoice: existingPrepayment,
+          },
+          { status: 409 }
+        );
+      }
+      splitGroupId = splitGroupId ?? randomUUID();
+    } else if (invoiceKind === "balance") {
+      const existingBalance = overlappingExistingRows.find(
+        (row) => normalizeInvoiceKind(row.invoice_kind) === "balance"
+      );
+      if (existingBalance) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "This reservation already has an active balance invoice.",
+            existing_invoice: existingBalance,
+          },
+          { status: 409 }
+        );
+      }
+
+      const prepaymentRows = overlappingExistingRows.filter(
+        (row) =>
+          normalizeInvoiceKind(row.invoice_kind) === "prepayment" &&
+          row.status === "issued" &&
+          (!splitGroupId || strOrNull(row.split_group_id) === splitGroupId)
+      );
+      if (prepaymentRows.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Create a prepayment invoice before issuing the balance invoice." },
+          { status: 400 }
+        );
+      }
+
+      splitGroupId = splitGroupId ?? strOrNull(prepaymentRows[0]?.split_group_id) ?? randomUUID();
+      alreadyCoveredAmount = round2(
+        prepaymentRows.reduce((sum, row) => sum + invoiceCoverageAmount(row), 0)
+      );
+    }
+
+    const coverage = prepareCoverageLineItems(baseLineItems, {
+      invoiceKind,
+      coverageAmount: input.coverage_amount,
+      alreadyCoveredAmount,
+    });
+    const lineItems = coverage.lineItems;
 
     let selectedTaxProfile: {
       id: string;
@@ -574,6 +716,14 @@ export async function POST(request: NextRequest) {
 
     const discount = round2(normalizeMoney(input.discount));
     const totals = totalsFromLineItems(lineItems, discount);
+    const bookingSnapshot = {
+      ...built.booking_snapshot,
+      invoice_kind: invoiceKind,
+      split_group_id: splitGroupId,
+      coverage_amount: coverage.coverageAmount,
+      coverage_note: strOrNull(input.coverage_note),
+      full_net_total: coverage.fullNetTotal,
+    };
 
     const savedProfile =
       input.save_customer_profile && customerTaxId && customerName
@@ -606,17 +756,22 @@ export async function POST(request: NextRequest) {
         remark: strOrNull(input.remark),
         is_passport: input.is_passport,
         guest_tax_profile_id: savedProfile?.id ?? input.guest_tax_profile_id ?? selectedTaxProfile?.id ?? null,
-        booking_snapshot: built.booking_snapshot,
+        booking_snapshot: bookingSnapshot,
         line_items: lineItems,
         subtotal: totals.subtotal,
         vat_rate: totals.vat_rate,
         vat_amount: totals.vat_amount,
         grand_total: totals.grand_total,
         discount: totals.discount,
+        invoice_kind: invoiceKind,
+        split_group_id: splitGroupId,
+        coverage_amount: coverage.coverageAmount,
+        coverage_note: strOrNull(input.coverage_note),
+        manual_issue_date_reason: strOrNull(input.manual_issue_date_reason),
         seller_snapshot: sellerSnapshot,
         updated_by: user.id,
       })
-      .select("id, invoice_no, reservation_id, status, issue_date, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, created_at, updated_at")
+      .select("id, invoice_no, reservation_id, status, issue_date, invoice_kind, split_group_id, coverage_amount, coverage_note, manual_issue_date_reason, customer_name, customer_tax_id, customer_address, customer_branch, remark, guest_tax_profile_id, booking_snapshot, line_items, subtotal, vat_rate, vat_amount, grand_total, discount, seller_snapshot, created_at, updated_at")
       .maybeSingle();
 
     if (insertError) {
@@ -625,6 +780,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, invoice: inserted, data: inserted }, { status: 201 });
   } catch (err) {
+    if (err instanceof TaxInvoiceCoverageError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof TaxInvoiceError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });
     }

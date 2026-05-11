@@ -3,10 +3,11 @@ import {
   buildLineItemsForReservations,
   getBusinessDateFromSettings,
   getSellerSnapshotFromSettings,
+  isAdminRole,
   TaxInvoiceError,
 } from "@/lib/tax-invoice/service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getAuthenticatedUser } from "@/lib/server-auth";
+import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +39,13 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const [result, sellerSnapshot, businessDate] = await Promise.all([
+    const [result, sellerSnapshot, businessDate, viewerRole] = await Promise.all([
       reservationIds.length > 1
         ? buildLineItemsForReservations(supabase, reservationIds)
         : buildLineItemsForReservation(supabase, reservationId),
       getSellerSnapshotFromSettings(supabase),
       getBusinessDateFromSettings(supabase),
+      getUserRole(supabase, user.id).catch(() => null),
     ]);
 
     const data = {
@@ -59,6 +61,8 @@ export async function GET(
       data,
       seller_snapshot: sellerSnapshot,
       business_date: businessDate,
+      viewer_role: viewerRole,
+      viewer_is_admin: isAdminRole(viewerRole),
     });
   } catch (err) {
     if (err instanceof TaxInvoiceError) {

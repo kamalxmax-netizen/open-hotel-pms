@@ -188,6 +188,12 @@ export function formatTaxInvoiceItemDescription(item: TaxInvoiceLineItem, lang: 
   const description = String(item.description || "").trim();
   if (item.kind === "room_charge" && item.stay_dates?.length) {
     const dateLabel = formatDateLabelFromDates(Array.from(new Set(item.stay_dates)).sort(), lang);
+    const roomCount = Number(item.room_count || 0);
+    if (roomCount > 1) {
+      return lang === "en"
+        ? `Room charge ${roomCount} rooms (${dateLabel})`
+        : `ค่าห้องพัก ${roomCount} ห้อง (${dateLabel})`;
+    }
     return lang === "en" ? `Room charge (${dateLabel})` : `ค่าห้องพัก (${dateLabel})`;
   }
   if (lang !== "en" && item.kind === "room_charge") {

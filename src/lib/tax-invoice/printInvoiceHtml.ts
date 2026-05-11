@@ -5,7 +5,15 @@ import {
   TaxInvoiceSellerSnapshot,
   TaxInvoiceLanguage
 } from "./types";
-import { esc, fmtMoney, fmtDate, formatTaxInvoiceItemDescription, formatTaxInvoiceItemUnit, getLabels } from "./utils";
+import {
+  compareRoomNumber,
+  esc,
+  fmtMoney,
+  fmtDate,
+  formatTaxInvoiceItemDescription,
+  formatTaxInvoiceItemUnit,
+  getLabels,
+} from "./utils";
 
 interface InvoiceRenderData {
   invoiceNo: string | null;
@@ -68,6 +76,36 @@ function paginateLineItems(items: TaxInvoiceLineItem[]): TaxInvoiceLineItem[][] 
 
 export function getInvoiceRenderPageCount(items: TaxInvoiceLineItem[]): number {
   return paginateLineItems(items).length;
+}
+
+function splitRoomNumberText(value: string | null | undefined): string[] {
+  return String(value ?? "")
+    .split(",")
+    .map((room) => room.trim())
+    .filter(Boolean);
+}
+
+function getDisplayRoomNumbers(booking: TaxInvoiceBookingSnapshot, lineItems: TaxInvoiceLineItem[]): string[] {
+  const roomChargeNumbers = lineItems
+    .filter((item) => item.kind === "room_charge")
+    .flatMap((item) => splitRoomNumberText(item.room_number));
+
+  const lineItemNumbers = roomChargeNumbers.length > 0
+    ? roomChargeNumbers
+    : lineItems.flatMap((item) => splitRoomNumberText(item.room_number));
+
+  const source = lineItemNumbers.length > 0 ? lineItemNumbers : booking.room_numbers;
+  return Array.from(new Set(source.map((room) => String(room ?? "").trim()).filter(Boolean)))
+    .sort(compareRoomNumber);
+}
+
+function getLineItemDiscountAmount(item: TaxInvoiceLineItem): number {
+  const explicit = Number(item.discount_amount ?? 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const gross = Number(item.gross_amount ?? 0);
+  const amount = Number(item.amount ?? 0);
+  if (!Number.isFinite(gross) || !Number.isFinite(amount)) return 0;
+  return Math.max(0, gross - amount);
 }
 
 /* ─── Amount in Words (Thai + English) ─── */
@@ -188,7 +226,7 @@ function sellerBlock(seller: TaxInvoiceSellerSnapshot, lang: TaxInvoiceLanguage)
 function partyBlock(data: InvoiceRenderData, lang: TaxInvoiceLanguage) {
   const l = getLabels(lang);
   const { customerName, customerAddress, customerTaxId, customerBranch, booking, lineItems } = data;
-  const roomText = booking.room_numbers.join(", ") || "-";
+  const roomText = getDisplayRoomNumbers(booking, lineItems).join(", ") || "-";
   const stayDates = Array.from(
     new Set(
       lineItems
@@ -242,7 +280,7 @@ function itemTable(items: TaxInvoiceLineItem[], lang: TaxInvoiceLanguage, startI
           <td class="center">${esc(String(it.quantity || 0))}</td>
           <td class="center">${esc(unit)}</td>
           <td class="num">${fmtMoney(it.unit_price)}</td>
-          <td class="num">0.00</td>
+          <td class="num">${fmtMoney(getLineItemDiscountAmount(it))}</td>
           <td class="num">${fmtMoney(it.amount)}</td>
         </tr>
       `;

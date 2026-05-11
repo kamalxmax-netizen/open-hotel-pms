@@ -1,5 +1,6 @@
 export type TaxInvoiceLanguage = "th" | "en";
 export type TaxInvoiceStatus = "draft" | "issued" | "cancelled";
+export type TaxInvoiceKind = "standard" | "prepayment" | "balance";
 
 export type TaxInvoiceLineItemKind = "room_charge" | "extra_charge";
 
@@ -10,6 +11,17 @@ export type TaxInvoiceLineItem = {
   unit: string;
   unit_price: number;
   amount: number;
+  gross_amount?: number;
+  discount_amount?: number;
+  room_count?: number;
+  merged_reservation_ids?: string[];
+  merged_line_sources?: Array<{
+    reservation_id?: string | null;
+    room_number?: string | null;
+    gross_amount?: number;
+    discount_amount?: number;
+    amount?: number;
+  }>;
   stay_dates?: string[];
   room_id?: string | null;
   room_number?: string | null;
@@ -49,6 +61,11 @@ export type TaxInvoiceBookingSnapshot = {
   room_numbers: string[];
   reservation_ids?: string[];
   booking_group_id?: string | null;
+  invoice_kind?: TaxInvoiceKind;
+  split_group_id?: string | null;
+  coverage_amount?: number | null;
+  coverage_note?: string | null;
+  full_net_total?: number | null;
 };
 
 export type TaxInvoiceSellerSnapshot = {

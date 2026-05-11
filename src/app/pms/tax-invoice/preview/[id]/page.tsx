@@ -55,6 +55,11 @@ export default function TaxInvoicePreviewPage() {
     </div>
   );
 
+  const printableRemark = [data.coverage_note, data.remark]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+
   const html = renderInvoiceA4Html({
     invoiceNo: data.invoice_no,
     issueDate: data.issue_date,
@@ -63,7 +68,7 @@ export default function TaxInvoicePreviewPage() {
     customerTaxId: data.customer_tax_id,
     customerAddress: data.customer_address,
     customerBranch: data.customer_branch,
-    remark: data.remark,
+    remark: printableRemark || null,
     booking: data.booking_snapshot,
     lineItems: data.line_items,
     totals: {
