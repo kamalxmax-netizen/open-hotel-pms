@@ -1,8 +1,8 @@
 import { computeFeeSummary, resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
 import { fromSatang, toSatang } from "@/lib/money";
-import { listNights } from "@/lib/dates";
 import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { extractDepositGeneralNote } from "@/lib/deposit-ledger";
+import { computeReservationDiscountAmount } from "@/lib/reservation-discount";
 import type { ReservationFolioLedgerRow, ReservationFolioResponse, ReservationFolioSummary } from "@/lib/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
@@ -140,22 +140,13 @@ function buildReservationSummary(
     payments
   );
 
-  const nightCount = (() => {
-    try {
-      return listNights(
-        String(reservation.checkin_date ?? ""),
-        String(reservation.checkout_date ?? "")
-      ).length;
-    } catch {
-      return 0;
-    }
-  })();
-
   const discountTotal = computeReservationDiscountAmount({
     totalPrice: toNumber(reservation.total_price),
     discountType: reservation.discount_type ?? "percent",
-    discountValue: toNumber(reservation.discount_value ?? reservation.discount_percent),
-    nightCount,
+    discountValue: reservation.discount_value,
+    discountPercent: reservation.discount_percent,
+    checkinDate: reservation.checkin_date,
+    checkoutDate: reservation.checkout_date,
   });
 
   const paymentsTotal = payments.reduce((sum, row) => {
@@ -481,32 +472,6 @@ function makeLedgerRowLabel(row: PaymentRow): string {
     return "Refund";
   }
   return "Payment";
-}
-
-function computeReservationDiscountAmount(input: {
-  totalPrice: number;
-  discountType: string | null | undefined;
-  discountValue: number;
-  nightCount: number;
-}): number {
-  const totalPrice = fromSatang(toSatang(input.totalPrice));
-  const discountValue = fromSatang(toSatang(input.discountValue));
-  if (totalPrice <= 0 || discountValue <= 0) return 0;
-
-  if (input.discountType === "fixed_total") {
-    return discountValue;
-  }
-
-  if (input.discountType === "fixed_per_night") {
-    return discountValue * Math.max(0, input.nightCount);
-  }
-
-  const percent = Math.max(0, Math.min(100, discountValue));
-  if (percent <= 0) return 0;
-  if (percent >= 100) return totalPrice;
-
-  const grossPrice = totalPrice / (1 - percent / 100);
-  return fromSatang(toSatang(grossPrice - totalPrice));
 }
 
 function normalizeLedgerRows(
