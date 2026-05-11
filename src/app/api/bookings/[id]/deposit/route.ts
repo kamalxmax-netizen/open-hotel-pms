@@ -200,7 +200,7 @@ function mergeDepositDelta(
 export async function GET(request: NextRequest, { params }: Params) {
     try {
         const supabase = createServerSupabaseClient();
-        const auth = await requireStaffAuth(supabase, request);
+        const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
         if (auth.error) return auth.error;
         const { data, error } = await supabase
             .from("reservations")

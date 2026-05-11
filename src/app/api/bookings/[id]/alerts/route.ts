@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   noStore();
   try {
     const supabase = createServerSupabaseClient();
-    const auth = await requireStaffAuth(supabase, req);
+    const auth = await requireStaffAuth(supabase, req, { denyRoles: [] });
     if (auth.error) return auth.error;
 
     const includeDismissed = req.nextUrl.searchParams.get("include_dismissed") === "1";
