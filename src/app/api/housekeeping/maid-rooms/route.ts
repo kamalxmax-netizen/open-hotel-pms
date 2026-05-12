@@ -1,4 +1,9 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  getLoanCollectionDueState,
+  mergeLoanCollectionReservationContexts,
+  shouldShowLoanCollectionForReservation,
+} from "@/lib/hk-loan-collections";
 import { getReturnableStockForReservationRooms } from "@/lib/hk-returnable-stock";
 import { isMaidNameMatch, maidAuthErrorResponse, requireMaidRead } from "@/lib/maid-auth";
 import { NextRequest, NextResponse } from "next/server";
@@ -892,6 +897,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const loanCollectionReservationsByRoomId = new Map<
+      string,
+      Array<{
+        reservation_id: string;
+        status: string | null;
+      }>
+    >();
+    for (const roomId of roomIds) {
+      const contexts = mergeLoanCollectionReservationContexts(
+        collectionReservationByRoomId.get(roomId) ?? null,
+        checkedOutTodayReservationByRoomId.get(roomId) ?? null
+      );
+      if (contexts.length > 0) loanCollectionReservationsByRoomId.set(roomId, contexts);
+    }
+
     const loanCollectionsByReservationId = new Map<
       string,
       Array<{
@@ -906,7 +926,9 @@ export async function GET(request: NextRequest) {
 
     const loanCollectionReservationIds = Array.from(
       new Set(
-        Array.from(collectionReservationByRoomId.values()).map((row) => row.reservation_id)
+        Array.from(loanCollectionReservationsByRoomId.values())
+          .flat()
+          .map((row) => row.reservation_id)
       )
     );
     const runtimeTraceReservationIds = Array.from(
@@ -1079,25 +1101,26 @@ export async function GET(request: NextRequest) {
       const taskStatus = task?.status ?? "dirty";
       const isCollectionVisibleStatus =
         taskStatus === "dirty" || taskStatus === "in_progress" || taskStatus === "paused";
-      const shouldShowCheckoutCollections =
-        isCollectionVisibleStatus &&
-        !guest &&
-        (collectionReservation?.status === "checked_out" || collectionReservation?.status === "cancelled");
-      const shouldShowStayoverCollections =
-        isCollectionVisibleStatus &&
-        Boolean(guest);
-      const loanCollections = collectionReservation
-        ? (loanCollectionsByReservationId.get(collectionReservation.reservation_id) ?? [])
-            .filter((item) => {
-              if (shouldShowCheckoutCollections) return true;
-              if (shouldShowStayoverCollections) return true; // Visible daily for HK awareness
-              return false;
+      const loanCollectionReservations = loanCollectionReservationsByRoomId.get(baseRoom.room_id) ?? [];
+      const loanCollections = loanCollectionReservations.flatMap((reservation) =>
+        (loanCollectionsByReservationId.get(reservation.reservation_id) ?? [])
+          .filter((item) =>
+            shouldShowLoanCollectionForReservation({
+              reservationStatus: reservation.status,
+              isCollectionVisibleStatus,
+              dueDate: item.due_date,
+              date,
             })
-            .map((item) => ({
-              ...item,
-              is_due: shouldShowCheckoutCollections || (item.due_date !== null && item.due_date <= date),
-            }))
-        : [];
+          )
+          .map((item) => ({
+            ...item,
+            is_due: getLoanCollectionDueState({
+              reservationStatus: reservation.status,
+              dueDate: item.due_date,
+              date,
+            }),
+          }))
+      );
       const hkTraces = collectionReservation
         ? (hkTraceItemsByReservationId.get(collectionReservation.reservation_id) ?? [])
         : [];
