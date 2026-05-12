@@ -64,6 +64,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ success: false, error: "Invalid payload.", details: parsed.error.flatten() }, { status: 400 });
     }
 
+    if (parsed.data.channel === "mobile_checkin") {
+      return NextResponse.json(
+        { success: false, error: "SCB QR is disabled for Mobile Check-in." },
+        { status: 410 }
+      );
+    }
+
     const reservationId = params.id;
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")

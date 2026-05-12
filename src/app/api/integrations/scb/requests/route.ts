@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       .from("scb_payment_requests")
       .select("*")
       .eq("target_id", parsed.data.target_id)
+      .or("channel.neq.mobile_checkin,channel.is.null")
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -106,6 +107,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Invalid payload.", details: parsed.error.flatten() },
         { status: 400 }
+      );
+    }
+
+    if (parsed.data.channel === "mobile_checkin") {
+      return NextResponse.json(
+        { success: false, error: "SCB QR is disabled for Mobile Check-in." },
+        { status: 410 }
       );
     }
 

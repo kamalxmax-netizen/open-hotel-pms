@@ -114,19 +114,36 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (previousMethod === nextMethod) {
+    const referenceNoteProvided = parsed.data.reference_note !== undefined;
+    const previousNote = typeof row.note === "string" && row.note.trim()
+      ? row.note.trim()
+      : null;
+    const nextNote = referenceNoteProvided && typeof parsed.data.reference_note === "string" && parsed.data.reference_note.trim()
+      ? parsed.data.reference_note.trim()
+      : referenceNoteProvided
+        ? null
+        : previousNote;
+    const methodChanged = previousMethod !== nextMethod;
+    const noteChanged = referenceNoteProvided && previousNote !== nextNote;
+
+    if (!methodChanged && !noteChanged) {
       return NextResponse.json({
         success: true,
         payment_id: paymentId,
         reservation_id: reservationId,
         method: nextMethod,
+        note: previousNote,
         unchanged: true,
       });
     }
 
+    const updatePayload: { method?: "cash" | "transfer" | "credit_card"; note?: string | null } = {};
+    if (methodChanged) updatePayload.method = nextMethod;
+    if (noteChanged) updatePayload.note = nextNote;
+
     const { data: updated, error: updateError } = await supabase
       .from("folio_payments")
-      .update({ method: nextMethod })
+      .update(updatePayload)
       .eq("id", paymentId)
       .eq("reservation_id", reservationId)
       .eq("method", previousMethod)
@@ -164,8 +181,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         amount: updated.amount,
         paid_date: updated.paid_date,
         paid_at: updated.paid_at,
+        note: updated.note,
         reason: parsed.data.reason,
-        reference_note: parsed.data.reference_note || null,
+        reference_note: referenceNoteProvided ? nextNote : null,
         source: "reservation_folio",
         business_date: businessDate,
       },
@@ -185,6 +203,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       reservation_id: reservationId,
       method: nextMethod,
       previous_method: previousMethod,
+      note: updated.note ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
