@@ -6957,6 +6957,7 @@ export default function ReservationDetailPage({
                     guestName={guestName}
                     checkinDate={checkinDate}
                     checkoutDate={checkoutDate}
+                    layer="modal"
                     onClose={() => setShowOptions(false)}
                 />
             )}
