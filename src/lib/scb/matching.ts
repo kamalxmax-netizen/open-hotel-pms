@@ -95,6 +95,7 @@ export async function getActivePendingRequestForTarget(
     .eq("target_type", targetType)
     .eq("target_id", targetId)
     .eq("status", "pending")
+    .or("channel.neq.mobile_checkin,channel.is.null")
     .gte("expires_at", new Date().toISOString())
     .maybeSingle();
 

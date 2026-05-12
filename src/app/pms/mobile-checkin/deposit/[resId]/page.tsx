@@ -88,7 +88,7 @@ export default function DepositStep() {
           </div>
         </section>
 
-        {/* SCB Transfer Info Box */}
+        {/* Transfer Info Box */}
         {method === "transfer" && (() => {
           const savedLine = sessionStorage.getItem(`mobile-checkin-${resId}`);
           const session = savedLine ? JSON.parse(savedLine) : {};
@@ -103,13 +103,13 @@ export default function DepositStep() {
               <div className="space-y-1">
                 {roomIsTransfer ? (
                   <p className="text-sm font-medium text-sky-800 dark:text-sky-300 leading-relaxed">
-                    ค่าห้อง + มัดจำ จะรวมเป็น QR <br/>
-                    ใบเดียว (฿{total.toLocaleString()})
+                    ค่าห้อง + มัดจำ จะบันทึกเป็น Transfer <br/>
+                    โดยไม่สร้าง SCB QR (รวม ฿{total.toLocaleString()})
                   </p>
                 ) : (
                   <p className="text-sm font-medium text-sky-800 dark:text-sky-300 leading-relaxed">
-                    เมื่อกด "ถัดไป" ระบบจะสร้าง QR <br/>
-                    สำหรับรับชำระยอดมัดจำนี้อัตโนมัติ
+                    ระบบจะบันทึกมัดจำนี้เป็น Transfer <br/>
+                    โดยไม่สร้าง SCB QR จาก Mobile Check-in
                   </p>
                 )}
               </div>

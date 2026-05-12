@@ -304,7 +304,7 @@ export function ReservationFolioModal({
         body: JSON.stringify({
           method: paymentMethodEdit.method,
           reason,
-          reference_note: paymentMethodEdit.referenceNote.trim() || undefined,
+          reference_note: paymentMethodEdit.referenceNote.trim() || null,
         }),
       });
       const data = await response.json().catch(() => null);
@@ -545,7 +545,7 @@ export function ReservationFolioModal({
                                       row,
                                       method: row.method as PaymentMethod,
                                       reason: "",
-                                      referenceNote: "",
+                                      referenceNote: row.note ?? "",
                                     })
                                   }
                                 >
