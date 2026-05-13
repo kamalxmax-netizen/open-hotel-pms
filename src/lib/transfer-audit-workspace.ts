@@ -59,6 +59,29 @@ export function canSaveTransferSet(args: {
   return args.selectedPaymentCount > 0;
 }
 
+export function getTransferSetSaveAction(args: {
+  draftSet: boolean;
+  hasSelectedSet: boolean;
+  selectedPaymentCount: number;
+}): "save" | "archive_empty" | "disabled" {
+  if (!canSaveTransferSet(args)) return "disabled";
+  if (!args.draftSet && args.hasSelectedSet && args.selectedPaymentCount === 0) {
+    return "archive_empty";
+  }
+  return "save";
+}
+
+export function getTransferSetEditorIdAfterSelect(args: {
+  nextSetId?: string | null;
+  currentEditorId?: string | null;
+  expand: boolean;
+}): string | null {
+  const nextSetId = String(args.nextSetId ?? "").trim();
+  if (!nextSetId) return null;
+  if (args.expand) return nextSetId;
+  return args.currentEditorId === nextSetId ? nextSetId : null;
+}
+
 export function shouldBlockTransferSetSwitch(args: {
   dirty: boolean;
   draftSet: boolean;
