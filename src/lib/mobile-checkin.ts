@@ -11,6 +11,12 @@ import { assertBusinessDayOpen } from "@/lib/folio-fees";
 import { getAuthenticatedUser, getUserRole } from "@/lib/server-auth";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  MOBILE_CHECKIN_DEPOSIT_NOTE,
+  MOBILE_CHECKIN_PAYMENT_NOTE,
+  hasMatchingMobileCheckinFinancial,
+} from "@/lib/mobile-checkin-financials";
+import type { MobileCheckinFinancialRow } from "@/lib/mobile-checkin-financials";
 import { NextRequest } from "next/server";
 
 const ALLOWED_ROLES = new Set(["admin", "frontdesk", "supervisor", "mobile", "owner"]);
@@ -749,10 +755,51 @@ export async function applyCheckinFinancials(params: {
   const safeCashier = normalizeWhitespace(cashierName) || "FO Mobile";
   const payment = Number(paymentAmount ?? 0);
   const deposit = Number(depositAmount ?? 0);
+  const hasPayment = Number.isFinite(payment) && payment > 0;
+  const hasDeposit = Number.isFinite(deposit) && deposit > 0;
 
   await assertBusinessDayOpen(supabase, businessDate);
 
-  if (Number.isFinite(payment) && payment > 0) {
+  let existingFinancialRows: MobileCheckinFinancialRow[] = [];
+  if (hasPayment || hasDeposit) {
+    const { data: existingRows, error: existingRowsError } = await supabase
+      .from("folio_payments")
+      .select("id, tx_type, method, amount, note, revenue_category, paid_date, is_void_reversal, void_of")
+      .eq("reservation_id", reservationId)
+      .in("tx_type", ["payment", "deposit"]);
+
+    if (existingRowsError) {
+      throw new MobileCheckinError(existingRowsError.message, 500, "FINANCIAL_DEDUPE_READ_FAILED");
+    }
+
+    existingFinancialRows = (existingRows ?? []) as MobileCheckinFinancialRow[];
+  }
+
+  const paymentAlreadyRecorded =
+    hasPayment &&
+    hasMatchingMobileCheckinFinancial(existingFinancialRows, {
+      txType: "payment",
+      method: safeMethod,
+      amount: payment,
+      note: MOBILE_CHECKIN_PAYMENT_NOTE,
+      revenueCategory: "room_revenue",
+      paidDate: businessDate,
+      allowAnyNote: true,
+    });
+
+  const depositAlreadyRecorded =
+    hasDeposit &&
+    hasMatchingMobileCheckinFinancial(existingFinancialRows, {
+      txType: "deposit",
+      method: safeDepositMethod,
+      amount: deposit,
+      note: MOBILE_CHECKIN_DEPOSIT_NOTE,
+      revenueCategory: "deposit",
+      paidDate: businessDate,
+      allowAnyNote: true,
+    });
+
+  if (hasPayment && !paymentAlreadyRecorded) {
     const { error: paymentError } = await supabase
       .from("folio_payments")
       .insert({
@@ -760,7 +807,7 @@ export async function applyCheckinFinancials(params: {
         tx_type: "payment",
         method: safeMethod,
         amount: payment,
-        note: "Mobile check-in payment",
+        note: MOBILE_CHECKIN_PAYMENT_NOTE,
         revenue_category: "room_revenue",
         cashier_name: safeCashier,
         paid_date: businessDate,
@@ -772,8 +819,8 @@ export async function applyCheckinFinancials(params: {
     }
   }
 
-  if (Number.isFinite(deposit) && deposit > 0) {
-    const lines = [{ method: safeDepositMethod, amount: deposit, note: "Mobile check-in deposit" }];
+  if (hasDeposit && !depositAlreadyRecorded) {
+    const lines = [{ method: safeDepositMethod, amount: deposit, note: MOBILE_CHECKIN_DEPOSIT_NOTE }];
     let depositError: { message?: string | null; code?: string | null } | null = null;
 
     const wrappedSignature = await supabase.rpc("apply_deposit_snapshot_lines_v2", {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, ClipboardSignature, AlertTriangle, RefreshCw, Upload, Users, MessageSquareText, Camera } from "lucide-react";
+import { MobileCheckinLogout } from "@/components/mobile-checkin-logout";
 
 interface Room {
   reservation_id: string;
@@ -232,6 +233,7 @@ export default function MobileCheckinLanding() {
           </div>
         )}
       </main>
+      <MobileCheckinLogout />
     </div>
   );
 }
