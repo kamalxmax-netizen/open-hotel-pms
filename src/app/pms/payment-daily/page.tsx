@@ -20,6 +20,7 @@ type MethodBreakdown = {
 type PaymentDailyNote = {
     label: string;
     title?: string;
+    href?: string;
 };
 
 type GroupFilter = "all" | "group" | "individual";
@@ -151,7 +152,9 @@ function shortenBookingCode(bookingCode: string) {
 }
 
 function noteBadgeClass(note: string) {
-    return note === "Cancelled"
+    return note.startsWith("โอน ")
+        ? "bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+        : note === "Cancelled"
         ? "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30"
         : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
 }
@@ -205,15 +208,31 @@ function NoteCapsules({ notes }: { notes: PaymentDailyNote[] }) {
     if (notes.length === 0) return <span className="text-[var(--text-muted)]">-</span>;
     return (
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none max-w-full pb-0.5">
-            {notes.map((note, i) => (
-                <span
-                    key={i}
-                    title={note.title || note.label}
-                    className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 max-w-[220px] truncate ${noteBadgeClass(note.label)}`}
-                >
-                    {note.label}
-                </span>
-            ))}
+            {notes.map((note, i) => {
+                const className = `shrink-0 inline-flex items-center rounded px-1.5 py-0.5 max-w-[220px] truncate ${noteBadgeClass(note.label)}`;
+                if (note.href) {
+                    return (
+                        <Link
+                            key={i}
+                            href={note.href}
+                            onClick={(event) => event.stopPropagation()}
+                            title={note.title || note.label}
+                            className={`${className} hover:underline`}
+                        >
+                            {note.label}
+                        </Link>
+                    );
+                }
+                return (
+                    <span
+                        key={i}
+                        title={note.title || note.label}
+                        className={className}
+                    >
+                        {note.label}
+                    </span>
+                );
+            })}
         </div>
     );
 }

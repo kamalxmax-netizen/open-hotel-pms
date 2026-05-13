@@ -64,6 +64,12 @@ const NAV_ITEMS = [
             { href: "/pms/payments", label: "Payment Report", icon: PaymentIcon },
             { href: "/pms/payment-daily", label: "Payment Daily", icon: PaymentIcon },
             { href: "/pms/accounting", label: "Com and Tips", icon: PaymentIcon },
+            {
+                href: "/pms/transfer-audit",
+                label: "Transfer Audit",
+                icon: ScbTransferIcon,
+                permissionHrefs: ["/pms/payment-daily", "/pms/payments", "/pms/audit"],
+            },
             { href: "/pms/tax-invoice", label: "Tax Invoice", icon: FileTextIcon },
             {
                 href: "/pms/preview",

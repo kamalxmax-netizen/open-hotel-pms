@@ -1,6 +1,13 @@
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
 const MAID_HOME_PATH = "/maid";
 const DEFAULT_HOME_PATH = "/pms/board";
+const TRANSFER_AUDIT_PATH = "/pms/transfer-audit";
+const TRANSFER_AUDIT_PERMISSION_PATHS = [
+  TRANSFER_AUDIT_PATH,
+  "/pms/payment-daily",
+  "/pms/payments",
+  "/pms/audit",
+];
 
 function normalizeAllowedPages(allowedPages: string[] | null | undefined): string[] {
   if (!Array.isArray(allowedPages)) return ["*"];
@@ -19,10 +26,16 @@ function canAccessPath(path: string, allowedPages: string[] | null | undefined):
   const pages = normalizeAllowedPages(allowedPages);
   if (pages.includes("*")) return true;
   const normalizedPath = normalizeLandingPath(path);
-  return pages.some((page) => {
-    const allowed = normalizeLandingPath(page);
-    return normalizedPath === allowed || normalizedPath.startsWith(`${allowed}/`);
-  });
+  const candidatePaths =
+    normalizedPath === TRANSFER_AUDIT_PATH || normalizedPath.startsWith(`${TRANSFER_AUDIT_PATH}/`)
+      ? TRANSFER_AUDIT_PERMISSION_PATHS
+      : [normalizedPath];
+  return candidatePaths.some((candidatePath) =>
+    pages.some((page) => {
+      const allowed = normalizeLandingPath(page);
+      return candidatePath === allowed || candidatePath.startsWith(`${allowed}/`);
+    })
+  );
 }
 
 function firstAllowedLandingPath(allowedPages: string[] | null | undefined): string | null {

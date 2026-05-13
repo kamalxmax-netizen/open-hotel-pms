@@ -383,6 +383,7 @@ type PendingCheckinPayment = {
     method: "cash" | "transfer" | "credit_card";
     amount: number;
     note?: string;
+    transfer_detail?: PendingPayment["transfer_detail"];
 };
 
 type RoomMoveHistoryItem = {
@@ -4309,6 +4310,8 @@ export default function ReservationDetailPage({
                                 method: payment.method,
                                 amount: payment.amount,
                                 note: payment.note || null,
+                                transfer_detail: payment.transfer_detail,
+                                require_transfer_detail: payment.method === "transfer" && !!payment.transfer_detail,
                             })
                         });
                         const paymentData = await paymentRes.json().catch(() => null);
@@ -4402,6 +4405,8 @@ export default function ReservationDetailPage({
                                     method: payment.method,
                                     amount: payment.amount,
                                     note: payment.note || null,
+                                    transfer_detail: payment.transfer_detail,
+                                    require_transfer_detail: payment.method === "transfer" && !!payment.transfer_detail,
                                 })
                             });
                             const paymentData = await paymentRes.json().catch(() => null);

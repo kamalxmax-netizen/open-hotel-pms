@@ -15,6 +15,13 @@ const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
 const MAID_HOME_PATH = "/maid";
 const STAFF_SCHEDULE_PATH = "/pms/staff-schedule";
+const TRANSFER_AUDIT_PATH = "/pms/transfer-audit";
+const TRANSFER_AUDIT_PERMISSION_PATHS = [
+  TRANSFER_AUDIT_PATH,
+  "/pms/payment-daily",
+  "/pms/payments",
+  "/pms/audit",
+];
 const EXACT_PERMISSION_PATHS = new Set([
   "/pms/inventory",
   "/pms/housekeeping",
@@ -63,6 +70,14 @@ function isStrictPermissionPath(pathname: string): boolean {
 
 function isStrictPermissionGrant(allowedPath: string): boolean {
   return STRICT_PERMISSION_PREFIXES.some((prefix) => allowedPath === prefix || allowedPath.startsWith(`${prefix}/`));
+}
+
+function hasAllowedPageAccess(permissionPath: string, allowedPath: string): boolean {
+  if (isStrictPermissionPath(permissionPath)) {
+    return isStrictPermissionGrant(allowedPath) && (permissionPath === allowedPath || permissionPath.startsWith(`${allowedPath}/`));
+  }
+  if (EXACT_PERMISSION_PATHS.has(allowedPath)) return permissionPath === allowedPath;
+  return permissionPath === allowedPath || permissionPath.startsWith(`${allowedPath}/`);
 }
 
 export async function middleware(request: NextRequest) {
@@ -187,21 +202,21 @@ export async function middleware(request: NextRequest) {
 
     // ["*"] = full access
     if (!allowedPages.includes("*")) {
-      const permissionPath =
-        pathname.startsWith("/maid")
-          ? MAID_HOME_PATH
-        : pathname.startsWith("/linen-mobile")
-          ? "/linen-mobile"
-        : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
-          ? "/pms/calendar"
-          : pathname;
-      const hasAccess = allowedPages.some((p) => {
-        if (isStrictPermissionPath(permissionPath)) {
-          return isStrictPermissionGrant(p) && (permissionPath === p || permissionPath.startsWith(`${p}/`));
-        }
-        if (EXACT_PERMISSION_PATHS.has(p)) return permissionPath === p;
-        return permissionPath === p || permissionPath.startsWith(`${p}/`);
-      });
+      const permissionPaths =
+        pathname === TRANSFER_AUDIT_PATH || pathname.startsWith(`${TRANSFER_AUDIT_PATH}/`)
+          ? TRANSFER_AUDIT_PERMISSION_PATHS
+          : [
+              pathname.startsWith("/maid")
+                ? MAID_HOME_PATH
+              : pathname.startsWith("/linen-mobile")
+                ? "/linen-mobile"
+              : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
+                ? "/pms/calendar"
+                : pathname,
+            ];
+      const hasAccess = permissionPaths.some((permissionPath) =>
+        allowedPages.some((p) => hasAllowedPageAccess(permissionPath, p))
+      );
       if (!hasAccess) {
         return NextResponse.redirect(new URL("/pms/unauthorized", request.url));
       }

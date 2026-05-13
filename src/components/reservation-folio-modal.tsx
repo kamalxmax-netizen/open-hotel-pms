@@ -10,6 +10,12 @@ import LinkedStayPanel from "./linked-stay-panel";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import type { PaymentMethod, ReservationFolioLedgerRow, ReservationFolioResponse } from "@/lib/types";
+import {
+  buildTransferDetailPayload,
+  createDefaultTransferDetailDraft,
+  TransferDetailFields,
+  type TransferDetailDraft,
+} from "./transfer-detail-fields";
 
 type BookingMode = "create" | "edit" | "checkin" | "inhouse" | "checkout";
 
@@ -135,6 +141,7 @@ export function ReservationFolioModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentTransferDetail, setPaymentTransferDetail] = useState<TransferDetailDraft>(() => createDefaultTransferDetailDraft());
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showPostCharge, setShowPostCharge] = useState(false);
   const [showSettlement, setShowSettlement] = useState(false);
@@ -171,6 +178,14 @@ export function ReservationFolioModal({
     if (!open) return;
     void loadFolio();
   }, [open, loadFolio]);
+
+  useEffect(() => {
+    if (paymentMethod !== "transfer") return;
+    setPaymentTransferDetail((current) => {
+      if (current.actualAmount || !paymentAmount) return current;
+      return { ...current, actualAmount: paymentAmount };
+    });
+  }, [paymentAmount, paymentMethod]);
 
   // Sync tax invoice state from folio response
   useEffect(() => {
@@ -241,7 +256,10 @@ export function ReservationFolioModal({
       : null;
 
   const handlePaymentSubmit = async () => {
-    const amount = Number(paymentAmount);
+    const amountInput = paymentMethod === "transfer"
+      ? (paymentAmount.trim() || paymentTransferDetail.actualAmount.trim())
+      : paymentAmount.trim();
+    const amount = Number(amountInput);
     if (!reservationId || !Number.isFinite(amount) || amount <= 0) {
       setError("Payment amount must be greater than 0.");
       return;
@@ -257,7 +275,11 @@ export function ReservationFolioModal({
           tx_type: "payment",
           method: paymentMethod,
           amount,
-          note: paymentNote.trim() || undefined,
+          note: paymentMethod === "transfer" ? paymentTransferDetail.note.trim() || undefined : paymentNote.trim() || undefined,
+          transfer_detail: paymentMethod === "transfer"
+            ? buildTransferDetailPayload(paymentTransferDetail, amount)
+            : undefined,
+          require_transfer_detail: paymentMethod === "transfer",
         }),
       });
       const data = await response.json().catch(() => null);
@@ -272,6 +294,7 @@ export function ReservationFolioModal({
 
       setPaymentAmount("");
       setPaymentNote("");
+      setPaymentTransferDetail(createDefaultTransferDetailDraft());
       setShowPaymentForm(false);
       window.dispatchEvent(new CustomEvent("billing-panel-refresh"));
       onInlineRefresh?.();
@@ -633,7 +656,13 @@ export function ReservationFolioModal({
                       <select
                         className="form-select"
                         value={paymentMethod}
-                        onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
+                        onChange={(event) => {
+                          const nextMethod = event.target.value as PaymentMethod;
+                          setPaymentMethod(nextMethod);
+                          if (nextMethod === "transfer") {
+                            setPaymentTransferDetail(createDefaultTransferDetailDraft(paymentAmount));
+                          }
+                        }}
                         disabled={submittingPayment}
                       >
                         {PAYMENT_METHODS.map((item) => (
@@ -642,29 +671,44 @@ export function ReservationFolioModal({
                       </select>
                     </div>
                     <div>
-                      <label className="form-label">Amount</label>
+                      <label className="form-label">{paymentMethod === "transfer" ? "Folio amount" : "Amount"}</label>
                       <input
                         className="form-input"
                         type="number"
                         min="0.01"
                         step="0.01"
                         value={paymentAmount}
-                        onChange={(event) => setPaymentAmount(event.target.value)}
+                        onChange={(event) => {
+                          setPaymentAmount(event.target.value);
+                          setError("");
+                        }}
                         disabled={submittingPayment}
                         placeholder="0.00"
                       />
                     </div>
-                    <div>
-                      <label className="form-label">Note</label>
-                      <input
-                        className="form-input"
-                        type="text"
-                        value={paymentNote}
-                        onChange={(event) => setPaymentNote(event.target.value)}
+                    {paymentMethod === "transfer" ? (
+                      <TransferDetailFields
+                        value={paymentTransferDetail}
+                        onChange={(next) => {
+                          setPaymentTransferDetail(next);
+                          setError("");
+                        }}
                         disabled={submittingPayment}
-                        placeholder="Optional"
+                        compact
                       />
-                    </div>
+                    ) : (
+                      <div>
+                        <label className="form-label">Note</label>
+                        <input
+                          className="form-input"
+                          type="text"
+                          value={paymentNote}
+                          onChange={(event) => setPaymentNote(event.target.value)}
+                          disabled={submittingPayment}
+                          placeholder="Optional"
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -678,7 +722,7 @@ export function ReservationFolioModal({
                         type="button"
                         className="btn btn-primary flex-1"
                         onClick={() => void handlePaymentSubmit()}
-                        disabled={submittingPayment || !paymentAmount}
+                        disabled={submittingPayment}
                       >
                         {submittingPayment ? "Saving..." : "Save Payment"}
                       </button>

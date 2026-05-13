@@ -13,6 +13,8 @@ import { resolveHotelCheckOutTime, resolveLinkedStay } from "@/lib/linked-stay";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { fromSatang, toSatang } from "@/lib/money";
+import { parseManualTransferDetail } from "@/lib/transfer-detail";
+import { buildTransferAuditNote } from "@/lib/transfer-audit";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -298,6 +300,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const amount = fromSatang(amountSatang);
         const note = body.note ? String(body.note) : null;
         const isRecordOnly = body.is_record_only === true;
+        const transferDetailRequired = body.require_transfer_detail === true;
+        const transferDetailInput = body.transfer_detail;
+        const shouldCreateTransferEvent = method === "transfer" && (transferDetailRequired || transferDetailInput != null);
         const cashierName =
             typeof body.cashier_name === "string" && body.cashier_name.trim().length > 0
                 ? body.cashier_name.trim()
@@ -312,6 +317,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
         if (!Number.isFinite(amount) || amountSatang <= 0) {
             return NextResponse.json({ error: "amount must be > 0." }, { status: 400 });
+        }
+        if (method !== "transfer" && transferDetailInput != null) {
+            return NextResponse.json({ error: "Transfer detail can only be used with transfer method." }, { status: 400 });
         }
 
         const supabase = createServerSupabaseClient();
@@ -369,24 +377,89 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         const revenueCategory = txType === "deposit" ? "deposit" : "room_revenue";
+        const paidAt = new Date().toISOString();
+        let transferEventId: string | null = null;
 
-        const { error: insertError } = await supabase
-            .from("folio_payments")
-            .insert({
-                reservation_id: effectiveReservationId,
-                tx_type: txType,
-                method,
-                amount,
-                note,
-                revenue_category: revenueCategory,
-                cashier_name: cashierName,
-                is_record_only: isRecordOnly,
-                paid_date: businessDate,
-                paid_at: new Date().toISOString()
-            });
+        if (shouldCreateTransferEvent) {
+            const parsedTransfer = parseManualTransferDetail(transferDetailInput);
+            if (!parsedTransfer.ok) {
+                return NextResponse.json({ error: parsedTransfer.error }, { status: 400 });
+            }
 
-        if (insertError) {
-            return NextResponse.json({ error: insertError.message }, { status: 500 });
+            const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
+            if (auth.error) return auth.error;
+
+            const { data: transferCreateRows, error: transferCreateError } = await supabase.rpc(
+                "create_manual_transfer_payment",
+                {
+                    p_reservation_id: effectiveReservationId,
+                    p_tx_type: txType,
+                    p_method: method,
+                    p_folio_amount: amount,
+                    p_folio_note: note,
+                    p_revenue_category: revenueCategory,
+                    p_cashier_name: cashierName,
+                    p_is_record_only: isRecordOnly,
+                    p_paid_date: businessDate,
+                    p_paid_at: paidAt,
+                    p_recorded_by: auth.user?.id ?? null,
+                    p_actual_amount: parsedTransfer.value.actualAmount,
+                    p_sender_name: parsedTransfer.value.senderName,
+                    p_bank_ref: parsedTransfer.value.bankRef,
+                    p_transfer_at: parsedTransfer.value.transferAt,
+                    p_transfer_note: parsedTransfer.value.note,
+                }
+            );
+
+            if (transferCreateError) {
+                return NextResponse.json({ error: transferCreateError.message }, { status: 500 });
+            }
+
+            const created = Array.isArray(transferCreateRows) ? transferCreateRows[0] : null;
+            const paymentId = typeof created?.payment_id === "string"
+                ? created.payment_id
+                : null;
+            transferEventId = typeof created?.transfer_event_id === "string"
+                ? created.transfer_event_id
+                : null;
+            if (paymentId && transferEventId) {
+                const syncedNote = buildTransferAuditNote({
+                    transferAt: parsedTransfer.value.transferAt,
+                    senderName: parsedTransfer.value.senderName,
+                    bankRef: parsedTransfer.value.bankRef,
+                    fallbackLabel: null,
+                    totalAmount: amount,
+                });
+                const { error: syncNoteError } = await supabase
+                    .from("folio_payments")
+                    .update({
+                        note: syncedNote,
+                        transfer_audit_original_note: note,
+                    })
+                    .eq("id", paymentId);
+                if (syncNoteError) {
+                    return NextResponse.json({ error: syncNoteError.message }, { status: 500 });
+                }
+            }
+        } else {
+            const { error: insertError } = await supabase
+                .from("folio_payments")
+                .insert({
+                    reservation_id: effectiveReservationId,
+                    tx_type: txType,
+                    method,
+                    amount,
+                    note,
+                    revenue_category: revenueCategory,
+                    cashier_name: cashierName,
+                    is_record_only: isRecordOnly,
+                    paid_date: businessDate,
+                    paid_at: paidAt
+                });
+
+            if (insertError) {
+                return NextResponse.json({ error: insertError.message }, { status: 500 });
+            }
         }
 
         if (txType === "deposit") {
@@ -474,6 +547,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             success: true,
             requested_reservation_id: requestedReservationId,
             effective_reservation_id: effectiveReservationId,
+            transfer_event_id: transferEventId,
             payment: inserted,
             summary: {
                 ...summary,

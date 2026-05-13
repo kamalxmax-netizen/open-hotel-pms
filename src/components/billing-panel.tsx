@@ -7,6 +7,13 @@ import { resolveCheckoutRevenueCategory } from "@/lib/checkout-balance";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { GenerateScbQrModal } from "./scb/generate-scb-qr-modal";
 import { useAdminRole } from "@/hooks/use-admin-role";
+import {
+  buildTransferDetailPayload,
+  createDefaultTransferDetailDraft,
+  TransferDetailFields,
+  type TransferDetailDraft,
+} from "./transfer-detail-fields";
+import type { ManualTransferDetailPayload } from "@/lib/transfer-detail";
 
 interface Payment {
   id: string;
@@ -23,6 +30,7 @@ export type PendingPayment = {
     method: "cash" | "transfer" | "credit_card";
     amount: number;
     note?: string;
+    transfer_detail?: ManualTransferDetailPayload;
 };
 
 interface RoomPaymentRow extends Payment {
@@ -95,6 +103,8 @@ export function BillingPanel({
   const [newMethod, setNewMethod] = useState("cash");
   const [newAmount, setNewAmount] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [transferDetail, setTransferDetail] = useState<TransferDetailDraft>(() => createDefaultTransferDetailDraft());
+  const [addPaymentError, setAddPaymentError] = useState("");
   const [showScbModal, setShowScbModal] = useState(false);
   const { isAdmin } = useAdminRole();
 
@@ -140,6 +150,14 @@ export function BillingPanel({
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (newMethod !== "transfer") return;
+    setTransferDetail((current) => {
+      if (current.actualAmount || !newAmount) return current;
+      return { ...current, actualAmount: newAmount };
+    });
+  }, [newAmount, newMethod]);
+
   // Exposed method to trigger refresh from parent (e.g. after PostChargeModal closes)
   useEffect(() => {
     const handleRefresh = () => fetchData();
@@ -149,9 +167,19 @@ export function BillingPanel({
 
   const handleAddPayment = async () => {
     if (!reservationId || mode === "create") return;
-    const amountSatang = toSatang(newAmount);
-    if (amountSatang <= 0) return;
+    setAddPaymentError("");
+    const amountInput = newMethod === "transfer"
+      ? (newAmount.trim() || transferDetail.actualAmount.trim())
+      : newAmount.trim();
+    const amountSatang = toSatang(amountInput);
+    if (amountSatang <= 0) {
+      setAddPaymentError("Payment amount must be greater than 0.");
+      return;
+    }
     const amountVal = fromSatang(amountSatang);
+    const transferPayload = newMethod === "transfer"
+      ? buildTransferDetailPayload(transferDetail, amountVal)
+      : undefined;
 
     if (deferPersist) {
       if (!onPendingPaymentsChange) return;
@@ -160,11 +188,13 @@ export function BillingPanel({
         {
           method: newMethod as "cash" | "transfer" | "credit_card",
           amount: amountVal,
-          note: newNote.trim() || undefined,
+          note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote.trim() || undefined,
+          transfer_detail: transferPayload,
         },
       ]);
       setNewAmount("");
       setNewNote("");
+      setTransferDetail(createDefaultTransferDetailDraft());
       if (onPaymentAdded) onPaymentAdded();
       return;
     }
@@ -178,20 +208,23 @@ export function BillingPanel({
           tx_type: "payment",
           method: newMethod,
           amount: amountVal,
-          note: newNote,
+          note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote,
+          transfer_detail: transferPayload,
+          require_transfer_detail: newMethod === "transfer",
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setNewAmount("");
         setNewNote("");
+        setTransferDetail(createDefaultTransferDetailDraft());
         fetchData();
         if (onPaymentAdded) onPaymentAdded();
       } else {
-        alert(data.error || "Failed to add payment.");
+        setAddPaymentError(data.error || "Failed to add payment.");
       }
     } catch {
-      alert("Network error.");
+      setAddPaymentError("Network error.");
     } finally {
       setAdding(false);
     }
@@ -352,12 +385,19 @@ export function BillingPanel({
 
       {/* ADD PAYMENT ACTIONS (Moved to top) */}
       {canShowAddForm && (
-        <div className="bg-[var(--bg-body)] p-4 border-b border-[var(--border-default)] flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-[300px] flex gap-2">
+        <div className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+          <div className="flex flex-wrap items-end gap-2 p-4">
+          <div className="flex min-w-[300px] flex-1 gap-2">
             <select
               className="form-select flex-[0.8] text-sm h-9 px-2"
               value={newMethod}
-              onChange={(e) => setNewMethod(e.target.value)}
+              onChange={(e) => {
+                const nextMethod = e.target.value;
+                setNewMethod(nextMethod);
+                if (nextMethod === "transfer") {
+                  setTransferDetail(createDefaultTransferDetailDraft(newAmount));
+                }
+              }}
               disabled={adding}
             >
               {PAYMENT_METHODS.map(m => (
@@ -372,24 +412,29 @@ export function BillingPanel({
                 placeholder="Amount"
                 className="form-input text-sm h-9 w-full font-mono"
                 value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
+                onChange={(e) => {
+                  setNewAmount(e.target.value);
+                  setAddPaymentError("");
+                }}
                 onKeyDown={handleAddPaymentEnter}
                 disabled={adding}
               />
             </div>
-            <input
-              type="text"
-              placeholder="Ref Note"
-              className="form-input flex-1 text-sm h-9 px-2"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={handleAddPaymentEnter}
-              disabled={adding}
-            />
+            {newMethod !== "transfer" && (
+              <input
+                type="text"
+                placeholder="Ref Note"
+                className="form-input flex-1 text-sm h-9 px-2"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={handleAddPaymentEnter}
+                disabled={adding}
+              />
+            )}
             <button
                type="button"
                onClick={() => void handleAddPayment()}
-               disabled={adding || !newAmount}
+               disabled={adding}
                className="btn btn-primary h-9 px-4 text-xs shrink-0"
             >
                {adding ? "..." : deferPersist ? "+ Queue" : "+ Add Payment"}
@@ -414,6 +459,25 @@ export function BillingPanel({
                >
                  Proceed to Checkout →
                </button>
+            </div>
+          )}
+          </div>
+          {addPaymentError && (
+            <div className="mx-4 mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+              {addPaymentError}
+            </div>
+          )}
+          {newMethod === "transfer" && (
+            <div className="px-4 pb-4">
+              <TransferDetailFields
+                value={transferDetail}
+                onChange={(next) => {
+                  setTransferDetail(next);
+                  setAddPaymentError("");
+                }}
+                disabled={adding}
+                compact
+              />
             </div>
           )}
         </div>
