@@ -33,6 +33,7 @@ type MethodsMap = {
 type ReportNote = {
   label: string;
   title?: string;
+  href?: string;
 };
 
 type RoomBaseRow = {
@@ -55,6 +56,7 @@ type PaymentRow = {
   amount: number | null;
   note: string | null;
   revenue_category: string | null;
+  transfer_event_id?: string | null;
   is_record_only?: boolean | null;
   is_correction?: boolean | null;
   is_void_reversal?: boolean | null;
@@ -374,13 +376,14 @@ function hasAnyMethodMovement(methods: MethodsMap): boolean {
   });
 }
 
-function addReportNote(noteMap: Map<string, ReportNote>, label: string, title?: string | null) {
+function addReportNote(noteMap: Map<string, ReportNote>, label: string, title?: string | null, href?: string | null) {
   const normalizedLabel = String(label ?? "").trim();
   if (!normalizedLabel) return;
   const normalizedTitle = String(title ?? "").trim() || undefined;
-  const key = `${normalizedLabel}__${normalizedTitle ?? ""}`;
+  const normalizedHref = String(href ?? "").trim() || undefined;
+  const key = `${normalizedLabel}__${normalizedTitle ?? ""}__${normalizedHref ?? ""}`;
   if (noteMap.has(key)) return;
-  noteMap.set(key, { label: normalizedLabel, title: normalizedTitle });
+  noteMap.set(key, { label: normalizedLabel, title: normalizedTitle, href: normalizedHref });
 }
 
 function isHiddenByReason(reason: string | null): boolean {
@@ -640,7 +643,7 @@ export async function GET(request: NextRequest) {
 
     const paymentsQuery = supabase
       .from("folio_payments")
-      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
       .order("paid_at", { ascending: true });
 
     const posOrdersQuery = supabase
@@ -790,7 +793,7 @@ export async function GET(request: NextRequest) {
           .lte("paid_date", businessDate),
         supabase
           .from("folio_payments")
-          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
           .in("reservation_id", reservationIdList)
           .lt("paid_date", businessDate)
           .order("paid_date", { ascending: true })
@@ -1165,6 +1168,9 @@ export async function GET(request: NextRequest) {
         : note;
 
       const isAdvance = Boolean(reservation?.checkin_date && reservation.checkin_date > businessDate);
+      const transferAuditHref = method === "transfer" && payment.transfer_event_id
+        ? `/pms/transfer-audit?focus=${encodeURIComponent(String(payment.transfer_event_id))}`
+        : null;
 
       if (isAdvance) {
         if (!reservation) continue;
@@ -1202,7 +1208,7 @@ export async function GET(request: NextRequest) {
         }
         if (normalizedNote) {
           const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
-          addReportNote(current.notes, `${normalizedNote}${suffix}`);
+          addReportNote(current.notes, `${normalizedNote}${suffix}`, null, transferAuditHref);
         }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) addReportNote(current.notes, linkedRemark);
@@ -1256,7 +1262,7 @@ export async function GET(request: NextRequest) {
         }
         if (normalizedNote) {
           const suffix = isRecordOnly ? " (record-only)" : isCorrection ? " (correction)" : "";
-          addReportNote(current.notes, `${normalizedNote}${suffix}`);
+          addReportNote(current.notes, `${normalizedNote}${suffix}`, null, transferAuditHref);
         }
         const linkedRemark = reservationId ? linkedRemarkByReservationId.get(reservationId) : null;
         if (linkedRemark) addReportNote(current.notes, linkedRemark);

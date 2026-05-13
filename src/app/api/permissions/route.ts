@@ -27,6 +27,7 @@ const ALL_PAGES = [
   { path: "/pms/payments", label: "Payment Report", section: "Revenue" },
   { path: "/pms/payment-daily", label: "Payment Daily", section: "Revenue" },
   { path: "/pms/accounting", label: "Com and Tips", section: "Revenue" },
+  { path: "/pms/transfer-audit", label: "Transfer Audit", section: "Revenue" },
   { path: "/pms/pos", label: "POS", section: "Point of Sale" },
   { path: "/pms/inventory", label: "Inventory Dashboard", section: "Inventory" },
   { path: "/pms/inventory/stock", label: "Stock Levels", section: "Inventory" },

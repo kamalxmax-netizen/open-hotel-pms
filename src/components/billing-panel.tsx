@@ -7,6 +7,18 @@ import { resolveCheckoutRevenueCategory } from "@/lib/checkout-balance";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
 import { GenerateScbQrModal } from "./scb/generate-scb-qr-modal";
 import { useAdminRole } from "@/hooks/use-admin-role";
+import {
+  buildTransferDetailPayload,
+  createDefaultTransferDetailDraft,
+  TransferDetailFields,
+  type TransferDetailDraft,
+} from "./transfer-detail-fields";
+import { applyDefaultTransferSender, type ManualTransferDetailPayload } from "@/lib/transfer-detail";
+import {
+  getExactTransferDepositSplit,
+  getTransferDepositSplitAmount,
+  type TransferDepositSplitPayload,
+} from "@/lib/transfer-deposit-split";
 
 interface Payment {
   id: string;
@@ -23,6 +35,8 @@ export type PendingPayment = {
     method: "cash" | "transfer" | "credit_card";
     amount: number;
     note?: string;
+    transfer_detail?: ManualTransferDetailPayload;
+    transfer_deposit_split?: TransferDepositSplitPayload;
 };
 
 interface RoomPaymentRow extends Payment {
@@ -32,14 +46,17 @@ interface RoomPaymentRow extends Payment {
 
 interface BillingPanelProps {
   reservationId?: string;
+  guestName?: string | null;
   totalPrice: number; // Room charges total
   discountAmount?: number;
   discountReason?: string;
   depositNote?: string;
+  depositSplitTargetAmount?: number;
   mode: "create" | "edit" | "checkin" | "inhouse" | "checkout";
   deferPersist?: boolean;
   pendingPayments?: PendingPayment[];
   onPendingPaymentsChange?: (payments: PendingPayment[]) => void;
+  onTransferDepositSplitQueued?: (depositAmount: number) => void;
   onPaymentAdded?: () => void;
   onPostChargeClick?: () => void;
   onCheckoutClick?: () => void;
@@ -72,14 +89,17 @@ function getPaymentMethodBadgeClass(method: string): string {
 
 export function BillingPanel({
   reservationId,
+  guestName = null,
   totalPrice,
   discountAmount = 0,
   discountReason,
   depositNote = "",
+  depositSplitTargetAmount = 0,
   mode,
   deferPersist = false,
   pendingPayments = [],
   onPendingPaymentsChange,
+  onTransferDepositSplitQueued,
   onPaymentAdded,
   onPostChargeClick,
   onCheckoutClick,
@@ -95,8 +115,11 @@ export function BillingPanel({
   const [newMethod, setNewMethod] = useState("cash");
   const [newAmount, setNewAmount] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [transferDetail, setTransferDetail] = useState<TransferDetailDraft>(() => createDefaultTransferDetailDraft());
+  const [addPaymentError, setAddPaymentError] = useState("");
   const [showScbModal, setShowScbModal] = useState(false);
   const { isAdmin } = useAdminRole();
+  const defaultTransferSenderName = guestName ?? "";
 
   const fetchData = useCallback(async () => {
     if (!reservationId || mode === "create") return;
@@ -140,6 +163,11 @@ export function BillingPanel({
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (newMethod !== "transfer") return;
+    setTransferDetail((current) => applyDefaultTransferSender(current, defaultTransferSenderName));
+  }, [defaultTransferSenderName, newMethod]);
+
   // Exposed method to trigger refresh from parent (e.g. after PostChargeModal closes)
   useEffect(() => {
     const handleRefresh = () => fetchData();
@@ -149,9 +177,31 @@ export function BillingPanel({
 
   const handleAddPayment = async () => {
     if (!reservationId || mode === "create") return;
-    const amountSatang = toSatang(newAmount);
-    if (amountSatang <= 0) return;
+    setAddPaymentError("");
+    const amountInput = newMethod === "transfer"
+      ? (newAmount.trim() || transferDetail.actualAmount.trim())
+      : newAmount.trim();
+    const amountSatang = toSatang(amountInput);
+    if (amountSatang <= 0) {
+      setAddPaymentError("Payment amount must be greater than 0.");
+      return;
+    }
     const amountVal = fromSatang(amountSatang);
+    const transferPayload = newMethod === "transfer"
+      ? buildTransferDetailPayload(transferDetail)
+      : undefined;
+    const exactDepositSplit = newMethod === "transfer" && transferPayload
+      ? getExactTransferDepositSplit({
+          folioAmount: amountVal,
+          actualTransferAmount: transferDetail.actualAmount,
+          depositTargetAmount: depositSplitTargetAmount,
+        })
+      : { ok: false as const };
+    const transferDepositSplit = exactDepositSplit.ok && window.confirm(
+      `Actual transfer ฿${formatMoney(exactDepositSplit.actualTransferAmount)} matches room payment ฿${formatMoney(exactDepositSplit.folioAmount)} + deposit ฿${formatMoney(exactDepositSplit.depositAmount)}.\n\nRecord the remainder as Deposit and keep both rows in one Transfer Set?`
+    )
+      ? { deposit_amount: exactDepositSplit.depositAmount }
+      : undefined;
 
     if (deferPersist) {
       if (!onPendingPaymentsChange) return;
@@ -160,11 +210,17 @@ export function BillingPanel({
         {
           method: newMethod as "cash" | "transfer" | "credit_card",
           amount: amountVal,
-          note: newNote.trim() || undefined,
+          note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote.trim() || undefined,
+          transfer_detail: transferPayload,
+          transfer_deposit_split: transferDepositSplit,
         },
       ]);
+      if (transferDepositSplit) {
+        onTransferDepositSplitQueued?.(transferDepositSplit.deposit_amount);
+      }
       setNewAmount("");
       setNewNote("");
+      setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
       if (onPaymentAdded) onPaymentAdded();
       return;
     }
@@ -178,20 +234,24 @@ export function BillingPanel({
           tx_type: "payment",
           method: newMethod,
           amount: amountVal,
-          note: newNote,
+          note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote,
+          transfer_detail: transferPayload,
+          require_transfer_detail: newMethod === "transfer" && !!transferPayload,
+          transfer_deposit_split: transferDepositSplit,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setNewAmount("");
         setNewNote("");
+        setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
         fetchData();
         if (onPaymentAdded) onPaymentAdded();
       } else {
-        alert(data.error || "Failed to add payment.");
+        setAddPaymentError(data.error || "Failed to add payment.");
       }
     } catch {
-      alert("Network error.");
+      setAddPaymentError("Network error.");
     } finally {
       setAdding(false);
     }
@@ -245,7 +305,7 @@ export function BillingPanel({
         && (category === "deposit" || note.includes("deposit refund") || note.includes("paid by deposit"))
       );
   });
-  const depositNetSatang = toSatang(
+  const persistedDepositNetSatang = toSatang(
     computeHeldDepositFromRows(
       payments.filter((p) => !p.is_record_only).map((p) => ({
         tx_type: p.tx_type,
@@ -255,6 +315,16 @@ export function BillingPanel({
       }))
     )
   );
+  const pendingDepositLines = pendingPayments
+    .map((p, idx) => ({
+      method: p.method,
+      note: p.note ?? "",
+      amount: getTransferDepositSplitAmount(p.transfer_deposit_split),
+      pending_index: idx,
+      is_pending: true,
+    }))
+    .filter((line) => line.amount > 0);
+  const pendingDepositSatang = pendingDepositLines.reduce((sum, line) => sum + toSatang(line.amount), 0);
   const depositSourceRows = payments.filter((p) => !p.is_record_only && p.tx_type === "deposit");
   const depositSourceMethods = Array.from(
     new Set(
@@ -265,17 +335,21 @@ export function BillingPanel({
   );
   const depositSourceNote =
     depositSourceRows.find((p) => typeof p.note === "string" && p.note.trim().length > 0)?.note ?? "";
-  const depositHeldAmount = fromSatang(Math.max(0, depositNetSatang));
+  const persistedDepositHeldAmount = fromSatang(Math.max(0, persistedDepositNetSatang));
+  const depositHeldAmount = fromSatang(Math.max(0, persistedDepositNetSatang + pendingDepositSatang));
   const trimmedDepositNote = depositNote.trim();
   const depositLines = depositTransactions.length > 0
     ? [{
         method: depositSourceMethods.length === 1 ? depositSourceMethods[0] : "mixed",
         note: depositSourceNote,
-        amount: depositHeldAmount,
+        amount: persistedDepositHeldAmount,
+        is_pending: false,
       }]
     : [];
   const shouldShowDepositSummary =
-    depositTransactions.length > 0 || (depositHeldAmount <= 0 && trimmedDepositNote.length > 0);
+    depositTransactions.length > 0
+    || pendingDepositLines.length > 0
+    || (depositHeldAmount <= 0 && trimmedDepositNote.length > 0);
 
   // Total Charges = Room - Discount + Extra
   const totalChargesSatang =
@@ -352,12 +426,19 @@ export function BillingPanel({
 
       {/* ADD PAYMENT ACTIONS (Moved to top) */}
       {canShowAddForm && (
-        <div className="bg-[var(--bg-body)] p-4 border-b border-[var(--border-default)] flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-[300px] flex gap-2">
+        <div className="bg-[var(--bg-body)] border-b border-[var(--border-default)]">
+          <div className="flex flex-wrap items-end gap-2 p-4">
+          <div className="flex min-w-[300px] flex-1 gap-2">
             <select
               className="form-select flex-[0.8] text-sm h-9 px-2"
               value={newMethod}
-              onChange={(e) => setNewMethod(e.target.value)}
+              onChange={(e) => {
+                const nextMethod = e.target.value;
+                setNewMethod(nextMethod);
+                if (nextMethod === "transfer") {
+                  setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
+                }
+              }}
               disabled={adding}
             >
               {PAYMENT_METHODS.map(m => (
@@ -372,24 +453,29 @@ export function BillingPanel({
                 placeholder="Amount"
                 className="form-input text-sm h-9 w-full font-mono"
                 value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
+                onChange={(e) => {
+                  setNewAmount(e.target.value);
+                  setAddPaymentError("");
+                }}
                 onKeyDown={handleAddPaymentEnter}
                 disabled={adding}
               />
             </div>
-            <input
-              type="text"
-              placeholder="Ref Note"
-              className="form-input flex-1 text-sm h-9 px-2"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={handleAddPaymentEnter}
-              disabled={adding}
-            />
+            {newMethod !== "transfer" && (
+              <input
+                type="text"
+                placeholder="Ref Note"
+                className="form-input flex-1 text-sm h-9 px-2"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={handleAddPaymentEnter}
+                disabled={adding}
+              />
+            )}
             <button
                type="button"
                onClick={() => void handleAddPayment()}
-               disabled={adding || !newAmount}
+               disabled={adding}
                className="btn btn-primary h-9 px-4 text-xs shrink-0"
             >
                {adding ? "..." : deferPersist ? "+ Queue" : "+ Add Payment"}
@@ -414,6 +500,25 @@ export function BillingPanel({
                >
                  Proceed to Checkout →
                </button>
+            </div>
+          )}
+          </div>
+          {addPaymentError && (
+            <div className="mx-4 mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+              {addPaymentError}
+            </div>
+          )}
+          {newMethod === "transfer" && (
+            <div className="px-4 pb-4">
+              <TransferDetailFields
+                value={transferDetail}
+                onChange={(next) => {
+                  setTransferDetail(next);
+                  setAddPaymentError("");
+                }}
+                disabled={adding}
+                compact
+              />
             </div>
           )}
         </div>
@@ -553,9 +658,14 @@ export function BillingPanel({
                     Note: {trimmedDepositNote}
                  </div>
               )}
-              {depositLines.map((p, idx) => (
-                 <div key={`dep-${p.method}-${idx}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
+              {[...depositLines, ...pendingDepositLines].map((p, idx) => (
+                 <div key={`dep-${p.method}-${idx}-${p.amount}-${p.is_pending ? "pending" : "posted"}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
                     <span className="uppercase opacity-70 bg-indigo-100 dark:bg-indigo-500/20 px-1 py-0.5 rounded">{p.method}</span>
+                    {p.is_pending && (
+                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                        Pending
+                      </span>
+                    )}
                     {p.note && <span className="opacity-70">({p.note})</span>}
                     <span className="font-mono font-bold ml-2 text-sm">฿ {formatMoney(p.amount)}</span>
                  </div>

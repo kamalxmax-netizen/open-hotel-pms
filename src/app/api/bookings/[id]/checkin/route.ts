@@ -16,12 +16,86 @@ import { normalizeAuditSource } from "@/lib/audit-utils";
 import { syncExpectedArrivalAlert } from "@/lib/expected-arrival-alert";
 import { stampReservationPassportScanExpiry } from "@/lib/passport-scan-retention";
 import { pickCheckinRoomNight } from "@/lib/checkin-room-selection";
+import { parseManualTransferDetail, type ManualTransferDetailPayload } from "@/lib/transfer-detail";
+import { buildTransferAuditNote } from "@/lib/transfer-audit";
+import { getExactTransferDepositSplit, type TransferDepositSplitPayload } from "@/lib/transfer-deposit-split";
+import {
+    buildDepositSnapshotNote,
+    computeHeldDepositFromRows,
+    extractDepositGeneralNote,
+} from "@/lib/deposit-ledger";
 import { NextRequest, NextResponse } from "next/server";
 
 const PAYMENT_METHODS = new Set(["cash", "transfer", "credit_card"]);
 const HK_BLOCKED_CHECKIN_STATUSES = new Set(["dirty", "in_progress", "paused"]);
 const ROOM_OCCUPIED_BACK_TO_BACK_CODE = "BACK_TO_BACK_DUE_OUT_PENDING_CHECKOUT";
 const ROOM_OCCUPIED_INHOUSE_CODE = "ROOM_OCCUPIED_INHOUSE";
+
+function parseTransferDepositSplit(input: unknown): TransferDepositSplitPayload | undefined {
+    if (!input || typeof input !== "object") return undefined;
+    const depositAmount = fromSatang(toSatang((input as { deposit_amount?: unknown }).deposit_amount));
+    if (depositAmount <= 0) return undefined;
+    return { deposit_amount: depositAmount };
+}
+
+async function syncReservationDepositSnapshot(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    reservationId: string,
+    reservationDepositNote: string | null
+): Promise<void> {
+    const { data: depositRows, error: depositRowsError } = await supabase
+        .from("folio_payments")
+        .select("method, amount, note, paid_at, tx_type, revenue_category")
+        .eq("reservation_id", reservationId)
+        .eq("revenue_category", "deposit")
+        .order("paid_at", { ascending: true });
+
+    if (depositRowsError) {
+        throw new Error(depositRowsError.message);
+    }
+
+    const generalNote = extractDepositGeneralNote(reservationDepositNote);
+    const netByMethod = new Map<string, { method: string; amount: number; note: string | null }>();
+    for (const row of depositRows ?? []) {
+        const method = String(row.method ?? "other");
+        const current = netByMethod.get(method) ?? { method, amount: 0, note: null };
+        const amount = fromSatang(toSatang(row.amount ?? 0));
+        if (row.tx_type === "deposit" || row.tx_type === "payment") current.amount += amount;
+        else if (row.tx_type === "refund") current.amount -= amount;
+        if (!current.note && typeof row.note === "string" && row.note.trim()) {
+            current.note = row.note.trim();
+        }
+        netByMethod.set(method, current);
+    }
+    const lines = Array.from(netByMethod.values()).filter((line) => line.amount > 0);
+    const nextDepositAmount = computeHeldDepositFromRows(depositRows ?? []);
+    const nextPaidAt =
+        (depositRows ?? []).some((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
+            ? String(
+                [...(depositRows ?? [])]
+                    .filter((row: any) => row.tx_type === "deposit" || row.tx_type === "payment")
+                    .slice(-1)[0]?.paid_at ?? new Date().toISOString()
+            )
+            : null;
+    const nextDepositNote = buildDepositSnapshotNote(
+        lines,
+        nextDepositAmount > 0 ? null : generalNote
+    );
+
+    const { error } = await supabase
+        .from("reservations")
+        .update({
+            deposit_amount: nextDepositAmount,
+            deposit_paid_at: nextPaidAt,
+            deposit_note: nextDepositNote,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", reservationId);
+
+    if (error) {
+        throw new Error(error.message);
+    }
+}
 
 function toLocalDate(d: Date, tz = "Asia/Bangkok"): string {
     return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
@@ -213,6 +287,8 @@ export async function POST(
             method: "cash" | "transfer" | "credit_card";
             amount: number;
             note: string | null;
+            transfer_detail?: ManualTransferDetailPayload;
+            transfer_deposit_split?: TransferDepositSplitPayload;
         }> = [];
 
         for (let i = 0; i < splitPaymentsInput.length; i++) {
@@ -227,7 +303,15 @@ export async function POST(
                 return NextResponse.json({ error: `Invalid payment amount at payments[${i}].` }, { status: 400 });
             }
             const note = typeof row.note === "string" && row.note.trim() ? row.note.trim() : null;
-            pendingPayments.push({ method, amount, note });
+            pendingPayments.push({
+                method,
+                amount,
+                note,
+                transfer_detail: row.transfer_detail && typeof row.transfer_detail === "object"
+                    ? row.transfer_detail as ManualTransferDetailPayload
+                    : undefined,
+                transfer_deposit_split: parseTransferDepositSplit(row.transfer_deposit_split),
+            });
         }
 
         if (legacyPaymentAmountSatang > 0) {
@@ -294,7 +378,7 @@ export async function POST(
         // Verify reservation
         const { data: reservation, error: resError } = await supabase
             .from("reservations")
-            .select("id, status, checkin_date, checkout_date, guest_name, total_price, guest_profile_id")
+            .select("id, status, checkin_date, checkout_date, guest_name, total_price, guest_profile_id, deposit_note")
             .eq("id", reservationId)
             .maybeSingle();
 
@@ -412,22 +496,138 @@ export async function POST(
         // Record folio_payment(s) if guest paid at check-in
         if (pendingPayments.length > 0) {
             const paidAt = new Date().toISOString();
-            const paymentRows = pendingPayments.map((payment) => ({
-                reservation_id: reservationId,
-                tx_type: "payment",
-                method: payment.method,
-                amount: payment.amount,
-                note: payment.note || "Paid at check-in",
-                revenue_category: "room_revenue",
-                cashier_name: "FO",
-                paid_date: businessDate,
-                paid_at: paidAt
-            }));
-            const { error: paymentInsertError } = await supabase
-                .from("folio_payments")
-                .insert(paymentRows);
-            if (paymentInsertError) {
-                return NextResponse.json({ error: paymentInsertError.message }, { status: 500 });
+            const regularPaymentRows = [];
+            let shouldSyncDepositSnapshot = false;
+            for (const payment of pendingPayments) {
+                if (payment.method === "transfer" && payment.transfer_detail) {
+                    const parsedTransfer = parseManualTransferDetail(payment.transfer_detail);
+                    if (!parsedTransfer.ok) {
+                        return NextResponse.json({ error: parsedTransfer.error }, { status: 400 });
+                    }
+                    const exactDepositSplit = payment.transfer_deposit_split
+                        ? getExactTransferDepositSplit({
+                            folioAmount: payment.amount,
+                            actualTransferAmount: parsedTransfer.value.actualAmount,
+                            depositTargetAmount: payment.transfer_deposit_split.deposit_amount,
+                        })
+                        : { ok: false as const };
+                    if (payment.transfer_deposit_split && !exactDepositSplit.ok) {
+                        return NextResponse.json(
+                            { error: "Transfer deposit split requires actual transfer amount to equal payment amount plus deposit amount." },
+                            { status: 400 }
+                        );
+                    }
+
+                    const { data: transferCreateRows, error: transferPaymentError } = exactDepositSplit.ok
+                        ? await supabase.rpc(
+                            "create_manual_transfer_payment_with_deposit_split",
+                            {
+                                p_reservation_id: reservationId,
+                                p_folio_amount: exactDepositSplit.folioAmount,
+                                p_deposit_amount: exactDepositSplit.depositAmount,
+                                p_folio_note: payment.note || "Paid at check-in",
+                                p_cashier_name: "FO",
+                                p_paid_date: businessDate,
+                                p_paid_at: paidAt,
+                                p_recorded_by: null,
+                                p_actual_amount: exactDepositSplit.actualTransferAmount,
+                                p_sender_name: parsedTransfer.value.senderName,
+                                p_bank_ref: parsedTransfer.value.bankRef,
+                                p_transfer_at: parsedTransfer.value.transferAt,
+                                p_transfer_note: parsedTransfer.value.note,
+                            }
+                        )
+                        : await supabase.rpc(
+                            "create_manual_transfer_payment",
+                            {
+                                p_reservation_id: reservationId,
+                                p_tx_type: "payment",
+                                p_method: "transfer",
+                                p_folio_amount: payment.amount,
+                                p_folio_note: payment.note || "Paid at check-in",
+                                p_revenue_category: "room_revenue",
+                                p_cashier_name: "FO",
+                                p_is_record_only: false,
+                                p_paid_date: businessDate,
+                                p_paid_at: paidAt,
+                                p_recorded_by: null,
+                                p_actual_amount: parsedTransfer.value.actualAmount,
+                                p_sender_name: parsedTransfer.value.senderName,
+                                p_bank_ref: parsedTransfer.value.bankRef,
+                                p_transfer_at: parsedTransfer.value.transferAt,
+                                p_transfer_note: parsedTransfer.value.note,
+                            }
+                        );
+                    if (transferPaymentError) {
+                        return NextResponse.json({ error: transferPaymentError.message }, { status: 500 });
+                    }
+                    const created = Array.isArray(transferCreateRows) ? transferCreateRows[0] : null;
+                    const paymentId = typeof created?.payment_id === "string" ? created.payment_id : null;
+                    const depositPaymentId = typeof created?.deposit_payment_id === "string" ? created.deposit_payment_id : null;
+                    const transferEventId = typeof created?.transfer_event_id === "string" ? created.transfer_event_id : null;
+                    if (paymentId && transferEventId) {
+                        const totalAmount = exactDepositSplit.ok
+                            ? exactDepositSplit.actualTransferAmount
+                            : Number(payment.amount ?? 0);
+                        const syncedNote = buildTransferAuditNote({
+                            transferAt: parsedTransfer.value.transferAt,
+                            senderName: parsedTransfer.value.senderName,
+                            bankRef: parsedTransfer.value.bankRef,
+                            fallbackLabel: null,
+                            totalAmount,
+                        });
+                        const syncedIds = depositPaymentId ? [paymentId, depositPaymentId] : [paymentId];
+                        const { error: syncNoteError } = await supabase
+                            .from("folio_payments")
+                            .update({
+                                note: syncedNote,
+                                transfer_audit_original_note: payment.note || "Paid at check-in",
+                            })
+                            .in("id", syncedIds);
+                        if (syncNoteError) {
+                            return NextResponse.json({ error: syncNoteError.message }, { status: 500 });
+                        }
+                        if (depositPaymentId) {
+                            shouldSyncDepositSnapshot = true;
+                        }
+                    }
+                } else {
+                    regularPaymentRows.push({
+                        reservation_id: reservationId,
+                        tx_type: "payment",
+                        method: payment.method,
+                        amount: payment.amount,
+                        note: payment.note || "Paid at check-in",
+                        revenue_category: "room_revenue",
+                        cashier_name: "FO",
+                        paid_date: businessDate,
+                        paid_at: paidAt
+                    });
+                }
+            }
+
+            if (shouldSyncDepositSnapshot) {
+                try {
+                    await syncReservationDepositSnapshot(
+                        supabase,
+                        reservationId,
+                        typeof (reservation as any).deposit_note === "string" ? (reservation as any).deposit_note : null
+                    );
+                } catch (depositSyncError) {
+                    return NextResponse.json(
+                        { error: depositSyncError instanceof Error ? depositSyncError.message : "Failed to sync deposit snapshot." },
+                        { status: 500 }
+                    );
+                }
+            }
+
+            if (regularPaymentRows.length > 0) {
+                const { error: paymentInsertError } = await supabase
+                    .from("folio_payments")
+                    .insert(regularPaymentRows);
+                if (paymentInsertError) {
+                    return NextResponse.json({ error: paymentInsertError.message }, { status: 500 });
+                }
             }
         }
 
@@ -507,7 +707,12 @@ export async function POST(
         });
 
         // Audit log
-        const paymentTotalSatang = pendingPayments.reduce((sum, payment) => sum + toSatang(payment.amount), 0);
+        const paymentTotalSatang = pendingPayments.reduce(
+            (sum, payment) => sum
+                + toSatang(payment.amount)
+                + toSatang(payment.transfer_deposit_split?.deposit_amount ?? 0),
+            0
+        );
         const paymentTotal = fromSatang(paymentTotalSatang);
         const auditRows: Array<Record<string, unknown>> = [
             {

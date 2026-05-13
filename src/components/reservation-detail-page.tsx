@@ -31,6 +31,7 @@ import { buildBookedNameNoteLine, classifyGuestNameMatch } from "@/lib/guest-nam
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
 import { NATIONALITIES, formatNationality, getCountryByCode, normalizeNationalityCode } from "@/lib/nationality-map";
 import { computeHeldDepositFromRows } from "@/lib/deposit-ledger";
+import { getTransferDepositSplitAmount } from "@/lib/transfer-deposit-split";
 import { suggestThaiProvinces } from "@/lib/thai-provinces";
 import { cleanBookingNameInput, cleanFloatingThaiMarks } from "@/lib/text-normalization";
 import { formatPhoneInput } from "@/lib/phone";
@@ -383,6 +384,8 @@ type PendingCheckinPayment = {
     method: "cash" | "transfer" | "credit_card";
     amount: number;
     note?: string;
+    transfer_detail?: PendingPayment["transfer_detail"];
+    transfer_deposit_split?: PendingPayment["transfer_deposit_split"];
 };
 
 type RoomMoveHistoryItem = {
@@ -3342,6 +3345,28 @@ export default function ReservationDetailPage({
             (mode === "checkin" && checkinDate <= bangkokTodayYmd) ||
             (mode === "edit" && reservationStatus === "active" && Boolean(checkedInAt))
         );
+    const pendingDepositPreviewLines = useMemo(() => {
+        const payments =
+            mode === "checkin"
+                ? pendingCheckinPayments
+                : mode === "inhouse"
+                    ? pendingInhousePayments
+                    : [];
+        return payments
+            .map((payment) => ({
+                method: payment.method,
+                amount: getTransferDepositSplitAmount(payment.transfer_deposit_split),
+                note: payment.note,
+            }))
+            .filter((line) => line.amount > 0);
+    }, [mode, pendingCheckinPayments, pendingInhousePayments]);
+    const pendingDepositPreviewSatang = pendingDepositPreviewLines.reduce(
+        (sum, line) => sum + toSatang(line.amount),
+        0
+    );
+    const depositSplitTargetAmount = mode === "checkin" && toSatang(depositInputAmount) > 0
+        ? fromSatang(Math.max(0, toSatang(depositInputAmount) - pendingDepositPreviewSatang))
+        : 0;
 
     const persistDeposit = useCallback(async (lines: DepositLine[], generalNote?: string) => {
         if (!reservationId) return false;
@@ -4309,6 +4334,9 @@ export default function ReservationDetailPage({
                                 method: payment.method,
                                 amount: payment.amount,
                                 note: payment.note || null,
+                                transfer_detail: payment.transfer_detail,
+                                require_transfer_detail: payment.method === "transfer" && !!payment.transfer_detail,
+                                transfer_deposit_split: payment.transfer_deposit_split,
                             })
                         });
                         const paymentData = await paymentRes.json().catch(() => null);
@@ -4402,6 +4430,9 @@ export default function ReservationDetailPage({
                                     method: payment.method,
                                     amount: payment.amount,
                                     note: payment.note || null,
+                                    transfer_detail: payment.transfer_detail,
+                                    require_transfer_detail: payment.method === "transfer" && !!payment.transfer_detail,
+                                    transfer_deposit_split: payment.transfer_deposit_split,
                                 })
                             });
                             const paymentData = await paymentRes.json().catch(() => null);
@@ -6338,6 +6369,7 @@ export default function ReservationDetailPage({
                                             depositSaving={depositSaving}
                                             depositInlineError={depositInlineError}
                                             depositLines={depositLines}
+                                            pendingDepositLines={mode === "checkin" ? pendingDepositPreviewLines : []}
                                             onDepositMethodChange={setDepositMethod}
                                             onDepositInputAmountChange={setDepositInputAmount}
                                             onDepositInputNoteChange={setDepositInputNote}
@@ -6379,10 +6411,12 @@ export default function ReservationDetailPage({
                                         <div className="space-y-4">
                                             <BillingPanel
                                                 reservationId={reservationId}
+                                                guestName={guestName}
                                                 totalPrice={mode === "checkout" || dayUseAmountOnlyMode ? totalPrice : fromSatang(computedTotalSatang)}
                                                 discountAmount={fromSatang(discountSatang)}
                                                 discountReason={discountReason}
                                                 depositNote={depositGeneralNote}
+                                                depositSplitTargetAmount={depositSplitTargetAmount}
                                                 mode={mode}
                                                 policyFeePreview={
                                                     mode === "checkout"
@@ -6413,6 +6447,15 @@ export default function ReservationDetailPage({
                                                         : mode === "inhouse"
                                                             ? (setPendingInhousePayments as (payments: PendingPayment[]) => void)
                                                             : undefined
+                                                }
+                                                onTransferDepositSplitQueued={
+                                                    mode === "checkin"
+                                                        ? () => {
+                                                            setDepositInputAmount("");
+                                                            setDepositInputNote("");
+                                                            setDepositInlineError("");
+                                                        }
+                                                        : undefined
                                                 }
                                                 onPaymentAdded={() => {
                                                     fetchPaymentsAndCharges();
