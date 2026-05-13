@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import {
+  applyDefaultTransferSender,
+  buildManualTransferDetailPayloadFromDraft,
   buildTransferDetailPreview,
   computeTransferAuditDelta,
+  normalizeTransferSenderName,
   parseManualTransferDetail,
 } from "./transfer-detail.ts";
 
@@ -62,3 +65,45 @@ assert.deepEqual(computeTransferAuditDelta(1400, 1000), {
   delta: 400,
   status: "difference",
 });
+
+assert.equal(normalizeTransferSenderName("  Mary   Smith  "), "Mary Smith");
+assert.equal(normalizeTransferSenderName("   "), "");
+assert.equal(normalizeTransferSenderName(null), "");
+
+assert.deepEqual(
+  applyDefaultTransferSender({ senderName: "", note: "keep" }, "  Mary   Smith  "),
+  { senderName: "Mary Smith", note: "keep" }
+);
+
+assert.deepEqual(
+  applyDefaultTransferSender({ senderName: "Manual Sender", note: "keep" }, "Mary Smith"),
+  { senderName: "Manual Sender", note: "keep" }
+);
+
+assert.equal(
+  buildManualTransferDetailPayloadFromDraft({
+    actualAmount: "",
+    senderName: "Mary Smith",
+    bankRef: "",
+    transferAt: "2026-05-12T11:45",
+    note: "",
+  }),
+  undefined
+);
+
+assert.deepEqual(
+  buildManualTransferDetailPayloadFromDraft({
+    actualAmount: "700",
+    senderName: "Mary Smith",
+    bankRef: "SCB700",
+    transferAt: "2026-05-12T11:45",
+    note: "Deposit included",
+  }),
+  {
+    actual_amount: "700",
+    sender_name: "Mary Smith",
+    bank_ref: "SCB700",
+    transfer_at: new Date("2026-05-12T11:45").toISOString(),
+    note: "Deposit included",
+  }
+);

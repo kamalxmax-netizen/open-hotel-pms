@@ -13,7 +13,12 @@ import {
   TransferDetailFields,
   type TransferDetailDraft,
 } from "./transfer-detail-fields";
-import type { ManualTransferDetailPayload } from "@/lib/transfer-detail";
+import { applyDefaultTransferSender, type ManualTransferDetailPayload } from "@/lib/transfer-detail";
+import {
+  getExactTransferDepositSplit,
+  getTransferDepositSplitAmount,
+  type TransferDepositSplitPayload,
+} from "@/lib/transfer-deposit-split";
 
 interface Payment {
   id: string;
@@ -31,6 +36,7 @@ export type PendingPayment = {
     amount: number;
     note?: string;
     transfer_detail?: ManualTransferDetailPayload;
+    transfer_deposit_split?: TransferDepositSplitPayload;
 };
 
 interface RoomPaymentRow extends Payment {
@@ -40,14 +46,17 @@ interface RoomPaymentRow extends Payment {
 
 interface BillingPanelProps {
   reservationId?: string;
+  guestName?: string | null;
   totalPrice: number; // Room charges total
   discountAmount?: number;
   discountReason?: string;
   depositNote?: string;
+  depositSplitTargetAmount?: number;
   mode: "create" | "edit" | "checkin" | "inhouse" | "checkout";
   deferPersist?: boolean;
   pendingPayments?: PendingPayment[];
   onPendingPaymentsChange?: (payments: PendingPayment[]) => void;
+  onTransferDepositSplitQueued?: (depositAmount: number) => void;
   onPaymentAdded?: () => void;
   onPostChargeClick?: () => void;
   onCheckoutClick?: () => void;
@@ -80,14 +89,17 @@ function getPaymentMethodBadgeClass(method: string): string {
 
 export function BillingPanel({
   reservationId,
+  guestName = null,
   totalPrice,
   discountAmount = 0,
   discountReason,
   depositNote = "",
+  depositSplitTargetAmount = 0,
   mode,
   deferPersist = false,
   pendingPayments = [],
   onPendingPaymentsChange,
+  onTransferDepositSplitQueued,
   onPaymentAdded,
   onPostChargeClick,
   onCheckoutClick,
@@ -107,6 +119,7 @@ export function BillingPanel({
   const [addPaymentError, setAddPaymentError] = useState("");
   const [showScbModal, setShowScbModal] = useState(false);
   const { isAdmin } = useAdminRole();
+  const defaultTransferSenderName = guestName ?? "";
 
   const fetchData = useCallback(async () => {
     if (!reservationId || mode === "create") return;
@@ -152,11 +165,8 @@ export function BillingPanel({
 
   useEffect(() => {
     if (newMethod !== "transfer") return;
-    setTransferDetail((current) => {
-      if (current.actualAmount || !newAmount) return current;
-      return { ...current, actualAmount: newAmount };
-    });
-  }, [newAmount, newMethod]);
+    setTransferDetail((current) => applyDefaultTransferSender(current, defaultTransferSenderName));
+  }, [defaultTransferSenderName, newMethod]);
 
   // Exposed method to trigger refresh from parent (e.g. after PostChargeModal closes)
   useEffect(() => {
@@ -178,7 +188,19 @@ export function BillingPanel({
     }
     const amountVal = fromSatang(amountSatang);
     const transferPayload = newMethod === "transfer"
-      ? buildTransferDetailPayload(transferDetail, amountVal)
+      ? buildTransferDetailPayload(transferDetail)
+      : undefined;
+    const exactDepositSplit = newMethod === "transfer" && transferPayload
+      ? getExactTransferDepositSplit({
+          folioAmount: amountVal,
+          actualTransferAmount: transferDetail.actualAmount,
+          depositTargetAmount: depositSplitTargetAmount,
+        })
+      : { ok: false as const };
+    const transferDepositSplit = exactDepositSplit.ok && window.confirm(
+      `Actual transfer ฿${formatMoney(exactDepositSplit.actualTransferAmount)} matches room payment ฿${formatMoney(exactDepositSplit.folioAmount)} + deposit ฿${formatMoney(exactDepositSplit.depositAmount)}.\n\nRecord the remainder as Deposit and keep both rows in one Transfer Set?`
+    )
+      ? { deposit_amount: exactDepositSplit.depositAmount }
       : undefined;
 
     if (deferPersist) {
@@ -190,11 +212,15 @@ export function BillingPanel({
           amount: amountVal,
           note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote.trim() || undefined,
           transfer_detail: transferPayload,
+          transfer_deposit_split: transferDepositSplit,
         },
       ]);
+      if (transferDepositSplit) {
+        onTransferDepositSplitQueued?.(transferDepositSplit.deposit_amount);
+      }
       setNewAmount("");
       setNewNote("");
-      setTransferDetail(createDefaultTransferDetailDraft());
+      setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
       if (onPaymentAdded) onPaymentAdded();
       return;
     }
@@ -210,14 +236,15 @@ export function BillingPanel({
           amount: amountVal,
           note: newMethod === "transfer" ? transferDetail.note.trim() || undefined : newNote,
           transfer_detail: transferPayload,
-          require_transfer_detail: newMethod === "transfer",
+          require_transfer_detail: newMethod === "transfer" && !!transferPayload,
+          transfer_deposit_split: transferDepositSplit,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setNewAmount("");
         setNewNote("");
-        setTransferDetail(createDefaultTransferDetailDraft());
+        setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
         fetchData();
         if (onPaymentAdded) onPaymentAdded();
       } else {
@@ -278,7 +305,7 @@ export function BillingPanel({
         && (category === "deposit" || note.includes("deposit refund") || note.includes("paid by deposit"))
       );
   });
-  const depositNetSatang = toSatang(
+  const persistedDepositNetSatang = toSatang(
     computeHeldDepositFromRows(
       payments.filter((p) => !p.is_record_only).map((p) => ({
         tx_type: p.tx_type,
@@ -288,6 +315,16 @@ export function BillingPanel({
       }))
     )
   );
+  const pendingDepositLines = pendingPayments
+    .map((p, idx) => ({
+      method: p.method,
+      note: p.note ?? "",
+      amount: getTransferDepositSplitAmount(p.transfer_deposit_split),
+      pending_index: idx,
+      is_pending: true,
+    }))
+    .filter((line) => line.amount > 0);
+  const pendingDepositSatang = pendingDepositLines.reduce((sum, line) => sum + toSatang(line.amount), 0);
   const depositSourceRows = payments.filter((p) => !p.is_record_only && p.tx_type === "deposit");
   const depositSourceMethods = Array.from(
     new Set(
@@ -298,17 +335,21 @@ export function BillingPanel({
   );
   const depositSourceNote =
     depositSourceRows.find((p) => typeof p.note === "string" && p.note.trim().length > 0)?.note ?? "";
-  const depositHeldAmount = fromSatang(Math.max(0, depositNetSatang));
+  const persistedDepositHeldAmount = fromSatang(Math.max(0, persistedDepositNetSatang));
+  const depositHeldAmount = fromSatang(Math.max(0, persistedDepositNetSatang + pendingDepositSatang));
   const trimmedDepositNote = depositNote.trim();
   const depositLines = depositTransactions.length > 0
     ? [{
         method: depositSourceMethods.length === 1 ? depositSourceMethods[0] : "mixed",
         note: depositSourceNote,
-        amount: depositHeldAmount,
+        amount: persistedDepositHeldAmount,
+        is_pending: false,
       }]
     : [];
   const shouldShowDepositSummary =
-    depositTransactions.length > 0 || (depositHeldAmount <= 0 && trimmedDepositNote.length > 0);
+    depositTransactions.length > 0
+    || pendingDepositLines.length > 0
+    || (depositHeldAmount <= 0 && trimmedDepositNote.length > 0);
 
   // Total Charges = Room - Discount + Extra
   const totalChargesSatang =
@@ -395,7 +436,7 @@ export function BillingPanel({
                 const nextMethod = e.target.value;
                 setNewMethod(nextMethod);
                 if (nextMethod === "transfer") {
-                  setTransferDetail(createDefaultTransferDetailDraft(newAmount));
+                  setTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
                 }
               }}
               disabled={adding}
@@ -617,9 +658,14 @@ export function BillingPanel({
                     Note: {trimmedDepositNote}
                  </div>
               )}
-              {depositLines.map((p, idx) => (
-                 <div key={`dep-${p.method}-${idx}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
+              {[...depositLines, ...pendingDepositLines].map((p, idx) => (
+                 <div key={`dep-${p.method}-${idx}-${p.amount}-${p.is_pending ? "pending" : "posted"}`} className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300">
                     <span className="uppercase opacity-70 bg-indigo-100 dark:bg-indigo-500/20 px-1 py-0.5 rounded">{p.method}</span>
+                    {p.is_pending && (
+                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                        Pending
+                      </span>
+                    )}
                     {p.note && <span className="opacity-70">({p.note})</span>}
                     <span className="font-mono font-bold ml-2 text-sm">฿ {formatMoney(p.amount)}</span>
                  </div>

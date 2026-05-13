@@ -14,6 +14,14 @@ export type ManualTransferDetailPayload = {
   note?: string | null;
 };
 
+export type ManualTransferDetailDraftInput = {
+  actualAmount?: string;
+  senderName?: string;
+  bankRef?: string;
+  transferAt?: string;
+  note?: string;
+};
+
 export type ManualTransferDetail = {
   actualAmount: number;
   senderName: string | null;
@@ -31,6 +39,36 @@ function compactText(value: unknown, maxLength: number): string | null {
   const trimmed = value.replace(/\s+/g, " ").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, maxLength);
+}
+
+export function normalizeTransferSenderName(value: unknown): string {
+  return compactText(value, 120) ?? "";
+}
+
+export function applyDefaultTransferSender<T extends { senderName: string }>(
+  draft: T,
+  senderName: unknown
+): T {
+  if (draft.senderName.trim()) return draft;
+  const normalized = normalizeTransferSenderName(senderName);
+  if (!normalized) return draft;
+  return { ...draft, senderName: normalized };
+}
+
+export function buildManualTransferDetailPayloadFromDraft(
+  draft: ManualTransferDetailDraftInput
+): ManualTransferDetailPayload | undefined {
+  const actualAmount = String(draft.actualAmount ?? "").trim();
+  if (!actualAmount) return undefined;
+  const transferAt = String(draft.transferAt ?? "").trim();
+
+  return {
+    actual_amount: actualAmount,
+    sender_name: normalizeTransferSenderName(draft.senderName) || null,
+    bank_ref: compactText(draft.bankRef, 120),
+    transfer_at: transferAt ? new Date(transferAt).toISOString() : "",
+    note: compactText(draft.note, 500),
+  };
 }
 
 function toFiniteAmount(value: unknown): number {

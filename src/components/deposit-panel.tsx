@@ -14,6 +14,7 @@ interface DepositPanelProps {
   depositSaving: boolean;
   depositInlineError: string | null;
   depositLines: { method: string; amount: number; note?: string }[];
+  pendingDepositLines?: { method: string; amount: number; note?: string }[];
   onDepositMethodChange: (val: string) => void;
   onDepositInputAmountChange: (val: string) => void;
   onDepositInputNoteChange: (val: string) => void;
@@ -35,6 +36,7 @@ export function DepositPanel({
   depositSaving,
   depositInlineError,
   depositLines,
+  pendingDepositLines = [],
   onDepositMethodChange,
   onDepositInputAmountChange,
   onDepositInputNoteChange,
@@ -52,20 +54,29 @@ export function DepositPanel({
     return null;
   }
 
+  const pendingDepositAmount = pendingDepositLines.reduce((sum, line) => sum + line.amount, 0);
+
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300">
           💰 Deposit Collection
         </h3>
-        {depositAmount > 0 && (
-          <span className="rounded bg-amber-200 dark:bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-900 dark:text-amber-300">
-            Total Collected: ฿ {formatMoney(depositAmount)}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {depositAmount > 0 && (
+            <span className="rounded bg-amber-200 dark:bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-900 dark:text-amber-300">
+              Total Collected: ฿ {formatMoney(depositAmount)}
+            </span>
+          )}
+          {pendingDepositAmount > 0 && (
+            <span className="rounded bg-sky-100 dark:bg-sky-500/20 px-2 py-0.5 text-xs font-bold text-sky-900 dark:text-sky-300">
+              Pending Split: ฿ {formatMoney(pendingDepositAmount)}
+            </span>
+          )}
+        </div>
       </div>
 
-      {depositLines.length > 0 ? (
+      {depositLines.length > 0 || pendingDepositLines.length > 0 ? (
         <div className="space-y-1.5">
           {depositLines.map((line, idx) => {
             const methodLabel =
@@ -83,6 +94,30 @@ export function DepositPanel({
                   )}
                 </div>
                 <span className="font-mono font-semibold text-amber-900 dark:text-amber-300">
+                  ฿ {formatMoney(line.amount)}
+                </span>
+              </div>
+            );
+          })}
+          {pendingDepositLines.map((line, idx) => {
+            const methodLabel =
+              PAYMENT_METHODS.find((m) => m.value === line.method)?.label ??
+              line.method;
+            return (
+              <div
+                key={`pending-${line.method}-${idx}-${line.amount}`}
+                className="flex items-center justify-between rounded-md border border-sky-200 dark:border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 px-2 py-1.5 text-xs"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-sky-900 dark:text-sky-300">{methodLabel}</span>
+                  <span className="ml-1 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-bold uppercase text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">
+                    Pending
+                  </span>
+                  {line.note && (
+                    <span className="ml-1 text-sky-700 dark:text-sky-400 truncate">({line.note})</span>
+                  )}
+                </div>
+                <span className="font-mono font-semibold text-sky-900 dark:text-sky-300">
                   ฿ {formatMoney(line.amount)}
                 </span>
               </div>

@@ -9,6 +9,8 @@ import { SettlementDrawer } from "./settlement-drawer";
 import LinkedStayPanel from "./linked-stay-panel";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { formatMoney, fromSatang, toSatang } from "@/lib/money";
+import { applyDefaultTransferSender } from "@/lib/transfer-detail";
+import { getExactTransferDepositSplit } from "@/lib/transfer-deposit-split";
 import type { PaymentMethod, ReservationFolioLedgerRow, ReservationFolioResponse } from "@/lib/types";
 import {
   buildTransferDetailPayload,
@@ -151,6 +153,7 @@ export function ReservationFolioModal({
   const [businessDate, setBusinessDate] = useState<string>(toBangkokDateString());
   const [paymentMethodEdit, setPaymentMethodEdit] = useState<PaymentMethodEditState | null>(null);
   const [submittingMethodEdit, setSubmittingMethodEdit] = useState(false);
+  const defaultTransferSenderName = folio?.reservation.guest_name ?? "";
 
   const loadFolio = useCallback(async () => {
     if (!reservationId) return;
@@ -181,11 +184,8 @@ export function ReservationFolioModal({
 
   useEffect(() => {
     if (paymentMethod !== "transfer") return;
-    setPaymentTransferDetail((current) => {
-      if (current.actualAmount || !paymentAmount) return current;
-      return { ...current, actualAmount: paymentAmount };
-    });
-  }, [paymentAmount, paymentMethod]);
+    setPaymentTransferDetail((current) => applyDefaultTransferSender(current, defaultTransferSenderName));
+  }, [defaultTransferSenderName, paymentMethod]);
 
   // Sync tax invoice state from folio response
   useEffect(() => {
@@ -250,6 +250,7 @@ export function ReservationFolioModal({
     [businessDate, isReadonly, reservationId, voidedRowIds]
   );
   const depositHeld = folio?.summary.deposit_held ?? 0;
+  const depositSplitTargetAmount = fromSatang(Math.max(0, toSatang(depositAmount) - toSatang(depositHeld)));
   const depositHeldNote =
     depositHeld <= 0
       ? (folio?.reservation.deposit_note ?? "").trim() || null
@@ -264,6 +265,21 @@ export function ReservationFolioModal({
       setError("Payment amount must be greater than 0.");
       return;
     }
+    const transferPayload = paymentMethod === "transfer"
+      ? buildTransferDetailPayload(paymentTransferDetail)
+      : undefined;
+    const exactDepositSplit = paymentMethod === "transfer" && transferPayload
+      ? getExactTransferDepositSplit({
+          folioAmount: amount,
+          actualTransferAmount: paymentTransferDetail.actualAmount,
+          depositTargetAmount: depositSplitTargetAmount,
+        })
+      : { ok: false as const };
+    const transferDepositSplit = exactDepositSplit.ok && window.confirm(
+      `Actual transfer ฿${formatMoney(exactDepositSplit.actualTransferAmount)} matches room payment ฿${formatMoney(exactDepositSplit.folioAmount)} + deposit ฿${formatMoney(exactDepositSplit.depositAmount)}.\n\nRecord the remainder as Deposit and keep both rows in one Transfer Set?`
+    )
+      ? { deposit_amount: exactDepositSplit.depositAmount }
+      : undefined;
 
     try {
       setSubmittingPayment(true);
@@ -276,10 +292,9 @@ export function ReservationFolioModal({
           method: paymentMethod,
           amount,
           note: paymentMethod === "transfer" ? paymentTransferDetail.note.trim() || undefined : paymentNote.trim() || undefined,
-          transfer_detail: paymentMethod === "transfer"
-            ? buildTransferDetailPayload(paymentTransferDetail, amount)
-            : undefined,
-          require_transfer_detail: paymentMethod === "transfer",
+          transfer_detail: transferPayload,
+          require_transfer_detail: paymentMethod === "transfer" && !!transferPayload,
+          transfer_deposit_split: transferDepositSplit,
         }),
       });
       const data = await response.json().catch(() => null);
@@ -294,7 +309,7 @@ export function ReservationFolioModal({
 
       setPaymentAmount("");
       setPaymentNote("");
-      setPaymentTransferDetail(createDefaultTransferDetailDraft());
+      setPaymentTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
       setShowPaymentForm(false);
       window.dispatchEvent(new CustomEvent("billing-panel-refresh"));
       onInlineRefresh?.();
@@ -660,7 +675,7 @@ export function ReservationFolioModal({
                           const nextMethod = event.target.value as PaymentMethod;
                           setPaymentMethod(nextMethod);
                           if (nextMethod === "transfer") {
-                            setPaymentTransferDetail(createDefaultTransferDetailDraft(paymentAmount));
+                            setPaymentTransferDetail(createDefaultTransferDetailDraft("", defaultTransferSenderName));
                           }
                         }}
                         disabled={submittingPayment}

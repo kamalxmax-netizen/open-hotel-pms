@@ -1,7 +1,11 @@
 "use client";
 
 import { Landmark } from "lucide-react";
-import type { ManualTransferDetailPayload } from "@/lib/transfer-detail";
+import {
+  buildManualTransferDetailPayloadFromDraft,
+  normalizeTransferSenderName,
+  type ManualTransferDetailPayload,
+} from "@/lib/transfer-detail";
 
 export type TransferDetailDraft = {
   actualAmount: string;
@@ -16,10 +20,10 @@ function toLocalDateTimeInput(date: Date): string {
   return local.toISOString().slice(0, 16);
 }
 
-export function createDefaultTransferDetailDraft(amount = ""): TransferDetailDraft {
+export function createDefaultTransferDetailDraft(amount = "", senderName = ""): TransferDetailDraft {
   return {
     actualAmount: amount,
-    senderName: "",
+    senderName: normalizeTransferSenderName(senderName),
     bankRef: "",
     transferAt: toLocalDateTimeInput(new Date()),
     note: "",
@@ -27,17 +31,9 @@ export function createDefaultTransferDetailDraft(amount = ""): TransferDetailDra
 }
 
 export function buildTransferDetailPayload(
-  draft: TransferDetailDraft,
-  fallbackAmount: string | number
-): ManualTransferDetailPayload {
-  const actualAmount = draft.actualAmount.trim() || String(fallbackAmount);
-  return {
-    actual_amount: actualAmount,
-    sender_name: draft.senderName.trim() || null,
-    bank_ref: draft.bankRef.trim() || null,
-    transfer_at: draft.transferAt ? new Date(draft.transferAt).toISOString() : "",
-    note: draft.note.trim() || null,
-  };
+  draft: TransferDetailDraft
+): ManualTransferDetailPayload | undefined {
+  return buildManualTransferDetailPayloadFromDraft(draft);
 }
 
 type TransferDetailFieldsProps = {

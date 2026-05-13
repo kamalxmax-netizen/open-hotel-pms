@@ -15,6 +15,7 @@ import { requireStaffAuth } from "@/lib/server-auth";
 import { fromSatang, toSatang } from "@/lib/money";
 import { parseManualTransferDetail } from "@/lib/transfer-detail";
 import { buildTransferAuditNote } from "@/lib/transfer-audit";
+import { getExactTransferDepositSplit } from "@/lib/transfer-deposit-split";
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -75,6 +76,14 @@ function isMissingReservationFolioReopenedError(error: { message?: string | null
 function toNumber(value: unknown): number {
     const n = typeof value === "number" ? value : Number(value);
     return Number.isFinite(n) ? n : 0;
+}
+
+function parseTransferDepositSplitAmount(input: unknown): number | null {
+    if (!input || typeof input !== "object") return null;
+    const raw = (input as { deposit_amount?: unknown }).deposit_amount;
+    const satang = toSatang(raw);
+    if (satang <= 0) return null;
+    return fromSatang(satang);
 }
 
 function normalizePaymentRows(rows: any[]): PaymentRow[] {
@@ -303,6 +312,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const transferDetailRequired = body.require_transfer_detail === true;
         const transferDetailInput = body.transfer_detail;
         const shouldCreateTransferEvent = method === "transfer" && (transferDetailRequired || transferDetailInput != null);
+        const transferDepositSplitInput = body.transfer_deposit_split;
+        const transferDepositSplitAmount = parseTransferDepositSplitAmount(transferDepositSplitInput);
         const cashierName =
             typeof body.cashier_name === "string" && body.cashier_name.trim().length > 0
                 ? body.cashier_name.trim()
@@ -320,6 +331,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
         if (method !== "transfer" && transferDetailInput != null) {
             return NextResponse.json({ error: "Transfer detail can only be used with transfer method." }, { status: 400 });
+        }
+        if (transferDepositSplitInput != null && transferDepositSplitAmount === null) {
+            return NextResponse.json({ error: "transfer_deposit_split.deposit_amount must be > 0." }, { status: 400 });
+        }
+        if (transferDepositSplitAmount !== null && (method !== "transfer" || !shouldCreateTransferEvent)) {
+            return NextResponse.json({ error: "Transfer deposit split requires transfer detail." }, { status: 400 });
+        }
+        if (transferDepositSplitAmount !== null && (txType !== "payment" || isRecordOnly)) {
+            return NextResponse.json({ error: "Transfer deposit split is only allowed for normal transfer payments." }, { status: 400 });
         }
 
         const supabase = createServerSupabaseClient();
@@ -379,6 +399,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const revenueCategory = txType === "deposit" ? "deposit" : "room_revenue";
         const paidAt = new Date().toISOString();
         let transferEventId: string | null = null;
+        let shouldSyncDepositSnapshot = txType === "deposit";
 
         if (shouldCreateTransferEvent) {
             const parsedTransfer = parseManualTransferDetail(transferDetailInput);
@@ -389,27 +410,60 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             const auth = await requireStaffAuth(supabase, request, { denyRoles: [] });
             if (auth.error) return auth.error;
 
-            const { data: transferCreateRows, error: transferCreateError } = await supabase.rpc(
-                "create_manual_transfer_payment",
-                {
-                    p_reservation_id: effectiveReservationId,
-                    p_tx_type: txType,
-                    p_method: method,
-                    p_folio_amount: amount,
-                    p_folio_note: note,
-                    p_revenue_category: revenueCategory,
-                    p_cashier_name: cashierName,
-                    p_is_record_only: isRecordOnly,
-                    p_paid_date: businessDate,
-                    p_paid_at: paidAt,
-                    p_recorded_by: auth.user?.id ?? null,
-                    p_actual_amount: parsedTransfer.value.actualAmount,
-                    p_sender_name: parsedTransfer.value.senderName,
-                    p_bank_ref: parsedTransfer.value.bankRef,
-                    p_transfer_at: parsedTransfer.value.transferAt,
-                    p_transfer_note: parsedTransfer.value.note,
-                }
-            );
+            const exactDepositSplit = transferDepositSplitAmount !== null
+                ? getExactTransferDepositSplit({
+                    folioAmount: amount,
+                    actualTransferAmount: parsedTransfer.value.actualAmount,
+                    depositTargetAmount: transferDepositSplitAmount,
+                })
+                : { ok: false as const };
+            if (transferDepositSplitAmount !== null && !exactDepositSplit.ok) {
+                return NextResponse.json(
+                    { error: "Transfer deposit split requires actual transfer amount to equal payment amount plus deposit amount." },
+                    { status: 400 }
+                );
+            }
+
+            const { data: transferCreateRows, error: transferCreateError } = exactDepositSplit.ok
+                ? await supabase.rpc(
+                    "create_manual_transfer_payment_with_deposit_split",
+                    {
+                        p_reservation_id: effectiveReservationId,
+                        p_folio_amount: exactDepositSplit.folioAmount,
+                        p_deposit_amount: exactDepositSplit.depositAmount,
+                        p_folio_note: note,
+                        p_cashier_name: cashierName,
+                        p_paid_date: businessDate,
+                        p_paid_at: paidAt,
+                        p_recorded_by: auth.user?.id ?? null,
+                        p_actual_amount: exactDepositSplit.actualTransferAmount,
+                        p_sender_name: parsedTransfer.value.senderName,
+                        p_bank_ref: parsedTransfer.value.bankRef,
+                        p_transfer_at: parsedTransfer.value.transferAt,
+                        p_transfer_note: parsedTransfer.value.note,
+                    }
+                )
+                : await supabase.rpc(
+                    "create_manual_transfer_payment",
+                    {
+                        p_reservation_id: effectiveReservationId,
+                        p_tx_type: txType,
+                        p_method: method,
+                        p_folio_amount: amount,
+                        p_folio_note: note,
+                        p_revenue_category: revenueCategory,
+                        p_cashier_name: cashierName,
+                        p_is_record_only: isRecordOnly,
+                        p_paid_date: businessDate,
+                        p_paid_at: paidAt,
+                        p_recorded_by: auth.user?.id ?? null,
+                        p_actual_amount: parsedTransfer.value.actualAmount,
+                        p_sender_name: parsedTransfer.value.senderName,
+                        p_bank_ref: parsedTransfer.value.bankRef,
+                        p_transfer_at: parsedTransfer.value.transferAt,
+                        p_transfer_note: parsedTransfer.value.note,
+                    }
+                );
 
             if (transferCreateError) {
                 return NextResponse.json({ error: transferCreateError.message }, { status: 500 });
@@ -419,26 +473,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             const paymentId = typeof created?.payment_id === "string"
                 ? created.payment_id
                 : null;
+            const depositPaymentId = typeof created?.deposit_payment_id === "string"
+                ? created.deposit_payment_id
+                : null;
             transferEventId = typeof created?.transfer_event_id === "string"
                 ? created.transfer_event_id
                 : null;
             if (paymentId && transferEventId) {
+                const totalAmount = exactDepositSplit.ok
+                    ? exactDepositSplit.actualTransferAmount
+                    : amount;
                 const syncedNote = buildTransferAuditNote({
                     transferAt: parsedTransfer.value.transferAt,
                     senderName: parsedTransfer.value.senderName,
                     bankRef: parsedTransfer.value.bankRef,
                     fallbackLabel: null,
-                    totalAmount: amount,
+                    totalAmount,
                 });
+                const syncedIds = depositPaymentId ? [paymentId, depositPaymentId] : [paymentId];
                 const { error: syncNoteError } = await supabase
                     .from("folio_payments")
                     .update({
                         note: syncedNote,
                         transfer_audit_original_note: note,
                     })
-                    .eq("id", paymentId);
+                    .in("id", syncedIds);
                 if (syncNoteError) {
                     return NextResponse.json({ error: syncNoteError.message }, { status: 500 });
+                }
+                if (depositPaymentId) {
+                    shouldSyncDepositSnapshot = true;
                 }
             }
         } else {
@@ -462,7 +526,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             }
         }
 
-        if (txType === "deposit") {
+        if (shouldSyncDepositSnapshot) {
             const { data: depositRows, error: depositRowsError } = await supabase
                 .from("folio_payments")
                 .select("method, amount, note, paid_at, tx_type, revenue_category")
@@ -519,7 +583,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         const payments = await fetchPaymentRowsWithOptionalFeeFields(supabase, effectiveReservationId);
         const refreshedReservation =
-            txType === "deposit"
+            shouldSyncDepositSnapshot
                 ? await supabase
                     .from("reservations")
                     .select("total_price, deposit_amount")
