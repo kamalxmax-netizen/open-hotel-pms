@@ -5,6 +5,7 @@ import {
   Archive,
   ArrowDownUp,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Layers2,
   Link2,
@@ -20,9 +21,10 @@ import {
   addPaymentIds,
   addSameBookingGroupPaymentIds,
   addSameGroupNamePaymentIds,
-  canSaveTransferSet,
   DRAFT_TRANSFER_SET_EDITOR_ID,
+  getTransferSetEditorIdAfterSelect,
   getTransferSetEditorId,
+  getTransferSetSaveAction,
   removePaymentId,
   shouldBlockTransferSetSwitch,
   shouldCollapseTransferSetEditor,
@@ -201,7 +203,7 @@ function humanizeTransferSetError(message: string): string {
 function transferSetBadge(selected: boolean, pendingMerge: boolean) {
   if (selected) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-black hc:bg-white hc:text-black">
+      <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-sky-900 hc:bg-sky-200 hc:text-sky-950">
         <CheckCircle2 className="h-3 w-3" />
         Selected
       </span>
@@ -209,14 +211,14 @@ function transferSetBadge(selected: boolean, pendingMerge: boolean) {
   }
   if (pendingMerge) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-black hc:bg-white hc:text-black">
+      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-cyan-900 hc:bg-cyan-200 hc:text-cyan-950">
         <Link2 className="h-3 w-3" />
         Will Merge
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300 hc:border-black hc:bg-white hc:text-black">
+    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300 hc:border-emerald-900 hc:bg-emerald-200 hc:text-emerald-950">
       <Layers2 className="h-3 w-3" />
       Transfer Set
     </span>
@@ -225,7 +227,7 @@ function transferSetBadge(selected: boolean, pendingMerge: boolean) {
 
 function needsDetailBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300 hc:border-black hc:bg-white hc:text-black">
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300 hc:border-amber-900 hc:bg-amber-200 hc:text-amber-950">
       <Clock className="h-3 w-3" />
       Needs Detail
     </span>
@@ -428,7 +430,7 @@ export default function TransferAuditPage() {
     keepCurrentEditorOpen();
   }
 
-  function selectTransferSet(row: TransferAuditRow) {
+  function selectTransferSet(row: TransferAuditRow, options: { expand?: boolean } = {}) {
     if (shouldBlockTransferSetSwitch({ dirty, draftSet, currentSetId: selectedSetId, nextSetId: row.id })) {
       blockUnsavedSetSwitch();
       return;
@@ -438,7 +440,19 @@ export default function TransferAuditPage() {
     setSelectedSetId(row.id);
     setSelectedPaymentIds(row.payment_ids);
     setForm(defaultFormForSet(row));
-    setExpandedSetEditorId(getTransferSetEditorId(false, row.id));
+    setExpandedSetEditorId(getTransferSetEditorIdAfterSelect({
+      nextSetId: row.id,
+      currentEditorId: expandedSetEditorId,
+      expand: options.expand === true,
+    }));
+  }
+
+  function toggleTransferSetEditor(row: TransferAuditRow) {
+    if (!draftSet && selectedSetId === row.id && expandedSetEditorId === row.id) {
+      setExpandedSetEditorId(null);
+      return;
+    }
+    selectTransferSet(row, { expand: true });
   }
 
   function startDraftSet(candidate?: TransferCandidate) {
@@ -498,7 +512,7 @@ export default function TransferAuditPage() {
     }
     if (selectedPaymentIds.length === 0) {
       if (selectedSet) {
-        await archiveSelectedSet(false);
+        await archiveSelectedSet(true);
         return;
       }
       setWorkspaceError("Add at least one booking row before saving this Transfer Set.");
@@ -579,6 +593,11 @@ export default function TransferAuditPage() {
   }
 
   const selectedLabel = draftSet ? "New Transfer Set" : selectedSet ? "Selected Transfer Set" : "No Transfer Set selected";
+  const transferSetSaveAction = getTransferSetSaveAction({
+    draftSet,
+    hasSelectedSet: Boolean(selectedSet),
+    selectedPaymentCount: selectedPaymentIds.length,
+  });
 
   function renderTransferSetEditor() {
     return (
@@ -623,7 +642,7 @@ export default function TransferAuditPage() {
         </div>
 
         {workspaceError && (
-          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 hc:border-black hc:bg-white hc:text-black">
+          <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 hc:border-rose-900 hc:bg-rose-100 hc:text-rose-950">
             {workspaceError}
           </div>
         )}
@@ -637,16 +656,22 @@ export default function TransferAuditPage() {
           </button>
           <button
             type="button"
-            className="btn btn-primary col-span-2 h-10"
+            className={`btn col-span-2 h-10 ${
+              transferSetSaveAction === "archive_empty"
+                ? "border-amber-700 bg-amber-600 text-white hover:bg-amber-700 hc:border-amber-950 hc:bg-amber-300 hc:text-amber-950"
+                : "btn-primary"
+            }`}
             onClick={() => void saveSet()}
-            disabled={saving || !canSaveTransferSet({
-              draftSet,
-              hasSelectedSet: Boolean(selectedSet),
-              selectedPaymentCount: selectedPaymentIds.length,
-            })}
+            disabled={saving || transferSetSaveAction === "disabled"}
           >
-            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {!draftSet && selectedSet && selectedPaymentIds.length === 0 ? "Save Empty Set" : "Save Set"}
+            {saving ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : transferSetSaveAction === "archive_empty" ? (
+              <Archive className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {transferSetSaveAction === "archive_empty" ? "Archive Empty Set" : "Save Set"}
           </button>
         </div>
       </div>
@@ -699,7 +724,7 @@ export default function TransferAuditPage() {
           <span>Needs Detail {workspaceSplit.needsDetail.length}</span>
           <span>Total ฿{formatMoney(summary.total_amount)}</span>
           {dirty && (
-            <span className="rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-black hc:bg-white hc:text-black">
+            <span className="rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-sky-900 hc:bg-sky-100 hc:text-sky-950">
               Unsaved changes
             </span>
           )}
@@ -707,7 +732,7 @@ export default function TransferAuditPage() {
       </div>
 
       {error && (
-        <div className="mx-5 mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 hc:border-black hc:bg-white hc:text-black">
+        <div className="mx-5 mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 hc:border-rose-900 hc:bg-rose-100 hc:text-rose-950">
           {error}
         </div>
       )}
@@ -736,29 +761,29 @@ export default function TransferAuditPage() {
             {draftSet && (
               <div
                 data-transfer-set-controls="true"
-                className="rounded-lg border-2 border-sky-300 bg-sky-50/80 p-3 shadow-sm transition-colors dark:border-sky-500/30 dark:bg-sky-500/15 hc:border-black hc:bg-white"
+                className="rounded-lg border-2 border-sky-300 bg-sky-50/80 p-3 shadow-sm transition-colors dark:border-sky-500/30 dark:bg-sky-500/15 hc:border-sky-900 hc:bg-sky-100 hc:text-sky-950"
               >
-                <button
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => setExpandedSetEditorId(DRAFT_TRANSFER_SET_EDITOR_ID)}
-                  aria-expanded={expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-sky-800 dark:text-sky-200 hc:text-black">
-                        {selectedLabel}
-                      </div>
-                      <div className="font-mono text-2xl font-black text-[var(--text-primary)] hc:text-black">฿{formatMoney(selectedTotal)}</div>
-                      <div className="mt-1 text-xs text-[var(--text-secondary)] hc:text-black">
-                        {selectedPaymentIds.length} linked folio row{selectedPaymentIds.length === 1 ? "" : "s"}
-                      </div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-sky-800 dark:text-sky-200 hc:text-sky-950">
+                      {selectedLabel}
                     </div>
-                    <span className="rounded-full border border-sky-300 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-black hc:bg-white hc:text-black">
-                      {expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID ? "Open" : "Expand"}
-                    </span>
+                    <div className="font-mono text-2xl font-black text-[var(--text-primary)] hc:text-sky-950">฿{formatMoney(selectedTotal)}</div>
+                    <div className="mt-1 text-xs text-[var(--text-secondary)] hc:text-sky-900">
+                      {selectedPaymentIds.length} linked folio row{selectedPaymentIds.length === 1 ? "" : "s"}
+                    </div>
                   </div>
-                </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-300 bg-white text-sky-800 transition hover:bg-sky-100 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-sky-900 hc:bg-sky-200 hc:text-sky-950 hc:hover:bg-sky-300"
+                    onClick={() => setExpandedSetEditorId((current) => current === DRAFT_TRANSFER_SET_EDITOR_ID ? null : DRAFT_TRANSFER_SET_EDITOR_ID)}
+                    aria-expanded={expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID}
+                    aria-label={expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID ? "Collapse Transfer Set details" : "Expand Transfer Set details"}
+                    title={expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID ? "Collapse details" : "Expand details"}
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
 
                 {expandedSetEditorId === DRAFT_TRANSFER_SET_EDITOR_ID && renderTransferSetEditor()}
               </div>
@@ -779,37 +804,45 @@ export default function TransferAuditPage() {
                   <div
                     key={row.id}
                     data-transfer-set-controls="true"
-                    className={`w-full rounded-lg border p-3 text-left shadow-sm transition-colors hc:border-black hc:bg-white hc:text-black ${
+                    className={`w-full rounded-lg border p-3 text-left shadow-sm transition-colors hc:text-black ${
                       selected
-                        ? "border-sky-300 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/15"
+                        ? "border-sky-300 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/15 hc:border-sky-900 hc:bg-sky-100"
                         : pendingMerge
-                          ? "border-sky-200 bg-sky-50/60 dark:border-sky-500/20 dark:bg-sky-500/10"
-                          : "border-[var(--border-default)] bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)]"
+                          ? "border-sky-200 bg-sky-50/60 dark:border-sky-500/20 dark:bg-sky-500/10 hc:border-cyan-900 hc:bg-cyan-100"
+                          : "border-[var(--border-default)] bg-[var(--bg-body)] hover:bg-[var(--bg-surface-hover)] hc:border-slate-700 hc:bg-white hc:hover:bg-slate-100"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => selectTransferSet(row)}
-                      className="w-full text-left"
-                      aria-expanded={expanded}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        {transferSetBadge(selected, pendingMerge)}
-                        <span className="font-mono text-lg font-black text-[var(--text-primary)] hc:text-black">฿{formatMoney(row.amount)}</span>
-                      </div>
-                      <div className="mt-2 text-sm font-bold text-[var(--text-primary)] hc:text-black">{formatDateTime(row.transfer_at)}</div>
-                      <div className="mt-1 truncate text-xs text-[var(--text-secondary)] hc:text-black">
-                        {row.sender_name || compactJoin(row.guest_names, "No sender")} · Ref {row.bank_ref || "-"}
-                      </div>
-                      <div className="mt-1 truncate text-xs text-[var(--text-muted)] hc:text-black">
-                        {compactJoin(row.booking_codes)} · {compactJoin(row.room_numbers, "No room")}
-                      </div>
-                      {selected && !expanded && (
-                        <div className="mt-2 text-xs font-bold text-sky-800 dark:text-sky-200 hc:text-black">
-                          Click to expand details
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => selectTransferSet(row)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          {transferSetBadge(selected, pendingMerge)}
+                          <span className="font-mono text-lg font-black text-[var(--text-primary)] hc:text-black">฿{formatMoney(row.amount)}</span>
                         </div>
-                      )}
-                    </button>
+                        <div className="mt-2 text-sm font-bold text-[var(--text-primary)] hc:text-black">{formatDateTime(row.transfer_at)}</div>
+                        <div className="mt-1 truncate text-xs text-[var(--text-secondary)] hc:text-black">
+                          {row.sender_name || compactJoin(row.guest_names, "No sender")} · Ref {row.bank_ref || "-"}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-[var(--text-muted)] hc:text-black">
+                          {compactJoin(row.booking_codes)} · {compactJoin(row.room_numbers, "No room")}
+                        </div>
+                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleTransferSetEditor(row)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-300 bg-white text-sky-800 transition hover:bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-sky-900 hc:bg-sky-200 hc:text-sky-950 hc:hover:bg-sky-300"
+                          aria-expanded={expanded}
+                          aria-label={expanded ? "Collapse Transfer Set details" : "Expand Transfer Set details"}
+                          title={expanded ? "Collapse details" : "Expand details"}
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                        </button>
+                      </div>
+                    </div>
                     {expanded && renderTransferSetEditor()}
                     {!selected && (selectedSet || draftSet) && (
                       <div className="mt-3">
@@ -819,7 +852,7 @@ export default function TransferAuditPage() {
                             event.stopPropagation();
                             mergeTransferSetIntoSelected(row);
                           }}
-                          className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-white px-2 text-xs font-black text-sky-800 hover:bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-black hc:bg-white hc:text-black"
+                          className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-white px-2 text-xs font-black text-sky-800 hover:bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 hc:border-sky-900 hc:bg-sky-100 hc:text-sky-950 hc:hover:bg-sky-200"
                         >
                           Merge into selected Set
                         </button>
@@ -843,7 +876,7 @@ export default function TransferAuditPage() {
                 Select a Transfer Set or click a Needs Detail card to start.
               </div>
             ) : selectedCandidates.length === 0 ? (
-              <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-4 py-10 text-center text-sm font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300 hc:border-black hc:bg-white hc:text-black">
+              <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-4 py-10 text-center text-sm font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950">
                 This Transfer Set has no booking rows selected.
               </div>
             ) : (
@@ -852,7 +885,7 @@ export default function TransferAuditPage() {
                   key={candidate.id}
                   type="button"
                   onClick={() => removeCandidateFromSelectedSet(candidate)}
-                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 hc:border-black hc:bg-white hc:text-black"
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950 hc:hover:bg-amber-200"
                   title="Move to Needs Detail"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -863,13 +896,13 @@ export default function TransferAuditPage() {
                     <div className="shrink-0 text-right">
                       <div className="font-mono text-base font-black text-[var(--text-primary)] hc:text-black">฿{formatMoney(candidate.amount)}</div>
                       {candidate.transfer_event_id && candidate.transfer_event_id !== currentSetId && (
-                        <div className="mt-1 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-black text-sky-800 dark:bg-sky-500/15 dark:text-sky-200 hc:border hc:border-black hc:bg-white hc:text-black">
+                        <div className="mt-1 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-black text-sky-800 dark:bg-sky-500/15 dark:text-sky-200 hc:border hc:border-sky-900 hc:bg-sky-200 hc:text-sky-950">
                           Merge
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300 hc:text-black">
+                  <div className="mt-2 flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300 hc:text-amber-950">
                     <Undo2 className="h-3.5 w-3.5" />
                     Move to Needs Detail
                   </div>
@@ -910,7 +943,7 @@ export default function TransferAuditPage() {
                   key={candidate.id}
                   type="button"
                   onClick={() => addCandidateToSelectedSet(candidate)}
-                  className="w-full rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-amber-500/30 dark:bg-amber-500/15 dark:hover:bg-sky-500/10 hc:border-black hc:bg-white hc:text-black"
+                  className="w-full rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-amber-500/30 dark:bg-amber-500/15 dark:hover:bg-sky-500/10 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950 hc:hover:bg-sky-100"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -920,7 +953,7 @@ export default function TransferAuditPage() {
                     <span className="shrink-0 font-mono text-base font-black text-[var(--text-primary)] hc:text-black">฿{formatMoney(candidate.amount)}</span>
                   </div>
                   <div className="mt-2 truncate text-xs text-[var(--text-muted)] hc:text-black">{candidate.note || "-"}</div>
-                  <div className="mt-2 flex items-center gap-2 text-xs font-bold text-sky-800 dark:text-sky-200 hc:text-black">
+                  <div className="mt-2 flex items-center gap-2 text-xs font-bold text-sky-800 dark:text-sky-200 hc:text-sky-950">
                     <Plus className="h-3.5 w-3.5" />
                     {selectedSet || draftSet ? "Add to selected Set" : "Start new Transfer Set"}
                   </div>

@@ -5,7 +5,9 @@ import {
   addSameGroupNamePaymentIds,
   canSaveTransferSet,
   DRAFT_TRANSFER_SET_EDITOR_ID,
+  getTransferSetEditorIdAfterSelect,
   getTransferSetEditorId,
+  getTransferSetSaveAction,
   removePaymentId,
   shouldBlockTransferSetSwitch,
   shouldCollapseTransferSetEditor,
@@ -71,6 +73,32 @@ assert.equal(shouldCollapseTransferSetEditor({ targetInsideTransferSetControls: 
 assert.equal(canSaveTransferSet({ draftSet: true, hasSelectedSet: false, selectedPaymentCount: 0 }), false);
 assert.equal(canSaveTransferSet({ draftSet: true, hasSelectedSet: false, selectedPaymentCount: 1 }), true);
 assert.equal(canSaveTransferSet({ draftSet: false, hasSelectedSet: true, selectedPaymentCount: 0 }), true);
+
+assert.equal(
+  getTransferSetSaveAction({ draftSet: false, hasSelectedSet: true, selectedPaymentCount: 0 }),
+  "archive_empty"
+);
+assert.equal(
+  getTransferSetSaveAction({ draftSet: false, hasSelectedSet: true, selectedPaymentCount: 1 }),
+  "save"
+);
+assert.equal(
+  getTransferSetSaveAction({ draftSet: true, hasSelectedSet: false, selectedPaymentCount: 0 }),
+  "disabled"
+);
+
+assert.equal(
+  getTransferSetEditorIdAfterSelect({ nextSetId: "set-b", currentEditorId: "set-a", expand: false }),
+  null
+);
+assert.equal(
+  getTransferSetEditorIdAfterSelect({ nextSetId: "set-b", currentEditorId: "set-a", expand: true }),
+  "set-b"
+);
+assert.equal(
+  getTransferSetEditorIdAfterSelect({ nextSetId: "set-a", currentEditorId: "set-a", expand: false }),
+  "set-a"
+);
 
 assert.equal(
   shouldBlockTransferSetSwitch({ dirty: true, draftSet: false, currentSetId: "set-a", nextSetId: "set-b" }),
