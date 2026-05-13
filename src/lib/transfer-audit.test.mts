@@ -29,6 +29,25 @@ const future = parseTransferAuditDetail(
 );
 assert.equal(future.ok, false);
 
+const originalTz = process.env.TZ;
+try {
+  process.env.TZ = "UTC";
+  const bangkokLocal = parseTransferAuditDetail(
+    { transfer_at: "2026-05-12T18:00" },
+    new Date("2026-05-12T11:30:00.000Z")
+  );
+  assert.equal(bangkokLocal.ok, true);
+  if (bangkokLocal.ok) {
+    assert.equal(bangkokLocal.value.transferAt, "2026-05-12T11:00:00.000Z");
+  }
+} finally {
+  if (originalTz === undefined) {
+    delete process.env.TZ;
+  } else {
+    process.env.TZ = originalTz;
+  }
+}
+
 assert.equal(roundMoney("1,234.567"), 1234.57);
 assert.equal(bangkokDateFromIso("2026-05-12T17:30:00.000Z"), "2026-05-13");
 assert.equal(

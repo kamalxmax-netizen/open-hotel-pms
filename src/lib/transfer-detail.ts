@@ -34,6 +34,25 @@ export type ManualTransferDetailParseResult =
   | { ok: true; value: ManualTransferDetail }
   | { ok: false; error: string };
 
+const BANGKOK_TIME_ZONE = "Asia/Bangkok";
+const BANGKOK_OFFSET = "+07:00";
+const LOCAL_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/;
+const EXPLICIT_OFFSET_RE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+function parseBangkokDateTime(value: string): Date {
+  const raw = value.trim();
+  if (!raw) return new Date(Number.NaN);
+  if (LOCAL_DATE_TIME_RE.test(raw) && !EXPLICIT_OFFSET_RE.test(raw)) {
+    return new Date(`${raw}${BANGKOK_OFFSET}`);
+  }
+  return new Date(raw);
+}
+
+function bangkokDateTimeLocalToIso(value: string): string {
+  const parsed = parseBangkokDateTime(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+}
+
 function compactText(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.replace(/\s+/g, " ").trim();
@@ -55,6 +74,22 @@ export function applyDefaultTransferSender<T extends { senderName: string }>(
   return { ...draft, senderName: normalized };
 }
 
+export function formatBangkokDateTimeLocalInput(value: Date | string | null | undefined = new Date()): string {
+  const date = typeof value === "string" ? new Date(value) : value instanceof Date ? value : new Date();
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BANGKOK_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(safeDate);
+  const byType = new Map(parts.map((part) => [part.type, part.value]));
+  return `${byType.get("year")}-${byType.get("month")}-${byType.get("day")}T${byType.get("hour")}:${byType.get("minute")}`;
+}
+
 export function buildManualTransferDetailPayloadFromDraft(
   draft: ManualTransferDetailDraftInput
 ): ManualTransferDetailPayload | undefined {
@@ -66,7 +101,7 @@ export function buildManualTransferDetailPayloadFromDraft(
     actual_amount: actualAmount,
     sender_name: normalizeTransferSenderName(draft.senderName) || null,
     bank_ref: compactText(draft.bankRef, 120),
-    transfer_at: transferAt ? new Date(transferAt).toISOString() : "",
+    transfer_at: transferAt ? bangkokDateTimeLocalToIso(transferAt) : "",
     note: compactText(draft.note, 500),
   };
 }
@@ -95,7 +130,7 @@ export function parseManualTransferDetail(
     return { ok: false, error: "Transfer time is required." };
   }
 
-  const transferAtDate = new Date(rawTransferAt);
+  const transferAtDate = parseBangkokDateTime(rawTransferAt);
   if (Number.isNaN(transferAtDate.getTime())) {
     return { ok: false, error: "Transfer time is invalid." };
   }

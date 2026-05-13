@@ -22,6 +22,19 @@ export function roundMoney(value: unknown): number {
   return Math.round(n * 100) / 100;
 }
 
+const BANGKOK_OFFSET = "+07:00";
+const LOCAL_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/;
+const EXPLICIT_OFFSET_RE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+function parseBangkokDateTime(value: string): Date {
+  const raw = value.trim();
+  if (!raw) return new Date(Number.NaN);
+  if (LOCAL_DATE_TIME_RE.test(raw) && !EXPLICIT_OFFSET_RE.test(raw)) {
+    return new Date(`${raw}${BANGKOK_OFFSET}`);
+  }
+  return new Date(raw);
+}
+
 function compactText(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.replace(/\s+/g, " ").trim();
@@ -42,7 +55,7 @@ export function parseTransferAuditDetail(
     return { ok: false, error: "Transfer time is required." };
   }
 
-  const transferAtDate = new Date(rawTransferAt);
+  const transferAtDate = parseBangkokDateTime(rawTransferAt);
   if (Number.isNaN(transferAtDate.getTime())) {
     return { ok: false, error: "Transfer time is invalid." };
   }

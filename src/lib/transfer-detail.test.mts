@@ -103,7 +103,47 @@ assert.deepEqual(
     actual_amount: "700",
     sender_name: "Mary Smith",
     bank_ref: "SCB700",
-    transfer_at: new Date("2026-05-12T11:45").toISOString(),
+    transfer_at: "2026-05-12T04:45:00.000Z",
     note: "Deposit included",
   }
 );
+
+const originalTz = process.env.TZ;
+try {
+  process.env.TZ = "UTC";
+
+  assert.deepEqual(
+    buildManualTransferDetailPayloadFromDraft({
+      actualAmount: "700",
+      senderName: "Mary Smith",
+      bankRef: "SCB700",
+      transferAt: "2026-05-12T11:45",
+      note: "Deposit included",
+    }),
+    {
+      actual_amount: "700",
+      sender_name: "Mary Smith",
+      bank_ref: "SCB700",
+      transfer_at: "2026-05-12T04:45:00.000Z",
+      note: "Deposit included",
+    }
+  );
+
+  const bangkokLocalParsed = parseManualTransferDetail(
+    {
+      actual_amount: "700",
+      transfer_at: "2026-05-12T11:45",
+    },
+    new Date("2026-05-12T05:00:00.000Z")
+  );
+  assert.equal(bangkokLocalParsed.ok, true);
+  if (bangkokLocalParsed.ok) {
+    assert.equal(bangkokLocalParsed.value.transferAt, "2026-05-12T04:45:00.000Z");
+  }
+} finally {
+  if (originalTz === undefined) {
+    delete process.env.TZ;
+  } else {
+    process.env.TZ = originalTz;
+  }
+}

@@ -3,6 +3,7 @@
 import { Landmark } from "lucide-react";
 import {
   buildManualTransferDetailPayloadFromDraft,
+  formatBangkokDateTimeLocalInput,
   normalizeTransferSenderName,
   type ManualTransferDetailPayload,
 } from "@/lib/transfer-detail";
@@ -15,17 +16,12 @@ export type TransferDetailDraft = {
   note: string;
 };
 
-function toLocalDateTimeInput(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
-
 export function createDefaultTransferDetailDraft(amount = "", senderName = ""): TransferDetailDraft {
   return {
     actualAmount: amount,
     senderName: normalizeTransferSenderName(senderName),
     bankRef: "",
-    transferAt: toLocalDateTimeInput(new Date()),
+    transferAt: formatBangkokDateTimeLocalInput(new Date()),
     note: "",
   };
 }
