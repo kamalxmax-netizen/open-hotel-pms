@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/folio-fees";
 import { resolveAdvancePaymentStatus } from "@/lib/payment-daily-accounting";
+import { buildPaymentDailyTransferAuditHref } from "@/lib/payment-daily-transfer-audit-link";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -1168,9 +1169,13 @@ export async function GET(request: NextRequest) {
         : note;
 
       const isAdvance = Boolean(reservation?.checkin_date && reservation.checkin_date > businessDate);
-      const transferAuditHref = method === "transfer" && payment.transfer_event_id
-        ? `/pms/transfer-audit?focus=${encodeURIComponent(String(payment.transfer_event_id))}`
-        : null;
+      const transferAuditHref = buildPaymentDailyTransferAuditHref({
+        method,
+        transferEventId: payment.transfer_event_id,
+        paymentId: payment.id,
+        paidDate: payment.paid_date,
+        fallbackDate: businessDate,
+      });
 
       if (isAdvance) {
         if (!reservation) continue;

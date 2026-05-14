@@ -5,6 +5,7 @@ import {
   addSameGroupNamePaymentIds,
   canSaveTransferSet,
   DRAFT_TRANSFER_SET_EDITOR_ID,
+  findTransferAuditFocusedRow,
   getTransferSetEditorIdAfterSelect,
   getTransferSetEditorId,
   getTransferSetSaveAction,
@@ -50,6 +51,36 @@ assert.deepEqual(
     selected: [candidates[0]],
     needsDetail: [candidates[1], candidates[2], candidates[3], candidates[6]],
   }
+);
+
+assert.deepEqual(
+  findTransferAuditFocusedRow(
+    [
+      { id: "set-a", transfer_event_id: "event-a", payment_id: "p1", payment_ids: ["p1", "p2"] },
+      { id: "p3", transfer_event_id: null, payment_id: "p3", payment_ids: ["p3"] },
+    ],
+    "p2"
+  ),
+  { id: "set-a", transfer_event_id: "event-a", payment_id: "p1", payment_ids: ["p1", "p2"] }
+);
+
+assert.deepEqual(
+  findTransferAuditFocusedRow(
+    [
+      { id: "set-a", transfer_event_id: "event-a", payment_id: "p1", payment_ids: ["p1", "p2"] },
+      { id: "p3", transfer_event_id: null, payment_id: "p3", payment_ids: ["p3"] },
+    ],
+    "p3"
+  ),
+  { id: "p3", transfer_event_id: null, payment_id: "p3", payment_ids: ["p3"] }
+);
+
+assert.equal(
+  findTransferAuditFocusedRow(
+    [{ id: "set-a", transfer_event_id: "event-a", payment_id: "p1", payment_ids: ["p1"] }],
+    "missing"
+  ),
+  null
 );
 
 assert.deepEqual(
