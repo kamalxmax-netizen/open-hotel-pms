@@ -204,8 +204,8 @@ function GroupBadge({ row }: { row: PaymentDailyGroupFields }) {
     );
 }
 
-function NoteCapsules({ notes }: { notes: PaymentDailyNote[] }) {
-    if (notes.length === 0) return <span className="text-[var(--text-muted)]">-</span>;
+function NoteCapsules({ notes, empty = <span className="text-[var(--text-muted)]">-</span> }: { notes: PaymentDailyNote[]; empty?: React.ReactNode }) {
+    if (notes.length === 0) return empty;
     return (
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none max-w-full pb-0.5">
             {notes.map((note, i) => {
@@ -1008,13 +1008,7 @@ export default function PaymentDailyPage() {
                                                                         {adv.payment_status === "deposit" && <InlineBadge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">มัดจำ</InlineBadge>}
                                                                         {adv.payment_status === "partial" && <InlineBadge className="bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">บางส่วน</InlineBadge>}
                                                                         {adv.payment_status === "full" && <InlineBadge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">เต็ม</InlineBadge>}
-                                                                        {adv.notes.length > 0 && (
-                                                                            <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none pb-0.5" title={adv.notes.map((note) => note.title || note.label).join(" | ")}>
-                                                                                {adv.notes.map((note, idx) => (
-                                                                                    <InlineBadge key={`${adv.booking_code}-note-${idx}`} title={note.title || note.label} className={`${noteBadgeClass(note.label)} shrink-0 max-w-[220px] truncate`}>{note.label}</InlineBadge>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
+                                                                        <NoteCapsules notes={adv.notes} empty={null} />
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -1047,13 +1041,7 @@ export default function PaymentDailyPage() {
                                                             {adv.payment_status === "deposit" && <InlineBadge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">มัดจำ</InlineBadge>}
                                                             {adv.payment_status === "partial" && <InlineBadge className="bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400">บางส่วน</InlineBadge>}
                                                             {adv.payment_status === "full" && <InlineBadge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">เต็ม</InlineBadge>}
-                                                            {adv.notes.length > 0 && (
-                                                                <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-none pb-0.5" title={adv.notes.map((note) => note.title || note.label).join(" | ")}>
-                                                                    {adv.notes.map((note, idx) => (
-                                                                        <InlineBadge key={`${adv.booking_code}-note-${idx}`} title={note.title || note.label} className={`${noteBadgeClass(note.label)} shrink-0 max-w-[220px] truncate`}>{note.label}</InlineBadge>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+                                                            <NoteCapsules notes={adv.notes} empty={null} />
                                                         </div>
                                                     </td>
                                                 </tr>
