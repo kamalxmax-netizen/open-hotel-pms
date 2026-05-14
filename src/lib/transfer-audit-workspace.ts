@@ -5,6 +5,13 @@ export type TransferAuditWorkspaceCandidate = {
   group_name?: string | null;
 };
 
+export type TransferAuditFocusableRow = {
+  id?: string | null;
+  transfer_event_id?: string | null;
+  payment_id?: string | null;
+  payment_ids?: string[] | null;
+};
+
 export const DRAFT_TRANSFER_SET_EDITOR_ID = "__draft_transfer_set__";
 
 function uniqueIds(ids: string[]): string[] {
@@ -33,6 +40,21 @@ export function addPaymentIds(selectedPaymentIds: string[], paymentIdsToAdd: str
 export function removePaymentId(selectedPaymentIds: string[], paymentId: string): string[] {
   const idToRemove = String(paymentId ?? "").trim();
   return uniqueIds(selectedPaymentIds).filter((id) => id !== idToRemove);
+}
+
+export function findTransferAuditFocusedRow<T extends TransferAuditFocusableRow>(
+  rows: T[],
+  focusId?: string | null
+): T | null {
+  const focus = String(focusId ?? "").trim();
+  if (!focus) return null;
+
+  return rows.find((row) => {
+    if (String(row.id ?? "").trim() === focus) return true;
+    if (String(row.transfer_event_id ?? "").trim() === focus) return true;
+    if (String(row.payment_id ?? "").trim() === focus) return true;
+    return Array.isArray(row.payment_ids) && row.payment_ids.some((id) => String(id ?? "").trim() === focus);
+  }) ?? null;
 }
 
 export function getTransferSetEditorId(draftSet: boolean, selectedSetId?: string | null): string | null {

@@ -22,6 +22,7 @@ import {
   addSameBookingGroupPaymentIds,
   addSameGroupNamePaymentIds,
   DRAFT_TRANSFER_SET_EDITOR_ID,
+  findTransferAuditFocusedRow,
   getTransferSetEditorIdAfterSelect,
   getTransferSetEditorId,
   getTransferSetSaveAction,
@@ -109,6 +110,21 @@ function todayInBangkok(): string {
   const mm = String(base.getMonth() + 1).padStart(2, "0");
   const dd = String(base.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function readSearchParams(): URLSearchParams | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search);
+}
+
+function readDateParam(params: URLSearchParams | null, name: string): string | null {
+  const value = params?.get(name)?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function readFocusParam(params: URLSearchParams | null): string | null {
+  const value = params?.get("focus")?.trim() ?? "";
+  return value || null;
 }
 
 function formatDateTime(value: string | null): string {
@@ -271,11 +287,17 @@ export default function TransferAuditPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [workspaceError, setWorkspaceError] = useState("");
+  const [urlParamsReady, setUrlParamsReady] = useState(false);
   const focusRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    focusRef.current = params.get("focus");
+    const params = readSearchParams();
+    const nextFrom = readDateParam(params, "from");
+    const nextTo = readDateParam(params, "to");
+    focusRef.current = readFocusParam(params);
+    if (nextFrom) setFrom(nextFrom);
+    if (nextTo || nextFrom) setTo(nextTo ?? nextFrom ?? todayInBangkok());
+    setUrlParamsReady(true);
   }, []);
 
   useEffect(() => {
@@ -381,21 +403,45 @@ export default function TransferAuditPage() {
       setCandidates(nextCandidates);
       setSummary(data.summary ?? EMPTY_SUMMARY);
 
-      const nextTransferSets = nextRows.filter((row) => row.kind === "grouped");
       const focusId = focusRef.current;
       if (focusId) {
-        const focused = nextTransferSets.find((row) => row.transfer_event_id === focusId || row.id === focusId);
-        if (focused) {
+        const focused = findTransferAuditFocusedRow(nextRows, focusId);
+        const focusedCandidateId = focused?.payment_id ?? focused?.payment_ids?.[0] ?? focusId;
+        const focusedCandidate = nextCandidates.find((candidate) => candidate.id === focusedCandidateId)
+          ?? focused?.payments.find((candidate) => candidate.id === focusedCandidateId)
+          ?? focused?.payments[0];
+        focusRef.current = null;
+
+        if (focused?.kind === "grouped") {
           setDraftSet(false);
           setSelectedSetId(focused.id);
           setSelectedPaymentIds(focused.payment_ids);
           setForm(defaultFormForSet(focused));
           setExpandedSetEditorId(getTransferSetEditorId(false, focused.id));
-          focusRef.current = null;
+          setWorkspaceError("");
           return nextRows;
         }
+        if (focusedCandidate) {
+          setDraftSet(true);
+          setSelectedSetId(null);
+          setSelectedPaymentIds([focusedCandidate.id]);
+          setForm(defaultFormForCandidate(focusedCandidate));
+          setExpandedSetEditorId(getTransferSetEditorId(true, null));
+          setWorkspaceError("");
+          return nextRows;
+        }
+
+        setDraftSet(false);
+        setSelectedSetId(null);
+        setSelectedPaymentIds([]);
+        setForm(defaultFormForSet(null));
+        setExpandedSetEditorId(null);
+        setWorkspaceError("");
+        setError("Focused transfer was not found in this date range.");
+        return nextRows;
       }
 
+      const nextTransferSets = nextRows.filter((row) => row.kind === "grouped");
       setSelectedSetId((current) => {
         if (draftSet) return current;
         if (current && nextTransferSets.some((row) => row.id === current)) return current;
@@ -418,8 +464,9 @@ export default function TransferAuditPage() {
   }, [draftSet, from, to]);
 
   useEffect(() => {
+    if (!urlParamsReady) return;
     void fetchRows();
-  }, [fetchRows]);
+  }, [fetchRows, urlParamsReady]);
 
   function keepCurrentEditorOpen() {
     setExpandedSetEditorId(getTransferSetEditorId(draftSet, selectedSetId));
