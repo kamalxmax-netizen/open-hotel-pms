@@ -1,5 +1,12 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/folio-fees";
+import {
+    summarizeRevenueRange,
+    type RevenueExtraRow,
+    type RevenueNightRow,
+    type RevenuePosOrderRow,
+    type RevenueRoomRow,
+} from "@/lib/revenue-reporting";
 import { NextRequest, NextResponse } from "next/server";
 
 function toLocalDate(d: Date) {
@@ -19,148 +26,85 @@ export async function GET(request: NextRequest) {
         const startDate = (sp.get("start") ?? "").trim() || businessDate;
         const endDate = (sp.get("end") ?? "").trim() || businessDate;
 
-        // ── 1. Total sellable rooms ─────────────────────────────
-        const { count: totalRooms } = await supabase
-            .from("rooms")
-            .select("id", { count: "exact", head: true })
-            .eq("is_sellable", true);
-
-        const sellableRooms = totalRooms ?? 0;
-
-        // ── 2. Reservation nights + POS in date range ───────────
-        // Join reservation_nights → reservations to get source & status
-        const [{ data: nights, error: nightsErr }, { data: posOrders, error: posErr }] = await Promise.all([
+        const [{ data: rooms, error: roomsErr }, { data: nights, error: nightsErr }, { data: posOrders, error: posErr }, { data: extraRows, error: extraErr }] = await Promise.all([
+            supabase
+                .from("rooms")
+                .select("id, room_number, floor_number, is_dayuse, closure_reason, is_sellable")
+                .eq("is_sellable", true),
             supabase
                 .from("reservation_nights")
                 .select(`
+        room_id,
         stay_date,
         nightly_price,
         cancelled_at,
         reservations!inner (
+          id,
           source,
-          status
+          status,
+          is_dayuse
         )
       `)
                 .gte("stay_date", startDate)
                 .lte("stay_date", endDate)
-                .is("cancelled_at", null),
+                .is("cancelled_at", null)
+                .neq("reservations.status", "cancelled"),
             supabase
                 .from("pos_orders")
-                .select("total, order_date")
+                .select("total, order_date, status")
                 .gte("order_date", startDate)
                 .lte("order_date", endDate)
-                .eq("status", "completed")
+                .eq("status", "completed"),
+            supabase
+                .from("folio_payments")
+                .select("id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+                .gte("paid_date", startDate)
+                .lte("paid_date", endDate)
+                .eq("revenue_category", "extra_charge")
+                .in("tx_type", ["payment", "refund"]),
         ]);
 
+        if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
         if (nightsErr) return NextResponse.json({ error: nightsErr.message }, { status: 500 });
         if (posErr) return NextResponse.json({ error: posErr.message }, { status: 500 });
+        if (extraErr) return NextResponse.json({ error: extraErr.message }, { status: 500 });
 
-        // ── 3. Number of distinct days in range ─────────────────
-        const msPerDay = 86400000;
-        const start = new Date(startDate + "T00:00:00");
-        const end = new Date(endDate + "T00:00:00");
-        const dayCount = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
-        const roomNights = sellableRooms * dayCount; // total available room-nights
-
-        // ── 4. Aggregate per source and total ───────────────────
-        type Source = "walkin" | "ota" | "direct" | "agent";
-        const sources: Source[] = ["walkin", "ota", "direct", "agent"];
-
-        const agg: Record<Source, { nights: number; revenue: number }> = {
-            walkin: { nights: 0, revenue: 0 },
-            ota: { nights: 0, revenue: 0 },
-            direct: { nights: 0, revenue: 0 },
-            agent: { nights: 0, revenue: 0 }
-        };
-
-        let roomRevenue = 0;
-        let occupiedNights = 0;
-
-        for (const night of nights ?? []) {
-            const res = night.reservations as unknown as { source: Source; status: string };
-            const price = Number(night.nightly_price ?? 0);
-            const src = res?.source ?? "walkin";
-
-            if (agg[src]) {
-                agg[src].nights++;
-                agg[src].revenue += price;
+        const scopedExtraRows = (extraRows ?? []) as RevenueExtraRow[];
+        const extraIds = scopedExtraRows.map((row) => String(row.id ?? "").trim()).filter(Boolean);
+        const laterVoidedExtraOriginalIds = new Set<string>();
+        if (extraIds.length > 0) {
+            const { data: laterVoidRows, error: laterVoidError } = await supabase
+                .from("folio_payments")
+                .select("void_of")
+                .eq("is_void_reversal", true)
+                .in("void_of", extraIds);
+            if (laterVoidError) return NextResponse.json({ error: laterVoidError.message }, { status: 500 });
+            for (const row of laterVoidRows ?? []) {
+                const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
+                if (originalId) laterVoidedExtraOriginalIds.add(originalId);
             }
-
-            roomRevenue += price;
-            occupiedNights += 1;
         }
 
-        const posRevenue = (posOrders ?? []).reduce((sum, row) => sum + Number(row.total ?? 0), 0);
-        const totalRevenue = roomRevenue + posRevenue;
-
-        // ── 5. KPI calculations ─────────────────────────────────
-        const occupancyPct = roomNights > 0
-            ? Math.round((occupiedNights / roomNights) * 10000) / 100  // 2 dp %
-            : 0;
-
-        const adr = occupiedNights > 0
-            ? Math.round(roomRevenue / occupiedNights)
-            : 0;
-
-        const revpar = roomNights > 0
-            ? Math.round((roomRevenue / roomNights) * 100) / 100
-            : 0;
-
-        // ── 6. Per-day breakdown (for chart) ────────────────────
-        const dayMap = new Map<string, { revenue: number; occupied: number }>();
-        for (const night of nights ?? []) {
-            const d = night.stay_date;
-            const price = Number(night.nightly_price ?? 0);
-            if (!dayMap.has(d)) dayMap.set(d, { revenue: 0, occupied: 0 });
-            const entry = dayMap.get(d)!;
-            entry.revenue += price;
-            entry.occupied += 1;
-        }
-
-        // Fill in zero days
-        const allDays: { date: string; revenue: number; occupied: number; occ_pct: number }[] = [];
-        let cur = new Date(startDate + "T00:00:00");
-        const endD = new Date(endDate + "T00:00:00");
-        while (cur <= endD) {
-            const ds = toLocalDate(cur);
-            const d = dayMap.get(ds) ?? { revenue: 0, occupied: 0 };
-            allDays.push({
-                date: ds,
-                revenue: d.revenue,
-                occupied: d.occupied,
-                occ_pct: sellableRooms > 0
-                    ? Math.round((d.occupied / sellableRooms) * 10000) / 100
-                    : 0
-            });
-            cur.setDate(cur.getDate() + 1);
-        }
+        const report = summarizeRevenueRange({
+            rooms: (rooms ?? []) as RevenueRoomRow[],
+            nights: (nights ?? []) as RevenueNightRow[],
+            extraRows: scopedExtraRows,
+            laterVoidedExtraOriginalIds,
+            posOrders: (posOrders ?? []) as RevenuePosOrderRow[],
+            startDate,
+            endDate,
+        });
 
         return NextResponse.json({
             success: true,
             business_date: businessDate,
             start_date: startDate,
             end_date: endDate,
-            day_count: dayCount,
-            sellable_rooms: sellableRooms,
-            kpi: {
-                total_revenue: totalRevenue,
-                room_revenue: roomRevenue,
-                pos_revenue: posRevenue,
-                occupied_nights: occupiedNights,
-                room_nights: roomNights,
-                occupancy_pct: occupancyPct,
-                adr,
-                revpar
-            },
-            by_source: sources.map((src) => ({
-                source: src,
-                nights: agg[src].nights,
-                revenue: agg[src].revenue,
-                share_pct: roomRevenue > 0
-                    ? Math.round((agg[src].revenue / roomRevenue) * 1000) / 10
-                    : 0
-            })),
-            by_day: allDays
+            day_count: report.day_count,
+            sellable_rooms: report.sellable_rooms,
+            kpi: report.kpi,
+            by_source: report.by_source,
+            by_day: report.by_day
         });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -6,6 +6,11 @@ import { useCallback, useEffect, useState } from "react";
 type DayRow = {
     date: string;
     revenue: number;
+    room_revenue: number;
+    dayuse_revenue: number;
+    extra_revenue: number;
+    pos_revenue: number;
+    total_revenue: number;
     occupied: number;
     occ_pct: number;
 };
@@ -26,6 +31,8 @@ type RevenueData = {
     kpi: {
         total_revenue: number;
         room_revenue: number;
+        dayuse_revenue: number;
+        extra_revenue: number;
         pos_revenue: number;
         occupied_nights: number;
         room_nights: number;
@@ -275,14 +282,15 @@ export default function RevenuePage() {
             {view === "summary" && (
                 <>
                     {/* KPI Tiles */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-                        {loading ? Array.from({ length: 7 }).map((_, i) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                        {loading ? Array.from({ length: 8 }).map((_, i) => (
                             <div key={i} className="card p-4 animate-pulse">
                                 <div className="h-2 w-16 rounded bg-[var(--bg-muted)] mb-3" />
                                 <div className="h-6 w-20 rounded bg-[var(--bg-muted)]" />
                             </div>
                         )) : <>
-                            <KpiTile label="Hotel Revenue" value={kpi ? fmtMoney(kpi.total_revenue) : "—"} sub={`${data?.day_count}d · Room + POS`} />
+                            <KpiTile label="Hotel Revenue" value={kpi ? fmtMoney(kpi.total_revenue) : "—"} sub={`${data?.day_count}d · Room + Day-use + Extra + POS`} />
+                            <KpiTile label="Extra Revenue" value={kpi ? fmtMoney(kpi.extra_revenue) : "—"} sub="Posted charges" />
                             <KpiTile label="POS Revenue" value={kpi ? fmtMoney(kpi.pos_revenue) : "—"} sub="Included in Hotel Revenue" />
                             <KpiTile label="Rooms Sold" value={kpi ? fmt(kpi.occupied_nights) : "—"} sub={`of ${kpi?.room_nights ?? "—"} avail.`} />
                             <KpiTile label="Occupancy" value={kpi ? `${kpi.occupancy_pct.toFixed(1)}%` : "—"}
@@ -298,7 +306,7 @@ export default function RevenuePage() {
 
                         {/* Source Breakdown */}
                         <div className="card p-4 lg:col-span-2">
-                            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Revenue by Source</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-table-cell)] mb-3">Room Revenue by Source</h2>
                             {loading ? (
                                 <div className="space-y-3">
                                     {Array.from({ length: 4 }).map((_, i) => (
@@ -319,7 +327,7 @@ export default function RevenuePage() {
                                                 </div>
                                                 <div className="flex items-center justify-between text-xs opacity-70 mt-0.5">
                                                     <span>{s.nights} nights</span>
-                                                    <span>{s.share_pct.toFixed(1)}% of total</span>
+                                                    <span>{s.share_pct.toFixed(1)}% of room rev.</span>
                                                 </div>
                                                 {/* Share bar */}
                                                 <div className="mt-1.5 h-1.5 rounded-full bg-black/10 overflow-hidden">
@@ -343,7 +351,11 @@ export default function RevenuePage() {
                                     <thead>
                                         <tr className="border-b border-[var(--border-subtle)]">
                                             <th className="text-left pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Date</th>
-                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Revenue</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Room</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Day-use</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Extra</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">POS</th>
+                                            <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Total</th>
                                             <th className="text-right pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide pr-2">Rooms</th>
                                             <th className="pb-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide min-w-[120px]">Occupancy</th>
                                         </tr>
@@ -353,6 +365,10 @@ export default function RevenuePage() {
                                             Array.from({ length: 7 }).map((_, i) => (
                                                 <tr key={i} className="border-b border-[var(--border-subtle)]">
                                                     <td className="py-2"><div className="h-3 w-20 rounded bg-[var(--bg-muted)] animate-pulse" /></td>
+                                                    <td className="py-2 text-right"><div className="h-3 w-12 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
+                                                    <td className="py-2 text-right"><div className="h-3 w-12 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
+                                                    <td className="py-2 text-right"><div className="h-3 w-12 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
+                                                    <td className="py-2 text-right"><div className="h-3 w-12 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
                                                     <td className="py-2 text-right"><div className="h-3 w-14 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
                                                     <td className="py-2 text-right pr-2"><div className="h-3 w-8 rounded bg-[var(--bg-muted)] animate-pulse ml-auto" /></td>
                                                     <td className="py-2"><div className="h-2 w-full rounded-full bg-[var(--bg-muted)] animate-pulse" /></td>
@@ -371,8 +387,20 @@ export default function RevenuePage() {
                                                             <span className={`text-sm font-semibold ${isToday ? "text-brand-700" : "text-[var(--text-table-cell)]"}`}>{day.date}</span>
                                                             {isToday && <span className="ml-1.5 text-[9px] rounded bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-400 px-1 py-0.5 font-bold">TODAY</span>}
                                                         </td>
+                                                        <td className="py-2 text-right text-[var(--text-secondary)]">
+                                                            {day.room_revenue > 0 ? fmtMoney(day.room_revenue) : <span className="text-[var(--text-muted)]">—</span>}
+                                                        </td>
+                                                        <td className="py-2 text-right text-[var(--text-secondary)]">
+                                                            {day.dayuse_revenue > 0 ? fmtMoney(day.dayuse_revenue) : <span className="text-[var(--text-muted)]">—</span>}
+                                                        </td>
+                                                        <td className="py-2 text-right text-[var(--text-secondary)]">
+                                                            {day.extra_revenue !== 0 ? fmtMoney(day.extra_revenue) : <span className="text-[var(--text-muted)]">—</span>}
+                                                        </td>
+                                                        <td className="py-2 text-right text-[var(--text-secondary)]">
+                                                            {day.pos_revenue > 0 ? fmtMoney(day.pos_revenue) : <span className="text-[var(--text-muted)]">—</span>}
+                                                        </td>
                                                         <td className="py-2 text-right font-semibold text-[var(--text-primary)]">
-                                                            {day.revenue > 0 ? fmtMoney(day.revenue) : <span className="text-[var(--text-muted)]">—</span>}
+                                                            {day.total_revenue > 0 ? fmtMoney(day.total_revenue) : <span className="text-[var(--text-muted)]">—</span>}
                                                         </td>
                                                         <td className="py-2 text-right pr-3 text-[var(--text-secondary)] text-sm">{day.occupied}/{data?.sellable_rooms ?? "?"}</td>
                                                         <td className="py-2"><OccBar pct={day.occ_pct} /></td>
@@ -385,6 +413,10 @@ export default function RevenuePage() {
                                         <tfoot>
                                             <tr className="border-t-2 border-[var(--border-default)]">
                                                 <td className="pt-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Total</td>
+                                                <td className="pt-2 text-right font-bold text-[var(--text-secondary)]">{fmtMoney(kpi?.room_revenue ?? 0)}</td>
+                                                <td className="pt-2 text-right font-bold text-[var(--text-secondary)]">{fmtMoney(kpi?.dayuse_revenue ?? 0)}</td>
+                                                <td className="pt-2 text-right font-bold text-[var(--text-secondary)]">{fmtMoney(kpi?.extra_revenue ?? 0)}</td>
+                                                <td className="pt-2 text-right font-bold text-[var(--text-secondary)]">{fmtMoney(kpi?.pos_revenue ?? 0)}</td>
                                                 <td className="pt-2 text-right font-bold text-[var(--text-primary)]">{fmtMoney(kpi?.total_revenue ?? 0)}</td>
                                                 <td className="pt-2 text-right pr-3 font-bold text-[var(--text-table-cell)]">{kpi?.occupied_nights}</td>
                                                 <td className="pt-2">

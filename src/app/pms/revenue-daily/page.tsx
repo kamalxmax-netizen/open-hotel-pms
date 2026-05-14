@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 /* ─── Types ─────────────────────────────────────────── */
 type RevenueDailyRoom = {
-    room_number: string;
+    room_number: string | null;
     floor_number: number;
     is_occupied: boolean;
     nightly_price: number;
@@ -24,10 +24,12 @@ type RevenueDailySummary = {
     total_revenue: number;
     room_revenue: number;
     dayuse_revenue: number;
+    extra_revenue: number;
     pos_revenue: number;
     occupied_rooms: number;
     occupancy_pct: number;
     adr: number;
+    revpar: number;
 };
 
 type RevenueDailyData = {
@@ -127,8 +129,9 @@ export default function RevenueDailyPage() {
 
     const roomsTotal = floors.reduce((sum, floor) => sum + filteredRooms.filter(r => r.floor_number === floor).reduce((acc, r) => acc + (r.nightly_price || 0), 0), 0);
     const duTotal = showDayUse ? (data?.summary.dayuse_revenue || 0) : 0;
+    const extraTotal = data?.summary.extra_revenue || 0;
     const posTotal = showPos ? (data?.pos_total || 0) : 0;
-    const totalDisplayed = roomsTotal + duTotal + posTotal;
+    const totalDisplayed = roomsTotal + duTotal + extraTotal + posTotal;
 
     return (
         <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full pb-20">
@@ -136,7 +139,7 @@ export default function RevenueDailyPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-[var(--text-primary)]">Revenue Daily Summary</h1>
-                    <p className="text-sm text-[var(--text-secondary)]">Per-room breakdown of nightly revenue.</p>
+                    <p className="text-sm text-[var(--text-secondary)]">Per-room breakdown of hotel revenue.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input
@@ -195,10 +198,15 @@ export default function RevenueDailyPage() {
 
             {/* KPIs */}
             {data && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                     <KpiTile
                         label="Total Revenue"
                         value={fmtMoney(data.summary.total_revenue + (showPos ? data.summary.pos_revenue : 0))}
+                    />
+                    <KpiTile
+                        label="Extra Charge"
+                        value={fmtMoney(data.summary.extra_revenue)}
+                        sub="Posted charges"
                     />
                     <KpiTile
                         label="Occupied Rooms"
@@ -212,6 +220,11 @@ export default function RevenueDailyPage() {
                     <KpiTile
                         label="ADR"
                         value={fmtMoney(data.summary.adr)}
+                    />
+                    <KpiTile
+                        label="RevPAR"
+                        value={fmtMoney(data.summary.revpar)}
+                        sub="Overnight rooms only"
                     />
                 </div>
             )}
@@ -245,8 +258,8 @@ export default function RevenueDailyPage() {
                                                 </td>
                                             </tr>
                                             {/* Rooms */}
-                                            {floorRooms.map(r => (
-                                                <tr key={r.room_number} className={`hover:bg-[var(--bg-body)] transition-colors ${!r.is_occupied ? "text-[var(--text-muted)] bg-[var(--bg-body)]/50" : ""}`}>
+                                            {floorRooms.map((r, index) => (
+                                                <tr key={r.room_number ?? `room-${floor}-${index}`} className={`hover:bg-[var(--bg-body)] transition-colors ${!r.is_occupied ? "text-[var(--text-muted)] bg-[var(--bg-body)]/50" : ""}`}>
                                                     <td className="px-4 py-3 font-medium">
                                                         {r.room_number}
                                                         {r.is_occupied && <span className="ml-2 inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" title="Occupied" />}
@@ -310,6 +323,21 @@ export default function RevenueDailyPage() {
                                         </>
                                     );
                                 })()}
+
+                                {data.summary.extra_revenue !== 0 && (
+                                    <>
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-2 bg-sky-50/50 font-bold text-sky-800 border-b border-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/25">
+                                                EXTRA CHARGE
+                                            </td>
+                                        </tr>
+                                        <tr className="hover:bg-[var(--bg-body)]">
+                                            <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">Extra Charge</td>
+                                            <td className="px-4 py-3 text-right font-semibold">{fmtMoney(data.summary.extra_revenue)}</td>
+                                            <td className="px-4 py-3 text-[var(--text-secondary)]" colSpan={3}>Posted folio charges, including unpaid post-only charges</td>
+                                        </tr>
+                                    </>
+                                )}
 
                                 {showPos && data.pos_total > 0 && (() => {
                                     return (
