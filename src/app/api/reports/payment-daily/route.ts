@@ -1106,10 +1106,10 @@ export async function GET(request: NextRequest) {
       const category = String(payment.revenue_category ?? "").trim().toLowerCase();
       const isPosDeposit = isPosDepositRecord(rawTxType, category, note);
       const isPosRemainder = rawTxType === "payment" && category === "pos_revenue" && note.toLowerCase().includes("pos remainder");
-      const isRecordOnly = payment.is_record_only === true && !isPosDeposit && !isPosRemainder;
+      const isRecordOnly = payment.is_record_only === true;
       const isCorrection = payment.is_correction === true;
-      const method: MethodKey = isPosDeposit ? "cash" : rawMethod;
-      const txType: TxType = isPosDeposit ? "payment" : rawTxType;
+      const method: MethodKey = rawMethod;
+      const txType: TxType = rawTxType;
 
       const reservation = reservationId ? reservationMap.get(reservationId) : undefined;
       if (!reservation && !isPosDeposit) continue;
@@ -1382,6 +1382,26 @@ export async function GET(request: NextRequest) {
     for (const row of (posRes.data ?? []) as PosOrderRow[]) {
       const method = normalizeMethod(row.payment_method);
       const amount = Number(row.total ?? 0);
+      applyMethodMovement(posMethodsRaw, method, "payment", amount);
+    }
+    for (const payment of paymentRowsForDay) {
+      const paymentId = String(payment.id ?? "").trim();
+      if (paymentId && voidedPaymentIds.has(paymentId)) continue;
+      if (payment.is_void_reversal === true) continue;
+      if (!payment.pos_order_id) continue;
+
+      const rawTxType = normalizeTxType(payment.tx_type);
+      const category = String(payment.revenue_category ?? "").trim().toLowerCase();
+      if (rawTxType !== "payment" || category !== "pos_revenue") continue;
+
+      const note = String(payment.note ?? "").trim();
+      const isPosDeposit = isPosDepositRecord(rawTxType, category, note);
+      const isPosRemainder = note.toLowerCase().includes("pos remainder");
+      if (!isPosDeposit && !isPosRemainder) continue;
+
+      const method = isPosDeposit ? "cash" : normalizeMethod(payment.method);
+      const amount = Number(payment.amount ?? 0);
+      if (amount <= 0) continue;
       applyMethodMovement(posMethodsRaw, method, "payment", amount);
     }
     const pos = finalizeMethods(posMethodsRaw);
