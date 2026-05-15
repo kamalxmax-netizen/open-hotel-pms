@@ -1,4 +1,5 @@
 import { checkProfileCompleteness } from "@/lib/guest-profile-completeness";
+import { checkGroupWizardPrimaryCompleteness } from "@/lib/group-checkin-profile-completeness";
 import { toRoundedMoney } from "@/lib/group-checkin-wizard";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -153,12 +154,21 @@ export async function getGroupReservationLines(
   groupId: string,
   businessDate: string
 ): Promise<WizardReservationLine[]> {
+  const { data: groupRow, error: groupError } = await supabase
+    .from("booking_groups")
+    .select("contact_phone")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (groupError) throw new Error(groupError.message);
+  const groupContactPhone = String(groupRow?.contact_phone ?? "").trim() || null;
+
   const { data: rawReservations, error: resError } = await supabase
     .from("reservations")
     .select(`
       id,
       booking_code,
       guest_name,
+      phone,
       guest_profile_id,
       checkin_date,
       checkout_date,
@@ -346,7 +356,10 @@ export async function getGroupReservationLines(
       .sort((a, b) => a.display_order - b.display_order);
 
     const accompanyingGuestProfileIds = accompanyingRows.map((guest) => guest.guest_profile_id);
-    const completeness = checkProfileCompleteness(primaryProfile ?? null);
+    const completeness = checkGroupWizardPrimaryCompleteness(primaryProfile ?? null, {
+      reservationPhone: row.phone,
+      groupContactPhone,
+    });
 
     const primarySummary = primaryGuestProfileId
       ? {
