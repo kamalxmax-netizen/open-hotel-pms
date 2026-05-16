@@ -1,20 +1,27 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { restoreLoanItemStock } from "@/lib/loan-item-stock";
+import {
+    buildTraceStatusUpdate,
+    parseTraceAction,
+    TRACE_ACTION_ERROR,
+    type TraceStatus,
+} from "@/lib/trace-status";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 /* ─── PATCH /api/traces/[id] ─────────────────────────────────
-   Mark a trace as done or cancelled
-   Body: { action: "done" | "cancelled", resolved_by?: string }
+   Mark a trace as done/cancelled, or restore a cancelled trace
+   Body: { action: "done" | "cancelled" | "restore", resolved_by?: string }
 ─────────────────────────────────────────────────────────── */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
     try {
         const supabase = createServerSupabaseClient();
-        const { action, resolved_by } = await request.json();
+        const { action: rawAction, resolved_by } = await request.json();
+        const action = parseTraceAction(rawAction);
 
-        if (!["done", "cancelled"].includes(action)) {
-            return NextResponse.json({ error: "action must be 'done' or 'cancelled'" }, { status: 400 });
+        if (!action) {
+            return NextResponse.json({ error: TRACE_ACTION_ERROR }, { status: 400 });
         }
 
         // Fetch the trace first (to restore stock on done)
@@ -27,7 +34,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         if (fetchErr || !trace) {
             return NextResponse.json({ error: "Trace not found" }, { status: 404 });
         }
-        if (trace.status !== "open") {
+        const transition = buildTraceStatusUpdate({
+            action,
+            currentStatus: String(trace.status) as TraceStatus,
+            nowIso: new Date().toISOString(),
+            resolvedBy: resolved_by ?? null,
+        });
+        if (!transition.ok) {
+            return NextResponse.json({ error: transition.error }, { status: transition.status });
+        }
+        if (!transition.update) {
             return NextResponse.json({
                 success: true,
                 trace: {
@@ -39,18 +55,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         }
 
         // If marking done and had a loan item → restore stock
-        if (action === "done" && trace.loan_item_code && trace.loan_qty > 0) {
+        if (transition.update.status === "done" && trace.loan_item_code && trace.loan_qty > 0) {
             await restoreLoanItemStock(supabase, String(trace.loan_item_code), Number(trace.loan_qty));
         }
 
         // Update trace status
         const { data, error } = await supabase
             .from("reservation_traces")
-            .update({
-                status: action,
-                resolved_at: new Date().toISOString(),
-                resolved_by: resolved_by ?? null
-            })
+            .update(transition.update)
             .eq("id", params.id)
             .select("*")
             .single();
