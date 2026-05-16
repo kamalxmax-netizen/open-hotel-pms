@@ -4,6 +4,7 @@ import { expandPlannedMoveNights, listOverlappingPlannedRoomHolds } from "@/lib/
 import { MobileCheckinError, requireMobileCheckinAuth } from "@/lib/mobile-checkin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+import { getRoomIdsBlockedOnNight, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -56,8 +57,8 @@ export async function GET(request: NextRequest) {
       supabase.from("room_types").select("id, name_en, code"),
       supabase
         .from("room_blocks")
-        .select("room_id, start_date, end_date")
-        .eq("block_type", "OOO")
+        .select("room_id, block_type, start_date, end_date")
+        .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
         .lt("start_date", checkout)
         .gt("end_date", checkin),
       supabase
@@ -92,16 +93,7 @@ export async function GET(request: NextRequest) {
     }));
 
     const blockedRoomIdsByNight = new Map<string, Set<string>>();
-    for (const night of nights) blockedRoomIdsByNight.set(night, new Set<string>());
-    for (const block of oooBlocks ?? []) {
-      const roomId = String((block as any).room_id ?? "");
-      const startDate = String((block as any).start_date ?? "");
-      const endDate = String((block as any).end_date ?? "");
-      if (!roomId || !startDate || !endDate) continue;
-      for (const night of nights) {
-        if (startDate <= night && endDate > night) blockedRoomIdsByNight.get(night)?.add(roomId);
-      }
-    }
+    for (const night of nights) blockedRoomIdsByNight.set(night, getRoomIdsBlockedOnNight(oooBlocks, night));
 
     const capacityByTypePerNight: Record<number, Record<string, number>> = {};
     for (const [typeIdText, roomIds] of Object.entries(roomIdsByType)) {

@@ -17,6 +17,7 @@ import {
   linkPrimaryGuestToReservation,
   ReservationPartyError,
 } from "@/lib/reservation-party";
+import { getRoomIdsBlockedOnNight, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
 import { cleanBookingNameInput } from "@/lib/text-normalization";
 import { normalizePhoneForStorage } from "@/lib/phone";
 
@@ -396,7 +397,7 @@ async function loadBlockedRoomIdsByNight(params: {
     .from("room_blocks")
     .select("room_id, start_date, end_date, block_type")
     .in("room_id", roomIds)
-    .in("block_type", ["OOO", "OOS"])
+    .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
     .lt("start_date", checkoutDate)
     .gt("end_date", checkinDate);
 
@@ -404,18 +405,8 @@ async function loadBlockedRoomIdsByNight(params: {
     throw new ContinuousStayPlanError(error.message ?? "Failed to load room blocks.", 500);
   }
 
-  for (const block of data ?? []) {
-    const roomId = String((block as any)?.room_id ?? "");
-    const startDate = String((block as any)?.start_date ?? "");
-    const endDate = String((block as any)?.end_date ?? "");
-    if (!roomId || !startDate || !endDate) continue;
-    for (const night of nights) {
-      if (startDate <= night && endDate > night) {
-        const set = map.get(night) ?? new Set<string>();
-        set.add(roomId);
-        map.set(night, set);
-      }
-    }
+  for (const night of nights) {
+    map.set(night, getRoomIdsBlockedOnNight(data, night));
   }
 
   return map;

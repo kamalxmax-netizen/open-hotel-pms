@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isUnsellableRoomBlockType } from "@/lib/room-block-availability";
 
 export async function PUT(
     request: Request,
@@ -61,7 +62,7 @@ export async function PUT(
 
         if (error) throw error;
 
-        if (block_type === "OOO") {
+        if (isUnsellableRoomBlockType(block_type)) {
             await supabase
                 .from("reservation_nights")
                 .update({ room_id: null })

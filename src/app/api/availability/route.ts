@@ -4,6 +4,7 @@ import { listNights, isValidDateString } from "@/lib/dates";
 import { expandPlannedMoveNights, listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 import { requireStaffAuth } from "@/lib/server-auth";
+import { getRoomIdsBlockedOnNight, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
 
 function round2(value: number) {
     return Number(value.toFixed(2));
@@ -54,24 +55,13 @@ export async function GET(request: NextRequest) {
     // 3. OOO blocks active during stay (per-night)
     const { data: oooBlocks } = await supabase
         .from("room_blocks")
-        .select("room_id, start_date, end_date")
-        .eq("block_type", "OOO")
+        .select("room_id, block_type, start_date, end_date")
+        .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
         .lt("start_date", checkout)
         .gt("end_date", checkin);
 
     const blockedRoomIdsByNight = new Map<string, Set<string>>();
-    for (const night of nights) blockedRoomIdsByNight.set(night, new Set<string>());
-    for (const block of oooBlocks ?? []) {
-        const roomId = String(block.room_id ?? "");
-        if (!roomId) continue;
-        const startDate = String(block.start_date ?? "");
-        const endDate = String(block.end_date ?? "");
-        for (const night of nights) {
-            if (startDate <= night && endDate > night) {
-                blockedRoomIdsByNight.get(night)?.add(roomId);
-            }
-        }
-    }
+    for (const night of nights) blockedRoomIdsByNight.set(night, getRoomIdsBlockedOnNight(oooBlocks, night));
 
     const capacityByTypePerNight: Record<number, Record<string, number>> = {};
     for (const [tidText, roomIds] of Object.entries(roomIdsByType)) {

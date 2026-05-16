@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { scoreRooms, DEFAULT_WEIGHTS, type CandidateRoom, type ReservationForAssign } from "@/lib/auto-assign";
 import { listOverlappingPlannedRoomHolds, syncReservationNightDependencyMetadata } from "@/lib/planned-room-moves";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getRoomIdsBlockedForStay, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
+import { listNights } from "@/lib/dates";
 
 function parseDateString(value: unknown): string | null {
     if (typeof value !== "string") return null;
@@ -149,14 +151,16 @@ export async function POST(request: Request) {
                 ...assignedRoomIds,
             ]);
 
-            // Check OOO blocks
+            // Check unsellable blocks
             const { data: oooBlocks } = await supabase
                 .from("room_blocks")
-                .select("room_id")
-                .eq("block_type", "OOO")
-                .lte("start_date", checkout)
-                .gte("end_date", checkin);
-            for (const b of oooBlocks ?? []) if (b.room_id) conflictedIds.add(b.room_id);
+                .select("room_id, block_type, start_date, end_date")
+                .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
+                .lt("start_date", checkout)
+                .gt("end_date", checkin);
+            for (const roomId of getRoomIdsBlockedForStay(oooBlocks, listNights(checkin, checkout))) {
+                conflictedIds.add(roomId);
+            }
 
             const plannedRows = await listOverlappingPlannedRoomHolds(supabase as any, {
                 checkinDate: checkin,
