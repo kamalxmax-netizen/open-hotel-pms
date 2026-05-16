@@ -1,5 +1,6 @@
 import { PlannedRoomMoveError } from "@/lib/planned-room-moves";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
+import { getRoomIdsBlockedOnNight, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
 
 export async function assertRoomTypeCapacityForDateRange(
   supabase: any,
@@ -47,8 +48,8 @@ export async function assertRoomTypeCapacityForDateRange(
 
   const { data: blockedRooms, error: blockedRoomsError } = await supabase
     .from("room_blocks")
-    .select("room_id, start_date, end_date")
-    .eq("block_type", "OOO")
+    .select("room_id, block_type, start_date, end_date")
+    .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
     .in("room_id", sellableRoomIds)
     .lt("start_date", checkoutDateText)
     .gt("end_date", firstStayDate);
@@ -114,14 +115,7 @@ export async function assertRoomTypeCapacityForDateRange(
   }
 
   for (const stayDate of nights) {
-    const blockedRoomIdSet = new Set(
-      (blockedRooms ?? [])
-        .filter((block: any) =>
-          String(block?.start_date ?? "") <= stayDate &&
-          String(block?.end_date ?? "") > stayDate
-        )
-        .map((block: any) => String(block.room_id))
-    );
+    const blockedRoomIdSet = getRoomIdsBlockedOnNight(blockedRooms, stayDate);
 
     const roomCapacity = sellableRoomIds.reduce((count: number, roomId: string) => {
       return blockedRoomIdSet.has(roomId) ? count : count + 1;
