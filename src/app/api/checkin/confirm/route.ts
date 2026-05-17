@@ -145,6 +145,13 @@ export async function POST(request: NextRequest) {
     const businessDate = await getBusinessDate(supabase);
     const terminalId = request.headers.get("x-terminal-id") ?? request.headers.get("x-device-id");
     const userAgent = request.headers.get("user-agent");
+    const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
+    const depositMethod = mapCheckinPaymentMethod(payload.deposit_method) ?? paymentMethod;
+    const paymentAmount = Number(payload.payment_amount ?? 0);
+    const depositAmount = Number(payload.deposit_amount ?? 0);
+    const hasCheckinFinancials =
+      (Number.isFinite(paymentAmount) && paymentAmount > 0) ||
+      (Number.isFinite(depositAmount) && depositAmount > 0);
 
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
@@ -164,6 +171,35 @@ export async function POST(request: NextRequest) {
       throw new MobileCheckinError("Reservation is not eligible for check-in.", 409, "RESERVATION_STATUS_BLOCKED");
     }
     if (reservation.checked_in_at) {
+      if (hasCheckinFinancials) {
+        await applyCheckinFinancials({
+          supabase,
+          reservationId: payload.reservation_id,
+          method: paymentMethod,
+          depositMethod,
+          paymentAmount,
+          depositAmount,
+          cashierName: payload.cashier_name,
+          businessDate,
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            reservation_id: payload.reservation_id,
+            status: "active",
+            is_draft: false,
+            draft_reason: null,
+            draft_message: null,
+            profile_complete: true,
+            missing_fields: [],
+            checked_in_at: reservation.checked_in_at,
+            checkin_time: reservation.checkin_time ?? null,
+            already_checked_in: true,
+            recovered_financials: true,
+          },
+        });
+      }
       throw new MobileCheckinError("Reservation is already checked in.", 409, "ALREADY_CHECKED_IN");
     }
     const reservationGuestName = String(reservation.guest_name ?? "").trim();
@@ -306,6 +342,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (!isDraft && hasCheckinFinancials) {
+      await applyCheckinFinancials({
+        supabase,
+        reservationId: payload.reservation_id,
+        method: paymentMethod,
+        depositMethod,
+        paymentAmount,
+        depositAmount,
+        cashierName: payload.cashier_name,
+        businessDate,
+      });
+    }
+
     const beforeJson = {
       status: reservationStatus,
       checked_in_at: reservation.checked_in_at ?? null,
@@ -388,11 +437,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const paymentMethod = mapCheckinPaymentMethod(payload.payment_method);
-    const depositMethod = mapCheckinPaymentMethod(payload.deposit_method) ?? paymentMethod;
-    const paymentAmount = Number(payload.payment_amount ?? 0);
-    const depositAmount = Number(payload.deposit_amount ?? 0);
-    if ((Number.isFinite(paymentAmount) && paymentAmount > 0) || (Number.isFinite(depositAmount) && depositAmount > 0)) {
+    if (isDraft && hasCheckinFinancials) {
       await applyCheckinFinancials({
         supabase,
         reservationId: payload.reservation_id,

@@ -4,6 +4,8 @@ import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { listSwapCandidatesForReservation, loadReservationSwapContext } from "@/lib/room-swap";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 import { requireStaffAuth } from "@/lib/server-auth";
+import { getRoomIdsBlockedForStay, ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
+import { listNights } from "@/lib/dates";
 
 function parseRoomTypeId(raw: string | null): number | null {
     if (!raw) return null;
@@ -117,18 +119,16 @@ export async function GET(
 
         const conflictedRoomIds = new Set((conflictsData || []).map(c => c.room_id));
 
-        // 3.5 Find OOO Room Block conflicts (use room_id, not room_number)
+        // 3.5 Find unsellable room block conflicts (use room_id, not room_number)
         const { data: allBlocks } = await supabase
             .from("room_blocks")
-            .select("room_id, start_date, end_date")
-            .eq("block_type", "OOO")
+            .select("room_id, block_type, start_date, end_date")
+            .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
+            .lt("start_date", checkoutDate)
+            .gt("end_date", checkinDate)
             .in("room_id", roomsData.map(r => r.id));
 
-        const oooConflictedRoomIds = new Set(
-            (allBlocks || []).filter(b => {
-                return (b.start_date < checkoutDate && b.end_date > checkinDate);
-            }).map(b => b.room_id)
-        );
+        const blockedRoomIds = getRoomIdsBlockedForStay(allBlocks, listNights(checkinDate, checkoutDate));
 
         const plannedHolds = await listOverlappingPlannedRoomHolds(supabase as any, {
             checkinDate,
@@ -157,7 +157,7 @@ export async function GET(
 
             const hasConflict =
                 conflictedRoomIds.has(room.id) ||
-                oooConflictedRoomIds.has(room.id) ||
+                blockedRoomIds.has(room.id) ||
                 plannedConflictedRoomIds.has(room.id);
 
             return {

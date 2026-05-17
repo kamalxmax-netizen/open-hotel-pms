@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import NationalityFlag from "@/components/nationality-flag";
 import { formatNationalityCode } from "@/lib/nationality";
 import { formatPhoneInput } from "@/lib/phone";
@@ -290,7 +291,7 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
         } finally { setSaving(false); }
     }
 
-    async function resolve(id: string, action: "done" | "cancelled") {
+    async function resolve(id: string, action: "done" | "cancelled" | "restore") {
         await fetch(`/api/traces/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -418,10 +419,21 @@ function TracesTab({ reservationId, checkinDate, checkoutDate }: {
                     </summary>
                     <div className="mt-2 space-y-1">
                         {doneTraces.map(t => (
-                            <div key={t.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)] p-2 flex items-center gap-2 opacity-60">
+                            <div key={t.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-body)] p-2 flex items-center gap-2">
                                 <span className={`text-[10px] font-bold rounded px-1 ${DEPT_COLOR[t.dept]}`}>{t.dept}</span>
-                                <span className="flex-1 text-xs text-[var(--text-secondary)] truncate">{t.trace_text}</span>
+                                <span className="flex-1 text-xs text-[var(--text-secondary)] truncate opacity-60">{t.trace_text}</span>
                                 <span className={`text-[10px] font-semibold ${STATUS_COLOR[t.status]}`}>{t.status}</span>
+                                {t.status === "cancelled" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => resolve(t.id, "restore")}
+                                        className="btn btn-secondary btn-sm h-7 px-2"
+                                        title="Restore trace"
+                                    >
+                                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                                        <span className="sr-only">Restore trace</span>
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>

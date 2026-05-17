@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isUnsellableRoomBlockType } from "@/lib/room-block-availability";
 
 export async function GET() {
     try {
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
 
         if (error) throw error;
 
-        // If OOO block, unassign existing reservations for this room/period
-        if (block_type === "OOO") {
+        // Unsellable blocks must clear existing assignment for the blocked period.
+        if (isUnsellableRoomBlockType(block_type)) {
             await supabase
                 .from("reservation_nights")
                 .update({ room_id: null })

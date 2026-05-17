@@ -1,5 +1,6 @@
 import { addDays, compareDateStrings, isValidDateString, listNights } from "@/lib/dates";
 import { normalizeAuditSource, toBangkokDateString } from "@/lib/audit-utils";
+import { ROOM_UNSELLABLE_BLOCK_TYPES } from "@/lib/room-block-availability";
 
 export type PlannedMoveStatus = "planned" | "executed" | "cancelled";
 export type PricingPolicy = "keep_rtc" | "reprice_grid" | "reprice_grid_discount";
@@ -538,7 +539,7 @@ export async function assertNoRoomBlockConflict(
     .from("room_blocks")
     .select("id, block_type, start_date, end_date, reason")
     .eq("room_id", roomId)
-    .in("block_type", ["OOO", "OOS"])
+    .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
     .lt("start_date", checkoutDate)
     .gt("end_date", checkinDate)
     .limit(1);

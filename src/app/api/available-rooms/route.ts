@@ -5,6 +5,11 @@ import { listOverlappingPlannedRoomHolds } from "@/lib/planned-room-moves";
 import { isValidDateString, listNights } from "@/lib/dates";
 import { isLegacyDayUseRoom } from "@/lib/dayuse-rooms";
 import { resolveBusinessDate, toLocalDate } from "@/lib/folio-fees";
+import {
+    getRoomIdsBlockedForStay,
+    getRoomIdsBlockedOnNight,
+    ROOM_UNSELLABLE_BLOCK_TYPES,
+} from "@/lib/room-block-availability";
 
 export const dynamic = "force-dynamic";
 
@@ -97,8 +102,8 @@ export async function GET(request: NextRequest) {
 
         const { data: oooBlocks, error: oooBlocksError } = await supabase
             .from("room_blocks")
-            .select("room_id, start_date, end_date")
-            .eq("block_type", "OOO")
+            .select("room_id, block_type, start_date, end_date")
+            .in("block_type", ROOM_UNSELLABLE_BLOCK_TYPES)
             .in("room_id", overnightRoomIds)
             .lt("start_date", checkout)
             .gt("end_date", checkin);
@@ -140,18 +145,8 @@ export async function GET(request: NextRequest) {
         }
 
         const blockedRoomIdsByNight = new Map<string, Set<string>>();
-        for (const night of nights) blockedRoomIdsByNight.set(night, new Set<string>());
-        for (const block of oooBlocks ?? []) {
-            const roomId = String(block.room_id ?? "");
-            if (!roomId) continue;
-            const startDate = String(block.start_date ?? "");
-            const endDate = String(block.end_date ?? "");
-            for (const night of nights) {
-                if (startDate <= night && endDate > night) {
-                    blockedRoomIdsByNight.get(night)?.add(roomId);
-                }
-            }
-        }
+        for (const night of nights) blockedRoomIdsByNight.set(night, getRoomIdsBlockedOnNight(oooBlocks, night));
+        const blockedRoomIdsForStay = getRoomIdsBlockedForStay(oooBlocks, nights);
 
         const plannedHeldRoomIdsByNight = new Map<string, Set<string>>();
         for (const night of nights) plannedHeldRoomIdsByNight.set(night, new Set<string>());
@@ -253,7 +248,7 @@ export async function GET(request: NextRequest) {
 
         // 3. Filter to available rooms
         const availableRooms = allRooms
-            .filter(r => !occupiedRoomIds.has(r.id) && !heldRoomIds.has(r.id) && !hkBlockedRoomIds.has(r.id))
+            .filter(r => !blockedRoomIdsForStay.has(r.id) && !occupiedRoomIds.has(r.id) && !heldRoomIds.has(r.id) && !hkBlockedRoomIds.has(r.id))
             .map(r => ({
                 id: r.id,
                 room_number: r.room_number,
@@ -269,6 +264,7 @@ export async function GET(request: NextRequest) {
             total_rooms: allRooms.length,
             occupied_count: occupiedRoomIds.size,
             planned_hold_count: heldRoomIds.size,
+            blocked_count: blockedRoomIdsForStay.size,
             hk_blocked_count: hkBlockedRoomIds.size
         });
     } catch (err) {
