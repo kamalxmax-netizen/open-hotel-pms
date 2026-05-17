@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/folio-fees";
 import {
     summarizeRevenueRange,
+    type RevenueDayuseRow,
     type RevenueExtraRow,
     type RevenueNightRow,
     type RevenuePosOrderRow,
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
         const startDate = (sp.get("start") ?? "").trim() || businessDate;
         const endDate = (sp.get("end") ?? "").trim() || businessDate;
 
-        const [{ data: rooms, error: roomsErr }, { data: nights, error: nightsErr }, { data: posOrders, error: posErr }, { data: extraRows, error: extraErr }] = await Promise.all([
+        const [{ data: rooms, error: roomsErr }, { data: nights, error: nightsErr }, { data: posOrders, error: posErr }, { data: extraRows, error: extraErr }, { data: dayuseRows, error: dayuseErr }] = await Promise.all([
             supabase
                 .from("rooms")
                 .select("id, room_number, floor_number, is_dayuse, closure_reason, is_sellable")
@@ -47,7 +48,6 @@ export async function GET(request: NextRequest) {
       `)
                 .gte("stay_date", startDate)
                 .lte("stay_date", endDate)
-                .is("cancelled_at", null)
                 .neq("reservations.status", "cancelled"),
             supabase
                 .from("pos_orders")
@@ -62,26 +62,40 @@ export async function GET(request: NextRequest) {
                 .lte("paid_date", endDate)
                 .eq("revenue_category", "extra_charge")
                 .in("tx_type", ["payment", "refund"]),
+            supabase
+                .from("folio_payments")
+                .select("id, reservation_id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+                .gte("paid_date", startDate)
+                .lte("paid_date", endDate)
+                .eq("revenue_category", "dayuse_revenue")
+                .in("tx_type", ["payment", "refund"]),
         ]);
 
         if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });
         if (nightsErr) return NextResponse.json({ error: nightsErr.message }, { status: 500 });
         if (posErr) return NextResponse.json({ error: posErr.message }, { status: 500 });
         if (extraErr) return NextResponse.json({ error: extraErr.message }, { status: 500 });
+        if (dayuseErr) return NextResponse.json({ error: dayuseErr.message }, { status: 500 });
 
         const scopedExtraRows = (extraRows ?? []) as RevenueExtraRow[];
-        const extraIds = scopedExtraRows.map((row) => String(row.id ?? "").trim()).filter(Boolean);
+        const scopedDayuseRows = (dayuseRows ?? []) as RevenueDayuseRow[];
+        const ledgerIds = [...scopedExtraRows, ...scopedDayuseRows].map((row) => String(row.id ?? "").trim()).filter(Boolean);
         const laterVoidedExtraOriginalIds = new Set<string>();
-        if (extraIds.length > 0) {
+        const laterVoidedDayuseOriginalIds = new Set<string>();
+        if (ledgerIds.length > 0) {
             const { data: laterVoidRows, error: laterVoidError } = await supabase
                 .from("folio_payments")
                 .select("void_of")
                 .eq("is_void_reversal", true)
-                .in("void_of", extraIds);
+                .in("void_of", ledgerIds);
             if (laterVoidError) return NextResponse.json({ error: laterVoidError.message }, { status: 500 });
+            const extraIdSet = new Set(scopedExtraRows.map((row) => String(row.id ?? "").trim()).filter(Boolean));
+            const dayuseIdSet = new Set(scopedDayuseRows.map((row) => String(row.id ?? "").trim()).filter(Boolean));
             for (const row of laterVoidRows ?? []) {
                 const originalId = String((row as { void_of?: string | null }).void_of ?? "").trim();
-                if (originalId) laterVoidedExtraOriginalIds.add(originalId);
+                if (!originalId) continue;
+                if (extraIdSet.has(originalId)) laterVoidedExtraOriginalIds.add(originalId);
+                if (dayuseIdSet.has(originalId)) laterVoidedDayuseOriginalIds.add(originalId);
             }
         }
 
@@ -90,6 +104,8 @@ export async function GET(request: NextRequest) {
             nights: (nights ?? []) as RevenueNightRow[],
             extraRows: scopedExtraRows,
             laterVoidedExtraOriginalIds,
+            dayuseRows: scopedDayuseRows,
+            laterVoidedDayuseOriginalIds,
             posOrders: (posOrders ?? []) as RevenuePosOrderRow[],
             startDate,
             endDate,

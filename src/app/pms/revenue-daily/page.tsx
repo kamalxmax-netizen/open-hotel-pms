@@ -126,6 +126,11 @@ export default function RevenueDailyPage() {
     const floors = Array.from(new Set(filteredRooms.map(r => r.floor_number))).sort((a, b) => b - a);
 
     const dUserRooms = data?.dayuse ?? [];
+    const dayUseRowsForDisplay = dUserRooms.length > 0
+        ? dUserRooms
+        : data?.summary.dayuse_revenue
+            ? [{ room_number: "DAYUSE", sessions: 0, revenue: data.summary.dayuse_revenue }]
+            : [];
 
     const roomsTotal = floors.reduce((sum, floor) => sum + filteredRooms.filter(r => r.floor_number === floor).reduce((acc, r) => acc + (r.nightly_price || 0), 0), 0);
     const duTotal = showDayUse ? (data?.summary.dayuse_revenue || 0) : 0;
@@ -198,10 +203,15 @@ export default function RevenueDailyPage() {
 
             {/* KPIs */}
             {data && (
-                <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
                     <KpiTile
                         label="Total Revenue"
                         value={fmtMoney(data.summary.total_revenue + (showPos ? data.summary.pos_revenue : 0))}
+                    />
+                    <KpiTile
+                        label="Day Use"
+                        value={fmtMoney(data.summary.dayuse_revenue)}
+                        sub="Excluded from OCC"
                     />
                     <KpiTile
                         label="Extra Charge"
@@ -298,7 +308,7 @@ export default function RevenueDailyPage() {
                                     );
                                 })}
 
-                                {showDayUse && dUserRooms.length > 0 && (() => {
+                                {showDayUse && dayUseRowsForDisplay.length > 0 && (() => {
                                     return (
                                         <>
                                             <tr>
@@ -306,12 +316,12 @@ export default function RevenueDailyPage() {
                                                     DAY USE
                                                 </td>
                                             </tr>
-                                            {dUserRooms.map(du => (
+                                            {dayUseRowsForDisplay.map(du => (
                                                 <tr key={`du-${du.room_number}`} className="hover:bg-[var(--bg-body)]">
                                                     <td className="px-4 py-3 font-medium">{du.room_number}</td>
                                                     <td className="px-4 py-3 text-right font-semibold">{fmtMoney(du.revenue)}</td>
                                                     <td className="px-4 py-3 text-[var(--text-secondary)]">—</td>
-                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{du.sessions} sess</td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">{du.sessions > 0 ? `${du.sessions} sess` : "—"}</td>
                                                     <td className="px-4 py-3 font-semibold text-[var(--text-primary)] text-sm">Day Use Daily Revenue</td>
                                                 </tr>
                                             ))}
