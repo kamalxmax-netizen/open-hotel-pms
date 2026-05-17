@@ -188,3 +188,89 @@ assert.deepEqual(range.by_day, [
     occ_pct: 50,
   },
 ]);
+
+const checkedOutDayuseNight = {
+  room_id: "DU1",
+  stay_date: "2026-04-16",
+  nightly_price: 190,
+  cancelled_at: "2026-04-16T03:54:25.725+00:00",
+  reservations: {
+    id: "res-checked-out-du",
+    guest_name: "Checked Out Day Use",
+    booking_code: "DU-20260416",
+    source: "walkin",
+    checkin_date: "2026-04-16",
+    checkout_date: "2026-04-16",
+    is_dayuse: true,
+    status: "checked_out",
+  },
+};
+
+const cancelledRegularNight = {
+  room_id: "102",
+  stay_date: "2026-04-16",
+  nightly_price: 777,
+  cancelled_at: "2026-04-16T01:00:00+00:00",
+  reservations: {
+    id: "res-cancelled-night",
+    guest_name: "Cancelled Night",
+    booking_code: "BK-CANCELLED-NIGHT",
+    source: "walkin",
+    checkin_date: "2026-04-16",
+    checkout_date: "2026-04-17",
+    is_dayuse: false,
+    status: "checked_out",
+  },
+};
+
+const checkedOutDayusePayments = [
+  {
+    id: "du-payment",
+    reservation_id: "res-checked-out-du",
+    paid_date: "2026-04-16",
+    tx_type: "payment",
+    amount: 190,
+    revenue_category: "dayuse_revenue",
+    is_record_only: false,
+  },
+];
+
+const regularAprilNight = {
+  ...nights[0],
+  stay_date: "2026-04-16",
+  reservations: {
+    ...(nights[0].reservations as Record<string, unknown>),
+    checkin_date: "2026-04-16",
+    checkout_date: "2026-04-17",
+  },
+};
+
+const closedDayuseDaily = summarizeDailyRevenue({
+  rooms,
+  nights: [regularAprilNight, cancelledRegularNight, checkedOutDayuseNight],
+  dayuseRows: checkedOutDayusePayments,
+  businessDate: "2026-04-16",
+});
+
+assert.equal(closedDayuseDaily.roomRevenue, 1000);
+assert.equal(closedDayuseDaily.occupiedRooms, 1);
+assert.equal(closedDayuseDaily.dayuseRevenue, 190);
+assert.deepEqual(closedDayuseDaily.dayuse, [{ room_number: "DU1", sessions: 1, revenue: 190 }]);
+assert.equal(closedDayuseDaily.totalRevenueExcludingPos, 1190);
+assert.equal(closedDayuseDaily.adr, 1000);
+assert.equal(closedDayuseDaily.revpar, 500);
+
+const closedDayuseRange = summarizeRevenueRange({
+  rooms,
+  nights: [regularAprilNight, cancelledRegularNight, checkedOutDayuseNight],
+  dayuseRows: checkedOutDayusePayments,
+  startDate: "2026-04-16",
+  endDate: "2026-04-16",
+});
+
+assert.equal(closedDayuseRange.kpi.room_revenue, 1000);
+assert.equal(closedDayuseRange.kpi.dayuse_revenue, 190);
+assert.equal(closedDayuseRange.kpi.occupied_nights, 1);
+assert.equal(closedDayuseRange.kpi.total_revenue, 1190);
+assert.equal(closedDayuseRange.by_day[0].dayuse_revenue, 190);
+assert.equal(closedDayuseRange.by_day[0].occupied, 1);
