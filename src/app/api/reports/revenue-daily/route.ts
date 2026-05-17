@@ -18,6 +18,19 @@ const querySchema = z.object({
   date: z.string().regex(dateRegex, "date must be YYYY-MM-DD").optional(),
 });
 
+type ReservationMetaRow = {
+  id?: string | null;
+  guest_name?: string | null;
+  booking_code?: string | null;
+};
+
+type ReservationNightRoomRow = {
+  reservation_id?: string | null;
+  room_id?: string | null;
+  stay_date?: string | null;
+  rooms?: { room_number?: string | null } | Array<{ room_number?: string | null }> | null;
+};
+
 function toBangkokDateString(date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Bangkok",
@@ -30,6 +43,38 @@ function toBangkokDateString(date = new Date()): string {
   const d = parts.find((p) => p.type === "day")?.value;
   if (!y || !m || !d) return new Date().toISOString().slice(0, 10);
   return `${y}-${m}-${d}`;
+}
+
+function roomNumberFromNight(row: ReservationNightRoomRow | null | undefined): string | null {
+  const roomRef = Array.isArray(row?.rooms) ? row?.rooms[0] : row?.rooms;
+  return roomRef?.room_number ? String(roomRef.room_number) : null;
+}
+
+function buildRoomNumberByReservation(
+  rows: ReservationNightRoomRow[],
+  businessDate: string
+): Map<string, string | null> {
+  const grouped = new Map<string, ReservationNightRoomRow[]>();
+  for (const row of rows) {
+    const reservationId = String(row.reservation_id ?? "").trim();
+    if (!reservationId) continue;
+    const current = grouped.get(reservationId) ?? [];
+    current.push(row);
+    grouped.set(reservationId, current);
+  }
+
+  const byReservation = new Map<string, string | null>();
+  for (const [reservationId, reservationRows] of grouped.entries()) {
+    const sorted = [...reservationRows].sort((a, b) =>
+      String(a.stay_date ?? "").localeCompare(String(b.stay_date ?? ""))
+    );
+    const preferred =
+      [...sorted].reverse().find((row) => String(row.stay_date ?? "") <= businessDate && row.room_id) ??
+      sorted.find((row) => Boolean(row.room_id)) ??
+      null;
+    byReservation.set(reservationId, roomNumberFromNight(preferred));
+  }
+  return byReservation;
 }
 
 export async function GET(request: NextRequest) {
@@ -71,7 +116,7 @@ export async function GET(request: NextRequest) {
         .eq("status", "completed"),
       supabase
         .from("folio_payments")
-        .select("id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
+        .select("id, reservation_id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
         .eq("paid_date", businessDate)
         .eq("revenue_category", "extra_charge")
         .in("tx_type", ["payment", "refund"]),
@@ -90,7 +135,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: extraRes.error.message }, { status: 500 });
     }
 
-    const extraRows = (extraRes.data ?? []) as RevenueExtraRow[];
+    const rawExtraRows = (extraRes.data ?? []) as RevenueExtraRow[];
+    const extraReservationIds = Array.from(
+      new Set(rawExtraRows.map((row) => String(row.reservation_id ?? "").trim()).filter(Boolean))
+    );
+    const reservationMetaById = new Map<string, ReservationMetaRow>();
+    let roomNumberByReservation = new Map<string, string | null>();
+
+    if (extraReservationIds.length > 0) {
+      const [reservationMetaRes, reservationRoomsRes] = await Promise.all([
+        supabase
+          .from("reservations")
+          .select("id, guest_name, booking_code")
+          .in("id", extraReservationIds),
+        supabase
+          .from("reservation_nights")
+          .select("reservation_id, room_id, stay_date, rooms(room_number)")
+          .in("reservation_id", extraReservationIds)
+          .is("cancelled_at", null)
+          .order("stay_date", { ascending: true }),
+      ]);
+
+      if (reservationMetaRes.error) {
+        return NextResponse.json({ success: false, error: reservationMetaRes.error.message }, { status: 500 });
+      }
+      if (reservationRoomsRes.error) {
+        return NextResponse.json({ success: false, error: reservationRoomsRes.error.message }, { status: 500 });
+      }
+
+      for (const row of (reservationMetaRes.data ?? []) as ReservationMetaRow[]) {
+        const reservationId = String(row.id ?? "").trim();
+        if (reservationId) reservationMetaById.set(reservationId, row);
+      }
+      roomNumberByReservation = buildRoomNumberByReservation(
+        (reservationRoomsRes.data ?? []) as ReservationNightRoomRow[],
+        businessDate
+      );
+    }
+
+    const extraRows = rawExtraRows.map((row) => {
+      const reservationId = String(row.reservation_id ?? "").trim();
+      const reservation = reservationMetaById.get(reservationId);
+      return {
+        ...row,
+        room_number: roomNumberByReservation.get(reservationId) ?? null,
+        booking_code: reservation?.booking_code ?? null,
+        guest_name: reservation?.guest_name ?? null,
+      };
+    });
     const extraIds = extraRows.map((row) => String(row.id ?? "").trim()).filter(Boolean);
     const laterVoidedExtraOriginalIds = new Set<string>();
     if (extraIds.length > 0) {
@@ -123,6 +215,7 @@ export async function GET(request: NextRequest) {
       sellable_rooms: summary.sellableRooms,
       rooms: summary.rooms,
       dayuse: summary.dayuse,
+      extra_charges: summary.extraCharges,
       pos_total: summary.posRevenue,
       summary: {
         total_revenue: summary.totalRevenueExcludingPos,

@@ -52,6 +52,9 @@ const extraRows = [
     amount: 200,
     revenue_category: "extra_charge",
     is_record_only: false,
+    room_number: "101",
+    booking_code: "BK-101",
+    guest_name: "Regular Guest",
   },
   {
     id: "extra-record-only",
@@ -59,6 +62,9 @@ const extraRows = [
     amount: 300,
     revenue_category: "extra_charge",
     is_record_only: true,
+    room_number: "102",
+    booking_code: "BK-102",
+    guest_name: "Record Guest",
   },
   {
     id: "deposit-in",
@@ -119,6 +125,28 @@ assert.equal(daily.occupiedRooms, 1);
 assert.equal(daily.roomRevenue, 1000);
 assert.equal(daily.dayuseRevenue, 500);
 assert.equal(daily.extraRevenue, 500);
+assert.deepEqual(daily.extraCharges, [
+  {
+    id: "extra-cash",
+    room_number: "101",
+    amount: 200,
+    note: null,
+    tx_type: "payment",
+    booking_code: "BK-101",
+    guest_name: "Regular Guest",
+    is_record_only: false,
+  },
+  {
+    id: "extra-record-only",
+    room_number: "102",
+    amount: 300,
+    note: null,
+    tx_type: "payment",
+    booking_code: "BK-102",
+    guest_name: "Record Guest",
+    is_record_only: true,
+  },
+]);
 assert.equal(daily.posRevenue, 120);
 assert.equal(daily.totalRevenueExcludingPos, 2000);
 assert.equal(daily.totalRevenueIncludingPos, 2120);

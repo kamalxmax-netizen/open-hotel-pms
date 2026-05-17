@@ -20,6 +20,17 @@ type RevenueDailyDayUse = {
     revenue: number;
 };
 
+type RevenueDailyExtraCharge = {
+    id: string | null;
+    room_number: string | null;
+    amount: number;
+    note: string | null;
+    tx_type: "payment" | "refund";
+    booking_code: string | null;
+    guest_name: string | null;
+    is_record_only: boolean;
+};
+
 type RevenueDailySummary = {
     total_revenue: number;
     room_revenue: number;
@@ -38,6 +49,7 @@ type RevenueDailyData = {
     sellable_rooms: number;
     rooms: RevenueDailyRoom[];
     dayuse: RevenueDailyDayUse[];
+    extra_charges?: RevenueDailyExtraCharge[];
     pos_total: number;
     summary: RevenueDailySummary;
     error?: string;
@@ -51,6 +63,11 @@ function fmt(n: number) {
 
 function fmtMoney(n: number) {
     return `฿${fmt(n)}`;
+}
+
+function fmtSignedMoney(n: number) {
+    const prefix = n < 0 ? "-" : "";
+    return `${prefix}฿${fmt(Math.abs(n))}`;
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -126,6 +143,7 @@ export default function RevenueDailyPage() {
     const floors = Array.from(new Set(filteredRooms.map(r => r.floor_number))).sort((a, b) => b - a);
 
     const dUserRooms = data?.dayuse ?? [];
+    const extraChargeRows = data?.extra_charges ?? [];
 
     const roomsTotal = floors.reduce((sum, floor) => sum + filteredRooms.filter(r => r.floor_number === floor).reduce((acc, r) => acc + (r.nightly_price || 0), 0), 0);
     const duTotal = showDayUse ? (data?.summary.dayuse_revenue || 0) : 0;
@@ -324,17 +342,46 @@ export default function RevenueDailyPage() {
                                     );
                                 })()}
 
-                                {data.summary.extra_revenue !== 0 && (
+                                {(data.summary.extra_revenue !== 0 || extraChargeRows.length > 0) && (
                                     <>
                                         <tr>
                                             <td colSpan={5} className="px-4 py-2 bg-sky-50/50 font-bold text-sky-800 border-b border-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/25">
                                                 EXTRA CHARGE
                                             </td>
                                         </tr>
-                                        <tr className="hover:bg-[var(--bg-body)]">
-                                            <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">Extra Charge</td>
-                                            <td className="px-4 py-3 text-right font-semibold">{fmtMoney(data.summary.extra_revenue)}</td>
-                                            <td className="px-4 py-3 text-[var(--text-secondary)]" colSpan={3}>Posted folio charges, including unpaid post-only charges</td>
+                                        {extraChargeRows.length > 0 ? (
+                                            extraChargeRows.map((charge, index) => (
+                                                <tr key={charge.id ?? `extra-${index}`} className="hover:bg-[var(--bg-body)]">
+                                                    <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">
+                                                        {charge.room_number ?? "Unassigned"}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold">{fmtSignedMoney(charge.amount)}</td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">Extra Charge</td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                                                        {charge.is_record_only ? "Record only" : charge.tx_type}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-semibold text-[var(--text-primary)]">
+                                                                {charge.note || "Posted folio charge"}
+                                                            </span>
+                                                            {charge.guest_name && <span className="text-xs text-[var(--text-muted)]">{charge.guest_name}</span>}
+                                                            {charge.booking_code && <span className="text-xs text-[var(--text-muted)]">({charge.booking_code})</span>}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr className="hover:bg-[var(--bg-body)]">
+                                                <td className="px-4 py-3 font-medium text-[var(--text-table-cell)]">Extra Charge</td>
+                                                <td className="px-4 py-3 text-right font-semibold">{fmtMoney(data.summary.extra_revenue)}</td>
+                                                <td className="px-4 py-3 text-[var(--text-secondary)]" colSpan={3}>Posted folio charges, including unpaid post-only charges</td>
+                                            </tr>
+                                        )}
+                                        <tr className="bg-sky-50/30 text-xs text-sky-600/70 dark:bg-sky-500/5 dark:text-sky-400/60">
+                                            <td colSpan={5} className="px-4 py-2 pl-6">
+                                                (subtotal: <span className="font-semibold">{fmtMoney(data.summary.extra_revenue)}</span>)
+                                            </td>
                                         </tr>
                                     </>
                                 )}

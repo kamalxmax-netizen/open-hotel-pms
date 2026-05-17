@@ -27,6 +27,7 @@ export type RevenueNightRow = {
 
 export type RevenueExtraRow = {
   id?: string | null;
+  reservation_id?: string | null;
   paid_date?: string | null;
   paid_at?: string | null;
   method?: string | null;
@@ -38,6 +39,9 @@ export type RevenueExtraRow = {
   is_correction?: boolean | null;
   is_void_reversal?: boolean | null;
   void_of?: string | null;
+  room_number?: string | null;
+  booking_code?: string | null;
+  guest_name?: string | null;
 };
 
 export type RevenuePosOrderRow = {
@@ -63,6 +67,17 @@ export type RevenueDailyDayuse = {
   room_number: string;
   sessions: number;
   revenue: number;
+};
+
+export type RevenueDailyExtraCharge = {
+  id: string | null;
+  room_number: string | null;
+  amount: number;
+  note: string | null;
+  tx_type: "payment" | "refund";
+  booking_code: string | null;
+  guest_name: string | null;
+  is_record_only: boolean;
 };
 
 export type RevenueRangeDay = {
@@ -185,12 +200,12 @@ function buildRevenueVoidedIdSet(rows: RevenueExtraRow[], laterVoidedOriginalIds
   return excluded;
 }
 
-export function sumExtraRevenue(
+function getIncludedExtraChargeRows(
   rows: RevenueExtraRow[],
   laterVoidedOriginalIds: Set<string> = new Set()
-): number {
+): Array<{ row: RevenueExtraRow; txType: "payment" | "refund"; amount: number }> {
   const voidedIds = buildRevenueVoidedIdSet(rows, laterVoidedOriginalIds);
-  let total = 0;
+  const included: Array<{ row: RevenueExtraRow; txType: "payment" | "refund"; amount: number }> = [];
 
   for (const row of rows) {
     const id = String(row.id ?? "").trim();
@@ -204,10 +219,35 @@ export function sumExtraRevenue(
     if (category !== "extra_charge") continue;
 
     const amount = toNumber(row.amount);
-    total += txType === "refund" ? -amount : amount;
+    included.push({ row, txType, amount: txType === "refund" ? -amount : amount });
   }
 
-  return round2(total);
+  return included;
+}
+
+export function sumExtraRevenue(
+  rows: RevenueExtraRow[],
+  laterVoidedOriginalIds: Set<string> = new Set()
+): number {
+  return round2(
+    getIncludedExtraChargeRows(rows, laterVoidedOriginalIds).reduce((total, { amount }) => total + amount, 0)
+  );
+}
+
+export function summarizeExtraCharges(
+  rows: RevenueExtraRow[],
+  laterVoidedOriginalIds: Set<string> = new Set()
+): RevenueDailyExtraCharge[] {
+  return getIncludedExtraChargeRows(rows, laterVoidedOriginalIds).map(({ row, txType, amount }) => ({
+    id: String(row.id ?? "").trim() || null,
+    room_number: String(row.room_number ?? "").trim() || null,
+    amount: round2(amount),
+    note: String(row.note ?? "").trim() || null,
+    tx_type: txType,
+    booking_code: String(row.booking_code ?? "").trim() || null,
+    guest_name: String(row.guest_name ?? "").trim() || null,
+    is_record_only: row.is_record_only === true,
+  }));
 }
 
 export function sumExtraRevenueByDate(
@@ -270,6 +310,7 @@ export function summarizeDailyRevenue(input: {
   roomRevenue: number;
   dayuseRevenue: number;
   extraRevenue: number;
+  extraCharges: RevenueDailyExtraCharge[];
   posRevenue: number;
   totalRevenueExcludingPos: number;
   totalRevenueIncludingPos: number;
@@ -354,6 +395,7 @@ export function summarizeDailyRevenue(input: {
   const roomRevenue = round2(rooms.reduce((sum, row) => sum + row.nightly_price, 0));
   const dayuseRevenue = round2(dayuse.reduce((sum, row) => sum + row.revenue, 0));
   const extraRevenue = sumExtraRevenue(input.extraRows ?? [], input.laterVoidedExtraOriginalIds);
+  const extraCharges = summarizeExtraCharges(input.extraRows ?? [], input.laterVoidedExtraOriginalIds);
   const posRevenue = sumPosRevenue(input.posOrders ?? []);
   const occupiedRooms = rooms.filter((row) => row.is_occupied).length;
   const sellableRooms = rooms.length;
@@ -369,6 +411,7 @@ export function summarizeDailyRevenue(input: {
     roomRevenue,
     dayuseRevenue,
     extraRevenue,
+    extraCharges,
     posRevenue,
     totalRevenueExcludingPos,
     totalRevenueIncludingPos,
