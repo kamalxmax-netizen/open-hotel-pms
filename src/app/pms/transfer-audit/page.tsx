@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { normalizeTransferSenderName } from "@/lib/transfer-detail";
+import { useAdminRole } from "@/hooks/use-admin-role";
+import { isTransferAuditReadOnlyRole } from "@/lib/transfer-audit-auth";
 import {
   addPaymentIds,
   addSameBookingGroupPaymentIds,
@@ -271,6 +273,7 @@ function sameIds(left: string[], right: string[]): boolean {
 }
 
 export default function TransferAuditPage() {
+  const { role, loading: roleLoading } = useAdminRole();
   const [from, setFrom] = useState(todayInBangkok());
   const [to, setTo] = useState(todayInBangkok());
   const [query, setQuery] = useState("");
@@ -289,6 +292,8 @@ export default function TransferAuditPage() {
   const [workspaceError, setWorkspaceError] = useState("");
   const [urlParamsReady, setUrlParamsReady] = useState(false);
   const focusRef = useRef<string | null>(null);
+  const isOwnerReadOnly = isTransferAuditReadOnlyRole(role);
+  const editControlsDisabled = roleLoading || isOwnerReadOnly;
 
   useEffect(() => {
     const params = readSearchParams();
@@ -477,6 +482,16 @@ export default function TransferAuditPage() {
     keepCurrentEditorOpen();
   }
 
+  function blockReadOnlyOwnerEdit() {
+    if (roleLoading) {
+      setWorkspaceError("Checking your role before editing Transfer Sets.");
+      keepCurrentEditorOpen();
+      return;
+    }
+    setWorkspaceError("Owner role can view Transfer Audit but cannot edit Transfer Sets.");
+    keepCurrentEditorOpen();
+  }
+
   function selectTransferSet(row: TransferAuditRow, options: { expand?: boolean } = {}) {
     if (shouldBlockTransferSetSwitch({ dirty, draftSet, currentSetId: selectedSetId, nextSetId: row.id })) {
       blockUnsavedSetSwitch();
@@ -503,6 +518,10 @@ export default function TransferAuditPage() {
   }
 
   function startDraftSet(candidate?: TransferCandidate) {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     if (dirty) {
       blockUnsavedSetSwitch();
       return;
@@ -516,6 +535,10 @@ export default function TransferAuditPage() {
   }
 
   function addCandidateToSelectedSet(candidate: TransferCandidate) {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     setWorkspaceError("");
     if (!selectedSet && !draftSet) {
       startDraftSet(candidate);
@@ -526,12 +549,20 @@ export default function TransferAuditPage() {
   }
 
   function removeCandidateFromSelectedSet(candidate: TransferCandidate) {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     setWorkspaceError("");
     setSelectedPaymentIds((current) => removePaymentId(current, candidate.id));
     keepCurrentEditorOpen();
   }
 
   function mergeTransferSetIntoSelected(row: TransferAuditRow) {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     setWorkspaceError("");
     if (!selectedSet && !draftSet) {
       selectTransferSet(row);
@@ -541,18 +572,30 @@ export default function TransferAuditPage() {
   }
 
   function addSameBookingGroup() {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     setSelectedPaymentIds((current) =>
       addSameBookingGroupPaymentIds(current, candidates, selectedCandidates, currentSetId)
     );
   }
 
   function addSameGroupName() {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     setSelectedPaymentIds((current) =>
       addSameGroupNamePaymentIds(current, candidates, selectedCandidates, currentSetId)
     );
   }
 
   async function saveSet() {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     if (!selectedSet && !draftSet) {
       setWorkspaceError("Select or start a Transfer Set first.");
       return;
@@ -611,6 +654,10 @@ export default function TransferAuditPage() {
   }
 
   async function archiveSelectedSet(confirmArchive = true) {
+    if (editControlsDisabled) {
+      blockReadOnlyOwnerEdit();
+      return;
+    }
     if (!selectedSet?.transfer_event_id) return;
     if (confirmArchive) {
       const ok = window.confirm("Archive this Transfer Set? Payment rows stay in folio and notes are restored.");
@@ -656,6 +703,7 @@ export default function TransferAuditPage() {
               className="form-input h-9"
               type="datetime-local"
               value={form.transferAt}
+              disabled={editControlsDisabled}
               onChange={(event) => setForm((current) => ({ ...current, transferAt: event.target.value }))}
             />
           </label>
@@ -664,6 +712,7 @@ export default function TransferAuditPage() {
             <input
               className="form-input h-9"
               value={form.senderName}
+              disabled={editControlsDisabled}
               onChange={(event) => setForm((current) => ({ ...current, senderName: event.target.value }))}
               placeholder="Optional"
             />
@@ -673,6 +722,7 @@ export default function TransferAuditPage() {
             <input
               className="form-input h-9"
               value={form.bankRef}
+              disabled={editControlsDisabled}
               onChange={(event) => setForm((current) => ({ ...current, bankRef: event.target.value }))}
               placeholder="Bank ref / slip no."
             />
@@ -682,6 +732,7 @@ export default function TransferAuditPage() {
             <textarea
               className="form-input min-h-[70px] resize-y py-2"
               value={form.note}
+              disabled={editControlsDisabled}
               onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
               placeholder="Optional context"
             />
@@ -695,10 +746,10 @@ export default function TransferAuditPage() {
         )}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" className="btn btn-secondary h-9 text-xs" onClick={addSameBookingGroup} disabled={saving || selectedCandidates.length === 0}>
+          <button type="button" className="btn btn-secondary h-9 text-xs" onClick={addSameBookingGroup} disabled={saving || editControlsDisabled || selectedCandidates.length === 0}>
             Same Booking Group
           </button>
-          <button type="button" className="btn btn-secondary h-9 text-xs" onClick={addSameGroupName} disabled={saving || selectedCandidates.length === 0}>
+          <button type="button" className="btn btn-secondary h-9 text-xs" onClick={addSameGroupName} disabled={saving || editControlsDisabled || selectedCandidates.length === 0}>
             Same Group Name
           </button>
           <button
@@ -709,7 +760,7 @@ export default function TransferAuditPage() {
                 : "btn-primary"
             }`}
             onClick={() => void saveSet()}
-            disabled={saving || transferSetSaveAction === "disabled"}
+            disabled={saving || editControlsDisabled || transferSetSaveAction === "disabled"}
           >
             {saving ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -718,7 +769,7 @@ export default function TransferAuditPage() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {transferSetSaveAction === "archive_empty" ? "Archive Empty Set" : "Save Set"}
+            {isOwnerReadOnly ? "View Only" : transferSetSaveAction === "archive_empty" ? "Archive Empty Set" : "Save Set"}
           </button>
         </div>
       </div>
@@ -775,6 +826,11 @@ export default function TransferAuditPage() {
               Unsaved changes
             </span>
           )}
+          {isOwnerReadOnly && (
+            <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950">
+              Owner view only
+            </span>
+          )}
         </div>
       </div>
 
@@ -796,7 +852,7 @@ export default function TransferAuditPage() {
                 type="button"
                 className="btn btn-secondary h-8 shrink-0 text-xs"
                 onClick={() => startDraftSet()}
-                disabled={saving}
+                disabled={saving || editControlsDisabled}
               >
                 <Plus className="h-4 w-4" />
                 New
@@ -891,7 +947,7 @@ export default function TransferAuditPage() {
                       </div>
                     </div>
                     {expanded && renderTransferSetEditor()}
-                    {!selected && (selectedSet || draftSet) && (
+                    {!editControlsDisabled && !selected && (selectedSet || draftSet) && (
                       <div className="mt-3">
                         <button
                           type="button"
@@ -915,7 +971,9 @@ export default function TransferAuditPage() {
         <section className="flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] hc:border-black hc:bg-white">
           <div className="border-b border-[var(--border-default)] px-4 py-3 hc:border-black">
             <h2 className="text-sm font-black text-[var(--text-primary)] hc:text-black">Bookings in Selected Set</h2>
-            <p className="mt-1 text-xs text-[var(--text-secondary)] hc:text-black">Click a booking row to move it back to Needs Detail before saving.</p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)] hc:text-black">
+              {isOwnerReadOnly ? "Bookings currently linked to this Transfer Set." : "Click a booking row to move it back to Needs Detail before saving."}
+            </p>
           </div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
             {!selectedSet && !draftSet ? (
@@ -932,8 +990,9 @@ export default function TransferAuditPage() {
                   key={candidate.id}
                   type="button"
                   onClick={() => removeCandidateFromSelectedSet(candidate)}
+                  disabled={editControlsDisabled}
                   className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-body)] p-3 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950 hc:hover:bg-amber-200"
-                  title="Move to Needs Detail"
+                  title={isOwnerReadOnly ? "Owner view only" : "Move to Needs Detail"}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -964,7 +1023,9 @@ export default function TransferAuditPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-black text-[var(--text-primary)] hc:text-black">Needs Detail</h2>
-                <p className="mt-1 text-xs text-[var(--text-secondary)] hc:text-black">Click a card to move it into the selected Transfer Set.</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)] hc:text-black">
+                  {isOwnerReadOnly ? "Transfer rows waiting for detail." : "Click a card to move it into the selected Transfer Set."}
+                </p>
               </div>
               {needsDetailBadge()}
             </div>
@@ -990,7 +1051,9 @@ export default function TransferAuditPage() {
                   key={candidate.id}
                   type="button"
                   onClick={() => addCandidateToSelectedSet(candidate)}
+                  disabled={editControlsDisabled}
                   className="w-full rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-amber-500/30 dark:bg-amber-500/15 dark:hover:bg-sky-500/10 hc:border-amber-900 hc:bg-amber-100 hc:text-amber-950 hc:hover:bg-sky-100"
+                  title={isOwnerReadOnly ? "Owner view only" : undefined}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
