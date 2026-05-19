@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { roundMoney } from "@/lib/transfer-audit";
+import { TRANSFER_AUDIT_READ_ROLES } from "@/lib/transfer-audit-auth";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -198,7 +199,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
     const auth = await requireStaffAuth(supabase, request, {
-      allowRoles: ["admin", "supervisor", "frontdesk"],
+      allowRoles: [...TRANSFER_AUDIT_READ_ROLES],
     });
     if (auth.error) return auth.error;
 

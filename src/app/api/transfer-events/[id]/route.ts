@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
+import { TRANSFER_AUDIT_WRITE_ROLES } from "@/lib/transfer-audit-auth";
 import {
   bangkokDateFromIso,
   buildTransferAuditNote,
@@ -53,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const supabase = createServerSupabaseClient();
     const auth = await requireStaffAuth(supabase, request, {
-      allowRoles: ["admin", "supervisor", "frontdesk"],
+      allowRoles: [...TRANSFER_AUDIT_WRITE_ROLES],
     });
     if (auth.error) return auth.error;
 
