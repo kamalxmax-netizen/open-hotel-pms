@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveBusinessDate } from "@/lib/folio-fees";
+import { isPaymentReportLinkedDepositTransferEntry } from "@/lib/payment-reporting";
 import { resolveAdvancePaymentStatus } from "@/lib/payment-daily-accounting";
 import { buildPaymentDailyTransferAuditHref } from "@/lib/payment-daily-transfer-audit-link";
 import { NextRequest, NextResponse } from "next/server";
@@ -57,6 +58,7 @@ type PaymentRow = {
   amount: number | null;
   note: string | null;
   revenue_category: string | null;
+  cashier_name?: string | null;
   transfer_event_id?: string | null;
   is_record_only?: boolean | null;
   is_correction?: boolean | null;
@@ -74,6 +76,7 @@ type ReservationRow = {
   booking_code: string | null;
   checkin_date: string | null;
   checkout_date: string | null;
+  deposit_note: string | null;
   total_price: number | null;
   discount_type: string | null;
   discount_value: number | null;
@@ -644,7 +647,7 @@ export async function GET(request: NextRequest) {
 
     const paymentsQuery = supabase
       .from("folio_payments")
-      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
+      .select("id, reservation_id, pos_order_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
       .order("paid_at", { ascending: true });
 
     const posOrdersQuery = supabase
@@ -780,7 +783,7 @@ export async function GET(request: NextRequest) {
       const [reservationRes, nightsRes, cumulativeRes, priorPaymentsRes] = await Promise.all([
         supabase
           .from("reservations")
-          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, discount_type, discount_value, discount_percent, is_dayuse, booking_group_id, parent_reservation_id, source, status")
+          .select("id, guest_name, booking_code, checkin_date, checkout_date, total_price, discount_type, discount_value, discount_percent, is_dayuse, booking_group_id, parent_reservation_id, source, status, deposit_note")
           .in("id", reservationIdList),
         supabase
           .from("reservation_nights")
@@ -794,7 +797,7 @@ export async function GET(request: NextRequest) {
           .lte("paid_date", businessDate),
         supabase
           .from("folio_payments")
-          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
+          .select("id, reservation_id, paid_date, paid_at, method, tx_type, amount, note, revenue_category, cashier_name, transfer_event_id, is_record_only, is_correction, is_void_reversal, void_of")
           .in("reservation_id", reservationIdList)
           .lt("paid_date", businessDate)
           .order("paid_date", { ascending: true })
@@ -975,6 +978,8 @@ export async function GET(request: NextRequest) {
         if (paymentId && priorVoidedPaymentIds.has(paymentId)) continue;
         const reservationId = String(row.reservation_id ?? "").trim();
         if (!reservationId) continue;
+        const reservation = reservationMap.get(reservationId);
+        if (isPaymentReportLinkedDepositTransferEntry(row, reservation)) continue;
         if (row.is_record_only === true) continue;
         if (row.is_void_reversal === true) continue;
 
@@ -1113,6 +1118,9 @@ export async function GET(request: NextRequest) {
 
       const reservation = reservationId ? reservationMap.get(reservationId) : undefined;
       if (!reservation && !isPosDeposit) continue;
+      if (isPaymentReportLinkedDepositTransferEntry(payment, reservation)) {
+        continue;
+      }
 
       const resolvedRoom = reservation
         ? resolveRoomForDate(

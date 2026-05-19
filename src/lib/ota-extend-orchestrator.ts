@@ -401,16 +401,18 @@ async function transferLinkedDepositFromOtaToExtension(params: {
     return null;
   }
 
+  const otaBookingCode = asString(ota.booking_code) || otaReservationId;
+  const extensionBookingCode = asString(extension.booking_code) || extensionReservationId;
+  const transferToExtensionNote = `Top-up from OTA ${otaBookingCode}`;
+  const transferFromOtaNote = `Transferred to linked walk-in ${extensionBookingCode}`;
   const otaLines = parseDepositPayloadLines(ota.deposit_note ?? null, otaDepositAmount);
   const extensionDepositAmount = round2(Math.max(0, toNumber(extension.deposit_amount)));
   const extensionLines = parseDepositPayloadLines(extension.deposit_note ?? null, extensionDepositAmount);
-  const mergedLines = mergeDepositLines(extensionLines, otaLines);
-
-  const otaBookingCode = asString(ota.booking_code) || otaReservationId;
-  const extensionBookingCode = asString(extension.booking_code) || extensionReservationId;
-
-  const transferToExtensionNote = `Top-up from OTA ${otaBookingCode}`;
-  const transferFromOtaNote = `Transferred to linked walk-in ${extensionBookingCode}`;
+  const transferredOtaLines = otaLines.map((line) => ({
+    ...line,
+    note: appendGeneralNote(asString(line.note), `OTA deposit transfer: ${transferToExtensionNote}`),
+  }));
+  const mergedLines = mergeDepositLines(extensionLines, transferredOtaLines);
   const extensionGeneralNote = appendGeneralNote(
     extractDepositGeneralNote(extension.deposit_note),
     transferToExtensionNote

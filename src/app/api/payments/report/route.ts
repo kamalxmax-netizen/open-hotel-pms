@@ -13,6 +13,7 @@ import {
   createPaymentReportMethodsMap,
   finalizePaymentReportMethods,
   isPaymentReportDepositRefundEntry,
+  isPaymentReportLinkedDepositTransferEntry,
   isPaymentReportPosDepositRecord,
   normalizePaymentReportCategory,
   normalizePaymentReportMethod,
@@ -62,6 +63,7 @@ function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
   if (reason === "record_only") return "Record-only";
   if (reason === "deposit_refund_separate") return "Deposit Refund";
   if (reason === "paid_by_deposit_trace") return "Paid by Deposit Trace";
+  if (reason === "linked_deposit_transfer") return "Linked Deposit Transfer";
   return "Policy Fee Duplicate";
 }
 
@@ -151,12 +153,20 @@ export async function GET(request: NextRequest) {
     const reservationIds = Array.from(
       new Set(rows.map((row) => String(row.reservation_id ?? "").trim()).filter(Boolean))
     );
-    const reservationCheckinDateById = new Map<string, string>();
+    const reservationContextById = new Map<
+      string,
+      {
+        checkin_date: string | null;
+        source: string | null;
+        parent_reservation_id: string | null;
+        deposit_note: string | null;
+      }
+    >();
     if (reservationIds.length > 0) {
       for (const chunk of chunkArray(reservationIds)) {
         const { data: reservationRows, error: reservationError } = await supabase
           .from("reservations")
-          .select("id, checkin_date")
+          .select("id, checkin_date, source, parent_reservation_id, deposit_note")
           .in("id", chunk);
         if (reservationError) {
           return NextResponse.json({ success: false, error: reservationError.message }, { status: 500 });
@@ -164,10 +174,12 @@ export async function GET(request: NextRequest) {
         for (const row of reservationRows ?? []) {
           const reservationId = String((row as { id?: string | null }).id ?? "").trim();
           if (!reservationId) continue;
-          reservationCheckinDateById.set(
-            reservationId,
-            String((row as { checkin_date?: string | null }).checkin_date ?? "").trim()
-          );
+          reservationContextById.set(reservationId, {
+            checkin_date: (row as { checkin_date?: string | null }).checkin_date ?? null,
+            source: (row as { source?: string | null }).source ?? null,
+            parent_reservation_id: (row as { parent_reservation_id?: string | null }).parent_reservation_id ?? null,
+            deposit_note: (row as { deposit_note?: string | null }).deposit_note ?? null,
+          });
         }
       }
     }
@@ -235,7 +247,9 @@ export async function GET(request: NextRequest) {
       const note = String(row.note ?? "").trim();
       const category = normalizePaymentReportCategory(row.revenue_category, rawTxType, row.note);
       const reservationId = String(row.reservation_id ?? "").trim();
-      const reservationCheckinDate = reservationCheckinDateById.get(reservationId) ?? "";
+      const reservationContext = reservationContextById.get(reservationId);
+      const reservationCheckinDate = String(reservationContext?.checkin_date ?? "").trim();
+      const isLinkedDepositTransfer = isPaymentReportLinkedDepositTransferEntry(row, reservationContext);
       const isAdvanceDeposit =
         rawTxType === "deposit" &&
         !isPaymentReportPosDepositRecord(rawTxType, String(category), note) &&
@@ -245,7 +259,7 @@ export async function GET(request: NextRequest) {
       else allPostedSummary.grand_total += amount;
       allPostedSummary.tx_count += 1;
 
-      if (category === "deposit" && reservationId) {
+      if (category === "deposit" && reservationId && !isLinkedDepositTransfer) {
         const current = depositRowsByReservation.get(reservationId) ?? [];
         current.push({
           method: rawMethod,
@@ -269,6 +283,8 @@ export async function GET(request: NextRequest) {
         excludedReason = "void_pair";
       } else if (isRecordOnly) {
         excludedReason = "record_only";
+      } else if (isLinkedDepositTransfer) {
+        excludedReason = "linked_deposit_transfer";
       } else if (
         String(category) === "deposit" &&
         (note.toLowerCase().includes("paid by deposit") || note.toLowerCase().includes("void return to deposit"))
