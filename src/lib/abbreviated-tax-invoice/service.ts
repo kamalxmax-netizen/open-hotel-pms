@@ -1,6 +1,5 @@
 import {
   ABBREVIATED_BOOK_NO_BASE_BE_YEAR,
-  ABBREVIATED_INVOICE_NO_PREFIX,
   ABBREVIATED_MAX_ROWS_PER_HALF_PAGE,
   ABBREVIATED_VAT_RATE,
   type AbbreviatedInvoiceDraft,
@@ -19,6 +18,14 @@ import {
   type RowShiftInput,
   type TaxGroup,
 } from "@/lib/abbreviated-tax-invoice/types";
+import {
+  assignSequentialInvoiceNumbers,
+  computeAbbreviatedInvoiceNo,
+} from "@/lib/abbreviated-tax-invoice/numbering";
+import {
+  mapCompletedPositivePosItemRows,
+  type PosItemRow,
+} from "@/lib/abbreviated-tax-invoice/pos-items";
 import { getSellerSnapshotFromSettings } from "@/lib/tax-invoice/service";
 import { normalizeMoney, round2 } from "@/lib/tax-invoice/utils";
 import type { BookingSource } from "@/lib/types";
@@ -110,25 +117,6 @@ type ShiftOverrideWorkRow = {
   remaining: number;
 };
 
-type PosOrderRow = {
-  id: string;
-  order_number: string;
-  order_date: string;
-  order_type: "walkin" | "guest_charge";
-  status: "pending" | "completed" | "voided";
-};
-
-type PosItemRow = {
-  order_id: string;
-  order_number: string;
-  order_date: string;
-  product_id: string;
-  label_th: string;
-  quantity: number;
-  unit_price: number;
-  amount: number;
-};
-
 type SourceNight = {
   entry_id: string;
   reservation_id: string;
@@ -196,27 +184,7 @@ export function computeBookNo(issueDate: string): number {
   const beYear = year + 543;
   return beYear - ABBREVIATED_BOOK_NO_BASE_BE_YEAR;
 }
-
-export function computeAbbreviatedInvoiceNo(
-  issueDate: string,
-  channelGroup: ChannelGroup | null,
-  sourceType: AbbreviatedSourceType = "room"
-): string {
-  const year = Number(issueDate.slice(0, 4));
-  const beYear = year + 543;
-  const yy = String(beYear % 100).padStart(2, "0");
-  const mm = issueDate.slice(5, 7);
-  const mmdd = issueDate.slice(5, 7) + issueDate.slice(8, 10);
-
-  if (sourceType === "dayuse") {
-    return `${ABBREVIATED_INVOICE_NO_PREFIX.DAYUSE_MONTHLY}${yy}${mm}`;
-  }
-  if (sourceType === "pos") {
-    return `${ABBREVIATED_INVOICE_NO_PREFIX.POS_DAILY}${yy}${mmdd}`;
-  }
-
-  return `${channelGroup === "walkin_direct" ? ABBREVIATED_INVOICE_NO_PREFIX.ROOM_WALKIN_DIRECT : ABBREVIATED_INVOICE_NO_PREFIX.ROOM_OTA}${yy}${mmdd}`;
-}
+export { assignSequentialInvoiceNumbers, computeAbbreviatedInvoiceNo };
 
 export function computeAbbreviatedStayRange(issueDate: string): { from: string; to: string } {
   return {
@@ -480,26 +448,12 @@ export async function loadPosItemsForDay(
     )
     .eq("pos_orders.order_date", date)
     .eq("pos_orders.status", "completed")
-    .eq("pos_orders.order_type", "walkin")
+    .gt("line_total", 0)
     .eq("products.pos_abbreviated_enabled", true)
     .order("order_id", { ascending: true });
 
   if (error) throw new AbbreviatedTaxInvoiceError(error.message, 500);
-
-  return ((data ?? []) as any[]).map((row) => {
-    const order = Array.isArray(row.pos_orders) ? row.pos_orders[0] : row.pos_orders;
-    const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    return {
-      order_id: String(row.order_id),
-      order_number: str(order?.order_number),
-      order_date: str(order?.order_date),
-      product_id: String(row.product_id),
-      label_th: str(product?.name_th) || str(product?.name),
-      quantity: Number(row.quantity ?? 0),
-      unit_price: round2(Number(row.unit_price ?? 0)),
-      amount: round2(Number(row.line_total ?? 0)),
-    };
-  });
+  return mapCompletedPositivePosItemRows(data ?? []);
 }
 
 async function loadRoomGroupMap(supabase: SupabaseLike): Promise<Map<string, RoomGroupMapRow>> {
@@ -1084,7 +1038,7 @@ async function buildRoomPreview(
     }
   }
 
-  const drafts = computeAutoShift(buildDraftsFromNights(sourceNights, period));
+  const drafts = assignSequentialInvoiceNumbers(computeAutoShift(buildDraftsFromNights(sourceNights, period)));
 
   return {
     period: { year: period.year, month: period.month, audit_period_id: period.id },
@@ -1254,7 +1208,7 @@ async function buildPosPreview(
     });
   }
 
-  const shiftedDrafts = computeAutoShift(drafts);
+  const shiftedDrafts = assignSequentialInvoiceNumbers(computeAutoShift(drafts));
   return {
     period: { year: period.year, month: period.month, audit_period_id: period.id },
     drafts: shiftedDrafts,
@@ -1381,6 +1335,7 @@ async function refreshPersistedAbbreviatedInvoice(
   const { error: updateError } = await supabase
     .from("abbreviated_tax_invoice")
     .update({
+      invoice_no: draft.predicted_invoice_no,
       source_type: draft.source_type,
       channel_group: draft.channel_group,
       tax_invoice_channel: draft.tax_invoice_channel,
@@ -1522,7 +1477,7 @@ export async function generateAbbreviatedInvoices(
       continue;
     }
 
-    const invoiceNo = await getNextInvoiceNumber(supabase, draft.issue_date, draft.source_type, draft.channel_group);
+    const invoiceNo = draft.predicted_invoice_no || await getNextInvoiceNumber(supabase, draft.issue_date, draft.source_type, draft.channel_group);
     const { data: invoice, error: invoiceError } = await supabase
       .from("abbreviated_tax_invoice")
       .insert({

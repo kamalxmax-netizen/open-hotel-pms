@@ -311,8 +311,7 @@ export type AbbreviatedRenderData = {
 };
 
 // Phase 71: Products admin row used by POS item master (ProductsTab).
-// Extends the base `products` table with name_th + pos_abbreviated_enabled
-// so ProductsTab can drive ใบกำกับภาษีอย่างย่อ (POS) inclusion.
+// Extends the base `products` table with POS invoice label metadata.
 export type PosProduct = {
   id: string;
   name: string;                           // English master name
@@ -358,11 +357,11 @@ export const ABBREVIATED_MAX_ROWS_PER_HALF_PAGE = 7;
 export const ABBREVIATED_VAT_RATE = 7;
 export const ABBREVIATED_BOOK_NO_BASE_BE_YEAR = 2561; // พ.ศ. 2561 = เล่ม 0; 2569 = เล่ม 8
 
-// Phase 71: invoice number prefixes (BE year is 2-digit, % 100).
-//   Room OTA           → YYMMDD          e.g. 690301
-//   Room Walk-in/Dir.  → W + YYMMDD      e.g. W690301
-//   Day Use monthly    → DY + YY + MM    e.g. DY6903   (one per audit period)
-//   POS daily          → D + YYMMDD      e.g. D690301  (one per day)
+// Invoice number prefixes (BE year is 2-digit, % 100).
+//   Room OTA           → YYMM + monthly sequence       e.g. 690401
+//   Room Walk-in/Dir.  → W + YYMM + monthly sequence   e.g. W690401
+//   Day Use monthly    → DY + YY + MM                  e.g. DY6904 (one per audit period)
+//   POS daily          → D + YYMM + monthly sequence   e.g. D690401
 export const ABBREVIATED_INVOICE_NO_PREFIX = {
   ROOM_OTA: "",
   ROOM_WALKIN_DIRECT: "W",
