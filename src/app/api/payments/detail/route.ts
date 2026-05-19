@@ -5,6 +5,7 @@ import {
   buildPaymentReportPolicyFeeDedupKey,
   buildPaymentReportVoidedIdSet,
   isPaymentReportDepositRefundEntry,
+  isPaymentReportLinkedDepositTransferEntry,
   isPaymentReportPosDepositRecord,
   normalizePaymentReportCategory,
   normalizePaymentReportMethod,
@@ -55,6 +56,7 @@ function excludedReasonLabel(reason: PaymentReportExcludedReason): string {
   if (reason === "record_only") return "Record-only";
   if (reason === "deposit_refund_separate") return "Deposit Refund";
   if (reason === "paid_by_deposit_trace") return "Paid by Deposit Trace";
+  if (reason === "linked_deposit_transfer") return "Linked Deposit Transfer";
   return "Policy Fee Duplicate";
 }
 
@@ -173,6 +175,9 @@ export async function GET(request: NextRequest) {
         guest_name: string | null;
         guest_profile_id: string | null;
         checkin_date: string | null;
+        source: string | null;
+        parent_reservation_id: string | null;
+        deposit_note: string | null;
       }
     >();
     const nightsByReservation = new Map<string, ReservationNightRoom[]>();
@@ -182,7 +187,7 @@ export async function GET(request: NextRequest) {
         const [reservationsRes, nightsRes] = await Promise.all([
           supabase
             .from("reservations")
-            .select("id, booking_code, guest_name, guest_profile_id, checkin_date")
+            .select("id, booking_code, guest_name, guest_profile_id, checkin_date, source, parent_reservation_id, deposit_note")
             .in("id", chunk),
           supabase
             .from("reservation_nights")
@@ -205,6 +210,9 @@ export async function GET(request: NextRequest) {
             guest_name: row.guest_name ? String(row.guest_name) : null,
             guest_profile_id: row.guest_profile_id ? String(row.guest_profile_id) : null,
             checkin_date: row.checkin_date ? String(row.checkin_date) : null,
+            source: row.source ? String(row.source) : null,
+            parent_reservation_id: row.parent_reservation_id ? String(row.parent_reservation_id) : null,
+            deposit_note: row.deposit_note ? String(row.deposit_note) : null,
           });
         }
 
@@ -297,6 +305,7 @@ export async function GET(request: NextRequest) {
         String(rawCategory) === "pos_revenue" &&
         note.toLowerCase().includes("pos remainder");
       const isRecordOnly = row.is_record_only === true && !isPosDeposit && !isPosRemainder;
+      const isLinkedDepositTransfer = isPaymentReportLinkedDepositTransferEntry(row, reservation);
 
       let excludedReason: PaymentReportExcludedReason | null = null;
       const paymentId = String(row.id ?? "").trim();
@@ -304,6 +313,8 @@ export async function GET(request: NextRequest) {
         excludedReason = "void_pair";
       } else if (isRecordOnly) {
         excludedReason = "record_only";
+      } else if (isLinkedDepositTransfer) {
+        excludedReason = "linked_deposit_transfer";
       } else if (
         String(rawCategory) === "deposit" &&
         (note.toLowerCase().includes("paid by deposit") || note.toLowerCase().includes("void return to deposit"))

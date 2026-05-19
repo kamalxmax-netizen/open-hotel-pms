@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const PAYMENT_REPORT_METHOD_KEYS = ["cash", "transfer", "credit_card", "other"] as const;
 export const PAYMENT_REPORT_CATEGORIES = [
@@ -46,7 +46,14 @@ export type PaymentReportExcludedReason =
   | "record_only"
   | "deposit_refund_separate"
   | "paid_by_deposit_trace"
+  | "linked_deposit_transfer"
   | "policy_fee_duplicate";
+
+export type PaymentReportReservationContext = {
+  source?: unknown;
+  parent_reservation_id?: unknown;
+  deposit_note?: unknown;
+};
 
 export function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -113,6 +120,42 @@ export function isPaymentReportDepositRefundEntry(
   if (lowered.includes("void return to deposit")) return false;
   if (category === "deposit") return true;
   return lowered.includes("deposit") && lowered.includes("refund");
+}
+
+export function isPaymentReportLinkedDepositTransferEntry(
+  row: Pick<PaymentReportRow, "tx_type" | "revenue_category" | "note" | "cashier_name">,
+  reservation: PaymentReportReservationContext | null | undefined
+): boolean {
+  const txType = normalizePaymentReportTxType(row.tx_type);
+  const category = normalizePaymentReportCategory(row.revenue_category, txType, row.note);
+  if (category !== "deposit") return false;
+  if (txType !== "deposit" && txType !== "refund") return false;
+
+  const note = String(row.note ?? "").trim().toLowerCase();
+  if (
+    note.includes("ota deposit transfer") ||
+    note.includes("top-up from ota") ||
+    note.includes("top up from ota") ||
+    note.includes("transferred to linked")
+  ) {
+    return true;
+  }
+
+  const cashierName = String(row.cashier_name ?? "").trim().toLowerCase();
+  if (cashierName !== "system") return false;
+
+  const depositNote = String(reservation?.deposit_note ?? "").trim().toLowerCase();
+  const hasLinkedParent = String(reservation?.parent_reservation_id ?? "").trim().length > 0;
+  const isIncomingTransfer =
+    txType === "deposit" &&
+    hasLinkedParent &&
+    (depositNote.includes("top-up from ota") || depositNote.includes("top up from ota"));
+  const isOutgoingTransfer =
+    txType === "refund" &&
+    String(reservation?.source ?? "").trim().toLowerCase() === "ota" &&
+    depositNote.includes("transferred to linked");
+
+  return isIncomingTransfer || isOutgoingTransfer;
 }
 
 export function buildPaymentReportVoidedIdSet(
