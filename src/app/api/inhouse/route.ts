@@ -192,7 +192,8 @@ export async function GET(request: NextRequest) {
                 status: r.status ?? null,
                 total_price: r.total_price ?? null,
             })),
-            checkOutTimeHHmm
+            checkOutTimeHHmm,
+            { activeDate: businessDate }
         );
         const visibleExtraByReservationId = await fetchReservationVisibleTotals(supabase, reservationIds);
         const outstandingByReservationId = await fetchReservationOutstandingBalances(

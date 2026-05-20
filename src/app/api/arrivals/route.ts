@@ -164,7 +164,8 @@ export async function GET(request: NextRequest) {
                 status: r.status ?? null,
                 total_price: r.total_price ?? null,
             })),
-            hotelCheckOutTime
+            hotelCheckOutTime,
+            { activeDate: businessDate }
         );
         const profileSeed = new Map<string, string | null>();
         for (const row of rows) {

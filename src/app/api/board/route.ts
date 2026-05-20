@@ -617,7 +617,8 @@ export async function GET(request: NextRequest) {
         status: row.status ?? null,
         total_price: row.total_price ?? null,
       })),
-      hotelCheckOutTime
+      hotelCheckOutTime,
+      { activeDate: date }
     );
     for (const [reservationId, linkedStay] of linkedStayResults.entries()) {
       if (!linkedStay) continue;
