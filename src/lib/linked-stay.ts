@@ -1,5 +1,3 @@
-import { listNights } from "@/lib/dates";
-
 type SupabaseLike = {
   from: (table: string) => any;
 };
@@ -27,6 +25,11 @@ export type LinkedStay = {
   active_segment_id: string;
 };
 
+export type LinkedStayActiveContext = {
+  activeDate?: string | null;
+  activeTimeHHmm?: string | null;
+};
+
 type ReservationRecord = {
   id: string;
   parent_reservation_id: string | null;
@@ -44,6 +47,11 @@ function normalizeTimeHHmm(value: string | null | undefined, fallback = "12:00")
   const match = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/u);
   if (!match) return fallback;
   return `${match[1]}:${match[2]}`;
+}
+
+function normalizeDateYYYYMMDD(value: string | null | undefined): string | null {
+  const raw = String(value ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/u.test(raw) ? raw : null;
 }
 
 function getBangkokNowParts(date = new Date()): { today: string; timeHHmm: string } {
@@ -74,6 +82,15 @@ function toNumber(value: unknown): number {
   return Number.isFinite(num) ? num : 0;
 }
 
+function resolveActiveContext(activeContext?: LinkedStayActiveContext): { date: string; timeHHmm: string } {
+  const now = getBangkokNowParts();
+  const date = normalizeDateYYYYMMDD(activeContext?.activeDate) ?? now.today;
+  const timeHHmm = activeContext?.activeTimeHHmm
+    ? normalizeTimeHHmm(activeContext.activeTimeHHmm, now.timeHHmm)
+    : now.timeHHmm;
+  return { date, timeHHmm };
+}
+
 function shouldSuppressLinkedStatus(status: unknown): boolean {
   const normalized = String(status ?? "").toLowerCase();
   return normalized === "cancelled" || normalized === "no_show";
@@ -81,6 +98,13 @@ function shouldSuppressLinkedStatus(status: unknown): boolean {
 
 function compareDateStrings(left: string, right: string): number {
   return left.localeCompare(right);
+}
+
+function countNights(start: string, end: string): number {
+  const startMs = new Date(`${start}T00:00:00Z`).getTime();
+  const endMs = new Date(`${end}T00:00:00Z`).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
+  return Math.max(0, Math.round((endMs - startMs) / 86400000));
 }
 
 function addReservation(
@@ -179,7 +203,8 @@ export async function resolveHotelCheckOutTime(
 export async function resolveLinkedStay(
   supabase: SupabaseLike,
   reservationId: string,
-  checkOutTimeHHmm = "12:00"
+  checkOutTimeHHmm = "12:00",
+  activeContext?: LinkedStayActiveContext
 ): Promise<LinkedStay | null> {
   if (!reservationId) return null;
 
@@ -285,10 +310,10 @@ export async function resolveLinkedStay(
     .map((row) => (row.checked_in_at ? String(row.checked_in_at) : ""))
     .filter(Boolean)
     .sort()[0] || null;
-  const fullNights = fullCheckin && fullCheckout ? listNights(fullCheckin, fullCheckout).length : 0;
+  const fullNights = fullCheckin && fullCheckout ? countNights(fullCheckin, fullCheckout) : 0;
   const combinedTotal = segments.reduce((sum, segment) => sum + segment.total_price, 0);
-  const { today, timeHHmm } = getBangkokNowParts();
-  const activeSegmentId = resolveActiveSegmentId(segments, today, timeHHmm, checkOutTimeHHmm);
+  const { date, timeHHmm } = resolveActiveContext(activeContext);
+  const activeSegmentId = resolveActiveSegmentId(segments, date, timeHHmm, checkOutTimeHHmm);
 
   return {
     segments,
@@ -313,7 +338,8 @@ export async function resolveLinkedStay(
 function buildLinkedStayFromRecords(
   current: ReservationRecord,
   allRecords: Map<string, ReservationRecord>,
-  checkOutTimeHHmm: string
+  checkOutTimeHHmm: string,
+  activeContext?: LinkedStayActiveContext
 ): LinkedStay | null {
   const rootReservationId = current.parent_reservation_id
     ? String(current.parent_reservation_id)
@@ -369,10 +395,10 @@ function buildLinkedStayFromRecords(
     .map((row) => (row.checked_in_at ? String(row.checked_in_at) : ""))
     .filter(Boolean)
     .sort()[0] || null;
-  const fullNights = fullCheckin && fullCheckout ? listNights(fullCheckin, fullCheckout).length : 0;
+  const fullNights = fullCheckin && fullCheckout ? countNights(fullCheckin, fullCheckout) : 0;
   const combinedTotal = segments.reduce((sum, segment) => sum + segment.total_price, 0);
-  const { today, timeHHmm } = getBangkokNowParts();
-  const activeSegmentId = resolveActiveSegmentId(segments, today, timeHHmm, checkOutTimeHHmm);
+  const { date, timeHHmm } = resolveActiveContext(activeContext);
+  const activeSegmentId = resolveActiveSegmentId(segments, date, timeHHmm, checkOutTimeHHmm);
 
   return {
     segments,
@@ -417,7 +443,8 @@ export async function resolveLinkedStayBatch(
     status?: string | null;
     total_price?: number | string | null;
   }>,
-  checkOutTimeHHmm = "12:00"
+  checkOutTimeHHmm = "12:00",
+  activeContext?: LinkedStayActiveContext
 ): Promise<Map<string, LinkedStay | null>> {
   const result = new Map<string, LinkedStay | null>();
   if (reservations.length === 0) return result;
@@ -503,7 +530,7 @@ export async function resolveLinkedStayBatch(
       continue;
     }
     try {
-      result.set(id, buildLinkedStayFromRecords(current, allRecords, checkOutTimeHHmm));
+      result.set(id, buildLinkedStayFromRecords(current, allRecords, checkOutTimeHHmm, activeContext));
     } catch {
       result.set(id, null);
     }
