@@ -156,6 +156,31 @@ function toBangkokDateTimeLocal(value: string | null): string {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 }
 
+function splitDateTimeLocal(value: string): { date: string; time: string } {
+  const [date = "", timeRaw = ""] = String(value ?? "").split("T");
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayInBangkok(),
+    time: /^[0-9:]{0,5}$/.test(timeRaw) ? timeRaw.slice(0, 5) : "00:00",
+  };
+}
+
+function combineDateTimeLocal(date: string, time: string): string {
+  const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayInBangkok();
+  return `${safeDate}T${time}`;
+}
+
+function normalizeTime24(value: string, fallback = "00:00"): string {
+  const cleaned = String(value ?? "").trim();
+  const match = cleaned.match(/^(\d{1,2})(?::?(\d{0,2}))?$/);
+  if (!match) return fallback;
+  const hour = Number(match[1]);
+  const minute = match[2] === undefined || match[2] === "" ? 0 : Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return fallback;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 function compactJoin(values: Array<string | null | undefined>, fallback = "-"): string {
   const unique = Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
   if (unique.length === 0) return fallback;
@@ -609,6 +634,11 @@ export default function TransferAuditPage() {
       return;
     }
 
+    const formParts = splitDateTimeLocal(form.transferAt);
+    const normalizedTransferAt = combineDateTimeLocal(
+      formParts.date,
+      normalizeTime24(formParts.time, formParts.time)
+    );
     setSaving(true);
     setWorkspaceError("");
     try {
@@ -617,7 +647,7 @@ export default function TransferAuditPage() {
         detail: {
           sender_name: form.senderName,
           bank_ref: form.bankRef,
-          transfer_at: form.transferAt,
+          transfer_at: normalizedTransferAt,
           note: form.note,
         },
       };
@@ -694,19 +724,53 @@ export default function TransferAuditPage() {
   });
 
   function renderTransferSetEditor() {
+    const transferDateTime = splitDateTimeLocal(form.transferAt);
     return (
       <div className="mt-3 border-t border-sky-200 pt-3 dark:border-sky-500/20 hc:border-black">
         <div className="grid gap-2">
-          <label className="block">
-            <span className="form-label">Transfer time</span>
-            <input
-              className="form-input h-9"
-              type="datetime-local"
-              value={form.transferAt}
-              disabled={editControlsDisabled}
-              onChange={(event) => setForm((current) => ({ ...current, transferAt: event.target.value }))}
-            />
-          </label>
+          <div className="grid gap-2 sm:grid-cols-[1fr_96px]">
+            <label className="block">
+              <span className="form-label">Transfer date</span>
+              <input
+                className="form-input h-9"
+                type="date"
+                value={transferDateTime.date}
+                disabled={editControlsDisabled}
+                onChange={(event) => setForm((current) => {
+                  const currentParts = splitDateTimeLocal(current.transferAt);
+                  return {
+                    ...current,
+                    transferAt: combineDateTimeLocal(event.target.value, currentParts.time),
+                  };
+                })}
+              />
+            </label>
+            <label className="block">
+              <span className="form-label">Time (24h)</span>
+              <input
+                className="form-input h-9 font-mono"
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:mm"
+                value={transferDateTime.time}
+                disabled={editControlsDisabled}
+                onChange={(event) => setForm((current) => {
+                  const currentParts = splitDateTimeLocal(current.transferAt);
+                  return {
+                    ...current,
+                    transferAt: combineDateTimeLocal(currentParts.date, event.target.value),
+                  };
+                })}
+                onBlur={(event) => setForm((current) => {
+                  const currentParts = splitDateTimeLocal(current.transferAt);
+                  return {
+                    ...current,
+                    transferAt: combineDateTimeLocal(currentParts.date, normalizeTime24(event.target.value, currentParts.time)),
+                  };
+                })}
+              />
+            </label>
+          </div>
           <label className="block">
             <span className="form-label">Sender / account name</span>
             <input
