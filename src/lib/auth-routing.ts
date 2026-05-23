@@ -8,6 +8,15 @@ const TRANSFER_AUDIT_PERMISSION_PATHS = [
   "/pms/payments",
   "/pms/audit",
 ];
+const FOLIO_PRINT_PREVIEW_PATH = "/pms/folio/preview";
+const FOLIO_PRINT_PERMISSION_PATHS = [
+  "/pms/reservations",
+  "/pms/board",
+  "/pms/arrivals",
+  "/pms/inhouse",
+  "/pms/departures",
+  "/pms/groups",
+];
 
 function normalizeAllowedPages(allowedPages: string[] | null | undefined): string[] {
   if (!Array.isArray(allowedPages)) return ["*"];
@@ -22,14 +31,21 @@ function normalizeLandingPath(path: string): string {
   return path;
 }
 
+export function resolvePermissionPathsForRoute(path: string): string[] {
+  const normalizedPath = normalizeLandingPath(path);
+  if (normalizedPath === TRANSFER_AUDIT_PATH || normalizedPath.startsWith(`${TRANSFER_AUDIT_PATH}/`)) {
+    return TRANSFER_AUDIT_PERMISSION_PATHS;
+  }
+  if (normalizedPath === FOLIO_PRINT_PREVIEW_PATH || normalizedPath.startsWith(`${FOLIO_PRINT_PREVIEW_PATH}/`)) {
+    return FOLIO_PRINT_PERMISSION_PATHS;
+  }
+  return [normalizedPath];
+}
+
 function canAccessPath(path: string, allowedPages: string[] | null | undefined): boolean {
   const pages = normalizeAllowedPages(allowedPages);
   if (pages.includes("*")) return true;
-  const normalizedPath = normalizeLandingPath(path);
-  const candidatePaths =
-    normalizedPath === TRANSFER_AUDIT_PATH || normalizedPath.startsWith(`${TRANSFER_AUDIT_PATH}/`)
-      ? TRANSFER_AUDIT_PERMISSION_PATHS
-      : [normalizedPath];
+  const candidatePaths = resolvePermissionPathsForRoute(path);
   return candidatePaths.some((candidatePath) =>
     pages.some((page) => {
       const allowed = normalizeLandingPath(page);
