@@ -5,7 +5,7 @@ import {
   readCachedAccessProfile,
   writeCachedAccessProfile,
 } from "@/lib/middleware-permission-cache";
-import { resolvePostLoginPath } from "@/lib/auth-routing";
+import { resolvePermissionPathsForRoute, resolvePostLoginPath } from "@/lib/auth-routing";
 
 // Routes that are always public (no auth required)
 const PUBLIC_PATHS = ["/login", "/_next", "/favicon", "/icon", "/api/auth", "/offline", "/linen-vendor"];
@@ -15,13 +15,6 @@ const AUTH_ONLY_PATHS = ["/login"];
 const MOBILE_HOME_PATH = "/pms/mobile-checkin";
 const MAID_HOME_PATH = "/maid";
 const STAFF_SCHEDULE_PATH = "/pms/staff-schedule";
-const TRANSFER_AUDIT_PATH = "/pms/transfer-audit";
-const TRANSFER_AUDIT_PERMISSION_PATHS = [
-  TRANSFER_AUDIT_PATH,
-  "/pms/payment-daily",
-  "/pms/payments",
-  "/pms/audit",
-];
 const EXACT_PERMISSION_PATHS = new Set([
   "/pms/inventory",
   "/pms/housekeeping",
@@ -203,17 +196,13 @@ export async function middleware(request: NextRequest) {
     // ["*"] = full access
     if (!allowedPages.includes("*")) {
       const permissionPaths =
-        pathname === TRANSFER_AUDIT_PATH || pathname.startsWith(`${TRANSFER_AUDIT_PATH}/`)
-          ? TRANSFER_AUDIT_PERMISSION_PATHS
-          : [
-              pathname.startsWith("/maid")
-                ? MAID_HOME_PATH
-              : pathname.startsWith("/linen-mobile")
-                ? "/linen-mobile"
-              : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
-                ? "/pms/calendar"
-                : pathname,
-            ];
+        pathname.startsWith("/maid")
+          ? [MAID_HOME_PATH]
+        : pathname.startsWith("/linen-mobile")
+          ? ["/linen-mobile"]
+        : pathname === "/pms/room-planner" || pathname.startsWith("/pms/room-planner/")
+          ? ["/pms/calendar"]
+          : resolvePermissionPathsForRoute(pathname);
       const hasAccess = permissionPaths.some((permissionPath) =>
         allowedPages.some((p) => hasAllowedPageAccess(permissionPath, p))
       );
