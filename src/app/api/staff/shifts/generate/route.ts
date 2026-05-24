@@ -143,16 +143,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const missingConfig = foStaff.filter((staff) => !configRows.some((cfg) => cfg.staff_id === staff.id));
-    if (missingConfig.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Missing roster_config for: ${missingConfig.map(staffNickname).join(", ")}`,
-        },
-        { status: 400 }
-      );
-    }
+    const configuredStaffIds = Array.from(new Set(configRows.map((cfg) => cfg.staff_id)));
+    const configuredStaffIdSet = new Set(configuredStaffIds);
+    const missingConfig = foStaff.filter((staff) => !configuredStaffIdSet.has(staff.id));
 
     const rotateCount = configRows.filter((cfg) => cfg.shift_preference === "rotate").length;
     const morningFixedCount = configRows.filter((cfg) => cfg.shift_preference === "morning_fixed").length;
@@ -177,6 +170,11 @@ export async function POST(request: NextRequest) {
     if (rotateCount !== 3) {
       configWarnings.push(
         `Baseline GAS uses 3 rotate staff. Current rotate count is ${rotateCount}.`
+      );
+    }
+    if (missingConfig.length > 0) {
+      configWarnings.push(
+        `Ignored active FO staff without roster_config: ${missingConfig.map(staffNickname).join(", ")}.`
       );
     }
 
@@ -218,7 +216,7 @@ export async function POST(request: NextRequest) {
     const { data: manualRows, error: manualError } = await supabase
       .from("staff_shifts")
       .select("staff_id, shift_date")
-      .in("staff_id", foStaffIds)
+      .in("staff_id", configuredStaffIds)
       .gte("shift_date", from)
       .lte("shift_date", to)
       .eq("is_generated", false);
@@ -303,4 +301,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
-
