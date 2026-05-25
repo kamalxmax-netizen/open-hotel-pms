@@ -12,6 +12,7 @@ export const STRICT_POLLING = {
   vehicleSummaryMs: 180_000,
   vehicleRegistryMs: 180_000,
   boardDayUseMs: 180_000,
+  urgentOverlayMs: 60_000,
 } as const;
 
 export function strictPollInterval(defaultMs: number, strictMs: number): number {

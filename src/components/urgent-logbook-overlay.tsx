@@ -12,8 +12,9 @@ import {
   loadCopyBoardEntries,
 } from "@/lib/copy-board";
 import type { LogbookNote } from "@/lib/types";
+import { STRICT_POLLING, canPollVisibleTab, strictPollInterval } from "@/lib/egress-strict-mode";
 
-type UrgentOverlayNote = LogbookNote;
+type UrgentOverlayNote = Pick<LogbookNote, "id" | "title" | "body" | "note_type" | "status" | "priority" | "remind_at" | "archived_at" | "updated_at">;
 type OverlayCardId = string;
 
 type AlarmSeverity = "red" | "yellow" | null;
@@ -39,7 +40,7 @@ const COPY_BOARD_WIDTH = 230;
 const COPY_BOARD_HEIGHT = 240;
 const CARD_GAP = 12;
 const VIEWPORT_MARGIN = 16;
-const POLL_MS = 30_000;
+const POLL_MS = strictPollInterval(30_000, STRICT_POLLING.urgentOverlayMs);
 const COPY_BOARD_CARD_ID = "__copy-board__";
 const CONTROL_PANEL_BOTTOM = 64;
 
@@ -479,9 +480,14 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
   }, []);
 
   const fetchNotes = useCallback(async () => {
+    if (pathname.startsWith("/pms/logbook")) {
+      setNotes([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await fetch("/api/logbook/notes?type=urgent&archived=false&limit=100", { cache: "no-store" });
+      const res = await fetch("/api/logbook/notes/urgent-overlay", { cache: "no-store" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) return;
       const incoming = Array.isArray(data.data) ? (data.data as UrgentOverlayNote[]) : [];
@@ -489,7 +495,7 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pathname]);
 
   const reconcileMutedAlarms = useCallback(async (currentNotes: UrgentOverlayNote[], currentMutedMap: Record<string, MutedAlarmRecord>) => {
     const nextMutedMap = { ...currentMutedMap };
@@ -534,10 +540,12 @@ export default function UrgentLogbookOverlay({ hasNeighbor = false }: { hasNeigh
     if (!mounted) return;
     void fetchNotes();
     const interval = window.setInterval(() => {
+      if (!canPollVisibleTab()) return;
+      if (pathname.startsWith("/pms/logbook")) return;
       void fetchNotes();
     }, POLL_MS);
     return () => window.clearInterval(interval);
-  }, [fetchNotes, mounted]);
+  }, [fetchNotes, mounted, pathname]);
 
   useEffect(() => {
     if (!mounted) return;
