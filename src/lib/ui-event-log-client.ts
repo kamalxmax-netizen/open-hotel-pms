@@ -18,7 +18,17 @@ type UiEventPayload = {
 
 const RECENT_EVENT_WINDOW_MS = 1500;
 const MANUAL_CAPTURE_KEY = "pms.ui-event-log.manual-capture-enabled";
+const QUEUE_STORAGE_KEY = "pms.ui-event-log.queue-v1";
+const FLUSH_INTERVAL_MS = 15 * 60 * 1000;
+const FLUSH_BATCH_SIZE = 50;
+const MAX_BATCH_EVENTS = 200;
+const QUEUE_MAX_EVENTS = 500;
+const QUEUE_MAX_BYTES = 2 * 1024 * 1024;
+
 const recentEvents = new Map<string, number>();
+const eventQueue: UiEventPayload[] = [];
+let flushTimer: number | null = null;
+let flushInFlight = false;
 
 export function isUiEventLogManualCaptureEnabled(): boolean {
   if (typeof window === "undefined") return false;
@@ -54,6 +64,117 @@ function buildSignature(payload: UiEventPayload): string {
   ]);
 }
 
+function loadPersistedQueue(): UiEventPayload[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed as UiEventPayload[];
+  } catch {
+    return [];
+  }
+}
+
+function trimQueue(queue: UiEventPayload[]): UiEventPayload[] {
+  let trimmed = queue.slice(Math.max(0, queue.length - QUEUE_MAX_EVENTS));
+  let serialized = JSON.stringify(trimmed);
+  while (serialized.length > QUEUE_MAX_BYTES && trimmed.length > 0) {
+    trimmed = trimmed.slice(Math.ceil(trimmed.length / 4));
+    serialized = JSON.stringify(trimmed);
+  }
+  return trimmed;
+}
+
+function persistQueue(queue: UiEventPayload[]): UiEventPayload[] {
+  const trimmed = trimQueue(queue);
+  if (typeof window === "undefined") return trimmed;
+  try {
+    window.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    // ignore storage failures
+  }
+  return trimmed;
+}
+
+function replaceQueue(queue: UiEventPayload[]): UiEventPayload[] {
+  const next = persistQueue(queue);
+  eventQueue.length = 0;
+  eventQueue.push(...next);
+  return next;
+}
+
+function buildQueuedPayload(payload: UiEventPayload): UiEventPayload {
+  const capturedAt = new Date().toISOString();
+  const clientEventId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${capturedAt}-${Math.random().toString(36).slice(2)}`;
+
+  return {
+    ...payload,
+    metadata: {
+      ...(payload.metadata ?? {}),
+      captured_at: capturedAt,
+      client_event_id: clientEventId,
+    },
+  };
+}
+
+function flushQueue(keepalive = false): void {
+  const manualCaptureEnabled = isUiEventLogManualCaptureEnabled();
+  if (EGRESS_STRICT_MODE && !manualCaptureEnabled) return;
+  if (flushInFlight) return;
+
+  const queued = loadPersistedQueue();
+  const currentQueue = queued.length > 0 ? queued : eventQueue.slice();
+  if (currentQueue.length === 0) return;
+
+  const batchLimit = keepalive ? FLUSH_BATCH_SIZE : MAX_BATCH_EVENTS;
+  const batch = currentQueue.slice(0, batchLimit);
+
+  const body = JSON.stringify({ events: batch });
+  const headers = {
+    "Content-Type": "application/json",
+    "X-PMS-UI-Event-Log-Manual": manualCaptureEnabled ? "1" : "0",
+  };
+
+  flushInFlight = true;
+  let shouldFlushAgain = false;
+  void fetch("/api/ui-event-logs/batch", {
+    method: "POST",
+    headers,
+    body,
+    keepalive,
+    credentials: "include",
+  })
+    .then(async (res) => {
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => null);
+      if (!payload?.success) return;
+      const remaining = replaceQueue(loadPersistedQueue().slice(batch.length));
+      shouldFlushAgain = !keepalive && remaining.length >= FLUSH_BATCH_SIZE;
+    })
+    .catch(() => {
+      // Keep the queue for the next retry.
+    })
+    .finally(() => {
+      flushInFlight = false;
+      if (shouldFlushAgain) flushQueue();
+    });
+}
+
+function ensureFlushTimer(): void {
+  if (typeof window === "undefined" || flushTimer !== null) return;
+  flushTimer = window.setInterval(() => flushQueue(), FLUSH_INTERVAL_MS);
+
+  window.addEventListener("pagehide", () => flushQueue(true));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushQueue(true);
+  });
+}
+
 export function logUiEvent(payload: UiEventPayload): void {
   const manualCaptureEnabled = isUiEventLogManualCaptureEnabled();
   if (EGRESS_STRICT_MODE && !manualCaptureEnabled) return;
@@ -73,16 +194,12 @@ export function logUiEvent(payload: UiEventPayload): void {
       }
     }, RECENT_EVENT_WINDOW_MS * 2);
 
-    void fetch("/api/ui-event-logs", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-PMS-UI-Event-Log-Manual": manualCaptureEnabled ? "1" : "0",
-      },
-      body: JSON.stringify(payload),
-      keepalive: true,
-      credentials: "include",
-    });
+    const nextQueue = replaceQueue([...loadPersistedQueue(), buildQueuedPayload(payload)]);
+    ensureFlushTimer();
+
+    if (nextQueue.length >= FLUSH_BATCH_SIZE) {
+      flushQueue();
+    }
   } catch {
     // ignore client logging failures
   }
