@@ -332,7 +332,7 @@ export default function AdminDebugLogsPage() {
           <div>
             <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">Capture Users</h2>
             <p className="text-xs text-[var(--text-muted)] mt-1">
-              Only these email(s) will be logged when manual capture is enabled.
+              In strict mode, only these email(s) are captured. Manual capture still enables this browser.
             </p>
           </div>
           <button
