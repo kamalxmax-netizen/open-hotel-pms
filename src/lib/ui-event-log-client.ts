@@ -19,16 +19,21 @@ type UiEventPayload = {
 const RECENT_EVENT_WINDOW_MS = 1500;
 const MANUAL_CAPTURE_KEY = "pms.ui-event-log.manual-capture-enabled";
 const QUEUE_STORAGE_KEY = "pms.ui-event-log.queue-v1";
+const CAPTURE_STATUS_ENDPOINT = "/api/ui-event-logs/capture-status";
 const FLUSH_INTERVAL_MS = 15 * 60 * 1000;
 const FLUSH_BATCH_SIZE = 50;
 const MAX_BATCH_EVENTS = 200;
+const PENDING_CAPTURE_MAX_EVENTS = 100;
 const QUEUE_MAX_EVENTS = 500;
 const QUEUE_MAX_BYTES = 2 * 1024 * 1024;
 
 const recentEvents = new Map<string, number>();
 const eventQueue: UiEventPayload[] = [];
+const pendingCaptureEvents: UiEventPayload[] = [];
 let flushTimer: number | null = null;
 let flushInFlight = false;
+let serverCaptureEnabled: boolean | null = null;
+let captureStatusInFlight: Promise<boolean> | null = null;
 
 export function isUiEventLogManualCaptureEnabled(): boolean {
   if (typeof window === "undefined") return false;
@@ -122,9 +127,74 @@ function buildQueuedPayload(payload: UiEventPayload): UiEventPayload {
   };
 }
 
+function isCaptureAllowed(): boolean {
+  if (!EGRESS_STRICT_MODE) return true;
+  if (isUiEventLogManualCaptureEnabled()) return true;
+  return serverCaptureEnabled === true;
+}
+
+function queueCapturedEvent(payload: UiEventPayload): UiEventPayload[] {
+  return replaceQueue([...loadPersistedQueue(), payload]);
+}
+
+function releasePendingCaptureEvents(): UiEventPayload[] {
+  if (pendingCaptureEvents.length === 0) return loadPersistedQueue();
+  const pending = pendingCaptureEvents.splice(0, pendingCaptureEvents.length);
+  return replaceQueue([...loadPersistedQueue(), ...pending]);
+}
+
+function queuePendingCaptureEvent(payload: UiEventPayload): void {
+  pendingCaptureEvents.push(payload);
+  if (pendingCaptureEvents.length > PENDING_CAPTURE_MAX_EVENTS) {
+    pendingCaptureEvents.splice(0, pendingCaptureEvents.length - PENDING_CAPTURE_MAX_EVENTS);
+  }
+}
+
+function loadServerCaptureStatus(): void {
+  if (typeof window === "undefined") return;
+  if (!EGRESS_STRICT_MODE || isUiEventLogManualCaptureEnabled()) return;
+  if (serverCaptureEnabled !== null || captureStatusInFlight) return;
+
+  captureStatusInFlight = fetch(CAPTURE_STATUS_ENDPOINT, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  })
+    .then(async (res) => {
+      if (!res.ok) return false;
+      const payload = await res.json().catch(() => null);
+      return payload?.capture_enabled === true;
+    })
+    .then((enabled) => {
+      serverCaptureEnabled = enabled;
+      if (!enabled) {
+        pendingCaptureEvents.length = 0;
+        return enabled;
+      }
+
+      const nextQueue = releasePendingCaptureEvents();
+      ensureFlushTimer();
+      if (nextQueue.length >= FLUSH_BATCH_SIZE) {
+        flushQueue();
+      }
+      return enabled;
+    })
+    .catch(() => {
+      serverCaptureEnabled = false;
+      pendingCaptureEvents.length = 0;
+      return false;
+    })
+    .finally(() => {
+      captureStatusInFlight = null;
+    });
+}
+
 function flushQueue(keepalive = false): void {
-  const manualCaptureEnabled = isUiEventLogManualCaptureEnabled();
-  if (EGRESS_STRICT_MODE && !manualCaptureEnabled) return;
+  const captureAllowed = isCaptureAllowed();
+  if (!captureAllowed) {
+    loadServerCaptureStatus();
+    return;
+  }
   if (flushInFlight) return;
 
   const queued = loadPersistedQueue();
@@ -137,7 +207,7 @@ function flushQueue(keepalive = false): void {
   const body = JSON.stringify({ events: batch });
   const headers = {
     "Content-Type": "application/json",
-    "X-PMS-UI-Event-Log-Manual": manualCaptureEnabled ? "1" : "0",
+    "X-PMS-UI-Event-Log-Manual": captureAllowed ? "1" : "0",
   };
 
   flushInFlight = true;
@@ -176,9 +246,6 @@ function ensureFlushTimer(): void {
 }
 
 export function logUiEvent(payload: UiEventPayload): void {
-  const manualCaptureEnabled = isUiEventLogManualCaptureEnabled();
-  if (EGRESS_STRICT_MODE && !manualCaptureEnabled) return;
-
   try {
     const signature = buildSignature(payload);
     const now = Date.now();
@@ -194,7 +261,16 @@ export function logUiEvent(payload: UiEventPayload): void {
       }
     }, RECENT_EVENT_WINDOW_MS * 2);
 
-    const nextQueue = replaceQueue([...loadPersistedQueue(), buildQueuedPayload(payload)]);
+    const queuedPayload = buildQueuedPayload(payload);
+    if (!isCaptureAllowed()) {
+      if (EGRESS_STRICT_MODE && serverCaptureEnabled === null) {
+        queuePendingCaptureEvent(queuedPayload);
+        loadServerCaptureStatus();
+      }
+      return;
+    }
+
+    const nextQueue = queueCapturedEvent(queuedPayload);
     ensureFlushTimer();
 
     if (nextQueue.length >= FLUSH_BATCH_SIZE) {
