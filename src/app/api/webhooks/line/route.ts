@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { classifyLineStaffAccess, type LineStaffAccess } from "@/lib/line-staff-access";
 import { formatLineStaffScheduleReply, getLineStaffSchedule } from "@/lib/staff-schedule";
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
@@ -15,12 +16,6 @@ type LineEvent = {
 
 type LineWebhookBody = {
   events?: LineEvent[];
-};
-
-type LineStaffAccess = {
-  isBound: boolean;
-  isFo: boolean;
-  departmentCode: string | null;
 };
 
 function getLineSecrets() {
@@ -94,26 +89,17 @@ async function resolveLineStaffAccess(lineUserId: string): Promise<LineStaffAcce
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("staff")
-    .select("id, department:departments(code)")
+    .select("id, department:departments(code), profiles:profiles!staff_id_fkey(role)")
     .eq("line_user_id", lineUserId)
     .eq("is_active", true)
     .maybeSingle();
 
   if (error) {
     console.error("line staff access lookup failed", error);
-    return { isBound: false, isFo: false, departmentCode: null };
+    return { isBound: false, isFrontdeskOnly: false, departmentCode: null, role: null };
   }
 
-  const department = Array.isArray((data as any)?.department)
-    ? (data as any).department[0]
-    : (data as any)?.department;
-  const departmentCode = department?.code ? String(department.code).toUpperCase() : null;
-
-  return {
-    isBound: Boolean(data?.id),
-    isFo: departmentCode === "FO",
-    departmentCode,
-  };
+  return classifyLineStaffAccess(data as Record<string, unknown> | null);
 }
 
 async function handleCheckoutQuery(replyToken: string) {
@@ -335,6 +321,13 @@ async function replyFoRestricted(replyToken: string) {
   );
 }
 
+async function replyUnboundLineUser(replyToken: string) {
+  await replyLineText(
+    replyToken,
+    "ยังไม่ได้ผูก LINE กับบัญชี Staff\nกรุณาพิมพ์ BIND <token> เพื่อผูกบัญชีก่อนใช้งาน"
+  );
+}
+
 async function handleBindCommand(params: {
   token: string;
   lineUserId: string;
@@ -475,12 +468,17 @@ export async function POST(request: NextRequest) {
         const staffAccess = await resolveLineStaffAccess(lineUserId);
         const scheduleQuery = isScheduleQuery(norm);
 
-        if (staffAccess.isFo && isHelpQuery) {
+        if (staffAccess.isFrontdeskOnly && isHelpQuery) {
           await replyFoLineHelp(replyToken);
           continue;
         }
 
-        if (staffAccess.isFo && !scheduleQuery) {
+        if (!staffAccess.isBound && !isHelpQuery) {
+          await replyUnboundLineUser(replyToken);
+          continue;
+        }
+
+        if (staffAccess.isFrontdeskOnly && !scheduleQuery) {
           await replyFoRestricted(replyToken);
           continue;
         }
