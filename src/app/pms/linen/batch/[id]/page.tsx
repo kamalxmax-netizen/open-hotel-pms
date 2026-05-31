@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { th } from "date-fns/locale/th";
@@ -30,7 +30,8 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const [monthlyLink, setMonthlyLink] = useState<string | undefined>();
 
     // Auto-fetch monthly link on 1st of month (Bangkok time)
-    useState(() => {
+    useEffect(() => {
+        if (data?.batch?.status !== "fo_return_signed") return;
         const bangkokDay = new Intl.DateTimeFormat("en-CA", {
             timeZone: "Asia/Bangkok",
             day: "numeric",
@@ -39,7 +40,6 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
             const now = new Date();
             const bangkokMonth = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", month: "numeric" }).format(now));
             const bangkokYear = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric" }).format(now));
-            // Previous month (contract: 1st → statement of prev month)
             const prevMonth = bangkokMonth === 1 ? 12 : bangkokMonth - 1;
             const prevYear = bangkokMonth === 1 ? bangkokYear - 1 : bangkokYear;
             fetch("/api/linen/vendor/monthly/generate", {
@@ -53,7 +53,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
                 })
                 .catch(() => { /* silent — endpoint may not exist yet */ });
         }
-    });
+    }, [data?.batch?.status]);
 
     if (isLoading) {
         return <div className="p-8 text-center text-slate-500 animate-pulse">กำลังโหลดข้อมูล...</div>;
