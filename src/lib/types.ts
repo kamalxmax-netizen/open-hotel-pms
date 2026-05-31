@@ -2133,7 +2133,7 @@ export interface LinenMonthlySummaryRow {
   qty_pending: number;                  // still at vendor end-of-month
   qty_extra: number;                    // MAX(qty_sent - estimated_qty, 0) for item 1/2 only
   qty_dayuse: number;                   // "เก่า" qty in month
-  total_baht: number;                   // rate × qty_sent (billed — matches Excel E col)
+  total_baht: number;                   // rate x (qty_sent + qty_dayuse); rewash is free
 }
 
 export interface LinenMonthlyExtra {

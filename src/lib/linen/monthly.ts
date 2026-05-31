@@ -129,7 +129,7 @@ export async function getMonthlySummary(
       qty_pending: numberValue(row.qty_pending),
       qty_extra: numberValue(row.qty_extra),
       qty_dayuse: qtyDayuse,
-      total_baht: Number((rate * qtySent).toFixed(2)),
+      total_baht: Number((rate * (qtySent + qtyDayuse)).toFixed(2)),
     };
   });
 
