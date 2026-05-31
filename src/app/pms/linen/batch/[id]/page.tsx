@@ -27,6 +27,33 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const { data, isLoading, mutate } = useLinenBatchDetail(params.id);
     const [isReopening, setIsReopening] = useState(false);
     const [token, setToken] = useState<string | null>(null);
+    const [monthlyLink, setMonthlyLink] = useState<string | undefined>();
+
+    // Auto-fetch monthly link on 1st of month (Bangkok time)
+    useState(() => {
+        const bangkokDay = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Bangkok",
+            day: "numeric",
+        }).format(new Date());
+        if (bangkokDay === "1") {
+            const now = new Date();
+            const bangkokMonth = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", month: "numeric" }).format(now));
+            const bangkokYear = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric" }).format(now));
+            // Previous month (contract: 1st → statement of prev month)
+            const prevMonth = bangkokMonth === 1 ? 12 : bangkokMonth - 1;
+            const prevYear = bangkokMonth === 1 ? bangkokYear - 1 : bangkokYear;
+            fetch("/api/linen/vendor/monthly/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ year: prevYear, month: prevMonth }),
+            })
+                .then((res) => res.ok ? res.json() : null)
+                .then((payload) => {
+                    if (payload?.url) setMonthlyLink(payload.url);
+                })
+                .catch(() => { /* silent — endpoint may not exist yet */ });
+        }
+    });
 
     if (isLoading) {
         return <div className="p-8 text-center text-slate-500 animate-pulse">กำลังโหลดข้อมูล...</div>;
@@ -106,7 +133,7 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     if (token && batch.status === "fo_return_signed") {
          return (
             <div className="p-4 md:p-8 max-w-lg mx-auto pb-20">
-                <BatchQrShare token={token} summaryText={summaryText} />
+                <BatchQrShare token={token} summaryText={summaryText} monthlyLink={monthlyLink} />
                 <div className="mt-4 text-center">
                     <button onClick={() => setToken(null)} className="text-sm text-slate-500 underline">ไปหน้าสรุปข้อมูล</button>
                 </div>

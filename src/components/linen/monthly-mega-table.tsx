@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import useSWR from "@/hooks/use-simple-swr";
 import { apiDataFetcher } from "@/lib/client/api-fetcher";
 import { useAdminRole } from "@/hooks/use-admin-role";
+import { useSearchParams } from "next/navigation";
 import type { LinenMonthlyMegaResponse, LinenMonthlyColumn, LinenMonthlyMegaRow } from "@/lib/types";
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, Printer } from "lucide-react";
 
 interface MonthlyMegaTableProps {
     year: number;
@@ -14,7 +15,20 @@ interface MonthlyMegaTableProps {
 
 export function MonthlyMegaTable({ year, month }: MonthlyMegaTableProps) {
     const { isAdmin, role } = useAdminRole();
-    const [filters, setFilters] = useState({ include_n: true, include_o: true, include_rw: true });
+    const searchParams = useSearchParams();
+
+    const [filters, setFilters] = useState({
+        include_n: true,
+        include_o: true,
+        include_rw: searchParams.get("include_rw") !== "false",
+    });
+
+    // Sync include_rw to URL
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("include_rw", String(filters.include_rw));
+        window.history.replaceState(null, "", url.toString());
+    }, [filters.include_rw]);
     
     const queryParams = useMemo(() => {
         const p = new URLSearchParams();
@@ -148,6 +162,14 @@ export function MonthlyMegaTable({ year, month }: MonthlyMegaTableProps) {
 	                        </label>
 	                    </div>
 
+	                    <button
+	                        onClick={() => window.print()}
+	                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all print:hidden"
+	                    >
+	                        <Printer className="w-4 h-4" />
+	                        Print / PDF
+	                    </button>
+
 	                    {isAdmin && (
 	                        <button
 	                            onClick={handleReopen}
@@ -253,6 +275,32 @@ export function MonthlyMegaTable({ year, month }: MonthlyMegaTableProps) {
                     </table>
                 </div>
             </div>
+
+            <style jsx global>{`
+                @media print {
+                    @page {
+                        size: A4 landscape;
+                        margin: 8mm;
+                    }
+                    body {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    .print\\:hidden {
+                        display: none !important;
+                    }
+                    .card {
+                        height: auto !important;
+                        overflow: visible !important;
+                    }
+                    .overflow-auto {
+                        overflow: visible !important;
+                    }
+                    .sticky {
+                        position: static !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
