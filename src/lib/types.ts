@@ -2053,6 +2053,11 @@ export interface LinenVendorView {
   today_received_total: number;        // ผ้าวันนี้ที่เพิ่งรับ (คืนรอบถัดไป)
   status: LaundryBatchStatus;
   hotel_name: string;
+  monthly_vendor?: {
+    token: string;
+    url: string;
+    expires_at: string;
+  } | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
