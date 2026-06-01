@@ -3,7 +3,10 @@ import { resolveBusinessDate } from "@/lib/folio-fees";
 import { isPaymentReportLinkedDepositTransferEntry } from "@/lib/payment-reporting";
 import { resolveAdvancePaymentStatus } from "@/lib/payment-daily-accounting";
 import { buildPaymentDailyTransferAuditHref } from "@/lib/payment-daily-transfer-audit-link";
-import { getFrontdeskFinancialHistoryError } from "@/lib/financial-history-access";
+import {
+  FINANCIAL_HISTORY_READ_ROLES,
+  getFrontdeskFinancialHistoryError,
+} from "@/lib/financial-history-access";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -641,7 +644,9 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
-    const auth = await requireStaffAuth(supabase, request);
+    const auth = await requireStaffAuth(supabase, request, {
+      allowRoles: [...FINANCIAL_HISTORY_READ_ROLES],
+    });
     if (auth.error) return auth.error;
 
     const calendarDate = toBangkokDateString();

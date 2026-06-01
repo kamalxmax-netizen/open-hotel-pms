@@ -1,6 +1,12 @@
 import type { UserRole } from "@/lib/types";
 
 export const FRONTDESK_FINANCIAL_HISTORY_DAYS = 45;
+export const FINANCIAL_HISTORY_READ_ROLES = [
+  "admin",
+  "supervisor",
+  "frontdesk",
+  "owner",
+] as const satisfies readonly UserRole[];
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 

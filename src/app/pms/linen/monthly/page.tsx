@@ -8,6 +8,7 @@ import { PerDayGrid } from "./_components/PerDayGrid";
 import { VarianceSection } from "./_components/VarianceSection";
 import { CloseMonthDialog } from "./_components/CloseMonthDialog";
 import { ExportButton } from "./_components/ExportButton";
+import { GenerateVendorLinkButton } from "./_components/GenerateVendorLinkButton";
 import { useLinenMonthlySummary, useLinenMonthlyDaily, useLinenMonthlyVariance } from "@/hooks/use-linen-monthly";
 import { startOfMonth } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -54,6 +55,8 @@ export default function MonthlyLinenPage() {
           <CloseMonthDialog summary={summary} onClose={handleCloseMonth} />
         </div>
       </div>
+
+      <GenerateVendorLinkButton year={year} month={month} />
 
       {isLoading ? (
         <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400 gap-3">

@@ -1,4 +1,5 @@
 import { getLaundryBatchDetail } from "@/lib/linen/batch-service";
+import { createMonthlyVendorToken, getLatestMonthlyVendorName } from "@/lib/linen/monthly-vendor-token";
 import { listPendingItems } from "@/lib/linen/pending-service";
 import { toAdjustedPendingSummaryRows, toReturnSummaryRows } from "@/lib/linen/rewash-summary";
 import { validateVendorToken, LinenVendorTokenError } from "@/lib/linen/vendor-token";
@@ -12,6 +13,12 @@ function vendorError(error: unknown, fallback: string) {
   const status = error instanceof LinenVendorTokenError ? error.status : 500;
   const message = error instanceof Error ? error.message : fallback;
   return NextResponse.json({ success: false, error: message }, { status });
+}
+
+function firstDayStatementMonth(businessDate: unknown) {
+  const match = String(businessDate ?? "").match(/^(\d{4})-(\d{2})-01$/);
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]) };
 }
 
 export async function GET(_request: NextRequest, { params }: { params: { token: string } }) {
@@ -28,6 +35,16 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       ...(detail.items ?? []),
       ...(detail.return_sources ?? []),
     ]);
+    let monthlyVendor: Awaited<ReturnType<typeof createMonthlyVendorToken>> | null = null;
+    const statementMonth = firstDayStatementMonth((detail.batch as any).business_date);
+    if (statementMonth) {
+      const vendorName = await getLatestMonthlyVendorName(supabase, statementMonth.year, statementMonth.month);
+      monthlyVendor = await createMonthlyVendorToken(supabase, statementMonth.year, statementMonth.month, {
+        vendorName: vendorName ?? (tokenRow as any).vendor_name ?? (detail.batch as any).vendor_name ?? null,
+        baseUrl: _request.nextUrl.origin,
+        reuseActive: true,
+      });
+    }
     const adjustedPendingItems = toAdjustedPendingSummaryRows(pendingItems, detail.events ?? [], [
       ...(detail.items ?? []),
       ...(detail.return_sources ?? []),
@@ -58,6 +75,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
         today_received_total: todayReceivedTotal,
         status: (detail.batch as any).status,
         hotel_name: String((settings as any)?.hotel_name ?? (settings as any)?.company_name ?? "Hotel"),
+        monthly_vendor: monthlyVendor,
       },
     });
   } catch (error) {
