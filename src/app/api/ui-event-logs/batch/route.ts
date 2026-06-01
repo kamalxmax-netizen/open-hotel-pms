@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 const MAX_BATCH_EVENTS = 200;
 const MAX_METADATA_CHARS = 4000;
+const MAX_CLIENT_CAPTURE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CLIENT_CAPTURE_FUTURE_MS = 5 * 60 * 1000;
 
 function skipUiEventLogsForStrictMode(request: NextRequest): boolean {
   if (process.env.NEXT_PUBLIC_EGRESS_STRICT_MODE === "false") return false;
@@ -44,6 +46,18 @@ function sanitizeMetadata(value: Record<string, unknown> | undefined): Record<st
   } catch {
     return { invalid_metadata: true };
   }
+}
+
+function getSafeClientCapturedAt(metadata: Record<string, unknown>): string | undefined {
+  const raw = metadata.captured_at;
+  if (typeof raw !== "string") return undefined;
+  const captured = new Date(raw);
+  const timestamp = captured.getTime();
+  if (Number.isNaN(timestamp)) return undefined;
+  const now = Date.now();
+  if (timestamp < now - MAX_CLIENT_CAPTURE_AGE_MS) return undefined;
+  if (timestamp > now + MAX_CLIENT_CAPTURE_FUTURE_MS) return undefined;
+  return captured.toISOString();
 }
 
 function shouldBypassCaptureEmailFilter(eventType: string): boolean {
@@ -104,21 +118,25 @@ export async function POST(request: NextRequest) {
   const actorName = String(profile?.display_name ?? profile?.full_name ?? "").trim() || null;
   const actorEmail = String(user.email ?? "").trim().toLowerCase() || null;
   const actorRole = String(profile?.role ?? "").trim().toLowerCase() || null;
-  const rows = eventsToInsert.map((event) => ({
-    actor_user_id: user.id,
-    actor_name: actorName,
-    actor_email: actorEmail,
-    actor_role: actorRole,
-    pathname: event.pathname,
-    event_type: event.event_type,
-    event_name: event.event_name,
-    severity: event.severity ?? "info",
-    entity_type: event.entity_type ?? null,
-    entity_id: event.entity_id ?? null,
-    request_id: event.request_id ?? null,
-    message: event.message ?? null,
-    metadata: sanitizeMetadata(event.metadata),
-  }));
+  const rows = eventsToInsert.map((event) => {
+    const metadata = sanitizeMetadata(event.metadata);
+    return {
+      actor_user_id: user.id,
+      actor_name: actorName,
+      actor_email: actorEmail,
+      actor_role: actorRole,
+      pathname: event.pathname,
+      event_type: event.event_type,
+      event_name: event.event_name,
+      severity: event.severity ?? "info",
+      entity_type: event.entity_type ?? null,
+      entity_id: event.entity_id ?? null,
+      request_id: event.request_id ?? null,
+      message: event.message ?? null,
+      metadata,
+      created_at: getSafeClientCapturedAt(metadata),
+    };
+  });
 
   const { error } = await supabase.from("ui_event_logs").insert(rows);
   if (error) {

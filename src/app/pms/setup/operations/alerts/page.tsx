@@ -18,7 +18,7 @@ type AlertTemplate = {
 
 const SURFACES = [
   { value: "arrivals", label: "Arrivals" },
-  { value: "room_diary", label: "Room Diary" },
+  { value: "room_diary", label: "Room Rack" },
   { value: "calendar", label: "Calendar" },
   { value: "reservation", label: "Reservation" },
   { value: "inhouse", label: "In-House" },

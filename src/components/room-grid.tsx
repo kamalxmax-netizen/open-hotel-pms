@@ -894,7 +894,7 @@ export const RoomGrid = forwardRef<HTMLDivElement, RoomGridProps>(function RoomG
                                                                 key={day}
                                                                 className={`flex flex-col items-center justify-center flex-shrink-0 border-r border-[var(--border-subtle)] cursor-not-allowed ${!room.is_sellable ? "bg-[var(--bg-surface-hover)]/60" : ""}`}
                                                                 style={{ width: colWidth, height: ROW_H }}
-                                                                title="Use Room Diary board for Day Use actions"
+                                                                title="Use Room Rack board for Day Use actions"
                                                             >
                                                                 {hasRes && <div className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />}
                                                             </div>

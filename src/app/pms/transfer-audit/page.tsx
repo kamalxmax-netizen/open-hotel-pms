@@ -19,6 +19,7 @@ import { formatMoney } from "@/lib/money";
 import { normalizeTransferSenderName } from "@/lib/transfer-detail";
 import { useAdminRole } from "@/hooks/use-admin-role";
 import { isTransferAuditReadOnlyRole } from "@/lib/transfer-audit-auth";
+import { getFrontdeskFinancialHistoryCutoff } from "@/lib/financial-history-access";
 import {
   addPaymentIds,
   addSameBookingGroupPaymentIds,
@@ -319,6 +320,7 @@ export default function TransferAuditPage() {
   const focusRef = useRef<string | null>(null);
   const isOwnerReadOnly = isTransferAuditReadOnlyRole(role);
   const editControlsDisabled = roleLoading || isOwnerReadOnly;
+  const frontdeskMinDate = role === "frontdesk" ? getFrontdeskFinancialHistoryCutoff(todayInBangkok()) : undefined;
 
   useEffect(() => {
     const params = readSearchParams();
@@ -855,11 +857,11 @@ export default function TransferAuditPage() {
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <span className="form-label">From</span>
-              <input className="form-input h-9 w-[150px]" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+              <input className="form-input h-9 w-[150px]" type="date" min={frontdeskMinDate} value={from} onChange={(event) => setFrom(event.target.value)} />
             </label>
             <label className="block">
               <span className="form-label">To</span>
-              <input className="form-input h-9 w-[150px]" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+              <input className="form-input h-9 w-[150px]" type="date" min={frontdeskMinDate} value={to} onChange={(event) => setTo(event.target.value)} />
             </label>
             <label className="block min-w-[280px]">
               <span className="form-label">Search Sets</span>

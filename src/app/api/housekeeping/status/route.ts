@@ -514,7 +514,7 @@ type HkTaskLogRow = {
 };
 
 function isRoomDiaryServiceRequest(logs: HkTaskLogRow[]): boolean {
-    return logs.some((log) => /^Marked (Dirty|No Service) from Room Diary/.test(String(log.note ?? "")));
+    return logs.some((log) => /^Marked (Dirty|No Service) from Room (Diary|Rack)/.test(String(log.note ?? "")));
 }
 
 type RecentReservationRow = {
@@ -705,7 +705,7 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Occupancy metadata (Room Diary state + guest context)
+        // Occupancy metadata (Room Rack state + guest context)
         const occupancyNightSelectWithCheckedInAt = `
                 room_id,
                 reservation_id,
@@ -1683,7 +1683,7 @@ export async function POST(request: NextRequest) {
 
             if (!parsedDiaryAction.success) {
                 return NextResponse.json(
-                    { error: "Invalid Room Diary payload.", details: parsedDiaryAction.error.flatten() },
+                    { error: "Invalid Room Rack payload.", details: parsedDiaryAction.error.flatten() },
                     { status: 400 }
                 );
             }
@@ -1696,7 +1696,7 @@ export async function POST(request: NextRequest) {
             const inHouse = linkedActivation.activated || await isRoomInHouseOnDate(supabase, room_id, date);
             if (!inHouse) {
                 return NextResponse.json(
-                    { error: "Only in-house rooms can be marked Dirty / No Service from Room Diary." },
+                    { error: "Only in-house rooms can be marked Dirty / No Service from Room Rack." },
                     { status: 400 }
                 );
             }
@@ -1802,8 +1802,8 @@ export async function POST(request: NextRequest) {
             const taskId = upsertedTask?.id ?? existingTask?.id ?? null;
             if (taskId) {
                 const logNote = markAsNoService
-                    ? `Marked No Service from Room Diary${note ? `: ${note}` : ""}`
-                    : `Marked Dirty from Room Diary${note ? `: ${note}` : ""}`;
+                    ? `Marked No Service from Room Rack${note ? `: ${note}` : ""}`
+                    : `Marked Dirty from Room Rack${note ? `: ${note}` : ""}`;
                 const { error: logError } = await supabase.from("housekeeping_logs").insert({
                     task_id: taskId,
                     status: "dirty",

@@ -7,6 +7,8 @@ import { isUiEventLogEmailAllowed } from "@/lib/ui-event-log-settings";
 export const dynamic = "force-dynamic";
 
 const MAX_METADATA_CHARS = 4000;
+const MAX_CLIENT_CAPTURE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CLIENT_CAPTURE_FUTURE_MS = 5 * 60 * 1000;
 
 function skipUiEventLogsForStrictMode(request: NextRequest): boolean {
   if (process.env.NEXT_PUBLIC_EGRESS_STRICT_MODE === "false") return false;
@@ -37,6 +39,18 @@ function sanitizeMetadata(value: Record<string, unknown> | undefined): Record<st
   } catch {
     return { invalid_metadata: true };
   }
+}
+
+function getSafeClientCapturedAt(metadata: Record<string, unknown>): string | undefined {
+  const raw = metadata.captured_at;
+  if (typeof raw !== "string") return undefined;
+  const captured = new Date(raw);
+  const timestamp = captured.getTime();
+  if (Number.isNaN(timestamp)) return undefined;
+  const now = Date.now();
+  if (timestamp < now - MAX_CLIENT_CAPTURE_AGE_MS) return undefined;
+  if (timestamp > now + MAX_CLIENT_CAPTURE_FUTURE_MS) return undefined;
+  return captured.toISOString();
 }
 
 function shouldBypassCaptureEmailFilter(eventType: string): boolean {
@@ -81,6 +95,7 @@ export async function POST(request: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const metadata = sanitizeMetadata(parsed.data.metadata);
   const { error } = await supabase.from("ui_event_logs").insert({
     actor_user_id: user.id,
     actor_name: String(profile?.display_name ?? profile?.full_name ?? "").trim() || null,
@@ -94,7 +109,8 @@ export async function POST(request: NextRequest) {
     entity_id: parsed.data.entity_id ?? null,
     request_id: parsed.data.request_id ?? null,
     message: parsed.data.message ?? null,
-    metadata: sanitizeMetadata(parsed.data.metadata),
+    metadata,
+    created_at: getSafeClientCapturedAt(metadata),
   });
 
   if (error) {

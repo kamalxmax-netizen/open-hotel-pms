@@ -9,7 +9,7 @@ import {
 // All PMS route prefixes selectable in the UI
 const ALL_PAGES = [
   { path: "/pms", label: "Dashboard", section: "Front Desk" },
-  { path: "/pms/board", label: "Room Diary", section: "Front Desk" },
+  { path: "/pms/board", label: "Room Rack", section: "Front Desk" },
   { path: "/pms/calendar", label: "Calendar", section: "Front Desk" },
   { path: "/pms/arrivals", label: "Arrivals", section: "Front Desk" },
   { path: "/pms/inhouse", label: "In-House", section: "Front Desk" },

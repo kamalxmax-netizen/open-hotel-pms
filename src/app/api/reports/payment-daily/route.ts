@@ -3,6 +3,8 @@ import { resolveBusinessDate } from "@/lib/folio-fees";
 import { isPaymentReportLinkedDepositTransferEntry } from "@/lib/payment-reporting";
 import { resolveAdvancePaymentStatus } from "@/lib/payment-daily-accounting";
 import { buildPaymentDailyTransferAuditHref } from "@/lib/payment-daily-transfer-audit-link";
+import { getFrontdeskFinancialHistoryError } from "@/lib/financial-history-access";
+import { requireStaffAuth } from "@/lib/server-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -639,9 +641,16 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
+    const auth = await requireStaffAuth(supabase, request);
+    if (auth.error) return auth.error;
+
     const calendarDate = toBangkokDateString();
     const currentBusinessDate = await resolveBusinessDate(supabase, calendarDate);
     const businessDate = parsed.data.date ?? currentBusinessDate;
+    const historyError = getFrontdeskFinancialHistoryError(auth.role, currentBusinessDate, [businessDate]);
+    if (historyError) {
+      return NextResponse.json({ success: false, error: historyError }, { status: 403 });
+    }
     const includeOpenBusinessSpillover =
       businessDate === currentBusinessDate && calendarDate > currentBusinessDate;
 

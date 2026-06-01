@@ -1,0 +1,9 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const source = fs.readFileSync(new URL("./route.ts", import.meta.url), "utf8");
+
+assert.match(source, /getFrontdeskFinancialHistoryError\(auth\.role, today, \[date_from, date_to\]\)/);
+assert.match(source, /effectiveDateFrom/);
+assert.match(source, /effectiveDateTo/);
+assert.match(source, /status: 403/);

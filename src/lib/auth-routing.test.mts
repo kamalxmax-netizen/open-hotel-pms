@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
+  resolvePostLoginPath,
   resolvePermissionPathsForRoute,
   resolveRoleAwarePostLoginPath,
+  sanitizePostLoginPath,
 } from "./auth-routing.ts";
 
 const frontdeskPages = [
@@ -40,3 +42,7 @@ assert.equal(
   ),
   "/pms/payment-daily"
 );
+
+assert.equal(resolvePostLoginPath("frontdesk", frontdeskPages), "/pms/board");
+assert.equal(sanitizePostLoginPath(null), "/pms/board");
+assert.equal(sanitizePostLoginPath("/pms"), "/pms/board");

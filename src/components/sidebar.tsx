@@ -32,7 +32,7 @@ const NAV_ITEMS = [
         section: "Front Desk",
         items: [
             { href: "/pms", label: "Dashboard", icon: HomeIcon, exact: true },
-            { href: "/pms/board", label: "Room Diary", icon: GridIcon },
+            { href: "/pms/board", label: "Room Rack", icon: GridIcon },
             { href: "/pms/room-planner", label: "Room Planner", icon: GridIcon },
             { href: "/pms/calendar", label: "Calendar", icon: CalendarIcon },
             { href: "/pms/arrivals", label: "Arrivals", icon: ArrivalsIcon },

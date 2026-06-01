@@ -1404,12 +1404,12 @@ export default function BoardPage() {
 
     return (
         <div className="space-y-5 w-full">
-            <NightAuditPendingPopup pageName="Room Diary" />
+            <NightAuditPendingPopup pageName="Room Rack" />
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-brand-600">Front Desk</p>
-                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Room Diary</h1>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Room Rack</h1>
                     {data && (
                         <p className="text-xs text-[var(--text-muted)] mt-1">
                             {data.date} · {data.rooms.filter((r) => r.sellable).length} sellable rooms
