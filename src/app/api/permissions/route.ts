@@ -69,7 +69,7 @@ const ALL_PAGES = [
   { path: "/pms/setup", label: "All Setup Pages", section: "System" },
   { path: "/pms/training", label: "Training", section: "System" },
   { path: "/pms/admin/backup-status", label: "Backup Status", section: "System" },
-  { path: "/pms/admin/debug-logs", label: "Debug Logs", section: "System" },
+  { path: "/pms/admin/debug-logs", label: "Activity Logs", section: "System" },
   { path: "/pms/setup/bug-reports", label: "Bug Reports", section: "System" },
   { path: "/pms/setup/permissions", label: "Permissions", section: "System" },
 ];

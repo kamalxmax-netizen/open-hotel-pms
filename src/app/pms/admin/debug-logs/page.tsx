@@ -7,6 +7,11 @@ import {
   isUiEventLogManualCaptureEnabled,
   setUiEventLogManualCaptureEnabled,
 } from "@/lib/ui-event-log-client";
+import {
+  UI_EVENT_LOG_AUTH_ACTION_OPTIONS,
+  UI_EVENT_LOG_CATEGORIES,
+  UI_EVENT_LOG_TYPE_OPTIONS,
+} from "@/lib/ui-event-log-categories";
 
 type DebugLogRow = {
   id: string;
@@ -16,9 +21,11 @@ type DebugLogRow = {
   pathname: string;
   event_type: string;
   event_name: string;
+  category?: string;
   severity: "info" | "warning" | "error";
   message: string | null;
   metadata: Record<string, unknown> | null;
+  archive_status?: "hot" | "archived" | "eligible_for_archive";
   created_at: string;
 };
 
@@ -35,14 +42,6 @@ const DEFAULT_PAGINATION: Pagination = {
   total: 0,
   total_pages: 1,
 };
-
-const EVENT_TYPE_OPTIONS = [
-  { value: "all", label: "All types" },
-  { value: "page_view", label: "Page view" },
-  { value: "click", label: "Click" },
-  { value: "submit", label: "Submit" },
-  { value: "client_error", label: "Client error" },
-];
 
 const SEVERITY_OPTIONS = [
   { value: "all", label: "All severities" },
@@ -110,7 +109,9 @@ export default function AdminDebugLogsPage() {
 
   const [dateFrom, setDateFrom] = useState(() => toBangkokDateString());
   const [dateTo, setDateTo] = useState(() => toBangkokDateString());
+  const [category, setCategory] = useState("all");
   const [eventType, setEventType] = useState("all");
+  const [authAction, setAuthAction] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [pathnameFilter, setPathnameFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -161,12 +162,14 @@ export default function AdminDebugLogsPage() {
     params.set("date_to", dateTo);
     params.set("page", String(pagination.page));
     params.set("per_page", String(pagination.per_page));
+    if (category !== "all") params.set("category", category);
     if (eventType !== "all") params.set("event_type", eventType);
+    if (authAction !== "all") params.set("auth_action", authAction);
     if (severity !== "all") params.set("severity", severity);
     if (pathnameFilter.trim()) params.set("pathname", pathnameFilter.trim());
     if (search.trim()) params.set("search", search.trim());
     return params.toString();
-  }, [dateFrom, dateTo, eventType, severity, pathnameFilter, search, pagination.page, pagination.per_page]);
+  }, [dateFrom, dateTo, category, eventType, authAction, severity, pathnameFilter, search, pagination.page, pagination.per_page]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,14 +181,14 @@ export default function AdminDebugLogsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to load debug logs.");
+        throw new Error(data.error || "Failed to load activity logs.");
       }
       setRows(Array.isArray(data.rows) ? data.rows : []);
       setCaptureEmails(String(data.settings?.capture_emails ?? "ops@example.com"));
       setPagination((prev) => data.pagination ? data.pagination : prev);
     } catch (err) {
       setRows([]);
-      setError(err instanceof Error ? err.message : "Failed to load debug logs.");
+      setError(err instanceof Error ? err.message : "Failed to load activity logs.");
     } finally {
       setLoading(false);
     }
@@ -201,7 +204,7 @@ export default function AdminDebugLogsPage() {
   }
 
   async function handleDeleteOne(id: string) {
-    if (!confirm("Delete this debug log permanently?")) return;
+    if (!confirm("Delete this activity log permanently?")) return;
     setBusy(true);
     setError("");
     setMessage("");
@@ -213,12 +216,12 @@ export default function AdminDebugLogsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete log.");
+        throw new Error(data.error || "Failed to delete activity log.");
       }
-      setMessage("Debug log deleted permanently.");
+      setMessage("Activity log deleted permanently.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete log.");
+      setError(err instanceof Error ? err.message : "Failed to delete activity log.");
     } finally {
       setBusy(false);
     }
@@ -227,7 +230,7 @@ export default function AdminDebugLogsPage() {
   async function handleDeleteFiltered() {
     const total = pagination.total;
     if (total <= 0) return;
-    if (!confirm(`Delete ${total} filtered debug log(s) permanently?`)) return;
+    if (!confirm(`Delete ${total} filtered activity log(s) permanently?`)) return;
     setBusy(true);
     setError("");
     setMessage("");
@@ -239,7 +242,9 @@ export default function AdminDebugLogsPage() {
           delete_filtered: true,
           date_from: dateFrom,
           date_to: dateTo,
+          category,
           event_type: eventType,
+          auth_action: authAction,
           severity,
           pathname: pathnameFilter.trim(),
           search: search.trim(),
@@ -247,13 +252,18 @@ export default function AdminDebugLogsPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete filtered logs.");
+        throw new Error(data.error || "Failed to delete filtered activity logs.");
       }
-      setMessage(`Deleted ${Number(data.deleted_count ?? 0)} debug log(s) permanently.`);
+      const deletedCount = Number(data.deleted_count ?? 0);
+      setMessage(
+        data.partial
+          ? `Deleted ${deletedCount} activity log(s) permanently. Run Delete Filtered again to continue.`
+          : `Deleted ${deletedCount} activity log(s) permanently.`
+      );
       setPagination((prev) => ({ ...prev, page: 1 }));
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete filtered logs.");
+      setError(err instanceof Error ? err.message : "Failed to delete filtered activity logs.");
     } finally {
       setBusy(false);
     }
@@ -286,7 +296,7 @@ export default function AdminDebugLogsPage() {
     const next = !manualCaptureEnabled;
     setUiEventLogManualCaptureEnabled(next);
     setManualCaptureEnabled(next);
-    setMessage(next ? "Manual debug capture enabled for this browser." : "Manual debug capture disabled for this browser.");
+    setMessage(next ? "Manual activity capture enabled for this browser." : "Manual activity capture disabled for this browser.");
     setError("");
   }
 
@@ -305,9 +315,9 @@ export default function AdminDebugLogsPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Admin</p>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Debug Logs</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-0.5">Activity Logs</h1>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">
-            Runtime breadcrumbs for page views, clicks, submits, and client errors. This is separate from Audit Explorer.
+            Runtime breadcrumbs for page views, clicks, auth activity, devices, and client errors. This is separate from Audit Explorer.
           </p>
         </div>
         <button
@@ -323,7 +333,7 @@ export default function AdminDebugLogsPage() {
       <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:bg-sky-950/30 dark:border-sky-900/50 dark:text-sky-200">
         <p className="font-semibold dark:text-sky-100">How this differs from Audit Explorer</p>
         <p className="mt-1 dark:opacity-90">
-          Audit Explorer shows confirmed data changes. Debug Logs show staff actions and client-side failures between those changes, so bug trails are easier to reconstruct.
+          Audit Explorer shows confirmed data changes. Activity Logs show staff actions and client-side failures between those changes, so trails are easier to reconstruct.
         </p>
       </div>
 
@@ -369,7 +379,7 @@ export default function AdminDebugLogsPage() {
       )}
 
       <div className="card p-4 flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
           <div>
             <label className="form-label">From</label>
             <input type="date" className="form-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); resetToFirstPage(); }} />
@@ -379,9 +389,25 @@ export default function AdminDebugLogsPage() {
             <input type="date" className="form-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); resetToFirstPage(); }} />
           </div>
           <div>
+            <label className="form-label">Category</label>
+            <select className="form-select" value={category} onChange={(e) => { setCategory(e.target.value); resetToFirstPage(); }}>
+              {UI_EVENT_LOG_CATEGORIES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="form-label">Type</label>
             <select className="form-select" value={eventType} onChange={(e) => { setEventType(e.target.value); resetToFirstPage(); }}>
-              {EVENT_TYPE_OPTIONS.map((option) => (
+              {UI_EVENT_LOG_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Auth Action</label>
+            <select className="form-select" value={authAction} onChange={(e) => { setAuthAction(e.target.value); resetToFirstPage(); }}>
+              {UI_EVENT_LOG_AUTH_ACTION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
@@ -432,11 +458,11 @@ export default function AdminDebugLogsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--text-muted)]">Loading debug logs…</td>
+                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--text-muted)]">Loading activity logs…</td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--text-muted)]">No debug logs for the current filters.</td>
+                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--text-muted)]">No activity logs for the current filters.</td>
                 </tr>
               ) : rows.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--border-subtle)] align-top">
@@ -452,6 +478,7 @@ export default function AdminDebugLogsPage() {
                     </span>
                     <p className="mt-2 font-medium text-[var(--text-primary)]">{row.event_type}</p>
                     <p className="text-xs text-[var(--text-muted)]">{row.event_name}</p>
+                    <p className="text-xs text-[var(--text-muted)] capitalize">{row.category || "activity"} · {row.archive_status || "hot"}</p>
                   </td>
                   <td className="px-3 py-3 font-mono text-xs text-[var(--text-secondary)] break-all">{row.pathname}</td>
                   <td className="px-3 py-3">

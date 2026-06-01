@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { logUiEvent } from "@/lib/ui-event-log-client";
+import { logUiEvent, logUiEventNow } from "@/lib/ui-event-log-client";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 const AUTH_SESSION_LOG_PREFIX = "pms.auth-activity.session-started.";
@@ -76,7 +76,7 @@ export default function UiEventLogProvider() {
         // If sessionStorage is unavailable, still log once for this mount.
       }
 
-      logUiEvent({
+      await logUiEventNow({
         pathname,
         event_type: "auth_activity",
         event_name: "session_started",

@@ -19,6 +19,17 @@ type BackupStatusResponse = {
   latest_cloud_backup: BackupLog | null;
   latest_offline_sync: BackupLog | null;
   history: BackupLog[];
+  activity_log_archives: Array<{
+    id: string;
+    status: "started" | "succeeded" | "failed";
+    archive_cutoff_at: string;
+    archived_count: number;
+    deleted_count: number;
+    r2_keys: string[];
+    error_message: string | null;
+    started_at: string;
+    completed_at: string | null;
+  }>;
   storage: {
     bucket: string;
     file_count: number;
@@ -39,6 +50,19 @@ async function readJson<T>(response: Response): Promise<T> {
     throw new Error(String(json?.error ?? "Request failed."));
   }
   return json.data as T;
+}
+
+function formatBackupDate(value: string | null | undefined): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function BackupStatusPage() {
@@ -83,6 +107,7 @@ export default function BackupStatusPage() {
   }, []);
 
   const history = status?.history ?? [];
+  const activityLogArchives = status?.activity_log_archives ?? [];
   const lastCloud = status?.latest_cloud_backup ?? null;
   const lastSync = status?.latest_offline_sync ?? null;
   const retentionDays = status?.config.retention_days ?? 60;
@@ -219,6 +244,60 @@ export default function BackupStatusPage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <BackupHistoryTable logs={history} loading={loading} />
+
+          <div className="card p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Activity Log Archive</h3>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  R2 archive runs for Activity Logs. Scheduler is owned by Supabase Cron.
+                </p>
+              </div>
+              <a href="/pms/admin/debug-logs" className="btn-secondary text-xs">Open Activity Logs</a>
+            </div>
+            {loading ? (
+              <p className="text-sm text-[var(--text-muted)]">Loading archive runs...</p>
+            ) : activityLogArchives.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No Activity Log archive runs yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="px-3 py-2 text-left">Run</th>
+                      <th className="px-3 py-2 text-left">Status</th>
+                      <th className="px-3 py-2 text-right">Archived</th>
+                      <th className="px-3 py-2 text-right">Deleted</th>
+                      <th className="px-3 py-2 text-left">R2 Object</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLogArchives.map((run) => (
+                      <tr key={run.id} className="border-b border-[var(--border-subtle)] align-top">
+                        <td className="px-3 py-3">
+                          <p className="font-medium text-[var(--text-primary)]">{formatBackupDate(run.completed_at || run.started_at)}</p>
+                          <p className="text-xs text-[var(--text-muted)]">Cutoff {formatBackupDate(run.archive_cutoff_at)}</p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className={`badge ${run.status === "succeeded" ? "status-available" : run.status === "failed" ? "status-dirty" : "status-closed"}`}>
+                            {run.status}
+                          </span>
+                          {run.error_message ? <p className="mt-1 text-xs text-rose-600">{run.error_message}</p> : null}
+                        </td>
+                        <td className="px-3 py-3 text-right">{run.archived_count}</td>
+                        <td className="px-3 py-3 text-right">{run.deleted_count}</td>
+                        <td className="px-3 py-3">
+                          <p className="max-w-md break-all font-mono text-xs text-[var(--text-secondary)]">
+                            {run.r2_keys[0] ?? "No object written"}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900/30 dark:bg-blue-950/20">
             <h4 className="mb-2 font-bold text-blue-800 dark:text-blue-300">Retention Policy</h4>

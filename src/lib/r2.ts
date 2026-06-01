@@ -26,12 +26,14 @@ export async function uploadR2Object(params: {
   key: string;
   body: Buffer | Uint8Array | ArrayBuffer;
   contentType: string;
+  contentEncoding?: string;
 }) {
   await getR2Client().send(new PutObjectCommand({
     Bucket: getR2Bucket(),
     Key: params.key,
     Body: params.body instanceof ArrayBuffer ? Buffer.from(params.body) : params.body,
     ContentType: params.contentType,
+    ContentEncoding: params.contentEncoding,
   }));
   return { key: params.key };
 }

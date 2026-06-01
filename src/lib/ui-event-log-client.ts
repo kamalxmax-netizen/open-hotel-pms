@@ -133,6 +133,10 @@ function isCaptureAllowed(): boolean {
   return serverCaptureEnabled === true;
 }
 
+function shouldAlwaysCapture(payload: UiEventPayload): boolean {
+  return payload.event_type === "auth_activity";
+}
+
 function queueCapturedEvent(payload: UiEventPayload): UiEventPayload[] {
   return replaceQueue([...loadPersistedQueue(), payload]);
 }
@@ -190,16 +194,17 @@ function loadServerCaptureStatus(): void {
 }
 
 function flushQueue(keepalive = false): void {
-  const captureAllowed = isCaptureAllowed();
-  if (!captureAllowed) {
-    loadServerCaptureStatus();
-    return;
-  }
   if (flushInFlight) return;
 
   const queued = loadPersistedQueue();
   const currentQueue = queued.length > 0 ? queued : eventQueue.slice();
   if (currentQueue.length === 0) return;
+
+  const captureAllowed = isCaptureAllowed() || currentQueue.some(shouldAlwaysCapture);
+  if (!captureAllowed) {
+    loadServerCaptureStatus();
+    return;
+  }
 
   const batchLimit = keepalive ? FLUSH_BATCH_SIZE : MAX_BATCH_EVENTS;
   const batch = currentQueue.slice(0, batchLimit);
@@ -262,7 +267,8 @@ export function logUiEvent(payload: UiEventPayload): void {
     }, RECENT_EVENT_WINDOW_MS * 2);
 
     const queuedPayload = buildQueuedPayload(payload);
-    if (!isCaptureAllowed()) {
+    const captureAllowed = isCaptureAllowed() || shouldAlwaysCapture(payload);
+    if (!captureAllowed) {
       if (EGRESS_STRICT_MODE && serverCaptureEnabled === null) {
         queuePendingCaptureEvent(queuedPayload);
         loadServerCaptureStatus();
@@ -278,5 +284,33 @@ export function logUiEvent(payload: UiEventPayload): void {
     }
   } catch {
     // ignore client logging failures
+  }
+}
+
+export async function logUiEventNow(payload: UiEventPayload): Promise<void> {
+  const queuedPayload = buildQueuedPayload(payload);
+  try {
+    const captureAllowed = isCaptureAllowed() || shouldAlwaysCapture(payload);
+    if (!captureAllowed) {
+      logUiEvent(payload);
+      return;
+    }
+
+    const response = await fetch("/api/ui-event-logs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-PMS-UI-Event-Log-Manual": captureAllowed ? "1" : "0",
+      },
+      body: JSON.stringify(queuedPayload),
+      credentials: "include",
+    });
+    if (!response.ok) {
+      queueCapturedEvent(queuedPayload);
+      ensureFlushTimer();
+    }
+  } catch {
+    queueCapturedEvent(queuedPayload);
+    ensureFlushTimer();
   }
 }

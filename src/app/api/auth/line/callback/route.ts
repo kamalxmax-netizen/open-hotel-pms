@@ -75,6 +75,23 @@ export async function GET(request: NextRequest) {
     if (verifyError) throw new Error(verifyError.message);
     if (sessionData.user?.id !== staffRow.id) throw new Error("LINE login session user mismatch.");
 
+    await adminSupabase.from("ui_event_logs").insert({
+      actor_user_id: staffRow.id,
+      actor_name: String(staffRow.display_name ?? "").trim() || null,
+      actor_email: String(email).trim().toLowerCase() || null,
+      actor_role: String(staffRow.profiles?.role ?? "").trim().toLowerCase() || null,
+      pathname: "/login",
+      event_type: "auth_activity",
+      event_name: "login_succeeded",
+      severity: "info",
+      message: null,
+      metadata: {
+        method: "line",
+        destination,
+        line_user_id: lineProfile.userId,
+      },
+    });
+
     await adminSupabase
       .from("staff")
       .update({
