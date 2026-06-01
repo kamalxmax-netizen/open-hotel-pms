@@ -90,6 +90,7 @@ export interface MonthlyAuditFullTaxInvoiceInfo {
   residual_paid_credit_card: number;
   residual_paid_other: number;
   residual_total_paid: number;
+  covered_room_revenue_by_stay_date?: Record<string, number>;
 }
 
 export interface MonthlyAuditEntryChannelFlag {
@@ -472,6 +473,68 @@ function scaleAmount(value: number, ratio: number): number {
   return num(value * ratio);
 }
 
+function validStayDates(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => str(item))
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+    )
+  ).sort();
+}
+
+function addCoveredRoomRevenueByStayDate(
+  map: Map<string, Map<string, number>>,
+  reservationId: string,
+  stayDates: unknown,
+  amount: number
+): void {
+  const dates = validStayDates(stayDates);
+  const total = Math.max(0, num(amount));
+  if (!reservationId || dates.length === 0 || total <= 0) return;
+
+  const byDate = map.get(reservationId) ?? new Map<string, number>();
+  const base = num(total / dates.length);
+  let allocated = 0;
+  dates.forEach((stayDate, index) => {
+    const share = index === dates.length - 1 ? num(total - allocated) : base;
+    allocated = num(allocated + share);
+    byDate.set(stayDate, num((byDate.get(stayDate) ?? 0) + share));
+  });
+  map.set(reservationId, byDate);
+}
+
+function scaleCoveredRoomRevenueByStayDate(
+  map: Map<string, Map<string, number>>,
+  ratio: number
+): void {
+  for (const [reservationId, byDate] of map.entries()) {
+    const scaled = new Map<string, number>();
+    for (const [stayDate, amount] of byDate.entries()) {
+      const nextAmount = scaleAmount(amount, ratio);
+      if (nextAmount > 0) scaled.set(stayDate, nextAmount);
+    }
+    map.set(reservationId, scaled);
+  }
+}
+
+function mergeCoveredRoomRevenueByStayDate(
+  previous: Record<string, number> | undefined,
+  current: Map<string, number> | undefined
+): Record<string, number> {
+  const merged = new Map<string, number>();
+  for (const [stayDate, amount] of Object.entries(previous ?? {})) {
+    const normalized = num(amount);
+    if (normalized > 0) merged.set(stayDate, normalized);
+  }
+  for (const [stayDate, amount] of current?.entries() ?? []) {
+    const normalized = num(amount);
+    if (normalized > 0) merged.set(stayDate, num((merged.get(stayDate) ?? 0) + normalized));
+  }
+  return Object.fromEntries([...merged.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
 export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
   supabase: SupabaseLike,
   entries: T[]
@@ -509,6 +572,7 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
 
     const invoiceTotal = Math.max(0, num(row.grand_total));
     const allocated = new Map<string, { room: number; extra: number }>();
+    const coveredByStayDate = new Map<string, Map<string, number>>();
     const lineItems = Array.isArray(row.line_items) ? row.line_items : [];
 
     for (const item of lineItems) {
@@ -526,6 +590,7 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
           const current = allocated.get(sourceReservationId) ?? { room: 0, extra: 0 };
           current.room = num(current.room + sourceAmount);
           allocated.set(sourceReservationId, current);
+          addCoveredRoomRevenueByStayDate(coveredByStayDate, sourceReservationId, (item as any)?.stay_dates, sourceAmount);
         }
         continue;
       }
@@ -539,9 +604,11 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
 
       const mergedExtra = Math.min(lineAmount, Math.max(0, num((item as any)?.merged_extra_charge_total)));
       const current = allocated.get(itemReservationId) ?? { room: 0, extra: 0 };
-      current.room = num(current.room + Math.max(0, lineAmount - mergedExtra));
+      const roomAmount = Math.max(0, lineAmount - mergedExtra);
+      current.room = num(current.room + roomAmount);
       current.extra = num(current.extra + mergedExtra);
       allocated.set(itemReservationId, current);
+      addCoveredRoomRevenueByStayDate(coveredByStayDate, itemReservationId, (item as any)?.stay_dates, roomAmount);
     }
 
     const metadataTotal = Array.from(allocated.values()).reduce(
@@ -557,6 +624,7 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
           extra: scaleAmount(value.extra, ratio),
         });
       }
+      scaleCoveredRoomRevenueByStayDate(coveredByStayDate, ratio);
     }
 
     if (metadataTotal <= 0) {
@@ -625,6 +693,10 @@ export async function loadIssuedFullTaxCoverageMap<T extends MonthlyAuditEntry>(
         residual_paid_credit_card: num(entry.paid_credit_card - fullTaxPaidCreditCard),
         residual_paid_other: num(entry.paid_other - fullTaxPaidOther),
         residual_total_paid: num(entry.total_paid - (fullTaxPaidCash + fullTaxPaidTransfer + fullTaxPaidCreditCard + fullTaxPaidOther)),
+        covered_room_revenue_by_stay_date: mergeCoveredRoomRevenueByStayDate(
+          previous?.covered_room_revenue_by_stay_date,
+          coveredByStayDate.get(entry.reservation_id)
+        ),
       });
     }
   }

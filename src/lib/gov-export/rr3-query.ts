@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { loadIssuedFullTaxCoverageMap } from "@/lib/monthly-audit";
 import { applyRR3RowOverrides, loadRR3RowOverrides } from "./rr3-row-overrides";
+import { addFullTaxRoomChargeLinesToBucket } from "./rr3-price-summary";
 
 function monthDateRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -204,16 +205,20 @@ async function buildRR3PriceSummaryFromDocuments(
       throw new Error(`Failed to load full tax invoices for รร.3 summary: ${fullTaxError.message}`);
     }
 
+    const fullTaxRoomLines: any[] = [];
+
     for (const invoice of (fullTaxInvoices ?? []) as any[]) {
       const roomLines = extractInvoiceLineItems(invoice.line_items).filter(isRoomChargeLine);
       if (roomLines.length === 0) {
         addPriceSummaryItem(otaTaxBucket, invoice.grand_total, 1);
         continue;
       }
-      for (const line of roomLines) {
-        addPriceSummaryItem(otaTaxBucket, line.unit_price ?? line.amount, line.quantity ?? 1);
-      }
+      roomLines.forEach((line, index) => {
+        fullTaxRoomLines.push({ ...line, __rr3_invoice_id: invoice.id, __rr3_line_index: index });
+      });
     }
+
+    addFullTaxRoomChargeLinesToBucket(otaTaxBucket, fullTaxRoomLines);
   }
 
   return {

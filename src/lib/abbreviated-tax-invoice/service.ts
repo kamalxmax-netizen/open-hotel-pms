@@ -26,6 +26,11 @@ import {
   mapCompletedPositivePosItemRows,
   type PosItemRow,
 } from "@/lib/abbreviated-tax-invoice/pos-items";
+import {
+  allocateRoomAndExtraAcrossNights,
+  applyCoveredRoomRevenueToNights,
+  completeChargedReservationNightsFromAuditTotal,
+} from "@/lib/abbreviated-tax-invoice/night-allocation";
 import { getSellerSnapshotFromSettings } from "@/lib/tax-invoice/service";
 import { normalizeMoney, round2 } from "@/lib/tax-invoice/utils";
 import type { BookingSource } from "@/lib/types";
@@ -146,6 +151,8 @@ export class AbbreviatedTaxInvoiceError extends Error {
     this.status = status;
   }
 }
+
+const RESERVATION_NIGHT_PAGE_SIZE = 1000;
 
 function monthDateRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -374,15 +381,23 @@ async function loadNights(
 ): Promise<NightRow[]> {
   if (reservationIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("reservation_nights")
-    .select("id, reservation_id, room_id, stay_date, nightly_price, cancelled_at, rooms(id, room_type_id, room_types(code, name_en))")
-    .in("reservation_id", reservationIds)
-    .order("stay_date", { ascending: true });
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += RESERVATION_NIGHT_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("reservation_nights")
+      .select("id, reservation_id, room_id, stay_date, nightly_price, cancelled_at, rooms(id, room_type_id, room_types(code, name_en))")
+      .in("reservation_id", reservationIds)
+      .order("stay_date", { ascending: true })
+      .range(offset, offset + RESERVATION_NIGHT_PAGE_SIZE - 1);
 
-  if (error) throw new AbbreviatedTaxInvoiceError(error.message, 500);
+    if (error) throw new AbbreviatedTaxInvoiceError(error.message, 500);
 
-  return ((data ?? []) as any[]).map((row) => {
+    const page = (data ?? []) as any[];
+    rows.push(...page);
+    if (page.length < RESERVATION_NIGHT_PAGE_SIZE) break;
+  }
+
+  return rows.map((row) => {
     const room = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
     const roomType = room?.room_types
       ? (Array.isArray(room.room_types) ? room.room_types[0] : room.room_types)
@@ -536,79 +551,6 @@ function distributeExtra(total: number, count: number, index: number): number {
   const base = round2(total / count);
   if (index < count - 1) return base;
   return round2(total - base * (count - 1));
-}
-
-function stayDatesBetween(checkinDate: string, checkoutDate: string): string[] {
-  const dates: string[] = [];
-  if (!checkinDate || !checkoutDate || checkinDate >= checkoutDate) return dates;
-  for (let current = checkinDate; current < checkoutDate; current = addDays(current, 1)) {
-    dates.push(current);
-  }
-  return dates;
-}
-
-function sortNights(nights: NightRow[]): NightRow[] {
-  return [...nights].sort((left, right) => left.stay_date.localeCompare(right.stay_date));
-}
-
-function sumNightPrices(nights: NightRow[]): number {
-  return round2(nights.reduce((sum, night) => sum + round2(night.nightly_price), 0));
-}
-
-function completeChargedReservationNightsFromAuditTotal(
-  reservation: ReservationRow,
-  loadedNights: NightRow[],
-  auditRoomTotal: number,
-  refundTotal: number
-): NightRow[] {
-  const activeNights = loadedNights.filter((night) => !night.cancelled_at);
-  if (auditRoomTotal <= 0 || activeNights.length === 0) return sortNights(activeNights);
-  if (refundTotal > 0) return sortNights(activeNights);
-
-  const residualTotal = round2(auditRoomTotal - sumNightPrices(activeNights));
-  if (residualTotal <= 0) return sortNights(activeNights);
-
-  const activeDates = new Set(activeNights.map((night) => night.stay_date));
-  const missingDates = stayDatesBetween(reservation.checkin_date, reservation.checkout_date)
-    .filter((stayDate) => !activeDates.has(stayDate));
-  if (missingDates.length === 0) return sortNights(activeNights);
-
-  const cancelledCandidates: NightRow[] = [];
-  for (const stayDate of missingDates) {
-    const candidates = loadedNights
-      .filter((night) => night.cancelled_at && night.stay_date === stayDate && night.nightly_price > 0)
-      .sort((left, right) =>
-        round2(right.nightly_price) - round2(left.nightly_price) ||
-        String(right.cancelled_at).localeCompare(String(left.cancelled_at))
-      );
-    if (candidates.length === 0) return sortNights(activeNights);
-    cancelledCandidates.push(candidates[0]);
-  }
-
-  const candidateTotal = sumNightPrices(cancelledCandidates);
-  if (Math.abs(candidateTotal - residualTotal) > 0.01) return sortNights(activeNights);
-
-  return sortNights([...activeNights, ...cancelledCandidates]);
-}
-
-function distributeAuditTotalAcrossNights(total: number, nights: NightRow[]): number[] {
-  if (total <= 0 || nights.length === 0) return [];
-
-  const nightlyPrices = nights.map((night) => round2(night.nightly_price));
-  const nightlyTotal = round2(nightlyPrices.reduce((sum, price) => sum + price, 0));
-  if (nightlyTotal > 0) {
-    if (Math.abs(nightlyTotal - total) < 0.005) return nightlyPrices;
-
-    let allocated = 0;
-    return nightlyPrices.map((price, index) => {
-      if (index === nightlyPrices.length - 1) return round2(total - allocated);
-      const amount = round2((total * price) / nightlyTotal);
-      allocated = round2(allocated + amount);
-      return amount;
-    });
-  }
-
-  return nights.map((_, index) => distributeExtra(total, nights.length, index));
 }
 
 function buildDraftSummary(drafts: AbbreviatedInvoiceDraft[]) {
@@ -1020,15 +962,19 @@ async function buildRoomPreview(
     const roomAuditTotal = fullTaxInvoice
       ? round2(Math.max(0, fullTaxInvoice.residual_room_revenue))
       : round2(Math.max(0, entry.room_revenue));
-    const auditTotal = fullTaxInvoice
-      ? round2(Math.max(0, fullTaxInvoice.residual_room_revenue + fullTaxInvoice.residual_extra_revenue))
-      : round2(Math.max(0, entry.room_revenue + entry.extra_revenue));
-    const nights = completeChargedReservationNightsFromAuditTotal(
+    const extraAuditTotal = fullTaxInvoice
+      ? round2(Math.max(0, fullTaxInvoice.residual_extra_revenue))
+      : round2(Math.max(0, entry.extra_revenue));
+    const completedNights = completeChargedReservationNightsFromAuditTotal(
       reservation,
       loadedNights,
       roomAuditTotal,
       entry.refund_total
     );
+    const coveredByStayDate = fullTaxInvoice?.covered_room_revenue_by_stay_date ?? {};
+    const nights = fullTaxInvoice
+      ? applyCoveredRoomRevenueToNights(completedNights, coveredByStayDate)
+      : completedNights;
 
     const includedNights = nights.filter((night) => {
       const override = overrideByEntryDate.get(`${entryId}::${night.stay_date}`);
@@ -1057,9 +1003,17 @@ async function buildRoomPreview(
       });
     }
 
+    const allocation = allocateRoomAndExtraAcrossNights({
+      roomAuditTotal,
+      extraAuditTotal,
+      includedNights,
+      capRoomToIncludedNightTotal: fullTaxInvoice ? Object.keys(coveredByStayDate).length > 0 : false,
+    });
+    const auditTotal = round2(allocation.amounts.reduce((sum, amount) => sum + amount, 0));
+
     if (auditTotal <= 0 || includedNights.length === 0) continue;
 
-    const distributedNightAmounts = distributeAuditTotalAcrossNights(auditTotal, includedNights);
+    const distributedNightAmounts = allocation.amounts;
     for (const [includedIndex, night] of includedNights.entries()) {
       const roomGroup = night.room_type_code ? roomGroupMap.get(night.room_type_code.toUpperCase()) : null;
       if (!roomGroup) {
