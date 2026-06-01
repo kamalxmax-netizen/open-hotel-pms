@@ -1,6 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { normalizeAuditSource } from "@/lib/audit-utils";
+import {
+  getFrontdeskFinancialHistoryCutoff,
+  getFrontdeskFinancialHistoryError,
+} from "@/lib/financial-history-access";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -88,6 +92,14 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const auth = await requireStaffAuth(supabase, request);
     if (auth.error) return auth.error;
+    const today = toBangkokDateString();
+    const historyError = getFrontdeskFinancialHistoryError(auth.role, today, [date_from, date_to]);
+    if (historyError) {
+      return NextResponse.json({ success: false, error: historyError }, { status: 403 });
+    }
+    const isFrontdesk = auth.role === "frontdesk";
+    const effectiveDateFrom = isFrontdesk ? (date_from ?? getFrontdeskFinancialHistoryCutoff(today)) : date_from;
+    const effectiveDateTo = isFrontdesk ? (date_to ?? today) : date_to;
 
     let query = supabase
       .from("transfer_transactions")
@@ -95,8 +107,8 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (date_from) query = query.gte("transaction_date", date_from);
-    if (date_to) query = query.lte("transaction_date", date_to);
+    if (effectiveDateFrom) query = query.gte("transaction_date", effectiveDateFrom);
+    if (effectiveDateTo) query = query.lte("transaction_date", effectiveDateTo);
     if (transfer_id) query = query.eq("transfer_id", transfer_id);
     if (guest_profile_id) query = query.eq("guest_profile_id", guest_profile_id);
     if (tx_type) query = query.eq("tx_type", tx_type);

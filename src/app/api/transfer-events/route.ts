@@ -4,6 +4,10 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffAuth } from "@/lib/server-auth";
 import { roundMoney } from "@/lib/transfer-audit";
 import { TRANSFER_AUDIT_READ_ROLES } from "@/lib/transfer-audit-auth";
+import {
+  getFrontdeskFinancialHistoryCutoff,
+  getFrontdeskFinancialHistoryError,
+} from "@/lib/financial-history-access";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -57,6 +61,20 @@ function applyPaidDateFilter<T extends { gte: Function; lte: Function }>(query: 
   if (from) next = next.gte("paid_date", from);
   if (to) next = next.lte("paid_date", to);
   return next;
+}
+
+function toBangkokDateString(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) return new Date().toISOString().slice(0, 10);
+  return `${year}-${month}-${day}`;
 }
 
 function relationOne<T>(value: T | T[] | null | undefined): T | null {
@@ -213,6 +231,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { from, to, limit } = parsed.data;
+    const today = toBangkokDateString();
+    const historyError = getFrontdeskFinancialHistoryError(auth.role, today, [from, to]);
+    if (historyError) {
+      return NextResponse.json({ success: false, error: historyError }, { status: 403 });
+    }
+    const isFrontdesk = auth.role === "frontdesk";
+    const effectiveFrom = isFrontdesk ? (from ?? getFrontdeskFinancialHistoryCutoff(today)) : from;
+    const effectiveTo = isFrontdesk ? (to ?? today) : to;
     const eventQuery = applyPaidDateFilter(
       supabase
         .from("transfer_events")
@@ -222,8 +248,8 @@ export async function GET(request: NextRequest) {
         .order("transfer_at", { ascending: false, nullsFirst: false })
         .order("recorded_at", { ascending: false })
         .limit(limit),
-      from,
-      to
+      effectiveFrom,
+      effectiveTo
     );
 
     const paymentQuery = applyPaidDateFilter(
@@ -252,8 +278,8 @@ export async function GET(request: NextRequest) {
         .eq("method", "transfer")
         .order("paid_at", { ascending: false })
         .limit(900),
-      from,
-      to
+      effectiveFrom,
+      effectiveTo
     );
 
     const [eventsRes, paymentsRes] = await Promise.all([eventQuery, paymentQuery]);

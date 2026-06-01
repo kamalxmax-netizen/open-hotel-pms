@@ -120,7 +120,7 @@ html.high-contrast {
 }
 
 /* ─── High Contrast Component Overrides ─── */
-/* Main Status Backgrounds (Room Diary Cards) */
+/* Main Status Backgrounds (Room Rack Cards) */
 html.high-contrast .status-available { @apply !bg-emerald-300 !text-black !border-black; }
 html.high-contrast .status-reserved { @apply !bg-amber-300 !text-black !border-black; }
 html.high-contrast .status-dirty { @apply !bg-rose-300 !text-black !border-black; }

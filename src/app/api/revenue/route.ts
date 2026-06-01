@@ -10,11 +10,41 @@ import {
 } from "@/lib/revenue-reporting";
 import { NextRequest, NextResponse } from "next/server";
 
+const REVENUE_REPORT_PAGE_SIZE = 1000;
+const REVENUE_REPORT_MAX_ROWS = 20000;
+
+type RevenueQueryError = { message: string };
+type RevenueRangeQuery<T> = {
+    range(from: number, to: number): PromiseLike<{ data: T[] | null; error: RevenueQueryError | null }>;
+};
+
 function toLocalDate(d: Date) {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
+}
+
+async function fetchRevenueRows<T>(
+    createQuery: () => RevenueRangeQuery<T>
+): Promise<{ data: T[] | null; error: RevenueQueryError | null }> {
+    const rows: T[] = [];
+    let offset = 0;
+
+    while (offset < REVENUE_REPORT_MAX_ROWS) {
+        const { data, error } = await createQuery().range(offset, offset + REVENUE_REPORT_PAGE_SIZE - 1);
+        if (error) return { data: null, error };
+
+        const page = data ?? [];
+        rows.push(...page);
+        if (page.length < REVENUE_REPORT_PAGE_SIZE) return { data: rows, error: null };
+        offset += REVENUE_REPORT_PAGE_SIZE;
+    }
+
+    return {
+        data: null,
+        error: { message: `Revenue report exceeded ${REVENUE_REPORT_MAX_ROWS} rows. Narrow the date range.` },
+    };
 }
 
 export async function GET(request: NextRequest) {
@@ -32,7 +62,7 @@ export async function GET(request: NextRequest) {
                 .from("rooms")
                 .select("id, room_number, floor_number, is_dayuse, closure_reason, is_sellable")
                 .eq("is_sellable", true),
-            supabase
+            fetchRevenueRows<RevenueNightRow>(() => supabase
                 .from("reservation_nights")
                 .select(`
         room_id,
@@ -48,27 +78,27 @@ export async function GET(request: NextRequest) {
       `)
                 .gte("stay_date", startDate)
                 .lte("stay_date", endDate)
-                .neq("reservations.status", "cancelled"),
-            supabase
+                .neq("reservations.status", "cancelled")),
+            fetchRevenueRows<RevenuePosOrderRow>(() => supabase
                 .from("pos_orders")
                 .select("total, order_date, status")
                 .gte("order_date", startDate)
                 .lte("order_date", endDate)
-                .eq("status", "completed"),
-            supabase
+                .eq("status", "completed")),
+            fetchRevenueRows<RevenueExtraRow>(() => supabase
                 .from("folio_payments")
                 .select("id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
                 .gte("paid_date", startDate)
                 .lte("paid_date", endDate)
                 .eq("revenue_category", "extra_charge")
-                .in("tx_type", ["payment", "refund"]),
-            supabase
+                .in("tx_type", ["payment", "refund"])),
+            fetchRevenueRows<RevenueDayuseRow>(() => supabase
                 .from("folio_payments")
                 .select("id, reservation_id, paid_date, paid_at, tx_type, amount, note, revenue_category, is_record_only, is_correction, is_void_reversal, void_of")
                 .gte("paid_date", startDate)
                 .lte("paid_date", endDate)
                 .eq("revenue_category", "dayuse_revenue")
-                .in("tx_type", ["payment", "refund"]),
+                .in("tx_type", ["payment", "refund"])),
         ]);
 
         if (roomsErr) return NextResponse.json({ error: roomsErr.message }, { status: 500 });

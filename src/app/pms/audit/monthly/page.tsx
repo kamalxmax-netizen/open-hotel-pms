@@ -155,6 +155,13 @@ const SOURCE_LABELS: Record<string, string> = {
   agent: "Agent",
 };
 
+function getChannelDisplayLabel(actual: string, taxInvoice: string): string {
+  if (actual === "walkin" && taxInvoice === "ota") return "Walk-in(O)";
+  if (taxInvoice === "ota" || taxInvoice === "agent") return "OTA";
+  if (taxInvoice === "direct") return "Direct";
+  return "Walk-in";
+}
+
 function fmt(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -450,6 +457,16 @@ export default function MonthlyAuditPage() {
   // ============================================================
   const [savingChannelFlagId, setSavingChannelFlagId] = useState<string | null>(null);
 
+  function patchEntryChannelFlag(entryId: string, flag: AuditEntry["channel_flag"]) {
+    const patch = (entry: AuditEntry): AuditEntry =>
+      entry.id === entryId ? { ...entry, channel_flag: flag } : entry;
+    if (previewEnabled) {
+      setPreviewEntries((current) => current.map(patch));
+    } else {
+      setEntries((current) => current.map(patch));
+    }
+  }
+
   const handleChannelFlagSave = async (entryId: string, actual: string, taxInvoice: string, reason?: string) => {
     setSavingChannelFlagId(entryId);
     try {
@@ -466,11 +483,13 @@ export default function MonthlyAuditPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
 
-      if (previewEnabled) {
-        await loadPreviewData();
-      } else {
-        await loadPeriodData();
-      }
+      const savedFlag = json.flag ?? json.data;
+      patchEntryChannelFlag(entryId, {
+        actual_channel: savedFlag?.actual_channel ?? actual,
+        tax_invoice_channel: savedFlag?.tax_invoice_channel ?? taxInvoice,
+        display_label: getChannelDisplayLabel(savedFlag?.actual_channel ?? actual, savedFlag?.tax_invoice_channel ?? taxInvoice),
+        reason: savedFlag?.reason ?? null,
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Save channel flag failed");
     } finally {

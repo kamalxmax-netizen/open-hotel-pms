@@ -78,7 +78,7 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths without session check
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    // If already logged in and hitting /login → redirect to Room Diary landing.
+    // If already logged in and hitting /login → redirect to Room Rack landing.
     if (AUTH_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
       const response = NextResponse.next();
       const supabase = createMiddlewareSupabaseClient(request, response);
