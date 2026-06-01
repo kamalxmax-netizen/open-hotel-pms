@@ -149,6 +149,22 @@ export type BackupStorageSummary = {
   oldest_file_date: string | null;
 };
 
+export type UiEventLogArchiveRunRow = {
+  id: string;
+  status: "started" | "succeeded" | "failed";
+  archive_cutoff_at: string;
+  row_count: number;
+  archived_count: number;
+  deleted_count: number;
+  r2_keys: string[];
+  event_counts: Record<string, number>;
+  category_counts: Record<string, number>;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type BackupStatusPayload = {
   config: {
     retention_days: number;
@@ -161,6 +177,7 @@ export type BackupStatusPayload = {
   latest_cloud_backup: BackupLogRow | null;
   latest_offline_sync: BackupLogRow | null;
   history: BackupLogRow[];
+  activity_log_archives: UiEventLogArchiveRunRow[];
   storage: BackupStorageSummary;
 };
 
@@ -1418,6 +1435,33 @@ export async function getBackupStatus(supabase: SupabaseServerClient): Promise<B
   }
 
   const history = ((data ?? []) as any[]).map(normalizeBackupLogRow);
+  let activityLogArchives: UiEventLogArchiveRunRow[] = [];
+  try {
+    const { data: archiveRuns, error: archiveError } = await supabase
+      .from("ui_event_log_archive_runs")
+      .select("id, status, archive_cutoff_at, row_count, archived_count, deleted_count, r2_keys, event_counts, category_counts, error_message, started_at, completed_at, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (!archiveError) {
+      activityLogArchives = ((archiveRuns ?? []) as any[]).map((row) => ({
+        id: String(row.id),
+        status: row.status === "failed" || row.status === "started" ? row.status : "succeeded",
+        archive_cutoff_at: String(row.archive_cutoff_at),
+        row_count: Number(row.row_count ?? 0),
+        archived_count: Number(row.archived_count ?? 0),
+        deleted_count: Number(row.deleted_count ?? 0),
+        r2_keys: Array.isArray(row.r2_keys) ? row.r2_keys.map(String) : [],
+        event_counts: typeof row.event_counts === "object" && row.event_counts ? row.event_counts as Record<string, number> : {},
+        category_counts: typeof row.category_counts === "object" && row.category_counts ? row.category_counts as Record<string, number> : {},
+        error_message: row.error_message ? String(row.error_message) : null,
+        started_at: String(row.started_at),
+        completed_at: row.completed_at ? String(row.completed_at) : null,
+        created_at: String(row.created_at),
+      }));
+    }
+  } catch {
+    activityLogArchives = [];
+  }
   let storage: BackupStorageSummary;
   try {
     storage = await getStorageSummary(config.r2_bucket);
@@ -1443,6 +1487,7 @@ export async function getBackupStatus(supabase: SupabaseServerClient): Promise<B
     latest_cloud_backup: history.find((row) => row.backup_type === "daily_cloud") ?? null,
     latest_offline_sync: history.find((row) => row.backup_type === "offline_snapshot") ?? null,
     history,
+    activity_log_archives: activityLogArchives,
     storage,
   };
 }

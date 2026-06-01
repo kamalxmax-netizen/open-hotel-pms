@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { logUiEventNow } from "@/lib/ui-event-log-client";
 
 export function MobileCheckinLogout() {
   const router = useRouter();
@@ -21,6 +22,14 @@ export function MobileCheckinLogout() {
         });
       }
       const supabase = createBrowserSupabaseClient();
+      await logUiEventNow({
+        pathname: "/pms/mobile-checkin",
+        event_type: "auth_activity",
+        event_name: "logout_clicked",
+        metadata: {
+          source: "mobile_checkin",
+        },
+      });
       await supabase.auth.signOut();
       router.replace("/login");
       router.refresh();

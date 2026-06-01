@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { logUiEvent } from "@/lib/ui-event-log-client";
+import { logUiEventNow } from "@/lib/ui-event-log-client";
 import { DEFAULT_APP_SETTINGS, useSettings } from "@/contexts/settings-context";
 
 type ReminderSettings = {
@@ -125,7 +125,7 @@ export function ShiftLogoutReminder() {
     try {
       acknowledgeOccurrence(visibleUser.id, visibleOccurrence);
       setActiveOccurrence(null);
-      logUiEvent({
+      await logUiEventNow({
         pathname: window.location.pathname,
         event_type: "auth_activity",
         event_name: "logout_clicked",

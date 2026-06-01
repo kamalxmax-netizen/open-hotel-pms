@@ -11,6 +11,7 @@ import EmptyState from "@/components/maid/empty-state";
 import LfReportSheet from "@/components/maid/lf-report-sheet";
 import { STRICT_POLLING, strictPollInterval } from "@/lib/egress-strict-mode";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { logUiEventNow } from "@/lib/ui-event-log-client";
 import type {
   ChecklistItem,
   ExtraTaskAssignment,
@@ -306,6 +307,14 @@ export default function MaidPage() {
     setIsLoggingOut(true);
     try {
       const supabase = createBrowserSupabaseClient();
+      await logUiEventNow({
+        pathname: "/maid",
+        event_type: "auth_activity",
+        event_name: "logout_clicked",
+        metadata: {
+          source: "maid",
+        },
+      });
       await supabase.auth.signOut();
       router.replace("/login");
       router.refresh();

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { resolveRoleAwarePostLoginPath, sanitizePostLoginPath } from "@/lib/auth-routing";
 import { markShiftLogoutFreshLogin } from "@/components/shift-logout-reminder";
+import { logUiEventNow } from "@/lib/ui-event-log-client";
 
 /* ── OpenHotel Geometric Logo (SVG) ──────────────────────────────────── */
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
@@ -87,6 +88,15 @@ function LoginForm() {
           .maybeSingle();
         destination = resolveRoleAwarePostLoginPath(destination, profileData?.role, profileData?.allowed_pages);
       }
+      await logUiEventNow({
+        pathname: "/login",
+        event_type: "auth_activity",
+        event_name: "login_succeeded",
+        metadata: {
+          method: "password",
+          destination,
+        },
+      });
       router.push(destination);
       router.refresh();
     } catch {
