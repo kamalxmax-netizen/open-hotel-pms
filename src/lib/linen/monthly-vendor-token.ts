@@ -129,11 +129,34 @@ export async function createMonthlyVendorToken(
     baseUrl?: string | null;
     createdBy?: string | null;
     now?: Date;
+    reuseActive?: boolean;
   } = {}
 ) {
   assertMonthlyStatementInput(year, month);
 
   const expiresAt = getNextBangkokMonthStartIso(options.now ?? new Date());
+  if (options.reuseActive) {
+    const { data: existing, error: existingError } = await supabase
+      .from("laundry_monthly_vendor_tokens")
+      .select("token, expires_at")
+      .eq("year", year)
+      .eq("month", month)
+      .eq("revoked", false)
+      .gt("expires_at", (options.now ?? new Date()).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+    if (existing) {
+      const token = String((existing as any).token);
+      return {
+        token,
+        url: buildMonthlyVendorUrl(options.baseUrl, token),
+        expires_at: String((existing as any).expires_at),
+      };
+    }
+  }
+
   const { error: revokeError } = await supabase
     .from("laundry_monthly_vendor_tokens")
     .update({ revoked: true })

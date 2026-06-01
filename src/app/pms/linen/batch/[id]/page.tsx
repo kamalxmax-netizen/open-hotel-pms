@@ -29,23 +29,17 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
     const [token, setToken] = useState<string | null>(null);
     const [monthlyLink, setMonthlyLink] = useState<string | undefined>();
 
-    // Auto-fetch monthly link on 1st of month (Bangkok time)
+    // Auto-fetch monthly link for first-day batches, including already closed batches revisited later.
     useEffect(() => {
         if (data?.batch?.status !== "fo_return_signed") return;
-        const bangkokDay = new Intl.DateTimeFormat("en-CA", {
-            timeZone: "Asia/Bangkok",
-            day: "numeric",
-        }).format(new Date());
-        if (bangkokDay === "1") {
-            const now = new Date();
-            const bangkokMonth = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", month: "numeric" }).format(now));
-            const bangkokYear = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric" }).format(now));
-            const prevMonth = bangkokMonth === 1 ? 12 : bangkokMonth - 1;
-            const prevYear = bangkokMonth === 1 ? bangkokYear - 1 : bangkokYear;
+        const match = String(data.batch.business_date ?? "").match(/^(\d{4})-(\d{2})-01$/);
+        if (match) {
+            const statementYear = Number(match[1]);
+            const statementMonth = Number(match[2]);
             fetch("/api/linen/vendor/monthly/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ year: prevYear, month: prevMonth }),
+                body: JSON.stringify({ year: statementYear, month: statementMonth, reuse_active: true }),
             })
                 .then((res) => res.ok ? res.json() : null)
                 .then((payload) => {
@@ -124,8 +118,9 @@ export default function BatchDetailPage({ params }: { params: { id: string } }) 
         mutate();
     };
 
-    const handleDone = (newToken: string) => {
+    const handleDone = (newToken: string, newMonthlyLink?: string) => {
         setToken(newToken);
+        if (newMonthlyLink) setMonthlyLink(newMonthlyLink);
         mutate();
     };
 

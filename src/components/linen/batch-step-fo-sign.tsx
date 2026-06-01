@@ -15,7 +15,7 @@ interface BatchStepFoSignProps {
     rewashEvents?: LaundryRewashEvent[];
     returnSummary?: ReturnSummaryDisplayRow[];
     rewashReturnSummary?: { name: string; qty: number }[];
-    onDone: (token: string) => void;
+    onDone: (token: string, monthlyLink?: string) => void;
 }
 
 export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSummary = [], rewashReturnSummary = [], onDone }: BatchStepFoSignProps) {
@@ -81,7 +81,7 @@ export function BatchStepFoSign({ batchId, items, rewashEvents = [], returnSumma
             
             const tokenData = await tokenRes.json();
             
-            onDone(tokenData.data.token);
+            onDone(tokenData.data.token, tokenData.data.monthly_vendor?.url);
         } catch (error) {
             console.error(error);
             alert("เกิดข้อผิดพลาดในการบันทึกเซ็นรับ กรุณาลองใหม่");
