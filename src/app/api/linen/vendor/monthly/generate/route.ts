@@ -12,6 +12,7 @@ export const fetchCache = "force-no-store";
 const bodySchema = z.object({
   year: z.number().int().min(2020).max(2100),
   month: z.number().int().min(1).max(12),
+  reuse_active: z.boolean().optional(),
 }).strict();
 
 export async function POST(request: NextRequest) {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
       vendorName,
       baseUrl: request.nextUrl.origin,
       createdBy: actor.userId,
+      reuseActive: parsed.data.reuse_active === true,
     });
 
     return NextResponse.json(data);
