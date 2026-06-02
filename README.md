@@ -10,6 +10,16 @@
 
 Open Hotel PMS is a full property-management system designed around how a small hotel **actually runs a shift** — not around accounting screens. It has been in daily production use at an independent hotel since March 2026, and is developed iteratively by an AI-agent engineering workflow (see the commit history for the phase-by-phase build log).
 
+## 💡 Why this exists
+
+Hotel PMS software today is **expensive, rigid, and closed**:
+
+- 💸 **Costly** — steep monthly per-room fees that punish small, independent hotels.
+- 🧩 **Limited & siloed** — you're locked into a fixed feature set and can't connect the diverse modules a real operation needs (housekeeping, transport, OCR check-in, night audit, linen, POS…).
+- 🔒 **Closed source** — almost **no one open-sources a real, production hotel PMS**, so hoteliers and developers have nothing solid to build on.
+
+Open Hotel PMS is the counter-example. It's a complete system that already runs a real hotel's daily operations — built over **3+ months in close collaboration with AI** and released openly so **anyone can self-host, adapt, and extend it**. No per-room fees, no locked modules, no black box.
+
 > ℹ️ This is a **sanitized public release**. Hotel-specific branding, logos, photos, and real contact data have been removed. Bring your own Supabase project and branding.
 
 ---
