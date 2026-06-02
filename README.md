@@ -1,4 +1,4 @@
-# 🏨 Open Hotel PMS
+# Open Hotel PMS
 
 > An operations-first, open-source Property Management System for independent hotels — built with Next.js and Supabase.
 
