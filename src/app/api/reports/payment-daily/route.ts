@@ -19,6 +19,16 @@ const querySchema = z.object({
   date: z.string().regex(dateRegex, "date must be YYYY-MM-DD").optional(),
 });
 
+const internalNightAuditPaymentDailyRequests = new WeakSet<NextRequest>();
+
+export function createNightAuditPaymentDailyRequest(businessDate: string): NextRequest {
+  const request = new NextRequest(
+    new URL(`http://night-audit.local/api/reports/payment-daily?date=${businessDate}`)
+  );
+  internalNightAuditPaymentDailyRequests.add(request);
+  return request;
+}
+
 const METHOD_KEYS = ["cash", "transfer", "credit_card", "other"] as const;
 type MethodKey = (typeof METHOD_KEYS)[number];
 type TxType = "payment" | "deposit" | "refund";
@@ -652,7 +662,10 @@ export async function GET(request: NextRequest) {
     const calendarDate = toBangkokDateString();
     const currentBusinessDate = await resolveBusinessDate(supabase, calendarDate);
     const businessDate = parsed.data.date ?? currentBusinessDate;
-    const historyError = getFrontdeskFinancialHistoryError(auth.role, currentBusinessDate, [businessDate]);
+    const isInternalNightAuditRequest = internalNightAuditPaymentDailyRequests.has(request);
+    const historyError = isInternalNightAuditRequest
+      ? null
+      : getFrontdeskFinancialHistoryError(auth.role, currentBusinessDate, [businessDate]);
     if (historyError) {
       return NextResponse.json({ success: false, error: historyError }, { status: 403 });
     }

@@ -4,7 +4,10 @@ import {
     listPendingNoShows,
     normalizePendingGroupCheckinWizardDrafts,
 } from "@/lib/night-audit";
-import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
+import {
+    GET as getPaymentDailyReport,
+    createNightAuditPaymentDailyRequest,
+} from "@/app/api/reports/payment-daily/route";
 import { normalizeAuditSource } from "@/lib/audit-utils";
 import { computeStockSnapshot } from "@/lib/stock-snapshot";
 import { computeLinenDailySnapshot } from "@/lib/linen/daily-snapshot";
@@ -223,9 +226,7 @@ export async function POST(request: NextRequest) {
         });
 
         /* ── 2. Payment totals / deposits / POS (mirror Payment Daily) ── */
-        const paymentDailyRequest = new NextRequest(
-            new URL(`http://night-audit.local/api/reports/payment-daily?date=${businessDate}`)
-        );
+        const paymentDailyRequest = createNightAuditPaymentDailyRequest(businessDate);
         const paymentDailyResponse = await getPaymentDailyReport(paymentDailyRequest);
         const paymentDailyData = await paymentDailyResponse.json();
         if (!paymentDailyData?.success) {
