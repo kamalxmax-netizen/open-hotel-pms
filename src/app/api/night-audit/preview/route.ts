@@ -2,10 +2,13 @@ import {
   getNightAuditSettings,
   toBangkokWindow,
 } from "@/lib/night-audit";
-import { GET as getPaymentDailyReport } from "@/app/api/reports/payment-daily/route";
+import {
+  GET as getPaymentDailyReport,
+  createNightAuditPaymentDailyRequest,
+} from "@/app/api/reports/payment-daily/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NightAuditSnapshot } from "@/lib/types";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -91,9 +94,7 @@ export async function GET() {
       };
     });
 
-    const paymentDailyRequest = new NextRequest(
-      new URL(`http://night-audit.local/api/reports/payment-daily?date=${businessDate}`)
-    );
+    const paymentDailyRequest = createNightAuditPaymentDailyRequest(businessDate);
     const paymentDailyResponse = await getPaymentDailyReport(paymentDailyRequest);
     const paymentDailyData = await paymentDailyResponse.json();
     if (!paymentDailyData?.success) {
