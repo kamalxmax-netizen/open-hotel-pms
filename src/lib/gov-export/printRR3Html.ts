@@ -285,7 +285,6 @@ export function renderRR3LandscapeHtml(data: RR3PrintData): string {
             <div class="cert">
               <div>ขอรับรองว่าเป็นความจริงทุกประการ</div>
               <div class="signature-line">
-                <img class="signature-img" src="/signatures/manager-signature-placeholder.png" alt="" />
                 ลงชื่อ....................................................ผู้จัดการ
               </div>
               <div class="cert-name">นาย ตัวอย่าง สมมุติ</div>

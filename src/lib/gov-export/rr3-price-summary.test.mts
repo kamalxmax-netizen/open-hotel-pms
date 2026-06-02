@@ -11,7 +11,7 @@ const rows = collectFullTaxRoomChargeSummaryRows([
     gross_amount: 4905.33,
     discount_amount: 490.53,
     room_count: 3,
-    room_number: "238,302,314",
+    room_number: "201,205,209",
     stay_dates: ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16"],
     merged_reservation_ids: [
       "d4c43077-3881-46c2-a0a1-b0aa72c0b9e4",
@@ -28,7 +28,7 @@ const rows = collectFullTaxRoomChargeSummaryRows([
     gross_amount: 4370.22,
     discount_amount: 437.02,
     room_count: 3,
-    room_number: "238,302,314",
+    room_number: "201,205,209",
     stay_dates: ["2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22"],
     merged_reservation_ids: [
       "d4c43077-3881-46c2-a0a1-b0aa72c0b9e4",
@@ -45,7 +45,7 @@ const rows = collectFullTaxRoomChargeSummaryRows([
     gross_amount: 4994.66,
     discount_amount: 499.47,
     room_count: 3,
-    room_number: "238,302,314",
+    room_number: "201,205,209",
     stay_dates: ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16"],
     merged_reservation_ids: [
       "d4c43077-3881-46c2-a0a1-b0aa72c0b9e4",
@@ -62,7 +62,7 @@ const rows = collectFullTaxRoomChargeSummaryRows([
     gross_amount: 4449.79,
     discount_amount: 444.98,
     room_count: 3,
-    room_number: "238,302,314",
+    room_number: "201,205,209",
     stay_dates: ["2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22"],
     merged_reservation_ids: [
       "d4c43077-3881-46c2-a0a1-b0aa72c0b9e4",

@@ -59,7 +59,7 @@ export const RR3_COLUMNS = [
 /** Default occupation for all guests */
 export const RR3_DEFAULT_OCCUPATION = "รับจ้าง";
 
-/** Default destination — hotel is in Example Province */
+/** Default destination province (example) */
 export const RR3_DEFAULT_DESTINATION = "ตัวอย่าง";
 
 /** รร.3 filename pattern: RR3-YYYY-MM.xlsx */

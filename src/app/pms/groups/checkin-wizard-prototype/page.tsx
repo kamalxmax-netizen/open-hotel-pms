@@ -38,9 +38,9 @@ type MasterPlan = {
 
 const DEMO_ROWS: DemoReservation[] = [
   {
-    id: "res-204",
-    bookingCode: "BK-GRP-204",
-    roomNumber: "204",
+    id: "res-201",
+    bookingCode: "BK-GRP-201",
+    roomNumber: "201",
     guestName: "Pauline Michelle Rubben",
     roomTotal: 1780,
     roomPaid: 520,
@@ -48,9 +48,9 @@ const DEMO_ROWS: DemoReservation[] = [
     depositPaid: 0,
   },
   {
-    id: "res-228",
-    bookingCode: "BK-GRP-228",
-    roomNumber: "228",
+    id: "res-205",
+    bookingCode: "BK-GRP-205",
+    roomNumber: "205",
     guestName: "Cemal Cem Zohre",
     roomTotal: 1780,
     roomPaid: 0,
@@ -58,9 +58,9 @@ const DEMO_ROWS: DemoReservation[] = [
     depositPaid: 0,
   },
   {
-    id: "res-236",
-    bookingCode: "BK-GRP-236",
-    roomNumber: "236",
+    id: "res-209",
+    bookingCode: "BK-GRP-209",
+    roomNumber: "209",
     guestName: "Nakita Prakash Parwani",
     roomTotal: 1320,
     roomPaid: 300,
