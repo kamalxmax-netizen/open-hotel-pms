@@ -3,7 +3,9 @@
 
 # next.js
 /.next
+.next_*
 /out
+*.tsbuildinfo
 
 # production
 /build
