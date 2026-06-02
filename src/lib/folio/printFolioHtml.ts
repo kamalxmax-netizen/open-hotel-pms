@@ -301,7 +301,6 @@ export function renderFolioA4Html(data: FolioPrintData): string {
           </div>
 
           <aside class="brand">
-            <img class="logo-image" src="/branding/openhotel-logo.png" alt="OpenHotel" />
             <div class="hotel-info">
               <b>โรงแรมตัวอย่าง</b><br />
               000/00 ซ.ตัวอย่าง13 ถ.ตัวอย่าง<br />

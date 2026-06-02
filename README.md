@@ -20,7 +20,7 @@ Hotel PMS software today is **expensive, rigid, and closed**:
 
 Open Hotel PMS is the counter-example. It's a complete system that already runs a real hotel's daily operations — built over **3+ months in close collaboration with AI** and released openly so **anyone can self-host, adapt, and extend it**. No per-room fees, no locked modules, no black box.
 
-> ℹ️ This is a **sanitized public release**. Hotel-specific branding, logos, photos, and real contact data have been removed. Bring your own Supabase project and branding.
+> ℹ️ This is a **sanitized public release**. Hotel-specific branding, logos, photos, and real contact data have been removed, and the seed room map / pricing in `supabase/seed.sql` is generic example data. Bring your own Supabase project, branding, and room configuration.
 
 ---
 
