@@ -3,11 +3,101 @@
 import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { resolveRoleAwarePostLoginPath, sanitizePostLoginPath } from "@/lib/auth-routing";
+import {
+  resolveRoleAwarePostLoginPath,
+  sanitizePostLoginPath,
+} from "@/lib/auth-routing";
 import { markShiftLogoutFreshLogin } from "@/components/shift-logout-reminder";
 import { logUiEventNow } from "@/lib/ui-event-log-client";
 
-/* ── OpenHotel Geometric Logo (SVG) ──────────────────────────────────── */
+/* ── Languages ───────────────────────────────────────────────────────── */
+
+type Language = "en" | "hi" | "bn" | "ne";
+
+const translations = {
+  en: {
+    login: "Login",
+    email: "Email",
+    password: "Password",
+    loginWithLine: "Login with LINE QR",
+    or: "or",
+    signIn: "Sign In",
+    signingIn: "Signing in...",
+    loading: "Loading...",
+    invalidLogin: "Email or password is incorrect.",
+    generalError: "Something went wrong. Please try again.",
+    resetPassword: "Contact Admin if you need to reset your password.",
+    lineConfig: "LINE Login Channel is not configured.",
+    lineState: "LINE Login expired or is incomplete. Please try again.",
+    lineNotBound: "This LINE account is not linked to a Staff account in PMS.",
+    lineNoEmail:
+      "This Staff account has no email for creating a session. Please contact Admin.",
+    lineCallback: "LINE Login failed. Please try again.",
+  },
+
+  hi: {
+    login: "लॉगिन",
+    email: "ईमेल",
+    password: "पासवर्ड",
+    loginWithLine: "LINE QR से लॉगिन करें",
+    or: "या",
+    signIn: "साइन इन करें",
+    signingIn: "साइन इन हो रहा है...",
+    loading: "लोड हो रहा है...",
+    invalidLogin: "ईमेल या पासवर्ड गलत है।",
+    generalError: "कुछ गलत हो गया। कृपया फिर से प्रयास करें।",
+    resetPassword: "पासवर्ड रीसेट करने के लिए Admin से संपर्क करें।",
+    lineConfig: "LINE Login Channel कॉन्फ़िगर नहीं किया गया है।",
+    lineState: "LINE Login की अवधि समाप्त हो गई है या अधूरा है। कृपया फिर से प्रयास करें।",
+    lineNotBound: "यह LINE account PMS के Staff account से जुड़ा नहीं है।",
+    lineNoEmail:
+      "इस Staff account में session बनाने के लिए email नहीं है। कृपया Admin से संपर्क करें।",
+    lineCallback: "LINE Login असफल हुआ। कृपया फिर से प्रयास करें।",
+  },
+
+  bn: {
+    login: "লগইন",
+    email: "ইমেইল",
+    password: "পাসওয়ার্ড",
+    loginWithLine: "LINE QR দিয়ে লগইন করুন",
+    or: "অথবা",
+    signIn: "সাইন ইন",
+    signingIn: "সাইন ইন হচ্ছে...",
+    loading: "লোড হচ্ছে...",
+    invalidLogin: "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।",
+    generalError: "কিছু সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+    resetPassword: "পাসওয়ার্ড রিসেট করতে Admin-এর সাথে যোগাযোগ করুন।",
+    lineConfig: "LINE Login Channel কনফিগার করা হয়নি।",
+    lineState: "LINE Login-এর সময়সীমা শেষ হয়েছে বা অসম্পূর্ণ। আবার চেষ্টা করুন।",
+    lineNotBound: "এই LINE account PMS-এর Staff account-এর সাথে যুক্ত নয়।",
+    lineNoEmail:
+      "এই Staff account-এ session তৈরির জন্য email নেই। Admin-এর সাথে যোগাযোগ করুন।",
+    lineCallback: "LINE Login সফল হয়নি। আবার চেষ্টা করুন।",
+  },
+
+  ne: {
+    login: "लगइन",
+    email: "इमेल",
+    password: "पासवर्ड",
+    loginWithLine: "LINE QR बाट लगइन गर्नुहोस्",
+    or: "वा",
+    signIn: "साइन इन",
+    signingIn: "साइन इन हुँदैछ...",
+    loading: "लोड हुँदैछ...",
+    invalidLogin: "इमेल वा पासवर्ड गलत छ।",
+    generalError: "केही समस्या भयो। कृपया फेरि प्रयास गर्नुहोस्।",
+    resetPassword: "पासवर्ड रिसेट गर्न Admin लाई सम्पर्क गर्नुहोस्।",
+    lineConfig: "LINE Login Channel कन्फिगर गरिएको छैन।",
+    lineState: "LINE Login को समय सकिएको वा अपूर्ण छ। कृपया फेरि प्रयास गर्नुहोस्।",
+    lineNotBound: "यो LINE account PMS को Staff account सँग जोडिएको छैन।",
+    lineNoEmail:
+      "यस Staff account मा session बनाउन email छैन। कृपया Admin लाई सम्पर्क गर्नुहोस्।",
+    lineCallback: "LINE Login सफल भएन। कृपया फेरि प्रयास गर्नुहोस्।",
+  },
+} as const;
+
+/* ── OpenHotel Geometric Logo ───────────────────────────────────────── */
+
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
   return (
     <svg
@@ -17,249 +107,29 @@ function OpenHotelLogo({ size = 72 }: { size?: number }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Outer diamond border */}
       <path
         d="M40 4 L76 40 L40 76 L4 40 Z"
         stroke="#C9903A"
         strokeWidth="1.5"
         fill="none"
       />
-      {/* Geometric flower — 4 petals */}
+
       <path
         d="M40 16 C40 16 28 28 28 40 C28 52 40 64 40 64 C40 64 52 52 52 40 C52 28 40 16 40 16Z"
         stroke="#C9903A"
         strokeWidth="1.5"
         fill="none"
       />
+
       <path
         d="M16 40 C16 40 28 28 40 28 C52 28 64 40 64 40 C64 40 52 52 40 52 C28 52 16 40 16 40Z"
         stroke="#C9903A"
         strokeWidth="1.5"
         fill="none"
       />
-      {/* Center dot */}
+
       <circle cx="40" cy="40" r="3" fill="#C9903A" />
-      {/* Corner accents */}
+
       <path d="M40 4 L40 12" stroke="#C9903A" strokeWidth="1.5" />
       <path d="M40 68 L40 76" stroke="#C9903A" strokeWidth="1.5" />
-      <path d="M4 40 L12 40" stroke="#C9903A" strokeWidth="1.5" />
-      <path d="M68 40 L76 40" stroke="#C9903A" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-/* ── Diamond Background Pattern ──────────────────────────────────────── */
-const DIAMOND_PATTERN = `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 2L58 30L30 58L2 30Z' stroke='%23ffffff' stroke-width='0.6' stroke-opacity='0.07' fill='none'/%3E%3C/svg%3E")`;
-
-/* ── Login Form ───────────────────────────────────────────────────────── */
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = sanitizePostLoginPath(searchParams.get("next"));
-  const lineError = resolveLineLoginError(searchParams.get("line_error"));
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const supabase = createBrowserSupabaseClient();
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (signInError) {
-        setError("Email หรือ Password ไม่ถูกต้อง");
-        return;
-      }
-      let destination = next;
-      const userId = signInData.user?.id ?? null;
-      markShiftLogoutFreshLogin(userId);
-      if (userId) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("role, allowed_pages")
-          .eq("user_id", userId)
-          .maybeSingle();
-        destination = resolveRoleAwarePostLoginPath(destination, profileData?.role, profileData?.allowed_pages);
-      }
-      await logUiEventNow({
-        pathname: "/login",
-        event_type: "auth_activity",
-        event_name: "login_succeeded",
-        metadata: {
-          method: "password",
-          destination,
-        },
-      });
-      router.push(destination);
-      router.refresh();
-    } catch {
-      setError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-      {/* Gold top bar */}
-      <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #C9903A, #E8B96A, #C9903A)" }} />
-
-      <div className="p-8">
-        <h2 className="text-base font-semibold text-slate-700 mb-5 tracking-wide">
-          เข้าสู่ระบบ
-        </h2>
-
-        {lineError && (
-          <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-lg">
-            {lineError}
-          </div>
-        )}
-
-        <a
-          href={`/api/auth/line/start?next=${encodeURIComponent(next)}`}
-          className="mb-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#06C755] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#05b64d] focus:outline-none focus:ring-2 focus:ring-[#06C755]/30"
-        >
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-black text-[#06C755]">
-            L
-          </span>
-          Login with LINE QR
-        </a>
-
-        <div className="mb-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">or</span>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5 tracking-widest uppercase">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="staff@example.com"
-              required
-              autoComplete="username"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none transition"
-              style={{ "--tw-ring-color": "#C9903A" } as React.CSSProperties}
-              onFocus={(e) => (e.target.style.borderColor = "#C9903A")}
-              onBlur={(e) => (e.target.style.borderColor = "")}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5 tracking-widest uppercase">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none transition"
-              onFocus={(e) => (e.target.style.borderColor = "#C9903A")}
-              onBlur={(e) => (e.target.style.borderColor = "")}
-            />
-          </div>
-
-          {error && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full text-white font-medium py-2.5 rounded-lg text-sm transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              background: loading
-                ? "#b8832e"
-                : "linear-gradient(135deg, #C9903A, #E0A84A)",
-              boxShadow: loading ? "none" : "0 4px 14px rgba(201,144,58,0.35)",
-            }}
-          >
-            {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function resolveLineLoginError(value: string | null): string | null {
-  switch (value) {
-    case "config":
-      return "ยังไม่ได้ตั้งค่า LINE Login Channel ในระบบ";
-    case "state":
-      return "LINE Login หมดอายุหรือไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง";
-    case "not_bound":
-      return "LINE account นี้ยังไม่ได้ผูกกับ Staff ใน PMS";
-    case "no_email":
-      return "Staff account นี้ไม่มี email สำหรับสร้าง session กรุณาติดต่อ Admin";
-    case "callback":
-      return "LINE Login ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
-    default:
-      return null;
-  }
-}
-
-/* ── Page ─────────────────────────────────────────────────────────────── */
-export default function LoginPage() {
-  return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{
-        backgroundColor: "#1B4038",
-        backgroundImage: DIAMOND_PATTERN,
-      }}
-    >
-      <div className="w-full max-w-sm">
-        {/* Logo + Hotel name */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <OpenHotelLogo size={76} />
-          </div>
-          <h1
-            className="text-xl font-bold tracking-[0.18em] uppercase"
-            style={{ color: "#C9903A" }}
-          >
-            OpenHotel
-          </h1>
-          <p className="text-white text-sm font-light tracking-[0.25em] uppercase mt-0.5 opacity-90">
-            Hotel PMS
-          </p>
-          <p className="text-xs mt-2 tracking-wide opacity-50" style={{ color: "#a8d4c4" }}>
-            Internal Staff Portal
-          </p>
-        </div>
-
-        <Suspense
-          fallback={
-            <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
-              <p className="text-sm text-slate-400">กำลังโหลด...</p>
-            </div>
-          }
-        >
-          <LoginForm />
-        </Suspense>
-
-        <p className="text-center text-xs mt-6 opacity-40 tracking-wide" style={{ color: "#a8d4c4" }}>
-          ติดต่อ Admin หากต้องการรีเซ็ตรหัสผ่าน
-        </p>
-      </div>
-    </div>
-  );
-}
+      <path d="M4
