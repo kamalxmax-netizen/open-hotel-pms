@@ -17,7 +17,7 @@ import { markShiftLogoutFreshLogin } from "@/components/shift-logout-reminder";
 import { logUiEventNow } from "@/lib/ui-event-log-client";
 
 /* ─────────────────────────────────────────────────────────────
-   OpenHotel Logo
+   OpenHotel Logo — DIV-BASED (no <svg>, cannot break the parser)
    ───────────────────────────────────────────────────────────── */
 
 function OpenHotelLogo({ size = 72 }: { size?: number }) {
@@ -66,7 +66,7 @@ function OpenHotelLogo({ size = 72 }: { size?: number }) {
    ───────────────────────────────────────────────────────────── */
 
 const DIAMOND_PATTERN =
-  `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 2L58 30L30 58L2 30Z' stroke='%23ffffff' stroke-width='0.6' stroke-opacity='0.07' fill='none'/%3E%3C/svg%3E")`;
+  "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 2L58 30L30 58L2 30Z' stroke='%23ffffff' stroke-width='0.6' stroke-opacity='0.07' fill='none'/%3E%3C/svg%3E\")";
 
 /* ─────────────────────────────────────────────────────────────
    LINE Login Error Messages
@@ -105,13 +105,8 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /* ─────────────────────────────────────────
-     Email / Password Login
-     ───────────────────────────────────────── */
-
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
     if (loading) return;
 
     setError(null);
@@ -135,17 +130,14 @@ function LoginForm() {
       }
 
       loggedIn = true;
-
       const userId = signInData.user.id;
 
-      // Reset shift-logout reminder for the new session.
       try {
         markShiftLogoutFreshLogin(userId);
       } catch {
         /* non-fatal */
       }
 
-      // Load staff profile to resolve role-aware landing page.
       try {
         const { data: profileData } = await supabase
           .from("profiles")
@@ -162,15 +154,12 @@ function LoginForm() {
         /* non-fatal — fall back to sanitized `next` */
       }
 
-      // Fire-and-forget analytics — must not block redirect.
+      // Fire-and-forget: must not block the redirect.
       void logUiEventNow({
         pathname: "/login",
         event_type: "auth_activity",
         event_name: "login_succeeded",
-        metadata: {
-          method: "password",
-          destination,
-        },
+        metadata: { method: "password", destination },
       });
     } catch {
       if (!loggedIn) {
@@ -181,16 +170,11 @@ function LoginForm() {
       setLoading(false);
     }
 
-    // Redirect only after successful auth.
     if (loggedIn) {
       router.replace(destination);
       router.refresh();
     }
   }
-
-  /* ─────────────────────────────────────────────────────────────
-     Input Styles
-     ───────────────────────────────────────────────────────────── */
 
   const inputStyle: CSSProperties = {
     width: "100%",
@@ -207,7 +191,6 @@ function LoginForm() {
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-      {/* Gold Top Bar */}
       <div
         className="h-1 w-full"
         style={{
@@ -216,21 +199,15 @@ function LoginForm() {
       />
 
       <div className="p-8">
-        {/* Heading */}
         <h2 className="text-base font-semibold text-slate-700 mb-5 tracking-wide">
           Sign In
         </h2>
 
-        {/* LINE Login Error */}
         {lineError && (
           <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-lg">
             {lineError}
           </div>
         )}
-
-        {/* ─────────────────────────────────────
-            LINE QR LOGIN
-            ───────────────────────────────────── */}
 
         <a
           href={`/api/auth/line/start?next=${encodeURIComponent(next)}`}
@@ -242,10 +219,6 @@ function LoginForm() {
           Login with LINE QR
         </a>
 
-        {/* ─────────────────────────────────────
-            OR SEPARATOR
-            ───────────────────────────────────── */}
-
         <div className="mb-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-slate-200" />
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -254,12 +227,7 @@ function LoginForm() {
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        {/* ─────────────────────────────────────
-            EMAIL LOGIN FORM
-            ───────────────────────────────────── */}
-
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
           <div>
             <label
               htmlFor="email"
@@ -288,7 +256,6 @@ function LoginForm() {
             />
           </div>
 
-          {/* Password */}
           <div>
             <label
               htmlFor="password"
@@ -317,14 +284,12 @@ function LoginForm() {
             />
           </div>
 
-          {/* Login Error */}
           {error && (
             <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-lg">
               {error}
             </div>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -333,7 +298,9 @@ function LoginForm() {
               background: loading
                 ? "#b8832e"
                 : "linear-gradient(135deg, #C9903A, #E0A84A)",
-              boxShadow: loading ? "none" : "0 4px 14px rgba(201,144,58,0.35)",
+              boxShadow: loading
+                ? "none"
+                : "0 4px 14px rgba(201,144,58,0.35)",
             }}
           >
             {loading ? "Signing in..." : "Sign In"}
@@ -358,10 +325,6 @@ export default function LoginPage() {
       }}
     >
       <div className="w-full max-w-sm">
-        {/* ─────────────────────────────────────
-            Logo + Hotel Name
-            ───────────────────────────────────── */}
-
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <OpenHotelLogo size={76} />
@@ -386,10 +349,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* ─────────────────────────────────────
-            Login Form (Suspense required for useSearchParams)
-            ───────────────────────────────────── */}
-
         <Suspense
           fallback={
             <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
@@ -399,10 +358,6 @@ export default function LoginPage() {
         >
           <LoginForm />
         </Suspense>
-
-        {/* ─────────────────────────────────────
-            Footer
-            ───────────────────────────────────── */}
 
         <p
           className="text-center text-xs mt-6 opacity-40 tracking-wide"
