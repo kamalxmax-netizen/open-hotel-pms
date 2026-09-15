@@ -18,14 +18,30 @@ jobs:
 
       - name: Check migration files
         run: |
-          echo "Supabase migration files:"
+          echo "Checking Supabase migration files..."
+          if [ ! -d "supabase/migrations" ]; then
+            echo "ERROR: supabase/migrations directory not found."
+            exit 1
+          fi
+
+          COUNT=$(find supabase/migrations -maxdepth 1 -type f -name "*.sql" | wc -l)
+
+          echo "Migration files found: $COUNT"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ERROR: No SQL migration files found."
+            exit 1
+          fi
+
+          echo "First migration files:"
           find supabase/migrations -maxdepth 1 -type f -name "*.sql" | sort | head -20
 
-      - name: Install Supabase CLI beta
+      - name: Install Supabase CLI
         run: |
           npm install -g supabase@beta
+          supabase --version
 
-      - name: Link Supabase project without pooler
+      - name: Link Supabase project
         run: |
           supabase link \
             --project-ref "$SUPABASE_PROJECT_ID" \
