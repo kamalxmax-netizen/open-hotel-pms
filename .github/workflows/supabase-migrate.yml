@@ -16,10 +16,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: beta
+      - name: Check migration files
+        run: |
+          echo "Supabase migration files:"
+          find supabase/migrations -maxdepth 1 -type f -name "*.sql" | sort | head -20
+
+      - name: Install Supabase CLI beta
+        run: |
+          npm install -g supabase@beta
 
       - name: Link Supabase project without pooler
         run: |
@@ -28,6 +32,6 @@ jobs:
             --password "$SUPABASE_DB_PASSWORD" \
             --skip-pooler
 
-      - name: Push database migrations without pooler
+      - name: Push database migrations
         run: |
-          supabase db push
+          supabase db push --linked
