@@ -19,14 +19,15 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: beta
 
-      - name: Link Supabase project
+      - name: Link Supabase project without pooler
         run: |
           supabase link \
             --project-ref "$SUPABASE_PROJECT_ID" \
-            --password "$SUPABASE_DB_PASSWORD"
+            --password "$SUPABASE_DB_PASSWORD" \
+            --skip-pooler
 
-      - name: Push database migrations
+      - name: Push database migrations without pooler
         run: |
           supabase db push
