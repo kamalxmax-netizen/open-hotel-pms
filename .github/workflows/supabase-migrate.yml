@@ -34,20 +34,19 @@ jobs:
             exit 1
           fi
 
-          echo "Migration files:"
           find supabase/migrations -maxdepth 1 -type f -name "*.sql" | sort
 
-      - name: Check Supabase CLI beta
+      - name: Install Supabase CLI
         run: |
-          npx -y supabase@beta --version
+          npm install -g supabase@latest
+          supabase --version
 
-      - name: Link Supabase project without pooler
+      - name: Link Supabase project
         run: |
-          npx -y supabase@beta link \
+          supabase link \
             --project-ref "$SUPABASE_PROJECT_ID" \
-            --password "$SUPABASE_DB_PASSWORD" \
-            --skip-pooler
+            --password "$SUPABASE_DB_PASSWORD"
 
       - name: Push database migrations
         run: |
-          npx -y supabase@beta db push
+          supabase db push
