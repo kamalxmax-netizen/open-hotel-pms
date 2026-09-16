@@ -1,5 +1,3 @@
-webegin;
-
 -- Phase 65 hotfix — 2026-04-15
 -- Problem: 202604150001 backfill used exact name match
 -- `lower(trim(name)) in ('water bottle', 'water for room', 'coffee')`
@@ -38,8 +36,8 @@ begin
     v_updated;
 end $$;
 
--- Defensive sweep (belt-and-suspenders):
--- any product with category='pos' must be pos_main_only.
+-- Defensive sweep:
+-- any active product with category='pos' must be pos_main_only.
 -- This guards against a future admin accidentally classifying
 -- a POS product as amenity_direct.
 
@@ -60,5 +58,3 @@ begin
     'phase65 hotfix: repaired % POS product(s) to pos_main_only',
     v_fixed;
 end $$;
-
-commit;
