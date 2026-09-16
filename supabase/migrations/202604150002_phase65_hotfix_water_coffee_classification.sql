@@ -1,60 +1,59 @@
 -- Phase 65 hotfix — 2026-04-15
 -- Problem: 202604150001 backfill used exact name match
--- `lower(trim(name)) in ('water bottle', 'water for room', 'coffee')`
 -- Actual product names in the catalog are:
 --   - "Water Bottle For Room" (amenity, should be amenity_prepare)
 --   - "Coffee For Room"       (amenity, should be amenity_prepare)
---   - "Water Bottle For Sale" (POS, already pos_main_only via category=pos rule — untouched)
---   - "Coffee"                (POS, already pos_main_only via category=pos rule — untouched)
+--   - "Water Bottle For Sale" (POS, should remain pos_main_only)
+--   - "Coffee"                (POS, should remain pos_main_only)
 --
--- Effect: the two amenity items fell through to the default
--- `amenity_direct` and started showing in the FO Amenity Audit page
--- even though they belong to the FO Prepare flow.
---
--- This hotfix only touches rows currently mis-classified as
--- `amenity_direct`. It does not overwrite any row that an admin may
--- have fixed manually after the original backfill.
+-- This hotfix only changes active products currently classified
+-- as amenity_direct.
 
-do $$
-declare
-  v_updated int;
-begin
-  update public.products
-  set stock_tracking_mode = 'amenity_prepare',
-      updated_at = timezone('utc', now())
-  where is_active = true
-    and stock_tracking_mode = 'amenity_direct'
-    and lower(trim(name)) in (
+DO $$
+DECLARE
+  v_updated INT;
+BEGIN
+
+  UPDATE public.products
+  SET
+    stock_tracking_mode = 'amenity_prepare',
+    updated_at = timezone('utc', now())
+  WHERE is_active = true
+    AND stock_tracking_mode = 'amenity_direct'
+    AND lower(trim(name)) IN (
       'water bottle for room',
       'coffee for room'
     );
 
-  get diagnostics v_updated = row_count;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
 
-  raise notice
+  RAISE NOTICE
     'phase65 hotfix: reclassified % product row(s) from amenity_direct to amenity_prepare',
     v_updated;
-end $$;
+
+END $$;
+
 
 -- Defensive sweep:
--- any active product with category='pos' must be pos_main_only.
--- This guards against a future admin accidentally classifying
--- a POS product as amenity_direct.
+-- Active POS products must use pos_main_only.
 
-do $$
-declare
-  v_fixed int;
-begin
-  update public.products
-  set stock_tracking_mode = 'pos_main_only',
-      updated_at = timezone('utc', now())
-  where is_active = true
-    and category = 'pos'
-    and stock_tracking_mode <> 'pos_main_only';
+DO $$
+DECLARE
+  v_fixed INT;
+BEGIN
 
-  get diagnostics v_fixed = row_count;
+  UPDATE public.products
+  SET
+    stock_tracking_mode = 'pos_main_only',
+    updated_at = timezone('utc', now())
+  WHERE is_active = true
+    AND category = 'pos'
+    AND stock_tracking_mode <> 'pos_main_only';
 
-  raise notice
+  GET DIAGNOSTICS v_fixed = ROW_COUNT;
+
+  RAISE NOTICE
     'phase65 hotfix: repaired % POS product(s) to pos_main_only',
     v_fixed;
-end $$;
+
+END $$;
