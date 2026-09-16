@@ -40,4 +40,4 @@ BEGIN
   RAISE NOTICE
     'phase65 hotfix: repaired % POS product(s)',
     v_fixed;
-END $$;
+END $$
